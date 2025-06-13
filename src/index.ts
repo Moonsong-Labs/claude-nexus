@@ -242,6 +242,31 @@ app.post('/v1/messages', async (c) => {
 
     const payload = await c.req.json()
     
+    // Detect request type based on system message count
+    let systemMessageCount = 0
+    if (payload.system) {
+      if (Array.isArray(payload.system)) {
+        systemMessageCount = payload.system.length
+      } else if (typeof payload.system === 'string') {
+        systemMessageCount = 1
+      }
+    }
+    
+    // Count system messages in the messages array as well
+    if (payload.messages && Array.isArray(payload.messages)) {
+      systemMessageCount += payload.messages.filter((msg: any) => msg.role === 'system').length
+    }
+    
+    const requestType: 'query_evaluation' | 'inference' | undefined = 
+      systemMessageCount === 1 ? 'query_evaluation' : 
+      systemMessageCount > 1 ? 'inference' : 
+      undefined
+    
+    if (DEBUG && DEBUG !== 'false') {
+      debug('System message count:', systemMessageCount)
+      debug('Request type:', requestType || 'unknown')
+    }
+    
     // Debug log request body
     if (DEBUG && DEBUG !== 'false') {
       // Create a deep copy and mask sensitive data
@@ -475,14 +500,26 @@ app.post('/v1/messages', async (c) => {
       // Send telemetry asynchronously
       sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
       
+      // Count tool calls in the response
+      let toolCallCount = 0
+      if (!payload.stream && responseData && typeof responseData === 'object') {
+        const data = responseData as any
+        // Claude API: tool_use content blocks
+        if (data.content && Array.isArray(data.content)) {
+          toolCallCount = data.content.filter((item: any) => item.type === 'tool_use').length
+        }
+      }
+      
       // Track token usage
-      tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0)
+      tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0, requestType, toolCallCount)
       
       if (DEBUG && DEBUG !== 'false') {
         debug('Token tracking called with:', {
           domain: requestHost,
           inputTokens: telemetryData.inputTokens || 0,
-          outputTokens: telemetryData.outputTokens || 0
+          outputTokens: telemetryData.outputTokens || 0,
+          requestType: requestType || 'unknown',
+          toolCallCount
         })
       }
       
@@ -564,13 +601,16 @@ app.post('/v1/messages', async (c) => {
                 const inputTokens = usage.input_tokens || usage.inputTokens || usage.prompt_tokens || 0
                 const outputTokens = usage.output_tokens || usage.outputTokens || usage.completion_tokens || 0
                 
-                tokenTracker.track(requestHost, inputTokens, outputTokens)
+                // For streaming, we can't easily count tool calls without parsing all chunks
+                // So we pass 0 for tool calls in streaming mode
+                tokenTracker.track(requestHost, inputTokens, outputTokens, requestType, 0)
                 
                 if (DEBUG && DEBUG !== 'false') {
                   debug('Passthrough streaming token usage:', {
                     inputTokens,
                     outputTokens,
-                    raw_usage: usage
+                    raw_usage: usage,
+                    requestType: requestType || 'unknown'
                   })
                 }
               }
@@ -845,14 +885,22 @@ app.post('/v1/messages', async (c) => {
       
       sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
       
+      // Count tool calls in the response (translation mode)
+      let toolCallCount = 0
+      if (anthropicResponse.content && Array.isArray(anthropicResponse.content)) {
+        toolCallCount = anthropicResponse.content.filter((item: any) => item.type === 'tool_use').length
+      }
+      
       // Track token usage
-      tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0)
+      tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0, requestType, toolCallCount)
       
       if (DEBUG && DEBUG !== 'false') {
         debug('Token tracking called with:', {
           domain: requestHost,
           inputTokens: telemetryData.inputTokens || 0,
-          outputTokens: telemetryData.outputTokens || 0
+          outputTokens: telemetryData.outputTokens || 0,
+          requestType: requestType || 'unknown',
+          toolCallCount
         })
       }
       
@@ -1014,8 +1062,14 @@ app.post('/v1/messages', async (c) => {
                   
                   sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
                   
+                  // Count tool calls in streaming response
+                  let streamToolCallCount = 0
+                  if (encounteredToolCall) {
+                    streamToolCallCount = Object.keys(toolCallAccumulators).length
+                  }
+                  
                   // Track token usage
-                  tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0)
+                  tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0, requestType, streamToolCallCount)
                   
                   // Send assistant message to Slack for streaming response
                   try {
@@ -1224,7 +1278,7 @@ app.post('/v1/messages', async (c) => {
     sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
     
     // Track token usage (even for errors, count as 0 tokens)
-    tokenTracker.track(requestHost, 0, 0)
+    tokenTracker.track(requestHost, 0, 0, requestType, 0)
     
     // Send error to Slack
     try {

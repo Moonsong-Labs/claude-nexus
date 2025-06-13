@@ -223,6 +223,9 @@ DEBUG=true CLAUDE_API_KEY=your-key node test-token-tracking.js
 
 # Or with a custom proxy URL
 PROXY_URL=http://localhost:8080 DEBUG=true node test-token-tracking.js
+
+# Test request type detection and tool call counting
+DEBUG=true node test-request-types.js
 ```
 
 ## Configuration
@@ -607,6 +610,10 @@ The proxy automatically tracks token usage per domain and displays statistics ev
 
 - **Per-domain tracking**: Monitors input and output tokens for each domain
 - **Request counting**: Tracks total requests per domain
+- **Request type classification**:
+  - **Query Evaluation**: Requests with exactly 1 system message
+  - **Inference**: Requests with more than 1 system message
+- **Tool call tracking**: Counts tool use in responses
 - **Automatic reporting**: Prints statistics every 10 seconds to console
 - **API endpoint**: Access current stats via `/token-stats`
 - **Zero configuration**: Starts automatically, no setup required
@@ -615,19 +622,19 @@ The proxy automatically tracks token usage per domain and displays statistics ev
 
 ```
 Token usage tracking started (reporting every 10s)
-================================================================================
+==========================================================================================
 
-================================================================================
+==========================================================================================
 Token Usage Report - 1/13/2025, 3:45:23 PM (Uptime: 2m 15s)
-================================================================================
-Domain                        Requests   Input Tokens  Output Tokens   Total Tokens
---------------------------------------------------------------------------------
-claude-1.example.com                12          5,234          8,921         14,155
-claude-2.example.com                 8          3,456          6,789         10,245
-localhost                            3            892          1,234          2,126
---------------------------------------------------------------------------------
-TOTAL                               23          9,582         16,944         26,526
-================================================================================
+==========================================================================================
+Domain                    Reqs  Query  Infer  Tools   Input Tok   Output Tok    Total Tok
+------------------------------------------------------------------------------------------
+claude-1.example.com        12      8      4      3       5,234        8,921       14,155
+claude-2.example.com         8      5      3      0       3,456        6,789       10,245
+localhost                    3      2      1      2         892        1,234        2,126
+------------------------------------------------------------------------------------------
+TOTAL                       23     15      8      5       9,582       16,944       26,526
+==========================================================================================
 ```
 
 ### API Access
@@ -647,12 +654,18 @@ Response:
       "inputTokens": 5234,
       "outputTokens": 8921,
       "requestCount": 12,
+      "queryEvaluationCount": 8,
+      "inferenceCount": 4,
+      "toolCallCount": 3,
       "lastUpdated": 1705157123456
     },
     "claude-2.example.com": {
       "inputTokens": 3456,
       "outputTokens": 6789,
       "requestCount": 8,
+      "queryEvaluationCount": 5,
+      "inferenceCount": 3,
+      "toolCallCount": 0,
       "lastUpdated": 1705157120789
     }
   },

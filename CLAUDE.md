@@ -149,6 +149,11 @@ services:
 - Test the API translation logic, especially message normalization and tool call mapping
 - Add integration tests for both streaming and non-streaming responses
 
+### Test Scripts
+
+- **`test-token-tracking.js`**: Tests token tracking functionality
+- **`test-request-types.js`**: Tests request type detection and tool call counting
+
 ## Local Usage with Claude Code
 
 ### Development Server
@@ -189,6 +194,16 @@ docker run -d -p 3000:3000 --env-file .env ghcr.io/kiyo-e/claude-code-proxy:late
 - Requests containing "extended_reasoning" use the reasoning model
 - All other requests use the completion model
 - Models are configurable via environment variables
+
+### Request Type Detection
+- **Query Evaluation**: Requests with exactly 1 system message (in `system` field or messages array)
+- **Inference**: Requests with more than 1 system message
+- Token usage is tracked separately for each request type
+
+### Tool Call Tracking
+- Counts `tool_use` content blocks in responses
+- Tracked per domain in token statistics
+- Available in both streaming and non-streaming modes
 
 ### OAuth Credential Management (`src/credentials.ts`)
 - **OAuth format**: Uses Claude's native OAuth with access/refresh tokens

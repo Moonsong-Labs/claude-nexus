@@ -23,6 +23,7 @@ async function testNonStreaming() {
     },
     body: JSON.stringify({
       model: 'claude-3-haiku-20240307',
+      system: 'You are a helpful assistant.',
       messages: [
         {
           role: 'user',
@@ -117,6 +118,20 @@ async function checkTokenStats() {
   const response = await fetch(`${PROXY_URL}/token-stats`);
   const stats = await response.json();
   console.log('Token stats:', JSON.stringify(stats, null, 2));
+  
+  // Display summary if stats exist
+  if (stats.stats && Object.keys(stats.stats).length > 0) {
+    console.log('\nSummary:');
+    for (const [domain, data] of Object.entries(stats.stats)) {
+      console.log(`\nDomain: ${domain}`);
+      console.log(`  Total Requests: ${data.requestCount}`);
+      console.log(`  Query Evaluations: ${data.queryEvaluationCount || 0}`);
+      console.log(`  Inference Requests: ${data.inferenceCount || 0}`);
+      console.log(`  Tool Calls: ${data.toolCallCount || 0}`);
+      console.log(`  Input Tokens: ${data.inputTokens}`);
+      console.log(`  Output Tokens: ${data.outputTokens}`);
+    }
+  }
 }
 
 async function main() {
