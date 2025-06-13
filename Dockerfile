@@ -30,6 +30,9 @@ COPY --from=build /app/tsconfig.json ./
 # Copy example files
 COPY examples/credentials ./examples/credentials
 
+# Copy client-setup files
+COPY client-setup ./client-setup
+
 # Create directories for runtime
 RUN mkdir -p credentials && \
     chown -R bun:bun /app

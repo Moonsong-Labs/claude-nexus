@@ -39,6 +39,7 @@ In `src/index.ts`, when `PROXY_MODE=passthrough`:
 ### Dual Runtime Support
 - **Cloudflare Workers**: Uses Hono's built-in fetch handler (`src/index.ts`)
 - **Node.js**: Uses `@hono/node-server` adapter (`src/server.ts`)
+- **Note**: Client setup file serving (`/client-setup/*`) is only available in Node.js runtime
 
 ### Slack Integration (`src/slack.ts`)
 - **Message notifications**: Sends user and assistant messages to Slack
@@ -204,6 +205,12 @@ docker run -d -p 3000:3000 --env-file .env ghcr.io/kiyo-e/claude-code-proxy:late
 - Counts `tool_use` content blocks in responses
 - Tracked per domain in token statistics
 - Available in both streaming and non-streaming modes
+
+### Client Setup Files
+- Files in `client-setup/` directory are served via `/client-setup/:filename` endpoint
+- Only available in Node.js runtime (not Cloudflare Workers)
+- Protected against directory traversal attacks
+- Automatically included in Docker builds
 
 ### OAuth Credential Management (`src/credentials.ts`)
 - **OAuth format**: Uses Claude's native OAuth with access/refresh tokens

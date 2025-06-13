@@ -717,6 +717,25 @@ You can poll the `/token-stats` endpoint from your monitoring system to:
 - Generate usage reports
 - Implement rate limiting based on token consumption
 
+## Client Setup Files
+
+The proxy serves client configuration files from the `/client-setup` endpoint:
+
+```bash
+# Download client credentials
+curl -O http://localhost:3000/client-setup/credentials.json
+
+# Or with authentication if needed
+curl -H "Authorization: Bearer your-token" \
+     -O http://localhost:3000/client-setup/credentials.json
+```
+
+Place your client setup files in the `client-setup/` directory, and they will be:
+- Automatically included in Docker builds
+- Served with appropriate content types
+- Protected against directory traversal attacks
+- Cached for 1 hour by default
+
 ## GitHub Actions Integration
 
 Enable `@claude` mentions in issues and PRs:
@@ -798,6 +817,7 @@ curl -X POST https://claude-proxy.your-subdomain.workers.dev/v1/messages \
 
 - `GET /` - Health check and configuration status
 - `GET /token-stats` - Current token usage statistics per domain
+- `GET /client-setup/:filename` - Download client setup files
 - `POST /v1/messages` - Claude API proxy endpoint with OpenAI compatibility
 
 ## Architecture
@@ -808,6 +828,7 @@ The proxy handles:
 - **Schema Transformation**: Removes `format: 'uri'` constraints for compatibility
 - **Streaming**: SSE support for real-time responses
 - **Model Selection**: Dynamic routing based on request characteristics
+- **Static File Serving**: Serves client configuration files from `/client-setup` endpoint
 
 ## Supported Providers
 

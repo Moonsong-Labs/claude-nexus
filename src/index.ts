@@ -3,6 +3,20 @@ import { env } from 'hono/adapter'
 import { parseDomainCredentialMapping, getApiKey, getMaskedCredentialInfo, validateCredentialMapping, getAuthorizationHeaderForDomain } from './credentials'
 import { initializeSlack, parseSlackConfig, sendToSlack, sendErrorToSlack } from './slack'
 import { tokenTracker } from './tokenTracker'
+// File system imports - only available in Node.js, not Cloudflare Workers
+let readFileSync: any, existsSync: any, join: any, dirname: any, fileURLToPath: any
+try {
+  const fs = await import('fs')
+  const path = await import('path')
+  const url = await import('url')
+  readFileSync = fs.readFileSync
+  existsSync = fs.existsSync
+  join = path.join
+  dirname = path.dirname
+  fileURLToPath = url.fileURLToPath
+} catch {
+  // Not available in Cloudflare Workers
+}
 
 // Note: Token tracking periodic reporting only works in Node.js mode
 // Cloudflare Workers doesn't support setInterval for background tasks
@@ -110,6 +124,78 @@ app.get('/token-stats', async (c) => {
     stats,
     timestamp: new Date().toISOString()
   })
+})
+
+// Client setup files endpoint (only available in Node.js environment)
+app.get('/client-setup/:filename', async (c) => {
+  // Check if file system operations are available
+  if (!readFileSync || !existsSync) {
+    return c.text('Client setup files are not available in this environment', 501)
+  }
+  
+  const filename = c.req.param('filename')
+  
+  // Security: prevent directory traversal
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return c.text('Invalid filename', 400)
+  }
+  
+  try {
+    // Determine the base directory
+    let basePath: string
+    
+    // Check if we're running in a compiled context or development
+    if (typeof __dirname !== 'undefined') {
+      // CommonJS context
+      basePath = __dirname
+    } else {
+      // ES Module context
+      try {
+        const __filename = fileURLToPath(import.meta.url)
+        basePath = dirname(__filename)
+      } catch {
+        // Fallback for environments without import.meta.url
+        basePath = process.cwd()
+      }
+    }
+    
+    // Try multiple possible locations for the client-setup directory
+    const possiblePaths = [
+      join(basePath, '..', 'client-setup', filename),  // Development: src/../client-setup
+      join(basePath, 'client-setup', filename),        // Compiled: dist/client-setup
+      join(process.cwd(), 'client-setup', filename),   // Working directory
+      join('/app', 'client-setup', filename),          // Docker container
+    ]
+    
+    for (const filePath of possiblePaths) {
+      if (existsSync(filePath)) {
+        const content = readFileSync(filePath, 'utf-8')
+        
+        // Set appropriate content type
+        let contentType = 'application/octet-stream'
+        if (filename.endsWith('.json')) {
+          contentType = 'application/json'
+        } else if (filename.endsWith('.txt')) {
+          contentType = 'text/plain'
+        } else if (filename.endsWith('.sh')) {
+          contentType = 'text/x-shellscript'
+        } else if (filename.endsWith('.ps1')) {
+          contentType = 'text/x-powershell'
+        }
+        
+        return c.text(content, 200, {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=3600',
+          'Content-Disposition': `attachment; filename="${filename}"`
+        })
+      }
+    }
+    
+    return c.text('File not found', 404)
+  } catch (error) {
+    console.error('Error serving client-setup file:', error)
+    return c.text('Internal server error', 500)
+  }
 })
 
 app.post('/v1/messages', async (c) => {
