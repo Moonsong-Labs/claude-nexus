@@ -370,10 +370,10 @@ curl -X POST http://localhost:3000/v1/messages \
   -d '{"model": "claude-3-opus-20240229", "messages": [...]}'
 ```
 
-**Note**: When an Authorization header is provided in the request:
-- The proxy preserves the header format (Bearer token)
-- For OAuth tokens, it automatically adds the `anthropic-beta` header
-- This overrides any domain-based credential mapping
+**Note**: Domain-based credential mapping takes priority:
+- If a domain has a configured credential, it will be used regardless of any Authorization header in the request
+- Authorization headers from requests are only used when no domain mapping exists
+- For OAuth tokens, the proxy automatically adds the `anthropic-beta` header
 ```
 
 ### Telemetry Data
@@ -482,11 +482,10 @@ The proxy validates all credential files at startup. If any files are missing or
 #### API Key Selection Priority
 
 In passthrough mode, the proxy selects credentials in this order:
-1. **Authorization header** from the request (highest priority - preserves Bearer format)
-2. **Domain credential mapping** if the hostname matches (with OAuth refresh)
-3. **First available credential** from mapping if no host match (with warning)
-4. **CLAUDE_API_KEY** environment variable (uses x-api-key format)
-5. **CLAUDE_CODE_PROXY_API_KEY** as fallback (uses x-api-key format)
+1. **Domain credential mapping** if the hostname matches (highest priority - with OAuth refresh)
+2. **Authorization header** from the request (preserves Bearer format)
+3. **CLAUDE_API_KEY** environment variable (uses x-api-key format)
+4. **CLAUDE_CODE_PROXY_API_KEY** as fallback (uses x-api-key format)
 
 **Note**: When no host mapping is found but credential files exist, the proxy will:
 - Print a warning: `Warning: No credential mapping found for host 'example.com'`

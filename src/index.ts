@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { env } from 'hono/adapter'
-import { parseDomainCredentialMapping, getApiKey, getMaskedCredentialInfo, validateCredentialMapping, getFirstAvailableCredential, getAuthorizationHeaderForDomain } from './credentials'
+import { parseDomainCredentialMapping, getApiKey, getMaskedCredentialInfo, validateCredentialMapping, getAuthorizationHeaderForDomain } from './credentials'
 import { initializeSlack, parseSlackConfig, sendToSlack, sendErrorToSlack } from './slack'
 import { tokenTracker } from './tokenTracker'
 
@@ -145,31 +145,25 @@ app.post('/v1/messages', async (c) => {
       baseUrl = 'https://api.anthropic.com'
       
       // API key selection priority:
-      // 1. Request API key from Authorization header
-      // 2. Domain-based credential mapping (if hostname matches)
+      // 1. Domain-based credential mapping (if hostname matches)
+      // 2. Request API key from Authorization header
       // 3. Default Claude API key
       // 4. Proxy API key (fallback)
       
-      if (requestApiKey) {
-        key = requestApiKey
-      } else if (domainMapping[requestHost]) {
+      if (domainMapping[requestHost]) {
         // Load credential from file and get API key (handles OAuth refresh)
         key = await getApiKey(domainMapping[requestHost], DEBUG === 'true')
         if (DEBUG && DEBUG !== 'false') {
           debug(`Domain credential matched: ${requestHost} -> ${getMaskedCredentialInfo(domainMapping[requestHost])}`)
         }
-      } else if (Object.keys(domainMapping).length > 0) {
-        // No mapping for this host, use first available credential
-        console.warn(`Warning: No credential mapping found for host '${requestHost}', using first available credential`)
-        const firstCred = await getFirstAvailableCredential(domainMapping, DEBUG === 'true')
-        if (firstCred) {
-          key = firstCred.apiKey
-          console.warn(`Using credential from domain '${firstCred.domain}'`)
-        } else {
-          console.error('Error: No valid credentials found in domain mapping')
-          key = CLAUDE_API_KEY || CLAUDE_CODE_PROXY_API_KEY || null
+      } else if (requestApiKey) {
+        // Use API key from request header if no domain mapping found
+        key = requestApiKey
+        if (DEBUG && DEBUG !== 'false') {
+          debug(`Using API key from Authorization header (no domain mapping for ${requestHost})`)
         }
       } else {
+        // No mapping and no request API key, use default API keys
         key = CLAUDE_API_KEY || CLAUDE_CODE_PROXY_API_KEY || null
       }
     } else {
@@ -339,48 +333,34 @@ app.post('/v1/messages', async (c) => {
       delete headers['Authorization']
       
       // Handle credential-based authentication
-      if (key || hasAuthorizationHeader) {
-        // If request came with Authorization header, preserve that format
-        if (hasAuthorizationHeader && authHeader) {
+      if (key) {
+        // Determine format from credential source
+        let credentialPath = domainMapping[requestHost] || null
+        
+        if (credentialPath) {
+          // Domain-based credential found, use its format
+          const authHeaders = await getAuthorizationHeaderForDomain({ [requestHost]: credentialPath }, requestHost, DEBUG === 'true')
+          if (authHeaders) {
+            // Apply all headers from getAuthorizationHeaderForDomain
+            Object.assign(headers, authHeaders)
+            // Remove x-api-key if we're using OAuth (Authorization header)
+            if (authHeaders['Authorization']) {
+              delete headers['x-api-key']
+            }
+          } else {
+            // Fallback to x-api-key
+            headers['x-api-key'] = key
+          }
+        } else if (hasAuthorizationHeader && authHeader && key === requestApiKey) {
+          // Key came from request Authorization header, preserve its format
           headers['Authorization'] = authHeader
           // Add beta header if it looks like an OAuth token
           if (authHeader.startsWith('Bearer ')) {
             headers['anthropic-beta'] = 'oauth-2025-04-20'
           }
-        } else if (key) {
-          // No authorization header in request, determine format from credential source
-          let credentialPath = null
-          
-          if (domainMapping[requestHost]) {
-            credentialPath = domainMapping[requestHost]
-          } else if (Object.keys(domainMapping).length > 0 && !domainMapping[requestHost]) {
-            // Using first available credential - need to find which one was actually used
-            for (const [domain, path] of Object.entries(domainMapping)) {
-              const testKey = await getApiKey(path, false)
-              if (testKey === key) {
-                credentialPath = path
-                break
-              }
-            }
-          }
-          
-          if (credentialPath) {
-            const authHeaders = await getAuthorizationHeaderForDomain({ [requestHost]: credentialPath }, requestHost, DEBUG === 'true')
-            if (authHeaders) {
-              // Apply all headers from getAuthorizationHeaderForDomain
-              Object.assign(headers, authHeaders)
-              // Remove x-api-key if we're using OAuth (Authorization header)
-              if (authHeaders['Authorization']) {
-                delete headers['x-api-key']
-              }
-            } else {
-              // Fallback to x-api-key
-              headers['x-api-key'] = key
-            }
-          } else {
-            // Direct API key (from request header or env vars)
-            headers['x-api-key'] = key
-          }
+        } else {
+          // Direct API key from env vars
+          headers['x-api-key'] = key
         }
       }
       
