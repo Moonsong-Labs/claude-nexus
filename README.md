@@ -57,11 +57,8 @@ docker run -d -p 3000:3000 \
 ### Docker Compose
 
 ```bash
-# Production mode
+# Start the service
 docker compose up -d
-
-# Development mode with hot reload
-docker compose -f compose.dev.yml up
 
 # Build and run
 docker compose up -d --build
