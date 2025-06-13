@@ -1,10 +1,10 @@
 {
-  "name": "@kiyo-e/claude-code-proxy",
-  "version": "0.1.4",
+  "name": "claude-nexus-proxy",
+  "version": "0.2.0",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kiyo-e/claude-code-proxy.git"
+    "url": "https://github.com/moonsong-labs/claude-nexus-proxy.git"
   },
   "bin": "./bin",
   "files": [
@@ -31,6 +31,9 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.3",
+    "@slack/webhook": "^7.0.5",
+    "axios": "^1.7.2",
+    "dotenv": "^16.5.0",
     "hono": "^4.7.11"
   }
 }

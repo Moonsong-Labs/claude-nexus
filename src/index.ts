@@ -1,5 +1,12 @@
 import { Hono } from 'hono'
 import { env } from 'hono/adapter'
+import { parseDomainCredentialMapping, getApiKey, getMaskedCredentialInfo, validateCredentialMapping, getFirstAvailableCredential, getAuthorizationHeaderForDomain } from './credentials'
+import { initializeSlack, parseSlackConfig, sendToSlack, sendErrorToSlack } from './slack'
+import { tokenTracker } from './tokenTracker'
+
+// Note: Token tracking periodic reporting only works in Node.js mode
+// Cloudflare Workers doesn't support setInterval for background tasks
+// Use the /token-stats endpoint to get current statistics in Workers mode
 
 const app = new Hono<{
   Bindings: {
@@ -10,36 +17,166 @@ const app = new Hono<{
     REASONING_MAX_TOKENS?: string
     COMPLETION_MAX_TOKENS?: string
     DEBUG?: string
+    PROXY_MODE?: string // 'translation' | 'passthrough'
+    CLAUDE_API_KEY?: string // For passthrough mode
+    TELEMETRY_ENDPOINT?: string
+    DOMAIN_CREDENTIAL_MAPPING?: string // JSON mapping of domains to credential files
+    SLACK_WEBHOOK_URL?: string
+    SLACK_CHANNEL?: string
+    SLACK_USERNAME?: string
+    SLACK_ICON_EMOJI?: string
+    SLACK_ENABLED?: string
   }
 }>()
 
 
 const defaultModel = 'openai/gpt-4.1'
 
+// Telemetry data structure
+interface TelemetryData {
+  timestamp: string
+  requestId: string
+  method: string
+  path: string
+  apiKey?: string // Masked API key for identification
+  model?: string
+  inputTokens?: number
+  outputTokens?: number
+  duration?: number
+  status: number
+  error?: string
+}
+
+// Helper to mask API key for telemetry
+function maskApiKey(key: string): string {
+  if (!key || key.length < 8) return 'unknown'
+  if (key.length <= 10) return key
+  return `...${key.slice(-10)}`
+}
+
+// Send telemetry data
+async function sendTelemetry(telemetryEndpoint: string | undefined, data: TelemetryData) {
+  if (!telemetryEndpoint) return
+  
+  try {
+    await fetch(telemetryEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+  } catch (err) {
+    console.error('Failed to send telemetry:', err)
+  }
+}
+
+
 // Health check endpoint
-app.get('/', (c) => {
-  const { ANTHROPIC_PROXY_BASE_URL, REASONING_MODEL, COMPLETION_MODEL, REASONING_MAX_TOKENS, COMPLETION_MAX_TOKENS} = env(c)
+app.get('/', async (c) => {
+  const { ANTHROPIC_PROXY_BASE_URL, REASONING_MODEL, COMPLETION_MODEL, REASONING_MAX_TOKENS, COMPLETION_MAX_TOKENS, PROXY_MODE, DOMAIN_CREDENTIAL_MAPPING} = env(c)
+
+  const domainMapping = parseDomainCredentialMapping(DOMAIN_CREDENTIAL_MAPPING)
+  
+  // Validate credential files
+  const validationErrors = validateCredentialMapping(domainMapping)
+  
+  const maskedDomainMapping = Object.fromEntries(
+    Object.entries(domainMapping).map(([domain, credPath]) => [
+      domain,
+      getMaskedCredentialInfo(credPath)
+    ])
+  )
 
   return c.json({
-    status: 'ok',
+    status: validationErrors.length === 0 ? 'ok' : 'warning',
     message: 'Claude Code Proxy is running',
     config: {
       ANTHROPIC_PROXY_BASE_URL,
       REASONING_MODEL,
       COMPLETION_MODEL,
       REASONING_MAX_TOKENS,
-      COMPLETION_MAX_TOKENS
-    }
+      COMPLETION_MAX_TOKENS,
+      PROXY_MODE: PROXY_MODE || 'translation',
+      DOMAIN_MAPPINGS: Object.keys(domainMapping).length > 0 ? maskedDomainMapping : undefined
+    },
+    validation: validationErrors.length > 0 ? { errors: validationErrors } : undefined
+  })
+})
+
+// Token statistics endpoint
+app.get('/token-stats', async (c) => {
+  const stats = tokenTracker.getStats()
+  return c.json({
+    status: 'ok',
+    stats,
+    timestamp: new Date().toISOString()
   })
 })
 
 app.post('/v1/messages', async (c) => {
   // Get environment variables from context
-  const { CLAUDE_CODE_PROXY_API_KEY, ANTHROPIC_PROXY_BASE_URL, REASONING_MODEL, COMPLETION_MODEL, REASONING_MAX_TOKENS, COMPLETION_MAX_TOKENS, DEBUG } = env(c)
-
+  const { CLAUDE_CODE_PROXY_API_KEY, ANTHROPIC_PROXY_BASE_URL, REASONING_MODEL, COMPLETION_MODEL, REASONING_MAX_TOKENS, COMPLETION_MAX_TOKENS, DEBUG, PROXY_MODE, CLAUDE_API_KEY, TELEMETRY_ENDPOINT, DOMAIN_CREDENTIAL_MAPPING, SLACK_WEBHOOK_URL, SLACK_CHANNEL, SLACK_USERNAME, SLACK_ICON_EMOJI, SLACK_ENABLED } = env(c)
+  
+  // Initialize Slack if configured
+  const slackConfig = parseSlackConfig({ SLACK_WEBHOOK_URL, SLACK_CHANNEL, SLACK_USERNAME, SLACK_ICON_EMOJI, SLACK_ENABLED })
+  initializeSlack(slackConfig)
+  
+  const startTime = Date.now()
+  const requestId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2)
+  const mode = PROXY_MODE || 'translation'
+  
+  // Support API key override from request headers
+  const authHeader = c.req.header('Authorization')
+  const requestApiKey = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+  const hasAuthorizationHeader = !!authHeader
+  
+  // Get the request hostname for domain-based mapping
+  const requestHost = c.req.header('Host') || new URL(c.req.url).hostname
+  
+  // Parse domain credential mapping
+  const domainMapping = parseDomainCredentialMapping(DOMAIN_CREDENTIAL_MAPPING)
+  
   try {
-    const baseUrl = ANTHROPIC_PROXY_BASE_URL || 'https://models.github.ai/inference'
-    const key = CLAUDE_CODE_PROXY_API_KEY || null
+    // Determine base URL and API key based on mode
+    let baseUrl: string
+    let key: string | null
+    
+    if (mode === 'passthrough') {
+      // In passthrough mode, forward to Claude API
+      baseUrl = 'https://api.anthropic.com'
+      
+      // API key selection priority:
+      // 1. Request API key from Authorization header
+      // 2. Domain-based credential mapping (if hostname matches)
+      // 3. Default Claude API key
+      // 4. Proxy API key (fallback)
+      
+      if (requestApiKey) {
+        key = requestApiKey
+      } else if (domainMapping[requestHost]) {
+        // Load credential from file and get API key (handles OAuth refresh)
+        key = await getApiKey(domainMapping[requestHost], DEBUG === 'true')
+        if (DEBUG && DEBUG !== 'false') {
+          debug(`Domain credential matched: ${requestHost} -> ${getMaskedCredentialInfo(domainMapping[requestHost])}`)
+        }
+      } else if (Object.keys(domainMapping).length > 0) {
+        // No mapping for this host, use first available credential
+        console.warn(`Warning: No credential mapping found for host '${requestHost}', using first available credential`)
+        const firstCred = await getFirstAvailableCredential(domainMapping, DEBUG === 'true')
+        if (firstCred) {
+          key = firstCred.apiKey
+          console.warn(`Using credential from domain '${firstCred.domain}'`)
+        } else {
+          console.error('Error: No valid credentials found in domain mapping')
+          key = CLAUDE_API_KEY || CLAUDE_CODE_PROXY_API_KEY || null
+        }
+      } else {
+        key = CLAUDE_API_KEY || CLAUDE_CODE_PROXY_API_KEY || null
+      }
+    } else {
+      // Translation mode (existing behavior)
+      baseUrl = ANTHROPIC_PROXY_BASE_URL || 'https://models.github.ai/inference'
+      key = CLAUDE_CODE_PROXY_API_KEY || null
+    }
     const models = {
       reasoning: REASONING_MODEL || defaultModel,
       completion: COMPLETION_MODEL || defaultModel,
@@ -51,10 +188,412 @@ app.post('/v1/messages', async (c) => {
     }
 
     function maskBearer(value: string): string {
-      return value.replace(/Bearer\s+(\S+)/g, 'Bearer ********')
+      return value.replace(/Bearer\s+(\S+)/g, (_match, token) => {
+        if (token.length <= 10) {
+          // If the token is 10 characters or less, reveal all of it
+          return `Bearer ${token}`;
+        }
+        // Otherwise, reveal "..." followed by the last 10 characters
+        return `Bearer ...${token.slice(-10)}`;
+      });
+    }
+    
+    function maskApiKey(value: string): string {
+      // Mask API keys in various formats
+      return value
+        .replace(/sk-ant-[a-zA-Z0-9-]+/g, (match) => {
+          if (match.length <= 10) {
+            return match;
+          }
+          return `sk-ant-...${match.slice(-10)}`;
+        })
+        .replace(/Bearer\s+(\S+)/g, (_match, token) => {
+          if (token.length <= 10) {
+            return `Bearer ${token}`;
+          }
+          return `Bearer ...${token.slice(-10)}`;
+        })
+        .replace(/(x-api-key:\s*)([^\s,}]+)/gi, (match, prefix, key) => {
+          if (key.length <= 10) {
+            return `${prefix}${key}`;
+          }
+          return `${prefix}...${key.slice(-10)}`;
+        })
+    }
+    
+    // Debug log incoming request headers
+    if (DEBUG && DEBUG !== 'false') {
+      const headers: Record<string, string> = {}
+      c.req.raw.headers.forEach((value, key) => {
+        // Mask sensitive headers
+        if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'x-api-key') {
+          headers[key] = maskBearer(value)
+        } else {
+          headers[key] = value
+        }
+      })
+      debug('=== Incoming Request ===')
+      debug('Request ID:', requestId)
+      debug('Method:', c.req.method)
+      debug('URL:', c.req.url)
+      debug('Host:', requestHost)
+      debug('Headers:', headers)
     }
 
     const payload = await c.req.json()
+    
+    // Debug log request body
+    if (DEBUG && DEBUG !== 'false') {
+      // Create a deep copy and mask sensitive data
+      const maskedPayload = JSON.parse(JSON.stringify(payload))
+      
+      // Mask API keys that might be in the payload
+      const maskPayloadRecursive = (obj: any): any => {
+        if (typeof obj === 'string') {
+          return maskApiKey(obj)
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(maskPayloadRecursive)
+        }
+        if (obj && typeof obj === 'object') {
+          const masked: any = {}
+          for (const key in obj) {
+            // Mask sensitive fields
+            if (key.toLowerCase().includes('key') || key.toLowerCase().includes('token')) {
+              masked[key] = '****'
+            } else {
+              masked[key] = maskPayloadRecursive(obj[key])
+            }
+          }
+          return masked
+        }
+        return obj
+      }
+      
+      debug('Request Body:', JSON.stringify(maskPayloadRecursive(maskedPayload), null, 2))
+      debug('======================')
+    }
+    
+    // Send user message to Slack
+    try {
+      const userMessage = payload.messages?.find((msg: any) => msg.role === 'user')
+      if (userMessage) {
+        await sendToSlack({
+          requestId,
+          domain: requestHost,
+          model: payload.model,
+          role: 'user',
+          content: userMessage.content,
+          timestamp: new Date().toISOString(),
+          apiKey: maskApiKey(requestApiKey || (mode === 'passthrough' ? CLAUDE_API_KEY! : CLAUDE_CODE_PROXY_API_KEY!) || 'unknown')
+        })
+      }
+    } catch (slackError) {
+      console.error('Failed to send user message to Slack:', slackError)
+    }
+    
+    // If in passthrough mode, forward request directly to Claude
+    if (mode === 'passthrough') {
+      // Start with all original request headers
+      const headers: Record<string, string> = {}
+      
+      // Copy all headers from the original request
+      c.req.raw.headers.forEach((value, key) => {
+        // Skip host header as it will be set by fetch
+        if (key.toLowerCase() !== 'host') {
+          headers[key] = value
+        }
+      })
+      
+      // Override/set required headers for Claude API
+      headers['Content-Type'] = 'application/json'
+      headers['anthropic-version'] = '2023-06-01'
+      
+      // Remove authorization header if present (we'll set it properly based on credential type)
+      delete headers['authorization']
+      delete headers['Authorization']
+      
+      // Handle credential-based authentication
+      if (key || hasAuthorizationHeader) {
+        // If request came with Authorization header, preserve that format
+        if (hasAuthorizationHeader && authHeader) {
+          headers['Authorization'] = authHeader
+          // Add beta header if it looks like an OAuth token
+          if (authHeader.startsWith('Bearer ')) {
+            headers['anthropic-beta'] = 'oauth-2025-04-20'
+          }
+        } else if (key) {
+          // No authorization header in request, determine format from credential source
+          let credentialPath = null
+          
+          if (domainMapping[requestHost]) {
+            credentialPath = domainMapping[requestHost]
+          } else if (Object.keys(domainMapping).length > 0 && !domainMapping[requestHost]) {
+            // Using first available credential - need to find which one was actually used
+            for (const [domain, path] of Object.entries(domainMapping)) {
+              const testKey = await getApiKey(path, false)
+              if (testKey === key) {
+                credentialPath = path
+                break
+              }
+            }
+          }
+          
+          if (credentialPath) {
+            const authHeaders = await getAuthorizationHeaderForDomain({ [requestHost]: credentialPath }, requestHost, DEBUG === 'true')
+            if (authHeaders) {
+              // Apply all headers from getAuthorizationHeaderForDomain
+              Object.assign(headers, authHeaders)
+              // Remove x-api-key if we're using OAuth (Authorization header)
+              if (authHeaders['Authorization']) {
+                delete headers['x-api-key']
+              }
+            } else {
+              // Fallback to x-api-key
+              headers['x-api-key'] = key
+            }
+          } else {
+            // Direct API key (from request header or env vars)
+            headers['x-api-key'] = key
+          }
+        }
+      }
+      
+      debug('Passthrough mode - forwarding to Claude API')
+      debug('URL:', `${baseUrl}/v1/messages`)
+      
+      // Debug log headers being sent
+      if (DEBUG && DEBUG !== 'false') {
+        const authType = headers['Authorization'] ? 'OAuth' : headers['x-api-key'] ? 'API Key' : 'None'
+        debug('Authentication type:', authType)
+        
+        const maskedHeaders = Object.fromEntries(
+          Object.entries(headers).map(([k, v]) => [
+            k,
+            k.toLowerCase() === 'x-api-key' ? maskApiKey(v) : 
+            k.toLowerCase() === 'authorization' ? maskBearer(v) : v
+          ])
+        )
+        debug('Forwarding headers:', maskedHeaders)
+      }
+      
+      const claudeResponse = await fetch(`${baseUrl}/v1/messages`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      })
+      
+      // Debug log response
+      if (DEBUG && DEBUG !== 'false') {
+        debug('=== Claude API Response ===')
+        debug('Status:', claudeResponse.status)
+        debug('Status Text:', claudeResponse.statusText)
+        const responseHeaders: Record<string, string> = {}
+        claudeResponse.headers.forEach((value, key) => {
+          responseHeaders[key] = value
+        })
+        debug('Response Headers:', responseHeaders)
+      }
+      
+      const responseData = payload.stream 
+        ? claudeResponse.body 
+        : await claudeResponse.json()
+      
+      // Debug log response body (non-streaming only)
+      if (DEBUG && DEBUG !== 'false' && !payload.stream) {
+        // Mask sensitive data in response
+        const maskedResponse = JSON.parse(JSON.stringify(responseData))
+        if (maskedResponse.content) {
+          // Truncate very long content
+          maskedResponse.content = Array.isArray(maskedResponse.content) 
+            ? maskedResponse.content.map((item: any) => {
+                if (item.text && item.text.length > 500) {
+                  return { ...item, text: item.text.substring(0, 500) + '... (truncated)' }
+                }
+                return item
+              })
+            : maskedResponse.content
+        }
+        debug('Response Body:', JSON.stringify(maskedResponse, null, 2))
+        debug('Response has usage?', 'usage' in maskedResponse)
+        if ('usage' in maskedResponse) {
+          debug('Usage object keys:', Object.keys(maskedResponse.usage || {}))
+        }
+        debug('=========================')
+      }
+      
+      // Collect telemetry
+      const telemetryData: TelemetryData = {
+        timestamp: new Date().toISOString(),
+        requestId,
+        method: 'POST',
+        path: '/v1/messages',
+        apiKey: key ? maskApiKey(key) : undefined,
+        model: payload.model,
+        status: claudeResponse.status,
+        duration: Date.now() - startTime
+      }
+      
+      // Extract token usage if available
+      // Claude API returns usage at the message level, not top level
+      if (!payload.stream && responseData && typeof responseData === 'object') {
+        const data = responseData as any
+        
+        // Debug the entire response structure to find usage
+        if (DEBUG && DEBUG !== 'false') {
+          debug('Looking for usage in response...')
+          debug('Response type:', data.type)
+          debug('Has top-level usage?', 'usage' in data)
+          if (data.usage) {
+            debug('Top-level usage:', JSON.stringify(data.usage, null, 2))
+          }
+        }
+        
+        // Claude API returns usage at message level for messages endpoint
+        let usage = data.usage
+        
+        // Claude API might use different field names than expected
+        // Check for both snake_case and camelCase variants
+        if (usage) {
+          telemetryData.inputTokens = usage.input_tokens || usage.inputTokens || usage.prompt_tokens || 0
+          telemetryData.outputTokens = usage.output_tokens || usage.outputTokens || usage.completion_tokens || 0
+          
+          if (DEBUG && DEBUG !== 'false') {
+            debug('Token usage extracted:', {
+              input_tokens: telemetryData.inputTokens,
+              output_tokens: telemetryData.outputTokens,
+              raw_usage: usage
+            })
+          }
+        } else {
+          if (DEBUG && DEBUG !== 'false') {
+            debug('No usage data found in response')
+          }
+        }
+      }
+      
+      // Send telemetry asynchronously
+      sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
+      
+      // Track token usage
+      tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0)
+      
+      if (DEBUG && DEBUG !== 'false') {
+        debug('Token tracking called with:', {
+          domain: requestHost,
+          inputTokens: telemetryData.inputTokens || 0,
+          outputTokens: telemetryData.outputTokens || 0
+        })
+      }
+      
+      // Send assistant message to Slack (non-streaming only)
+      if (!payload.stream && responseData && typeof responseData === 'object' && 'content' in responseData) {
+        try {
+          const data = responseData as any
+          const assistantContent = data.content?.map((item: any) => {
+            if (item.type === 'text') return item.text
+            if (item.type === 'tool_use') return `🔧 Tool: ${item.name}`
+            return ''
+          }).join('\n') || ''
+          
+          if (assistantContent) {
+            await sendToSlack({
+              requestId,
+              domain: requestHost,
+              model: data.model || payload.model,
+              role: 'assistant',
+              content: assistantContent,
+              timestamp: new Date().toISOString(),
+              apiKey: maskApiKey(key || 'unknown'),
+              inputTokens: data.usage?.input_tokens || data.usage?.inputTokens || data.usage?.prompt_tokens,
+              outputTokens: data.usage?.output_tokens || data.usage?.outputTokens || data.usage?.completion_tokens
+            })
+          }
+        } catch (slackError) {
+          console.error('Failed to send assistant message to Slack:', slackError)
+        }
+      }
+      
+      // Return the response
+      if (payload.stream) {
+        // For streaming in passthrough mode, we need to parse the stream to extract usage
+        const reader = (responseData as ReadableStream).getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let usage: any = null
+        
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                
+                // Pass through the chunk
+                controller.enqueue(value)
+                
+                // Also parse it to extract usage
+                const chunk = decoder.decode(value, { stream: true })
+                buffer += chunk
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || ''
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const data = line.slice(6)
+                    if (data && data !== '[DONE]') {
+                      try {
+                        const parsed = JSON.parse(data)
+                        if (parsed.usage) {
+                          usage = parsed.usage
+                          if (DEBUG && DEBUG !== 'false') {
+                            debug('Streaming usage found:', JSON.stringify(usage, null, 2))
+                          }
+                        }
+                      } catch (e) {
+                        // Ignore parse errors
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Track token usage if we found it
+              if (usage) {
+                // Claude API might use different field names
+                const inputTokens = usage.input_tokens || usage.inputTokens || usage.prompt_tokens || 0
+                const outputTokens = usage.output_tokens || usage.outputTokens || usage.completion_tokens || 0
+                
+                tokenTracker.track(requestHost, inputTokens, outputTokens)
+                
+                if (DEBUG && DEBUG !== 'false') {
+                  debug('Passthrough streaming token usage:', {
+                    inputTokens,
+                    outputTokens,
+                    raw_usage: usage
+                  })
+                }
+              }
+              
+              controller.close()
+            } catch (err) {
+              controller.error(err)
+            }
+          }
+        })
+        
+        return new Response(stream, {
+          status: claudeResponse.status,
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+          }
+        })
+      } else {
+        return c.json(responseData as any, claudeResponse.status as any)
+      }
+    }
 
     // Helper to normalize a message's content
     const normalizeContent = (content: any): string | null => {
@@ -188,7 +727,11 @@ app.post('/v1/messages', async (c) => {
     }
     if (tools.length > 0) openaiPayload.tools = tools
     
-    debug('OpenAI payload:', openaiPayload)
+    // Debug log translation mode details
+    if (DEBUG && DEBUG !== 'false') {
+      debug('=== Translation Mode ===')
+      debug('OpenAI Payload:', JSON.stringify(openaiPayload, null, 2))
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
@@ -214,6 +757,18 @@ app.post('/v1/messages', async (c) => {
       body: JSON.stringify(openaiPayload)
     })
 
+    // Debug log OpenAI response
+    if (DEBUG && DEBUG !== 'false') {
+      debug('=== OpenAI API Response ===')
+      debug('Status:', openaiResponse.status)
+      debug('Status Text:', openaiResponse.statusText)
+      const responseHeaders: Record<string, string> = {}
+      openaiResponse.headers.forEach((value, key) => {
+        responseHeaders[key] = value
+      })
+      debug('Response Headers:', responseHeaders)
+    }
+
     if (!openaiResponse.ok) {
       const errorDetails = await openaiResponse.text()
       console.error(`OpenAI API error (${openaiResponse.status}):`, errorDetails)
@@ -224,7 +779,11 @@ app.post('/v1/messages', async (c) => {
     // If stream is not enabled, process the complete response
     if (!openaiPayload.stream) {
       const data: any = await openaiResponse.json()
-      debug('OpenAI response:', data)
+      
+      // Debug log response body
+      if (DEBUG && DEBUG !== 'false') {
+        debug('OpenAI Response Body:', JSON.stringify(data, null, 2))
+      }
       if (data.error) {
         throw new Error(data.error.message)
       }
@@ -270,6 +829,65 @@ app.post('/v1/messages', async (c) => {
         }
       }
 
+      // Collect telemetry for translation mode
+      const telemetryData: TelemetryData = {
+        timestamp: new Date().toISOString(),
+        requestId,
+        method: 'POST',
+        path: '/v1/messages',
+        apiKey: key ? maskApiKey(key) : undefined,
+        model: openaiPayload.model,
+        inputTokens: anthropicResponse.usage.input_tokens,
+        outputTokens: anthropicResponse.usage.output_tokens,
+        status: 200,
+        duration: Date.now() - startTime
+      }
+      
+      sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
+      
+      // Track token usage
+      tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0)
+      
+      if (DEBUG && DEBUG !== 'false') {
+        debug('Token tracking called with:', {
+          domain: requestHost,
+          inputTokens: telemetryData.inputTokens || 0,
+          outputTokens: telemetryData.outputTokens || 0
+        })
+      }
+      
+      // Send assistant message to Slack
+      try {
+        const assistantContent = anthropicResponse.content.map((item: any) => {
+          if (item.type === 'text') return item.text
+          if (item.type === 'tool_use') return `🔧 Tool: ${item.name}`
+          return ''
+        }).join('\n')
+        
+        if (assistantContent) {
+          await sendToSlack({
+            requestId,
+            domain: requestHost,
+            model: anthropicResponse.model,
+            role: 'assistant',
+            content: assistantContent,
+            timestamp: new Date().toISOString(),
+            apiKey: maskApiKey(key || 'unknown'),
+            inputTokens: anthropicResponse.usage.input_tokens,
+            outputTokens: anthropicResponse.usage.output_tokens
+          })
+        }
+      } catch (slackError) {
+        console.error('Failed to send assistant message to Slack:', slackError)
+      }
+      
+      // Debug log final response
+      if (DEBUG && DEBUG !== 'false') {
+        debug('=== Final Anthropic Response ===')
+        debug('Response:', JSON.stringify(anthropicResponse, null, 2))
+        debug('================================')
+      }
+      
       return c.json(anthropicResponse)
     }
 
@@ -327,7 +945,13 @@ app.post('/v1/messages', async (c) => {
             done = doneReading
             if (value) {
               const chunk = decoder.decode(value)
-              debug('OpenAI response chunk:', chunk)
+              
+              // Debug streaming chunks
+              if (DEBUG && DEBUG !== 'false') {
+                debug('=== Streaming Chunk ===')
+                debug('Chunk:', chunk)
+                debug('======================')
+              }
               
               // Append chunk to buffer to handle partial lines
               buffer += chunk
@@ -373,6 +997,65 @@ app.post('/v1/messages', async (c) => {
                   sendSSE('message_stop', {
                     type: 'message_stop'
                   })
+                  
+                  // Collect telemetry for streaming
+                  const telemetryData: TelemetryData = {
+                    timestamp: new Date().toISOString(),
+                    requestId,
+                    method: 'POST',
+                    path: '/v1/messages',
+                    apiKey: key ? maskApiKey(key) : undefined,
+                    model: openaiPayload.model,
+                    inputTokens: usage?.prompt_tokens,
+                    outputTokens: usage?.completion_tokens || accumulatedContent.split(' ').length,
+                    status: 200,
+                    duration: Date.now() - startTime
+                  }
+                  
+                  sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
+                  
+                  // Track token usage
+                  tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0)
+                  
+                  // Send assistant message to Slack for streaming response
+                  try {
+                    let assistantContent = accumulatedContent
+                    if (accumulatedReasoning) {
+                      assistantContent = `🤔 Thinking: ${accumulatedReasoning}\n\n${assistantContent}`
+                    }
+                    
+                    // Add tool call information
+                    if (encounteredToolCall) {
+                      const toolInfo = Object.entries(toolCallAccumulators).map(([idx, args]) => {
+                        try {
+                          const parsed = JSON.parse(args)
+                          return `🔧 Tool call ${idx}`
+                        } catch {
+                          return `🔧 Tool call ${idx}`
+                        }
+                      }).join(', ')
+                      if (toolInfo) {
+                        assistantContent += `\n${toolInfo}`
+                      }
+                    }
+                    
+                    if (assistantContent) {
+                      await sendToSlack({
+                        requestId,
+                        domain: requestHost,
+                        model: openaiPayload.model,
+                        role: 'assistant',
+                        content: assistantContent,
+                        timestamp: new Date().toISOString(),
+                        apiKey: maskApiKey(key || 'unknown'),
+                        inputTokens: usage?.prompt_tokens || usage?.input_tokens || usage?.inputTokens,
+                        outputTokens: usage?.completion_tokens || usage?.output_tokens || usage?.outputTokens || accumulatedContent.split(' ').length
+                      })
+                    }
+                  } catch (slackError) {
+                    console.error('Failed to send streaming assistant message to Slack:', slackError)
+                  }
+                  
                   controller.close()
                   return
                 }
@@ -387,6 +1070,18 @@ app.post('/v1/messages', async (c) => {
                   // Capture usage if available
                   if (parsed.usage) {
                     usage = parsed.usage
+                    if (DEBUG && DEBUG !== 'false') {
+                      debug('Streaming usage data received:', JSON.stringify(usage, null, 2))
+                      debug('Usage object keys:', Object.keys(usage || {}))
+                    }
+                  }
+                  
+                  // Also check for usage in other parts of the response
+                  if (!usage && parsed.delta && parsed.delta.usage) {
+                    usage = parsed.delta.usage
+                    if (DEBUG && DEBUG !== 'false') {
+                      debug('Found usage in delta:', JSON.stringify(usage, null, 2))
+                    }
                   }
 
                   const delta = parsed.choices[0].delta
@@ -513,6 +1208,31 @@ app.post('/v1/messages', async (c) => {
     })
   } catch (err: any) {
     console.error(err)
+    
+    // Collect error telemetry
+    const telemetryData: TelemetryData = {
+      timestamp: new Date().toISOString(),
+      requestId,
+      method: 'POST',
+      path: '/v1/messages',
+      apiKey: requestApiKey || (mode === 'passthrough' ? CLAUDE_API_KEY : CLAUDE_CODE_PROXY_API_KEY) ? maskApiKey(requestApiKey || (mode === 'passthrough' ? CLAUDE_API_KEY! : CLAUDE_CODE_PROXY_API_KEY!)) : undefined,
+      status: 500,
+      error: err.message,
+      duration: Date.now() - startTime
+    }
+    
+    sendTelemetry(TELEMETRY_ENDPOINT, telemetryData)
+    
+    // Track token usage (even for errors, count as 0 tokens)
+    tokenTracker.track(requestHost, 0, 0)
+    
+    // Send error to Slack
+    try {
+      await sendErrorToSlack(requestId, err.message, requestHost)
+    } catch (slackError) {
+      console.error('Failed to send error to Slack:', slackError)
+    }
+    
     return c.json({ error: err.message }, 500)
   }
 })
