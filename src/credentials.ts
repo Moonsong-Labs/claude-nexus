@@ -13,10 +13,19 @@ export interface OAuthCredentials {
   isMax: boolean;
 }
 
+export interface SlackConfig {
+  webhook_url?: string
+  channel?: string
+  username?: string
+  icon_emoji?: string
+  enabled?: boolean
+}
+
 export interface ClaudeCredentials {
   type: 'api_key' | 'oauth'
   api_key?: string
   oauth?: OAuthCredentials
+  slack?: SlackConfig
 }
 
 export interface DomainCredentialMapping {
@@ -55,26 +64,34 @@ function generateCodeChallenge(verifier: string): string {
 }
 
 /**
- * Parse domain credential mapping from environment variable
+ * Get credential file path for a domain
  */
-export function parseDomainCredentialMapping(mappingStr: string | undefined): DomainCredentialMapping {
-  if (!mappingStr) return {}
-  
-  try {
-    const parsed = JSON.parse(mappingStr)
-    const result: DomainCredentialMapping = {}
-    
-    for (const [domain, value] of Object.entries(parsed)) {
-      if (typeof value === 'string') {
-        result[domain] = value
-      }
-    }
-    
-    return result
-  } catch (err) {
-    console.error('Failed to parse DOMAIN_CREDENTIAL_MAPPING:', err)
-    return {}
+export function getCredentialFileForDomain(domain: string, credentialsDir: string | undefined): string | null {
+  if (!credentialsDir) {
+    credentialsDir = 'credentials' // Default to 'credentials' folder in current directory
   }
+  
+  // Construct the credential filename: <domain>.credentials.json
+  const filename = `${domain}.credentials.json`
+  
+  // Resolve the credentials directory path
+  let dirPath: string
+  if (credentialsDir.startsWith('~')) {
+    dirPath = join(homedir(), credentialsDir.slice(1))
+  } else if (credentialsDir.startsWith('/') || credentialsDir.includes(':')) {
+    dirPath = credentialsDir
+  } else {
+    dirPath = join(process.cwd(), credentialsDir)
+  }
+  
+  const filePath = join(dirPath, filename)
+  
+  // Check if the file exists
+  if (existsSync(filePath)) {
+    return filePath
+  }
+  
+  return null
 }
 
 /**

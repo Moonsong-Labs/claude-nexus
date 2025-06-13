@@ -85,68 +85,81 @@ function formatMessageContent(content: any): string {
 }
 
 /**
+ * Initialize domain-specific Slack webhook
+ */
+export function initializeDomainSlack(slackConfig: Partial<SlackConfig> | undefined): IncomingWebhook | null {
+  if (!slackConfig?.webhookUrl) {
+    return null
+  }
+
+  const config = {
+    webhookUrl: slackConfig.webhookUrl,
+    channel: slackConfig.channel,
+    username: slackConfig.username || 'Claude Nexus Proxy',
+    iconEmoji: slackConfig.iconEmoji || ':robot_face:',
+    enabled: slackConfig.enabled !== false
+  }
+
+  if (!config.enabled) {
+    return null
+  }
+
+  return new IncomingWebhook(config.webhookUrl, {
+    channel: config.channel,
+    username: config.username,
+    icon_emoji: config.iconEmoji
+  })
+}
+
+/**
  * Send message to Slack
  */
-export async function sendToSlack(info: MessageInfo) {
-  if (!webhook || !slackConfig?.enabled) {
+export async function sendToSlack(info: MessageInfo, domainWebhook?: IncomingWebhook | null) {
+  // Use domain-specific webhook if available, otherwise fall back to global webhook
+  const webhookToUse = domainWebhook || webhook
+  
+  if (!webhookToUse || (!domainWebhook && !slackConfig?.enabled)) {
+    return
+  }
+
+  // Skip Slack notifications for personal domains (privacy protection)
+  if (info.domain && info.domain.toLowerCase().includes('personal')) {
     return
   }
 
   try {
-    const color = info.role === 'user' ? '#36a64f' : '#3AA3E3'
-    const emoji = info.role === 'user' ? ':bust_in_silhouette:' : ':robot_face:'
-    
-    // Truncate content if too long
+    // Format content
     let content = formatMessageContent(info.content)
     const maxLength = 3000
     if (content.length > maxLength) {
       content = content.substring(0, maxLength) + '... (truncated)'
     }
 
-    const fields: Array<{title: string, value: string, short?: boolean}> = [
-      {
-        title: 'Domain',
-        value: info.domain || 'Unknown',
-        short: true
-      },
-      {
-        title: 'Model',
-        value: info.model || 'Unknown',
-        short: true
-      }
-    ]
+    // Create simple text message
+    const text = content
 
-    if (info.apiKey) {
-      fields.push({
-        title: 'API Key',
-        value: info.apiKey,
-        short: true
-      })
-    }
-
-    if (info.inputTokens || info.outputTokens) {
-      fields.push({
-        title: 'Tokens',
-        value: `In: ${info.inputTokens || 0}, Out: ${info.outputTokens || 0}`,
-        short: true
-      })
-    }
+    // Create footer with metadata
+    const metadata = [
+      info.domain || 'Unknown',
+      info.model || 'Unknown',
+      info.apiKey || ''
+    ].filter(Boolean).join(' | ')
+    
+    const tokenInfo = (info.inputTokens || info.outputTokens) 
+      ? ` | Tokens: ${info.inputTokens || 0}/${info.outputTokens || 0}`
+      : ''
 
     const message: IncomingWebhookSendArguments = {
+      text,
       attachments: [
         {
-          color,
-          author_name: `${emoji} ${info.role === 'user' ? 'User' : 'Assistant'}`,
-          title: `Request ${info.requestId}`,
-          text: content,
-          fields,
-          footer: 'Claude Nexus Proxy',
+          footer: `${metadata}${tokenInfo}`,
           ts: Math.floor(new Date(info.timestamp).getTime() / 1000).toString()
         }
       ]
     }
 
-    await webhook.send(message)
+    await webhookToUse.send(message)
   } catch (error) {
     console.error('Failed to send message to Slack:', error)
   }
@@ -155,8 +168,16 @@ export async function sendToSlack(info: MessageInfo) {
 /**
  * Send error notification to Slack
  */
-export async function sendErrorToSlack(requestId: string, error: string, domain?: string) {
-  if (!webhook || !slackConfig?.enabled) {
+export async function sendErrorToSlack(requestId: string, error: string, domain?: string, domainWebhook?: IncomingWebhook | null) {
+  // Use domain-specific webhook if available, otherwise fall back to global webhook
+  const webhookToUse = domainWebhook || webhook
+  
+  if (!webhookToUse || (!domainWebhook && !slackConfig?.enabled)) {
+    return
+  }
+
+  // Skip Slack notifications for personal domains (privacy protection)
+  if (domain && domain.toLowerCase().includes('personal')) {
     return
   }
 
@@ -185,7 +206,7 @@ export async function sendErrorToSlack(requestId: string, error: string, domain?
       ]
     }
 
-    await webhook.send(message)
+    await webhookToUse.send(message)
   } catch (err) {
     console.error('Failed to send error to Slack:', err)
   }

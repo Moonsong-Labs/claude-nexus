@@ -15,16 +15,12 @@
   },
   "scripts": {
     "bin": "./bin",
-    "dev": "wrangler dev src/index.ts",
     "start": "bun run --hot src/index.ts",
-    "deploy": "wrangler deploy --minify src/index.ts",
     "build": "bun build ./src/server.ts --outfile=./bin --target=node --format=esm --banner='#!/usr/bin/env node'",
     "prepack": "bun run build && chmod +x ./bin"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250601.0",
-    "bun-types": "latest",
-    "wrangler": "^4.18.0"
+    "bun-types": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

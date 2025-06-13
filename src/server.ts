@@ -4,7 +4,7 @@ import * as process from 'node:process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseDomainCredentialMapping, validateCredentialMapping } from './credentials';
+// Domain credential validation removed - now using file-based credentials
 import { config as dotenvConfig } from 'dotenv';
 import { tokenTracker } from './tokenTracker';
 
@@ -88,15 +88,8 @@ Options:
 Environment Variables:
   PORT                        Server port (default: 3000)
   HOST                        Server hostname (default: 0.0.0.0)
-  CLAUDE_CODE_PROXY_API_KEY   Bearer token for upstream API
-  ANTHROPIC_PROXY_BASE_URL    Upstream API URL (default: https://models.github.ai/inference)
-  REASONING_MODEL             Model for reasoning requests (default: openai/gpt-4.1)
-  COMPLETION_MODEL            Model for completion requests (default: openai/gpt-4.1)
-  REASONING_MAX_TOKENS        Max tokens for reasoning model (optional)
-  COMPLETION_MAX_TOKENS       Max tokens for completion model (optional)
-  PROXY_MODE                  Proxy mode: 'translation' or 'passthrough' (default: translation)
-  CLAUDE_API_KEY              Claude API key for passthrough mode (optional)
-  DOMAIN_CREDENTIAL_MAPPING   JSON mapping of domains to credential files (optional)
+  CLAUDE_API_KEY              Default Claude API key (optional, can be overridden per domain)
+  CREDENTIALS_DIR             Directory containing domain credential files (default: credentials)
   TELEMETRY_ENDPOINT          URL to send telemetry data (optional)
   DEBUG                       Enable debug logging (default: false)
   SLACK_WEBHOOK_URL           Slack webhook URL for notifications (optional)
@@ -143,47 +136,19 @@ if (hostIndex !== -1 && args[hostIndex + 1]) {
   hostname = args[hostIndex + 1];
 }
 
-// Validate credential mapping at startup
-if (process.env.DOMAIN_CREDENTIAL_MAPPING) {
-  const domainMapping = parseDomainCredentialMapping(process.env.DOMAIN_CREDENTIAL_MAPPING);
-  const validationErrors = validateCredentialMapping(domainMapping);
-  
-  if (validationErrors.length > 0) {
-    console.error('⚠️  Credential validation errors:');
-    validationErrors.forEach(error => console.error(`   - ${error}`));
-    console.error('\nThe proxy will start, but affected domains may not work properly.\n');
-  } else if (Object.keys(domainMapping).length > 0) {
-    console.log(`✓ Validated ${Object.keys(domainMapping).length} domain credential mapping(s)`);
-  }
-  
-  // Print supported hosts
-  if (Object.keys(domainMapping).length > 0) {
-    console.log('\nSupported hosts:');
-    Object.entries(domainMapping).forEach(([domain, credPath]) => {
-      // Show the path as configured (not resolved)
-      console.log(`  - ${domain} → ${credPath}`);
-    });
-    console.log('');
-  }
+// Show credential directory configuration
+if (process.env.CREDENTIALS_DIR) {
+  console.log(`✓ Credential directory: ${process.env.CREDENTIALS_DIR}`);
+} else {
+  console.log('✓ Credential directory: credentials (default)');
 }
 
-// Print proxy mode and configuration
-const proxyMode = process.env.PROXY_MODE || 'translation';
+// Print proxy configuration
 console.log(`Claude Nexus Proxy v${getPackageVersion()}`);
-console.log(`Mode: ${proxyMode}`);
-
-if (proxyMode === 'translation') {
-  console.log(`Upstream: ${process.env.ANTHROPIC_PROXY_BASE_URL || 'https://models.github.ai/inference'}`);
-  if (process.env.REASONING_MODEL || process.env.COMPLETION_MODEL) {
-    console.log('Models:');
-    if (process.env.REASONING_MODEL) console.log(`  - Reasoning: ${process.env.REASONING_MODEL}`);
-    if (process.env.COMPLETION_MODEL) console.log(`  - Completion: ${process.env.COMPLETION_MODEL}`);
-  }
-} else if (proxyMode === 'passthrough') {
-  console.log('Target: Claude API (https://api.anthropic.com)');
-  if (process.env.TELEMETRY_ENDPOINT) {
-    console.log(`Telemetry: ${process.env.TELEMETRY_ENDPOINT}`);
-  }
+console.log('Mode: passthrough (direct proxy to Claude API)');
+console.log('Target: Claude API (https://api.anthropic.com)');
+if (process.env.TELEMETRY_ENDPOINT) {
+  console.log(`Telemetry: ${process.env.TELEMETRY_ENDPOINT}`);
 }
 
 // Show Slack configuration if enabled
