@@ -23,6 +23,8 @@ A versatile proxy service for Claude API that supports both API translation and 
 
 ### Docker (Recommended)
 
+#### Quick Start
+
 ```bash
 # GitHub Models (default)
 docker run -d -p 3000:3000 -e CLAUDE_CODE_PROXY_API_KEY=your_github_token ghcr.io/moonsong-labs/claude-nexus-proxy:latest
@@ -37,6 +39,38 @@ docker run -d -p 3000:3000 \
 
 # Use with Claude Code
 ANTHROPIC_BASE_URL=http://localhost:3000 claude "Help me review this code"
+```
+
+### Building from Source
+
+```bash
+# Build the Docker image
+docker build -t claude-nexus-proxy:latest .
+
+# Run the container
+docker run -d -p 3000:3000 \
+  -e CLAUDE_CODE_PROXY_API_KEY=your_token \
+  -v $(pwd)/credentials:/app/credentials:ro \
+  claude-nexus-proxy:latest
+```
+
+### Docker Compose
+
+```bash
+# Production mode
+docker compose up -d
+
+# Development mode with hot reload
+docker compose -f compose.dev.yml up
+
+# Build and run
+docker compose up -d --build
+
+# View logs
+docker compose logs -f
+
+# Stop the service
+docker compose down
 ```
 
 ### Local Development
