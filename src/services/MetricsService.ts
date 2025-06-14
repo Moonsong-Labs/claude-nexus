@@ -1,7 +1,7 @@
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
-import { trackTokens, getTokenStats } from '../tokenTracker'
+import { tokenTracker } from '../tokenTracker'
 import { StorageService } from '../storage'
 import { logger } from '../middleware/logger'
 
@@ -54,7 +54,7 @@ export class MetricsService {
     
     // Track tokens
     if (this.config.enableTokenTracking) {
-      trackTokens(
+      tokenTracker.track(
         context.host,
         metrics.inputTokens,
         metrics.outputTokens,
@@ -108,7 +108,7 @@ export class MetricsService {
   ): Promise<void> {
     // Track in token stats (error counts)
     if (this.config.enableTokenTracking) {
-      trackTokens(context.host, 0, 0, request.requestType, 0)
+      tokenTracker.track(context.host, 0, 0, request.requestType, 0)
     }
     
     // Send telemetry
@@ -138,7 +138,11 @@ export class MetricsService {
    * Get token statistics
    */
   getStats(domain?: string) {
-    return getTokenStats(domain)
+    const allStats = tokenTracker.getStats()
+    if (domain) {
+      return allStats[domain] || null
+    }
+    return allStats
   }
   
   /**

@@ -1,4 +1,4 @@
-import { getCredentials, ClaudeCredentialResult } from '../credentials'
+import { getApiKey, getAuthorizationHeaderForDomain } from '../credentials'
 import { AuthenticationError } from '../types/errors'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { logger } from '../middleware/logger'
@@ -25,17 +25,41 @@ export class AuthenticationService {
    */
   async authenticate(context: RequestContext): Promise<AuthResult> {
     try {
-      // Get credentials for the domain
-      const credentials = await getCredentials(context.host, context.apiKey)
+      // Get authorization header for the domain
+      const authHeader = await getAuthorizationHeaderForDomain(
+        context.host, 
+        context.apiKey || this.defaultApiKey
+      )
       
-      if (!credentials) {
+      if (!authHeader) {
         throw new AuthenticationError(
           'No valid credentials found',
           { domain: context.host, hasApiKey: !!context.apiKey }
         )
       }
       
-      return this.createAuthResult(credentials)
+      // Parse the authorization header to determine type
+      if (authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '')
+        return {
+          type: 'oauth',
+          headers: {
+            'Authorization': authHeader,
+            'anthropic-beta': 'oauth-2025-04-20'
+          },
+          key: token,
+          betaHeader: 'oauth-2025-04-20'
+        }
+      } else {
+        // API key
+        return {
+          type: 'api_key',
+          headers: {
+            'x-api-key': authHeader
+          },
+          key: authHeader
+        }
+      }
       
     } catch (error) {
       logger.error('Authentication failed', {
@@ -55,36 +79,6 @@ export class AuthenticationService {
         'Authentication failed',
         { originalError: error.message }
       )
-    }
-  }
-  
-  /**
-   * Create auth result from credentials
-   */
-  private createAuthResult(credentials: ClaudeCredentialResult): AuthResult {
-    const headers: Record<string, string> = {}
-    
-    if (credentials.type === 'api_key') {
-      headers['x-api-key'] = credentials.key
-      
-      return {
-        type: 'api_key',
-        headers,
-        key: credentials.key
-      }
-    } else {
-      headers['Authorization'] = `Bearer ${credentials.key}`
-      
-      if (credentials.betaHeader) {
-        headers['anthropic-beta'] = credentials.betaHeader
-      }
-      
-      return {
-        type: 'oauth',
-        headers,
-        key: credentials.key,
-        betaHeader: credentials.betaHeader
-      }
     }
   }
   
