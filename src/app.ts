@@ -178,6 +178,24 @@ export async function createApp(): Promise<Hono<{ Variables: HonoVariables; Bind
   app.post('/v1/messages', (c) => messageController.handle(c))
   app.options('/v1/messages', (c) => messageController.handleOptions(c))
   
+  // Dashboard routes (if enabled)
+  if (config.features.enableDashboard ?? true) {
+    const { dashboardRoutes } = await import('./dashboard/routes')
+    const { dashboardAuth } = await import('./dashboard/auth')
+    
+    // Apply auth middleware to all dashboard routes
+    app.use('/dashboard/*', dashboardAuth)
+    
+    // Pass database pool to dashboard routes
+    app.use('/dashboard/*', async (c, next) => {
+      c.set('pool', container.getDbPool())
+      return next()
+    })
+    
+    // Mount dashboard routes
+    app.route('/dashboard', dashboardRoutes)
+  }
+  
   // Root endpoint
   app.get('/', (c) => {
     return c.json({
@@ -188,7 +206,8 @@ export async function createApp(): Promise<Hono<{ Variables: HonoVariables; Bind
         api: '/v1/messages',
         health: '/health',
         metrics: '/metrics',
-        stats: '/token-stats'
+        stats: '/token-stats',
+        dashboard: '/dashboard'
       }
     })
   })

@@ -114,7 +114,8 @@ export const config = {
     debug: env.bool('DEBUG', false),
     enableHealthChecks: env.bool('ENABLE_HEALTH_CHECKS', true),
     enableMetrics: env.bool('ENABLE_METRICS', true),
-    enableNotifications: env.bool('ENABLE_NOTIFICATIONS', true)
+    enableNotifications: env.bool('ENABLE_NOTIFICATIONS', true),
+    enableDashboard: env.bool('ENABLE_DASHBOARD', true)
   },
   
   // Cache configuration
