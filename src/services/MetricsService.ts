@@ -4,6 +4,7 @@ import { RequestContext } from '../domain/value-objects/RequestContext'
 import { tokenTracker } from '../tokenTracker'
 import { StorageService } from '../storage'
 import { logger } from '../middleware/logger'
+import { broadcastConversation, broadcastMetrics } from '../dashboard/sse'
 
 export interface MetricsConfig {
   enableTokenTracking: boolean
@@ -95,6 +96,33 @@ export class MetricsService {
       duration: context.getElapsedTime(),
       requestType: request.requestType
     })
+    
+    // Broadcast to dashboard
+    try {
+      // Broadcast conversation update
+      broadcastConversation({
+        id: context.requestId,
+        domain: context.host,
+        model: request.model,
+        tokens: metrics.inputTokens + metrics.outputTokens,
+        timestamp: new Date().toISOString()
+      })
+      
+      // Broadcast metrics update
+      const stats = tokenTracker.getStats()
+      const domainStats = stats[context.host]
+      if (domainStats) {
+        broadcastMetrics({
+          domain: context.host,
+          requests: domainStats.requestCount,
+          tokens: domainStats.inputTokens + domainStats.outputTokens,
+          activeUsers: Object.keys(stats).length
+        })
+      }
+    } catch (e) {
+      // Don't fail request if broadcast fails
+      logger.debug('Failed to broadcast metrics', { error: e.message })
+    }
   }
   
   /**

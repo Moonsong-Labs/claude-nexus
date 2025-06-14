@@ -1,8 +1,8 @@
 import { Context } from 'hono'
-import { stream } from 'hono/streaming'
+import { streamSSE } from 'hono/streaming'
 
 // Store active SSE connections
-const sseConnections = new Map<string, Set<WriteableStream>>()
+const sseConnections = new Map<string, Set<{ write: (data: string) => Promise<void>, close: () => void }>()
 
 /**
  * SSE endpoint for real-time dashboard updates
@@ -11,30 +11,39 @@ export async function handleSSE(c: Context) {
   const domain = c.req.query('domain')
   const connectionId = crypto.randomUUID()
   
-  return stream(c, async (stream) => {
-    // Set SSE headers
-    c.header('Content-Type', 'text/event-stream')
-    c.header('Cache-Control', 'no-cache')
-    c.header('Connection', 'keep-alive')
-    
+  return streamSSE(c, async (stream) => {
     // Add this connection to the active connections
     const key = domain || 'global'
     if (!sseConnections.has(key)) {
       sseConnections.set(key, new Set())
     }
-    sseConnections.get(key)!.add(stream)
+    
+    const connection = {
+      write: async (data: string) => {
+        try {
+          await stream.writeSSE({ data })
+        } catch (e) {
+          // Connection closed
+        }
+      },
+      close: () => stream.close()
+    }
+    
+    sseConnections.get(key)!.add(connection)
     
     // Send initial connection message
-    await stream.write(`data: ${JSON.stringify({ 
-      type: 'connected', 
-      connectionId,
-      timestamp: new Date().toISOString() 
-    })}\n\n`)
+    await stream.writeSSE({ 
+      data: JSON.stringify({ 
+        type: 'connected', 
+        connectionId,
+        timestamp: new Date().toISOString() 
+      })
+    })
     
     // Keep connection alive with heartbeat
     const heartbeat = setInterval(async () => {
       try {
-        await stream.write(`:heartbeat\n\n`)
+        await stream.writeSSE({ comment: 'heartbeat' })
       } catch (e) {
         // Connection closed
         clearInterval(heartbeat)
@@ -42,16 +51,21 @@ export async function handleSSE(c: Context) {
     }, 30000) // Every 30 seconds
     
     // Clean up on disconnect
-    c.req.raw.signal.addEventListener('abort', () => {
+    const cleanup = () => {
       clearInterval(heartbeat)
-      sseConnections.get(key)?.delete(stream)
+      sseConnections.get(key)?.delete(connection)
       if (sseConnections.get(key)?.size === 0) {
         sseConnections.delete(key)
       }
+    }
+    
+    // Handle client disconnect
+    stream.onAbort(() => {
+      cleanup()
     })
     
-    // Keep the connection open
-    await stream.sleep(Infinity)
+    // Keep the connection open by not returning
+    // The connection stays open until client disconnects
   })
 }
 
@@ -63,32 +77,32 @@ export function broadcastEvent(event: {
   domain?: string
   data: any
 }) {
-  const message = `data: ${JSON.stringify({
+  const message = JSON.stringify({
     type: event.type,
     data: event.data,
     timestamp: new Date().toISOString()
-  })}\n\n`
+  })
   
   // Send to domain-specific connections
   if (event.domain && sseConnections.has(event.domain)) {
-    sseConnections.get(event.domain)!.forEach(async (stream) => {
+    sseConnections.get(event.domain)!.forEach(async (connection) => {
       try {
-        await stream.write(message)
+        await connection.write(message)
       } catch (e) {
         // Remove dead connections
-        sseConnections.get(event.domain)!.delete(stream)
+        sseConnections.get(event.domain)!.delete(connection)
       }
     })
   }
   
   // Also send to global connections
   if (sseConnections.has('global')) {
-    sseConnections.get('global')!.forEach(async (stream) => {
+    sseConnections.get('global')!.forEach(async (connection) => {
       try {
-        await stream.write(message)
+        await connection.write(message)
       } catch (e) {
         // Remove dead connections
-        sseConnections.get('global')!.delete(stream)
+        sseConnections.get('global')!.delete(connection)
       }
     })
   }
