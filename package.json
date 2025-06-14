@@ -17,10 +17,28 @@
     "bin": "./bin",
     "start": "bun run --hot src/index.ts",
     "build": "bun build ./src/server.ts --outfile=./bin --target=node --format=esm --banner='#!/usr/bin/env node'",
-    "prepack": "bun run build && chmod +x ./bin"
+    "prepack": "bun run build && chmod +x ./bin",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:e2e": "vitest run test/e2e",
+    "test:performance": "vitest run test/performance",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --reporter=junit --coverage"
   },
   "devDependencies": {
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0",
+    "vitest": "^1.0.0",
+    "@vitest/coverage-c8": "^0.33.0",
+    "supertest": "^6.3.0",
+    "@types/supertest": "^6.0.0",
+    "msw": "^2.0.0",
+    "@faker-js/faker": "^8.0.0",
+    "testcontainers": "^10.0.0",
+    "typescript": "^5.0.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
@@ -30,6 +48,7 @@
     "@slack/webhook": "^7.0.5",
     "dotenv": "^16.5.0",
     "hono": "^4.7.11",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "nanoid": "^5.0.0"
   }
 }

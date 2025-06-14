@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-nexus-proxy
+  labels:
+    app: claude-nexus-proxy
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: claude-nexus-proxy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: claude-nexus-proxy
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: claude-nexus-proxy
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: claude-nexus-proxy
+        image: ghcr.io/your-org/claude-nexus-proxy:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: PORT
+          value: "3000"
+        - name: HOST
+          value: "0.0.0.0"
+        # Database configuration
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: claude-proxy-db
+              key: url
+        - name: STORAGE_ENABLED
+          value: "true"
+        # Claude API configuration
+        - name: CLAUDE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: claude-api
+              key: api-key
+        - name: CLAUDE_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: claude-oauth
+              key: client-id
+              optional: true
+        # Credentials directory
+        - name: CREDENTIALS_DIR
+          value: "/app/credentials"
+        # Telemetry
+        - name: TELEMETRY_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: claude-proxy-config
+              key: telemetry-endpoint
+              optional: true
+        # Slack configuration (optional)
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: slack-config
+              key: webhook-url
+              optional: true
+        - name: SLACK_CHANNEL
+          valueFrom:
+            configMapKeyRef:
+              name: claude-proxy-config
+              key: slack-channel
+              optional: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: credentials
+          mountPath: /app/credentials
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: credentials
+        secret:
+          secretName: claude-proxy-credentials
+          optional: true
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - claude-nexus-proxy
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: claude-nexus-proxy
+  labels:
+    app: claude-nexus-proxy
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: claude-nexus-proxy
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: claude-nexus-proxy
+  labels:
+    app: claude-nexus-proxy

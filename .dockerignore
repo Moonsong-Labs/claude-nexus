@@ -32,15 +32,25 @@ bin
 .DS_Store
 
 # Test files and scripts
+test/
+tests/
+*.test.ts
+*.spec.ts
 test-*.js
 test-*.sh
 coverage
 .nyc_output
+test-results/
+test-setup/
+vitest.config.ts
 
 # Documentation
 *.md
 !README.md
+!CLAUDE.md
 docs
+TEST_PLAN.md
+TESTING_IMPLEMENTATION.md
 
 # Development files
 .eslintrc*
@@ -59,10 +69,13 @@ compose*.yml
 
 # Credentials and sensitive files
 credentials/
+*.credentials.json
+.credentials.json
 *.pem
 *.key
 *.cert
 *.crt
+secrets/
 
 # Logs
 logs
@@ -74,9 +87,9 @@ temp
 *.tmp
 *.temp
 
-# Examples (except credential examples which might be needed)
+# Scripts and examples
+scripts/
 examples/
-!examples/credentials/
 
 # Cache directories
 .cache
@@ -100,6 +113,17 @@ Thumbs.db
 *.tar.gz
 *.rar
 *.7z
+
+# Kubernetes
+k8s/
+kubernetes/
+*.yaml
+!docker-compose.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
 
 # Lock files (keep package-lock.json and bun.lockb for reproducible builds)
 !package-lock.json

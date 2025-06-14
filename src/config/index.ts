@@ -1,0 +1,147 @@
+/**
+ * Centralized configuration for the application
+ * All configuration values should be accessed through this module
+ */
+
+// Helper to parse environment variables
+const env = {
+  string: (key: string, defaultValue: string): string => {
+    return process.env[key] || defaultValue
+  },
+  int: (key: string, defaultValue: number): number => {
+    const value = process.env[key]
+    return value ? parseInt(value, 10) : defaultValue
+  },
+  bool: (key: string, defaultValue: boolean): boolean => {
+    const value = process.env[key]
+    if (!value) return defaultValue
+    return value.toLowerCase() === 'true'
+  }
+}
+
+export const config = {
+  // Server configuration
+  server: {
+    port: env.int('PORT', 3000),
+    host: env.string('HOST', '0.0.0.0'),
+    env: env.string('NODE_ENV', 'development'),
+    isProduction: process.env.NODE_ENV === 'production'
+  },
+  
+  // API configuration
+  api: {
+    claudeBaseUrl: env.string('CLAUDE_API_BASE_URL', 'https://api.anthropic.com'),
+    claudeApiKey: env.string('CLAUDE_API_KEY', ''),
+    claudeTimeout: env.int('CLAUDE_API_TIMEOUT', 300000), // 5 minutes
+    oauthClientId: env.string('CLAUDE_OAUTH_CLIENT_ID', '')
+  },
+  
+  // Authentication
+  auth: {
+    credentialsDir: env.string('CREDENTIALS_DIR', 'credentials')
+  },
+  
+  // Database configuration
+  database: {
+    url: env.string('DATABASE_URL', ''),
+    host: env.string('DB_HOST', 'localhost'),
+    port: env.int('DB_PORT', 5432),
+    name: env.string('DB_NAME', 'claude_proxy'),
+    user: env.string('DB_USER', 'postgres'),
+    password: env.string('DB_PASSWORD', ''),
+    ssl: env.bool('DB_SSL', process.env.NODE_ENV === 'production'),
+    poolSize: env.int('DB_POOL_SIZE', 20)
+  },
+  
+  // Storage configuration
+  storage: {
+    enabled: env.bool('STORAGE_ENABLED', false),
+    batchSize: env.int('STORAGE_BATCH_SIZE', 100),
+    batchInterval: env.int('STORAGE_BATCH_INTERVAL', 5000)
+  },
+  
+  // Rate limiting
+  rateLimit: {
+    windowMs: env.int('RATE_LIMIT_WINDOW_MS', 3600000), // 1 hour
+    maxRequests: env.int('RATE_LIMIT_MAX_REQUESTS', 1000),
+    maxTokens: env.int('RATE_LIMIT_MAX_TOKENS', 1000000),
+    domainWindowMs: env.int('DOMAIN_RATE_LIMIT_WINDOW_MS', 3600000),
+    domainMaxRequests: env.int('DOMAIN_RATE_LIMIT_MAX_REQUESTS', 5000),
+    domainMaxTokens: env.int('DOMAIN_RATE_LIMIT_MAX_TOKENS', 5000000)
+  },
+  
+  // Circuit breaker
+  circuitBreaker: {
+    failureThreshold: env.int('CIRCUIT_BREAKER_FAILURE_THRESHOLD', 5),
+    successThreshold: env.int('CIRCUIT_BREAKER_SUCCESS_THRESHOLD', 3),
+    timeout: env.int('CIRCUIT_BREAKER_TIMEOUT', 30000), // 30 seconds
+    volumeThreshold: env.int('CIRCUIT_BREAKER_VOLUME_THRESHOLD', 10),
+    errorThresholdPercentage: env.int('CIRCUIT_BREAKER_ERROR_PERCENTAGE', 50)
+  },
+  
+  // Request validation
+  validation: {
+    maxRequestSize: env.int('MAX_REQUEST_SIZE', 10 * 1024 * 1024), // 10MB
+    maxMessageCount: env.int('MAX_MESSAGE_COUNT', 100),
+    maxSystemLength: env.int('MAX_SYSTEM_LENGTH', 10000),
+    maxMessageLength: env.int('MAX_MESSAGE_LENGTH', 100000),
+    maxTotalLength: env.int('MAX_TOTAL_LENGTH', 500000)
+  },
+  
+  // Logging
+  logging: {
+    level: env.string('LOG_LEVEL', 'info'),
+    prettyPrint: !env.bool('LOG_JSON', process.env.NODE_ENV === 'production')
+  },
+  
+  // Slack configuration
+  slack: {
+    webhookUrl: env.string('SLACK_WEBHOOK_URL', ''),
+    channel: env.string('SLACK_CHANNEL', ''),
+    username: env.string('SLACK_USERNAME', 'Claude Proxy'),
+    iconEmoji: env.string('SLACK_ICON_EMOJI', ':robot_face:'),
+    enabled: env.bool('SLACK_ENABLED', true)
+  },
+  
+  // Telemetry
+  telemetry: {
+    endpoint: env.string('TELEMETRY_ENDPOINT', ''),
+    enabled: env.bool('TELEMETRY_ENABLED', true)
+  },
+  
+  // Feature flags
+  features: {
+    debug: env.bool('DEBUG', false),
+    enableHealthChecks: env.bool('ENABLE_HEALTH_CHECKS', true),
+    enableMetrics: env.bool('ENABLE_METRICS', true),
+    enableNotifications: env.bool('ENABLE_NOTIFICATIONS', true)
+  },
+  
+  // Cache configuration
+  cache: {
+    messageCacheSize: env.int('MESSAGE_CACHE_SIZE', 1000),
+    credentialCacheTTL: env.int('CREDENTIAL_CACHE_TTL', 3600000), // 1 hour
+    credentialCacheSize: env.int('CREDENTIAL_CACHE_SIZE', 100)
+  }
+}
+
+// Validate required configuration
+export function validateConfig(): void {
+  const errors: string[] = []
+  
+  // Check for critical missing configuration
+  if (config.storage.enabled && !config.database.url && !config.database.host) {
+    errors.push('Storage is enabled but no database configuration provided')
+  }
+  
+  if (config.slack.enabled && config.slack.webhookUrl && !config.slack.webhookUrl.startsWith('https://')) {
+    errors.push('Invalid Slack webhook URL')
+  }
+  
+  if (errors.length > 0) {
+    throw new Error(`Configuration validation failed:\n${errors.join('\n')}`)
+  }
+}
+
+// Export type for configuration
+export type Config = typeof config

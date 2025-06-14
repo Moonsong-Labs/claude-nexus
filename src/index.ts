@@ -43,7 +43,7 @@ function setCachedMessage(domain: string, message: string) {
     const firstKey = previousUserMessages.keys().next().value
     previousUserMessages.delete(firstKey)
   }
-  setCachedMessage(domain, message)
+  previousUserMessages.set(domain, message)
 }
 
 // Initialize storage service if configured

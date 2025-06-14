@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-proxy-config
+  labels:
+    app: claude-nexus-proxy
+data:
+  # Telemetry configuration
+  telemetry-endpoint: "https://telemetry.example.com/v1/events"
+  
+  # Slack configuration defaults
+  slack-channel: "#claude-proxy-logs"
+  slack-username: "Claude Proxy"
+  slack-icon-emoji: ":robot_face:"
+  
+  # Rate limiting configuration
+  rate-limit-window-ms: "3600000"  # 1 hour
+  rate-limit-max-requests: "1000"
+  rate-limit-max-tokens: "1000000"
+  
+  # Circuit breaker configuration
+  circuit-breaker-failure-threshold: "5"
+  circuit-breaker-success-threshold: "3"
+  circuit-breaker-timeout: "30000"  # 30 seconds
+  
+  # Request validation
+  max-request-size: "10485760"  # 10MB
+  max-message-count: "100"
+  max-system-length: "10000"
+  max-message-length: "100000"
