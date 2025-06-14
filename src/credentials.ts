@@ -32,9 +32,12 @@ export interface DomainCredentialMapping {
   [domain: string]: string; // domain -> credential file path
 }
 
+// Default OAuth client ID - can be overridden via CLAUDE_OAUTH_CLIENT_ID env var
+const DEFAULT_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+
 // OAuth configuration - matching Claude CLI
 const OAUTH_CONFIG = {
-  clientId: "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+  clientId: process.env.CLAUDE_OAUTH_CLIENT_ID || DEFAULT_OAUTH_CLIENT_ID,
   authorizationUrl: "https://claude.ai/oauth/authorize",
   tokenUrl: "https://console.anthropic.com/v1/oauth/token",
   redirectUri: "http://localhost:54545/callback",
@@ -45,8 +48,65 @@ const OAUTH_CONFIG = {
   betaHeader: "oauth-2025-04-20",
 };
 
-// Cache for loaded credentials
-const credentialCache = new Map<string, ClaudeCredentials>();
+// Cache for loaded credentials with TTL
+const CREDENTIAL_CACHE_TTL = 3600000; // 1 hour in milliseconds
+const CREDENTIAL_CACHE_MAX_SIZE = 100; // Maximum number of cached credentials
+
+interface CachedCredential {
+  credential: ClaudeCredentials;
+  timestamp: number;
+}
+
+const credentialCache = new Map<string, CachedCredential>();
+
+// Clean up expired entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of credentialCache.entries()) {
+    if (now - value.timestamp > CREDENTIAL_CACHE_TTL) {
+      credentialCache.delete(key);
+    }
+  }
+}, 300000); // Clean up every 5 minutes
+
+// Helper functions for cache management
+function getCachedCredential(key: string): ClaudeCredentials | null {
+  const cached = credentialCache.get(key);
+  if (!cached) return null;
+  
+  // Check if expired
+  if (Date.now() - cached.timestamp > CREDENTIAL_CACHE_TTL) {
+    credentialCache.delete(key);
+    return null;
+  }
+  
+  return cached.credential;
+}
+
+function setCachedCredential(key: string, credential: ClaudeCredentials): void {
+  // Ensure cache doesn't grow too large
+  if (credentialCache.size >= CREDENTIAL_CACHE_MAX_SIZE) {
+    // Remove oldest entry
+    let oldestKey: string | undefined;
+    let oldestTime = Date.now();
+    
+    for (const [k, v] of credentialCache.entries()) {
+      if (v.timestamp < oldestTime) {
+        oldestTime = v.timestamp;
+        oldestKey = k;
+      }
+    }
+    
+    if (oldestKey) {
+      credentialCache.delete(oldestKey);
+    }
+  }
+  
+  credentialCache.set(key, {
+    credential,
+    timestamp: Date.now()
+  });
+}
 
 // PKCE helper functions
 function base64URLEncode(buffer: Buffer): string {
@@ -104,13 +164,14 @@ export function getCredentialFileForDomain(
  */
 export function loadCredentials(filePath: string): ClaudeCredentials | null {
   // Check cache first
-  if (credentialCache.has(filePath)) {
-    return credentialCache.get(filePath)!;
+  const cached = getCachedCredential(filePath);
+  if (cached) {
+    return cached;
   }
 
   // Handle in-memory credentials
   if (filePath.startsWith("memory:")) {
-    return credentialCache.get(filePath) || null;
+    return getCachedCredential(filePath);
   }
 
   try {
@@ -153,7 +214,7 @@ export function loadCredentials(filePath: string): ClaudeCredentials | null {
     }
 
     // Cache the credentials
-    credentialCache.set(filePath, credentials);
+    setCachedCredential(filePath, credentials);
 
     return credentials;
   } catch (err) {
@@ -175,7 +236,7 @@ async function saveOAuthCredentials(
 
   try {
     // Update cache
-    credentialCache.set(filePath, credentials);
+    setCachedCredential(filePath, credentials);
 
     // Save to file using same path resolution logic
     let fullPath: string;
@@ -204,16 +265,7 @@ export async function refreshToken(
   refreshToken: string
 ): Promise<OAuthCredentials> {
   const TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
-  const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-  console.log({
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
+  const CLIENT_ID = process.env.CLAUDE_OAUTH_CLIENT_ID || DEFAULT_OAUTH_CLIENT_ID;
   const response = await fetch(TOKEN_URL, {
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -630,7 +682,7 @@ export async function performOAuthLogin(
 
       mkdirSync(dirname(fullPath), { recursive: true });
       writeFileSync(fullPath, JSON.stringify(apiKeyCredentials, null, 2));
-      credentialCache.set(apiKeyPath, apiKeyCredentials);
+      setCachedCredential(apiKeyPath, apiKeyCredentials);
 
       console.log(`API key saved to: ${apiKeyPath}`);
     }
@@ -648,7 +700,7 @@ export function addMemoryCredentials(
   credentials: ClaudeCredentials
 ): void {
   const memoryPath = `memory:${id}`;
-  credentialCache.set(memoryPath, credentials);
+  setCachedCredential(memoryPath, credentials);
 }
 
 /**

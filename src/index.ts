@@ -20,39 +20,54 @@ try {
   // File system not available
 }
 
-// Note: Token tracking periodic reporting uses setInterval for background tasks
-// Use the /token-stats endpoint to get current statistics programmatically
+// Constants for configuration values
+const DEFAULT_DB_PORT = '5432'
+const DEFAULT_DB_NAME = 'claude_proxy'
+const DEFAULT_DB_USER = 'postgres'
+const DEFAULT_REQUEST_LIMIT = 100
+const MAX_INPUT_PREVIEW_LENGTH = 100
+const MAX_CONTENT_LENGTH = 500
+const MAX_SLACK_LINES = 20
+const MAX_LENGTH_SLACK = 3000
+const MASKED_KEY_MIN_LENGTH = 8
+const MASKED_KEY_SHORT_LENGTH = 10
 
-// Track previous user messages by domain to detect changes
+// Track previous user messages by domain to detect changes with size limit
+const MAX_MESSAGE_CACHE_SIZE = 1000 // Limit cache to prevent memory leak
 const previousUserMessages = new Map<string, string>()
+
+// Helper to manage cache size
+function setCachedMessage(domain: string, message: string) {
+  // Remove oldest entry if cache is full
+  if (previousUserMessages.size >= MAX_MESSAGE_CACHE_SIZE) {
+    const firstKey = previousUserMessages.keys().next().value
+    previousUserMessages.delete(firstKey)
+  }
+  setCachedMessage(domain, message)
+}
 
 // Initialize storage service if configured
 let storageService: StorageService | null = null
 if (process.env.DATABASE_URL || process.env.DB_HOST) {
   try {
-    const pool = new Pool({
+    // Extract database configuration to avoid duplication
+    const dbConfig = {
       connectionString: process.env.DATABASE_URL,
       host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'claude_proxy',
-      user: process.env.DB_USER || 'postgres',
+      port: parseInt(process.env.DB_PORT || DEFAULT_DB_PORT),
+      database: process.env.DB_NAME || DEFAULT_DB_NAME,
+      user: process.env.DB_USER || DEFAULT_DB_USER,
       password: process.env.DB_PASSWORD,
       ssl: process.env.NODE_ENV === 'production'
-    })
+    }
+    
+    const pool = new Pool(dbConfig)
     
     // Initialize database schema
     await initializeDatabase(pool)
     
     // Create storage service
-    storageService = new StorageService({
-      connectionString: process.env.DATABASE_URL,
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'claude_proxy',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD,
-      ssl: process.env.NODE_ENV === 'production'
-    })
+    storageService = new StorageService(dbConfig)
     
     console.log('Storage service initialized successfully')
   } catch (error) {
@@ -91,8 +106,8 @@ interface TelemetryData {
 
 // Helper to mask API key for telemetry
 function maskApiKey(key: string): string {
-  if (!key || key.length < 8) return 'unknown'
-  if (key.length <= 10) return key
+  if (!key || key.length < MASKED_KEY_MIN_LENGTH) return 'unknown'
+  if (key.length <= MASKED_KEY_SHORT_LENGTH) return key
   return `...${key.slice(-10)}`
 }
 
@@ -141,7 +156,7 @@ app.get('/api/requests', async (c) => {
   }
   
   const domain = c.req.query('domain')
-  const limit = parseInt(c.req.query('limit') || '100')
+  const limit = parseInt(c.req.query('limit') || DEFAULT_REQUEST_LIMIT.toString())
   
   try {
     const requests = await storageService.getRequestsByDomain(domain || '', limit)
@@ -493,10 +508,10 @@ app.post('/v1/messages', async (c) => {
           
           // Skip if this looks like a system reminder
           if (!messageContent.includes('<system-reminder>') && messageContent.trim() !== '') {
-            // Truncate to 20 lines
+            // Truncate to MAX_SLACK_LINES lines
             const lines = messageContent.split('\n')
-            if (lines.length > 20) {
-              messageContent = lines.slice(0, 20).join('\n') + '\n... (truncated)'
+            if (lines.length > MAX_SLACK_LINES) {
+              messageContent = lines.slice(0, MAX_SLACK_LINES).join('\n') + '\n... (truncated)'
             }
             slackUserContent = messageContent
             break
@@ -511,7 +526,7 @@ app.post('/v1/messages', async (c) => {
     const previousUserMessage = previousUserMessages.get(requestHost) || ''
     const userMessageChanged = slackUserContent !== previousUserMessage
     if (slackUserContent) {
-      previousUserMessages.set(requestHost, slackUserContent)
+      setCachedMessage(requestHost, slackUserContent)
     }
     
     // Start with all original request headers
@@ -795,7 +810,7 @@ app.post('/v1/messages', async (c) => {
                 // Default formatting for other tools
                 const fullInput = JSON.stringify(tool.input)
                 const firstLine = fullInput.split('\n')[0]
-                inputStr = ` - ${firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine}`
+                inputStr = ` - ${firstLine.length > MAX_INPUT_PREVIEW_LENGTH ? firstLine.substring(0, MAX_INPUT_PREVIEW_LENGTH) + '...' : firstLine}`
               }
               
               toolCalls.push(`\n🔧 ${tool.name}${inputStr}`)
@@ -803,10 +818,10 @@ app.post('/v1/messages', async (c) => {
           }
         }
         
-        // Truncate to 20 lines
+        // Truncate to MAX_SLACK_LINES lines
         const lines = assistantContent.split('\n')
-        if (lines.length > 20) {
-          assistantContent = lines.slice(0, 20).join('\n') + '\n... (truncated)'
+        if (lines.length > MAX_SLACK_LINES) {
+          assistantContent = lines.slice(0, MAX_SLACK_LINES).join('\n') + '\n... (truncated)'
         }
         
         if (assistantContent || toolCalls.length > 0) {
@@ -958,10 +973,10 @@ app.post('/v1/messages', async (c) => {
             // Send combined message to Slack for streaming responses
             if (requestType !== 'query_evaluation' && slackUserContent && (streamedAssistantContent || streamedToolCalls.length > 0)) {
               try {
-                // Truncate assistant content to 20 lines
+                // Truncate assistant content to MAX_SLACK_LINES lines
                 const lines = streamedAssistantContent.split('\n')
-                if (lines.length > 20) {
-                  streamedAssistantContent = lines.slice(0, 20).join('\n') + '\n... (truncated)'
+                if (lines.length > MAX_SLACK_LINES) {
+                  streamedAssistantContent = lines.slice(0, MAX_SLACK_LINES).join('\n') + '\n... (truncated)'
                 }
                 
                 // Format tool calls
@@ -1033,11 +1048,11 @@ app.post('/v1/messages', async (c) => {
                         const parsedInput = JSON.parse(tool.input)
                         const fullInput = JSON.stringify(parsedInput)
                         const firstLine = fullInput.split('\n')[0]
-                        inputStr = ` - ${firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine}`
+                        inputStr = ` - ${firstLine.length > MAX_INPUT_PREVIEW_LENGTH ? firstLine.substring(0, MAX_INPUT_PREVIEW_LENGTH) + '...' : firstLine}`
                       } catch {
                         // If parsing fails, use raw input
                         const firstLine = tool.input.split('\n')[0]
-                        inputStr = ` - ${firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine}`
+                        inputStr = ` - ${firstLine.length > MAX_INPUT_PREVIEW_LENGTH ? firstLine.substring(0, MAX_INPUT_PREVIEW_LENGTH) + '...' : firstLine}`
                       }
                     }
                     
