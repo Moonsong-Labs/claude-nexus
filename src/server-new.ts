@@ -2,18 +2,17 @@
 
 import { serve } from '@hono/node-server'
 import { createApp } from './app'
-import { config } from './config'
-import { container } from './container'
-import { logger } from './middleware/logger'
+import { readFileSync, existsSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { config as dotenvConfig } from 'dotenv'
 import { tokenTracker } from './tokenTracker'
 import { closeRateLimitStores } from './middleware/rate-limit'
-import { readFileSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
-import { configDotenv } from 'dotenv'
+import { container } from './container'
+import { logger } from './middleware/logger'
 
 /**
- * CLI entry point for the refactored application
+ * CLI entry point for the application
  * Handles command line arguments and environment setup
  */
 
@@ -75,8 +74,22 @@ See documentation for full configuration options.
   }
 }
 
-// Load environment variables
-configDotenv({ path: envFile || '.env' })
+// Load environment variables from multiple possible locations
+const envPaths = envFile ? [envFile] : [
+  join(process.cwd(), '.env'),
+  join(process.cwd(), '.env.local'),
+  join(dirname(process.argv[1]), '.env'),
+]
+
+for (const envPath of envPaths) {
+  if (existsSync(envPath)) {
+    const result = dotenvConfig({ path: envPath })
+    if (!result.error) {
+      console.log(`Loaded configuration from ${envPath}`)
+      break
+    }
+  }
+}
 
 // Override with CLI arguments
 if (port) process.env.PORT = port.toString()
@@ -89,18 +102,25 @@ async function main() {
     const app = await createApp()
     
     // Start the server
+    const serverPort = parseInt(process.env.PORT || '3000')
+    const serverHost = process.env.HOST || '0.0.0.0'
+    
     const server = serve({
       fetch: app.fetch,
-      port: config.server.port,
-      hostname: config.server.host
+      port: serverPort,
+      hostname: serverHost
     })
     
     console.log(`🚀 Claude Nexus Proxy v${getVersion()} started`)
-    console.log(`🔗 Listening on http://${config.server.host}:${config.server.port}`)
-    console.log(`📊 Token stats available at http://${config.server.host}:${config.server.port}/token-stats`)
+    console.log(`🔗 Listening on http://${serverHost}:${serverPort}`)
+    console.log(`📊 Token stats available at http://${serverHost}:${serverPort}/token-stats`)
     
-    if (config.features.enableHealthChecks) {
-      console.log(`🏥 Health checks at http://${config.server.host}:${config.server.port}/health`)
+    if (process.env.DATABASE_URL || process.env.DB_HOST) {
+      console.log(`💾 Storage enabled`)
+    }
+    
+    if (process.env.SLACK_WEBHOOK_URL) {
+      console.log(`📢 Slack notifications enabled`)
     }
     
     // Start token stats reporting
@@ -111,7 +131,7 @@ async function main() {
     // Setup graceful shutdown
     setupGracefulShutdown(server)
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Failed to start server:', error.message)
     process.exit(1)
   }
@@ -178,7 +198,7 @@ function setupGracefulShutdown(server: any): void {
       console.log('✅ Graceful shutdown complete')
       process.exit(0)
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error during shutdown:', error.message)
       process.exit(1)
     }
