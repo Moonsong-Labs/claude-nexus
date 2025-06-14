@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: claude-proxy-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: claude_proxy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  claude-proxy:
+    build: .
+    container_name: claude-nexus-proxy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_proxy
+      STORAGE_ENABLED: "true"
+      # Add your other environment variables here
+      # CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      # SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./credentials:/app/credentials
+
+volumes:
+  postgres_data:

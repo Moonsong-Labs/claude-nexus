@@ -195,12 +195,25 @@ try {
 
 // Handle graceful shutdown
 let isShuttingDown = false;
-const shutdown = () => {
+const shutdown = async () => {
   if (isShuttingDown) return;
   isShuttingDown = true;
   
   console.log('\n\nShutting down server...');
   tokenTracker.stop();
+  
+  // Close storage service if available
+  try {
+    // Access the global storage service if it exists
+    const { storageService } = await import('./index');
+    if (storageService) {
+      console.log('Closing storage service...');
+      await storageService.close();
+      console.log('Storage service closed');
+    }
+  } catch (error) {
+    console.error('Error closing storage service:', error);
+  }
   
   // The @hono/node-server doesn't expose a close method directly
   // We'll just exit the process after cleaning up

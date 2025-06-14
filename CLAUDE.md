@@ -46,6 +46,14 @@ The proxy service:
 - **Token stats**: Final statistics printed before exit
 - **Timeout protection**: Forces exit after 5 seconds if needed
 
+### Storage Service (`src/storage.ts`)
+- **PostgreSQL storage**: Persists all requests/responses for monitoring and troubleshooting
+- **Batch processing**: Efficiently stores data in batches for high throughput
+- **Streaming support**: Captures individual streaming chunks
+- **Full data capture**: Stores headers, body, tokens, tool calls, and timing
+- **Query API**: REST endpoints to retrieve historical data
+- **Auto-initialization**: Creates database schema on startup
+
 ## Development Commands
 
 ```bash
@@ -82,6 +90,9 @@ Configure via environment:
 - `SLACK_USERNAME` - Custom Slack bot username (optional)
 - `SLACK_ICON_EMOJI` - Custom Slack bot icon (optional)
 - `SLACK_ENABLED` - Enable/disable Slack notifications (optional)
+- `STORAGE_ENABLED` - Enable request/response storage (default: false)
+- `DATABASE_URL` - PostgreSQL connection string for storage
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - Individual database settings
 
 ## Deployment Options
 
@@ -252,6 +263,38 @@ API key selection priority:
 Slack configuration priority:
 1. Domain-specific Slack config from credential file
 2. Global Slack environment variables
+
+### Request/Response Storage
+When storage is enabled, the proxy persists all API interactions to PostgreSQL:
+
+```bash
+# Using Docker Compose (recommended)
+docker-compose up -d
+
+# Or with individual database settings
+export STORAGE_ENABLED=true
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/claude_proxy
+bun run start
+```
+
+Query stored data via REST API:
+```bash
+# Get recent requests for a domain
+curl http://localhost:3000/api/requests?domain=claude-1.example.com&limit=50
+
+# Get detailed request with streaming chunks
+curl http://localhost:3000/api/requests/3593c3d3-d7a9-4cce-bbf8-749bcf4b7771
+
+# Get aggregated token statistics
+curl http://localhost:3000/api/storage-stats?domain=claude-1.example.com
+```
+
+Storage features:
+- Automatic batch processing for high throughput
+- Full request/response capture including headers and streaming chunks
+- Privacy: Sensitive headers (Authorization, API keys) are removed before storage
+- Efficient indexing for fast queries by domain, timestamp, and request type
+- 15-minute internal cache for storage queries
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.

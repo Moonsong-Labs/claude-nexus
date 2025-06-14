@@ -11,6 +11,7 @@ A direct proxy service for Claude API with telemetry, multi-subscription support
 - **OAuth Support**: Automatic token refresh for OAuth credentials
 - **Token Usage Tracking**: Real-time monitoring of input/output tokens per domain
 - **Slack Integration**: Send notifications for all API interactions
+- **Request/Response Storage**: Optional PostgreSQL storage for monitoring and troubleshooting
 - **Multiple Deployment Options**: Docker container or standalone CLI
 
 ## Installation & Usage
@@ -289,6 +290,62 @@ Add Slack configuration to any credential file:
 
 **Priority**: Domain-specific Slack config takes precedence over global environment variables
 
+## Request/Response Storage
+
+Enable PostgreSQL storage to persist all API interactions for monitoring and troubleshooting.
+
+### Quick Start with Docker Compose
+
+```bash
+# Start proxy with PostgreSQL
+docker-compose up -d
+
+# View logs
+docker-compose logs -f claude-proxy
+
+# Query stored requests
+curl http://localhost:3000/api/requests?domain=claude-1.example.com
+```
+
+### Manual Setup
+
+```bash
+# Configure storage
+export STORAGE_ENABLED=true
+export DATABASE_URL=postgresql://postgres:password@localhost:5432/claude_proxy
+
+# Or use individual settings
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=claude_proxy
+export DB_USER=postgres
+export DB_PASSWORD=password
+
+# Run the proxy
+claude-nexus-proxy
+```
+
+### Storage Features
+
+- **Full capture**: Stores complete request/response including messages, headers, and tool calls
+- **Streaming support**: Captures individual streaming chunks for SSE responses
+- **Batch processing**: Efficient storage with automatic batching for high throughput
+- **Privacy**: Sensitive headers (Authorization, API keys) are automatically removed
+- **Auto-initialization**: Database schema created automatically on first run
+
+### Query API
+
+```bash
+# Get recent requests for a domain
+curl "http://localhost:3000/api/requests?domain=claude-1.example.com&limit=50"
+
+# Get detailed request with all streaming chunks
+curl "http://localhost:3000/api/requests/3593c3d3-d7a9-4cce-bbf8-749bcf4b7771"
+
+# Get aggregated statistics by domain
+curl "http://localhost:3000/api/storage-stats?domain=claude-1.example.com"
+```
+
 ## Debug Logging
 
 Enable comprehensive debug logging with `DEBUG=true`. All sensitive data is automatically masked.
@@ -315,6 +372,9 @@ Forwarding headers: {
 - `GET /token-stats` - Current token usage statistics
 - `GET /client-setup/:filename` - Download client setup files
 - `POST /v1/messages` - Claude API proxy endpoint
+- `GET /api/requests` - Query stored requests (requires storage enabled)
+- `GET /api/requests/:requestId` - Get detailed request with streaming chunks
+- `GET /api/storage-stats` - Get aggregated token statistics from storage
 
 ## Telemetry Data
 

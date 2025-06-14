@@ -3,6 +3,8 @@ import { env } from 'hono/adapter'
 import { getCredentialFileForDomain, getApiKey, getMaskedCredentialInfo, loadCredentials } from './credentials'
 import { initializeSlack, parseSlackConfig, sendToSlack, sendErrorToSlack, initializeDomainSlack } from './slack'
 import { tokenTracker } from './tokenTracker'
+import { StorageService, initializeDatabase } from './storage'
+import { Pool } from 'pg'
 // File system imports
 let readFileSync: any, existsSync: any, join: any, dirname: any, fileURLToPath: any
 try {
@@ -23,6 +25,40 @@ try {
 
 // Track previous user messages by domain to detect changes
 const previousUserMessages = new Map<string, string>()
+
+// Initialize storage service if configured
+let storageService: StorageService | null = null
+if (process.env.DATABASE_URL || process.env.DB_HOST) {
+  try {
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'claude_proxy',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD,
+      ssl: process.env.NODE_ENV === 'production'
+    })
+    
+    // Initialize database schema
+    await initializeDatabase(pool)
+    
+    // Create storage service
+    storageService = new StorageService({
+      connectionString: process.env.DATABASE_URL,
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'claude_proxy',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD,
+      ssl: process.env.NODE_ENV === 'production'
+    })
+    
+    console.log('Storage service initialized successfully')
+  } catch (error) {
+    console.error('Failed to initialize storage service:', error)
+  }
+}
 
 const app = new Hono<{
   Bindings: {
@@ -96,6 +132,71 @@ app.get('/token-stats', async (c) => {
     stats,
     timestamp: new Date().toISOString()
   })
+})
+
+// Storage API endpoints
+app.get('/api/requests', async (c) => {
+  if (!storageService) {
+    return c.json({ error: 'Storage service not configured' }, 501)
+  }
+  
+  const domain = c.req.query('domain')
+  const limit = parseInt(c.req.query('limit') || '100')
+  
+  try {
+    const requests = await storageService.getRequestsByDomain(domain || '', limit)
+    return c.json({
+      status: 'ok',
+      requests,
+      count: requests.length
+    })
+  } catch (error) {
+    console.error('Failed to get requests:', error)
+    return c.json({ error: 'Failed to retrieve requests' }, 500)
+  }
+})
+
+app.get('/api/requests/:requestId', async (c) => {
+  if (!storageService) {
+    return c.json({ error: 'Storage service not configured' }, 501)
+  }
+  
+  const requestId = c.req.param('requestId')
+  
+  try {
+    const details = await storageService.getRequestDetails(requestId)
+    if (!details.request) {
+      return c.json({ error: 'Request not found' }, 404)
+    }
+    return c.json({
+      status: 'ok',
+      ...details
+    })
+  } catch (error) {
+    console.error('Failed to get request details:', error)
+    return c.json({ error: 'Failed to retrieve request details' }, 500)
+  }
+})
+
+app.get('/api/storage-stats', async (c) => {
+  if (!storageService) {
+    return c.json({ error: 'Storage service not configured' }, 501)
+  }
+  
+  const domain = c.req.query('domain')
+  
+  try {
+    const stats = await storageService.getTokenStats(domain)
+    return c.json({
+      status: 'ok',
+      stats,
+      domain: domain || 'all',
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Failed to get storage stats:', error)
+    return c.json({ error: 'Failed to retrieve storage statistics' }, 500)
+  }
 })
 
 // Client setup files endpoint (only available in Node.js environment)
@@ -276,26 +377,12 @@ app.post('/v1/messages', async (c) => {
         })
     }
     
-    // Debug log incoming request headers
-    if (DEBUG && DEBUG !== 'false') {
-      const headers: Record<string, string> = {}
-      c.req.raw.headers.forEach((value, key) => {
-        // Mask sensitive headers
-        if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'x-api-key') {
-          headers[key] = maskBearer(value)
-        } else {
-          headers[key] = value
-        }
-      })
-      debug('=== Incoming Request ===')
-      debug('Request ID:', requestId)
-      debug('Method:', c.req.method)
-      debug('URL:', c.req.url)
-      debug('Host:', requestHost)
-      debug('Headers:', headers)
-    }
+    // We'll check debug logging after determining request type
 
     const payload = await c.req.json()
+    
+    // Store request in database if storage is enabled (will be updated with actual type later)
+    // Skip initial storage, will store after determining request type
     
     // Detect request type based on system message count
     let systemMessageCount = 0
@@ -317,13 +404,40 @@ app.post('/v1/messages', async (c) => {
       systemMessageCount > 1 ? 'inference' : 
       undefined
     
-    if (DEBUG && DEBUG !== 'false') {
+    // Debug log incoming request headers (skip for query_evaluation)
+    if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
+      const headers: Record<string, string> = {}
+      c.req.raw.headers.forEach((value, key) => {
+        // Mask sensitive headers
+        if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'x-api-key') {
+          headers[key] = maskBearer(value)
+        } else {
+          headers[key] = value
+        }
+      })
+      debug('=== Incoming Request ===')
+      debug('Request ID:', requestId)
+      debug('Method:', c.req.method)
+      debug('URL:', c.req.url)
+      debug('Host:', requestHost)
+      debug('Headers:', headers)
       debug('System message count:', systemMessageCount)
       debug('Request type:', requestType || 'unknown')
     }
     
-    // Debug log request body
-    if (DEBUG && DEBUG !== 'false') {
+    // Store request only if it's not a query_evaluation
+    // Include unknown request types as they might be legitimate requests without system messages
+    if (storageService && requestType !== 'query_evaluation') {
+      try {
+        // Force immediate storage for streaming requests
+        await storageService.storeRequest(c, requestId, payload, requestType || 'unknown', payload.stream)
+      } catch (error) {
+        console.error('Failed to store request:', error)
+      }
+    }
+    
+    // Debug log request body (skip for query_evaluation)
+    if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
       // Create a deep copy and mask sensitive data
       const maskedPayload = JSON.parse(JSON.stringify(payload))
       
@@ -446,11 +560,13 @@ app.post('/v1/messages', async (c) => {
       }
     }
     
-    debug('Forwarding to Claude API')
-    debug('URL:', `${baseUrl}/v1/messages`)
+    if (requestType !== 'query_evaluation') {
+      debug('Forwarding to Claude API')
+      debug('URL:', `${baseUrl}/v1/messages`)
+    }
     
-    // Debug log headers being sent
-    if (DEBUG && DEBUG !== 'false') {
+    // Debug log headers being sent (skip for query_evaluation)
+    if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
       const authType = headers['Authorization'] ? 'OAuth' : headers['x-api-key'] ? 'API Key' : 'None'
       debug('Authentication type:', authType)
       
@@ -470,8 +586,8 @@ app.post('/v1/messages', async (c) => {
       body: JSON.stringify(payload)
     })
     
-    // Debug log response
-    if (DEBUG && DEBUG !== 'false') {
+    // Debug log response (skip for query_evaluation)
+    if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
       debug('=== Claude API Response ===')
       debug('Status:', claudeResponse.status)
       debug('Status Text:', claudeResponse.statusText)
@@ -486,8 +602,8 @@ app.post('/v1/messages', async (c) => {
       ? claudeResponse.body 
       : await claudeResponse.json()
     
-    // Debug log response body (non-streaming only)
-    if (DEBUG && DEBUG !== 'false' && !payload.stream) {
+    // Debug log response body (non-streaming only, skip for query_evaluation)
+    if (DEBUG && DEBUG !== 'false' && !payload.stream && requestType !== 'query_evaluation') {
       // Mask sensitive data in response
       const maskedResponse = JSON.parse(JSON.stringify(responseData))
       if (maskedResponse.content) {
@@ -526,8 +642,8 @@ app.post('/v1/messages', async (c) => {
     if (!payload.stream && responseData && typeof responseData === 'object') {
       const data = responseData as any
       
-      // Debug the entire response structure to find usage
-      if (DEBUG && DEBUG !== 'false') {
+      // Debug the entire response structure to find usage (skip for query_evaluation)
+      if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
         debug('Looking for usage in response...')
         debug('Response type:', data.type)
         debug('Has top-level usage?', 'usage' in data)
@@ -545,7 +661,7 @@ app.post('/v1/messages', async (c) => {
         telemetryData.inputTokens = usage.input_tokens || usage.inputTokens || usage.prompt_tokens || 0
         telemetryData.outputTokens = usage.output_tokens || usage.outputTokens || usage.completion_tokens || 0
         
-        if (DEBUG && DEBUG !== 'false') {
+        if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
           debug('Token usage extracted:', {
             input_tokens: telemetryData.inputTokens,
             output_tokens: telemetryData.outputTokens,
@@ -553,7 +669,7 @@ app.post('/v1/messages', async (c) => {
           })
         }
       } else {
-        if (DEBUG && DEBUG !== 'false') {
+        if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
           debug('No usage data found in response')
         }
       }
@@ -575,7 +691,7 @@ app.post('/v1/messages', async (c) => {
     // Track token usage
     tokenTracker.track(requestHost, telemetryData.inputTokens || 0, telemetryData.outputTokens || 0, requestType, toolCallCount)
     
-    if (DEBUG && DEBUG !== 'false') {
+    if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
       debug('Token tracking called with:', {
         domain: requestHost,
         inputTokens: telemetryData.inputTokens || 0,
@@ -583,6 +699,31 @@ app.post('/v1/messages', async (c) => {
         requestType: requestType || 'unknown',
         toolCallCount
       })
+    }
+    
+    // Store response in database if storage is enabled and not query_evaluation
+    if (storageService && !payload.stream && requestType !== 'query_evaluation') {
+      try {
+        const responseHeaders: Record<string, string> = {}
+        claudeResponse.headers.forEach((value, key) => {
+          responseHeaders[key] = value
+        })
+        
+        await storageService.storeResponse(
+          requestId,
+          claudeResponse.status,
+          responseHeaders,
+          responseData,
+          false, // not streaming
+          Date.now() - startTime,
+          telemetryData.inputTokens,
+          telemetryData.outputTokens,
+          toolCallCount,
+          claudeResponse.status >= 400 ? `${claudeResponse.status} ${claudeResponse.statusText}` : undefined
+        )
+      } catch (error) {
+        console.error('Failed to store response:', error)
+      }
     }
     
     // Send combined user/assistant message to Slack (non-streaming only, non-query evaluation)
@@ -717,6 +858,7 @@ app.post('/v1/messages', async (c) => {
       
       const stream = new ReadableStream({
         async start(controller) {
+          let chunkIndex = 0
           try {
             while (true) {
               const { done, value } = await reader.read()
@@ -738,10 +880,20 @@ app.post('/v1/messages', async (c) => {
                     try {
                       const parsed = JSON.parse(data)
                       
+                      // Store streaming chunk in database if storage is enabled and not query_evaluation
+                      if (storageService && requestType !== 'query_evaluation') {
+                        try {
+                          await storageService.storeStreamingChunk(requestId, chunkIndex++, parsed)
+                        } catch (error) {
+                          // Don't fail the stream if storage fails
+                          console.error('Failed to store streaming chunk:', error)
+                        }
+                      }
+                      
                       // Extract usage
                       if (parsed.usage) {
                         usage = parsed.usage
-                        if (DEBUG && DEBUG !== 'false') {
+                        if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
                           debug('Streaming usage found:', JSON.stringify(usage, null, 2))
                         }
                       }
@@ -793,7 +945,7 @@ app.post('/v1/messages', async (c) => {
               // Track token usage with tool calls count
               tokenTracker.track(requestHost, inputTokens, outputTokens, requestType, streamedToolCalls.length)
               
-              if (DEBUG && DEBUG !== 'false') {
+              if (DEBUG && DEBUG !== 'false' && requestType !== 'query_evaluation') {
                 debug('Streaming token usage:', {
                   inputTokens,
                   outputTokens,
@@ -926,6 +1078,41 @@ app.post('/v1/messages', async (c) => {
               }
             }
             
+            // Store final streaming response in database if storage is enabled and not query_evaluation
+            if (storageService && requestType !== 'query_evaluation') {
+              try {
+                const responseHeaders: Record<string, string> = {}
+                claudeResponse.headers.forEach((value, key) => {
+                  responseHeaders[key] = value
+                })
+                
+                // Construct a summary response object
+                const summaryResponse = {
+                  type: 'message',
+                  role: 'assistant',
+                  content: streamedAssistantContent,
+                  model: streamedModel,
+                  tool_calls: streamedToolCalls,
+                  usage: usage
+                }
+                
+                await storageService.storeResponse(
+                  requestId,
+                  claudeResponse.status,
+                  responseHeaders,
+                  summaryResponse,
+                  true, // streaming
+                  Date.now() - startTime,
+                  usage?.input_tokens || usage?.inputTokens || usage?.prompt_tokens,
+                  usage?.output_tokens || usage?.outputTokens || usage?.completion_tokens,
+                  streamedToolCalls.length,
+                  claudeResponse.status >= 400 ? `${claudeResponse.status} ${claudeResponse.statusText}` : undefined
+                )
+              } catch (error) {
+                console.error('Failed to store streaming response:', error)
+              }
+            }
+            
             controller.close()
           } catch (err) {
             controller.error(err)
@@ -971,8 +1158,35 @@ app.post('/v1/messages', async (c) => {
       console.error('Failed to send error to Slack:', slackError)
     }
     
+    // Store error response in database if storage is enabled and not query_evaluation
+    // First ensure the request exists in the database
+    if (storageService && requestType !== 'query_evaluation') {
+      try {
+        // If request wasn't stored yet (e.g., error before determining type), store it now
+        if (!requestType) {
+          await storageService.storeRequest(c, requestId, payload, 'unknown', true)
+        }
+        
+        await storageService.storeResponse(
+          requestId,
+          500,
+          {},
+          { error: err.message },
+          false,
+          Date.now() - startTime,
+          0,
+          0,
+          0,
+          err.message
+        )
+      } catch (error) {
+        console.error('Failed to store error response:', error)
+      }
+    }
+    
     return c.json({ error: err.message }, 500)
   }
 })
 
 export default app
+export { storageService }
