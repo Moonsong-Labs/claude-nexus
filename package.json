@@ -15,8 +15,8 @@
   },
   "scripts": {
     "bin": "./bin",
-    "start": "bun run --hot src/index.ts",
-    "build": "bun build ./src/server.ts --outfile=./bin --target=node --format=esm --banner='#!/usr/bin/env node'",
+    "start": "bun run --hot src/main.ts",
+    "build": "bun build ./src/main.ts --outfile=./bin --target=node --format=esm --banner='#!/usr/bin/env node'",
     "prepack": "bun run build && chmod +x ./bin",
     "test": "vitest run",
     "test:watch": "vitest",

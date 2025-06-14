@@ -41,4 +41,4 @@ USER bun
 EXPOSE 3000
 
 # Run the server directly with bun
-CMD ["bun", "run", "src/server.ts"]
+CMD ["bun", "run", "src/main.ts"]

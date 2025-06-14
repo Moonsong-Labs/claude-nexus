@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import app from './index'
+import { createApp } from './app'
 import * as process from 'node:process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -162,6 +162,9 @@ if (process.env.SLACK_WEBHOOK_URL) {
 
 // Start token usage tracking
 tokenTracker.startReporting(10000) // Report every 10 seconds
+
+// Create the app asynchronously
+const app = await createApp()
 
 const server = serve({
   port: port,
