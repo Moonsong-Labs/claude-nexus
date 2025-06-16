@@ -380,7 +380,9 @@ apiRoutes.get('/domains', async (c) => {
     pool = container.getDbPool()
     
     if (!pool) {
-      return c.json({ error: 'Database not configured' }, 503)
+      // Return empty domains list when database is not configured
+      logger.debug('Domains API called but database not configured')
+      return c.json({ domains: [] })
     }
   }
 

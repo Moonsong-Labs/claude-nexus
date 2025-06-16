@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Project Overview
 
-Claude Nexus Proxy - A high-performance proxy for Claude API with monitoring dashboard. Built with Bun and Hono framework, deployable as a unified Docker image.
+Claude Nexus Proxy - A high-performance proxy for Claude API with monitoring dashboard. Built with Bun and Hono framework, deployed as separate Docker images for each service.
 
 ## Architecture
 
@@ -16,8 +16,10 @@ claude-nexus-proxy/
 │   ├── proxy/           # Proxy API service (Port 3000)
 │   └── dashboard/       # Dashboard web service (Port 3001)
 ├── scripts/             # Utility scripts
-├── docker-compose.yml   # Container orchestration
-└── Dockerfile          # Unified Docker image
+├── docker/              # Docker configurations
+│   ├── proxy/           # Proxy Dockerfile
+│   └── dashboard/       # Dashboard Dockerfile
+└── docker-compose.yml   # Container orchestration
 ```
 
 ### Key Services
@@ -54,20 +56,20 @@ bun run build
 
 ## Docker Deployment
 
-The project uses a **unified Docker image** with SERVICE environment variable:
+The project uses **separate Docker images** for each service:
 
 ```bash
-# Run proxy only (production recommended)
-docker run -e SERVICE=proxy -p 3000:3000 image:v5
+# Build images
+./docker/build-images.sh
 
-# Run dashboard only (production recommended)
-docker run -e SERVICE=dashboard -p 3001:3001 image:v5
+# Run proxy service
+docker run -p 3000:3000 alanpurestake/claude-nexus-proxy:latest
 
-# Run both (development/testing only)
-docker run -e SERVICE=both -p 3000:3000 -p 3001:3001 image:v5
+# Run dashboard service
+docker run -p 3001:3001 alanpurestake/claude-nexus-dashboard:latest
 ```
 
-**Important:** SERVICE=both couples services in a single container, which is against microservices best practices. Use it only for local development or simple demos. For production, always run separate containers using Docker Compose.
+Docker configurations are in the `docker/` directory. Each service has its own optimized image for better security, scaling, and maintainability.
 
 ## Key Implementation Details
 
@@ -128,8 +130,8 @@ Currently no automated tests. When implementing:
 ## Important Notes
 
 - Uses Bun runtime exclusively (no Node.js)
-- Single Docker image for both services
-- No TypeScript compilation (Bun runs TS directly)
+- Separate Docker images for each service
+- TypeScript compilation for production builds
 - Model-agnostic (accepts any model name)
 
 ## Common Tasks

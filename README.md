@@ -10,7 +10,7 @@ A high-performance proxy for Claude API with monitoring dashboard, built with Bu
 - 📈 **Token Tracking** - Per-domain usage statistics
 - 💾 **Request Storage** - PostgreSQL backend for history
 - 🔔 **Slack Integration** - Optional notifications
-- 🐳 **Docker Ready** - Single image with flexible deployment
+- 🐳 **Docker Ready** - Separate optimized images for each service
 
 ## Quick Start
 
@@ -34,32 +34,28 @@ Access:
 - Proxy: http://localhost:3000
 - Dashboard: http://localhost:3001 (requires DASHBOARD_API_KEY)
 
-### Using Docker Image
+### Using Docker Images
+
+The project uses separate Docker images for each service:
 
 ```bash
-# Run proxy only (recommended for production)
+# Build images
+./docker/build-images.sh
+
+# Run proxy service
 docker run -d -p 3000:3000 \
-  -e SERVICE=proxy \
   -e CLAUDE_API_KEY=your-key \
-  alanpurestake/claude-nexus-proxy:v5
+  -v ./credentials:/app/credentials:ro \
+  alanpurestake/claude-nexus-proxy:latest
 
-# Run dashboard only (recommended for production)
+# Run dashboard service
 docker run -d -p 3001:3001 \
-  -e SERVICE=dashboard \
   -e DASHBOARD_API_KEY=your-key \
-  -e DATABASE_URL=postgresql://... \
-  alanpurestake/claude-nexus-proxy:v5
-
-# Run both services (development/testing only)
-docker run -d -p 3000:3000 -p 3001:3001 \
-  -e SERVICE=both \
-  -e CLAUDE_API_KEY=your-key \
-  -e DASHBOARD_API_KEY=your-key \
-  -e DATABASE_URL=postgresql://... \
-  alanpurestake/claude-nexus-proxy:v5
+  -e PROXY_API_URL=http://localhost:3000 \
+  alanpurestake/claude-nexus-dashboard:latest
 ```
 
-**Note:** For production deployments, use Docker Compose or run separate containers for each service. The `SERVICE=both` mode is intended for development and testing only.
+See [docker/README.md](docker/README.md) for detailed Docker configuration.
 
 ### Local Development
 

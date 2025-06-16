@@ -155,31 +155,44 @@ dashboardRoutes.get('/', async (c) => {
   let domains: Array<{ domain: string; requestCount: number }> = []
   let error: string | null = null
   
-  try {
-    // Fetch data from Proxy API
-    const [statsResponse, requestsResponse, domainsResponse] = await Promise.all([
-      apiClient.getStats({ domain }),
-      apiClient.getRequests({ domain, limit: 20 }),
-      apiClient.getDomains()
-    ])
-    
-    // Update stats
+  // Fetch data from Proxy API with individual error handling
+  const results = await Promise.allSettled([
+    apiClient.getStats({ domain }),
+    apiClient.getRequests({ domain, limit: 20 }),
+    apiClient.getDomains()
+  ])
+  
+  // Handle stats result
+  if (results[0].status === 'fulfilled') {
+    const statsResponse = results[0].value
     stats = {
       totalRequests: statsResponse.totalRequests,
       totalTokens: statsResponse.totalTokens,
       estimatedCost: (statsResponse.totalTokens / 1000) * 0.002,
       activeDomains: statsResponse.activeDomains,
     }
-    
-    // Update requests
-    recentRequests = requestsResponse.requests
-    
-    // Update domains - convert string[] to expected format
-    domains = domainsResponse.domains.map(d => ({ domain: d, requestCount: 0 }))
-    
-  } catch (err) {
-    console.error('Failed to fetch dashboard data:', err)
-    error = 'Failed to load dashboard data. Please try again later.'
+  } else {
+    console.error('Failed to fetch stats:', results[0].reason)
+  }
+  
+  // Handle requests result
+  if (results[1].status === 'fulfilled') {
+    recentRequests = results[1].value.requests
+  } else {
+    console.error('Failed to fetch requests:', results[1].reason)
+  }
+  
+  // Handle domains result
+  if (results[2].status === 'fulfilled') {
+    domains = results[2].value.domains.map(d => ({ domain: d, requestCount: 0 }))
+  } else {
+    console.error('Failed to fetch domains:', results[2].reason)
+    // Don't show error banner for domains failure since it's not critical
+  }
+  
+  // Only show error if critical data (stats or requests) failed
+  if (results[0].status === 'rejected' || results[1].status === 'rejected') {
+    error = 'Failed to load some dashboard data. Some features may be limited.'
   }
   
   const content = html`

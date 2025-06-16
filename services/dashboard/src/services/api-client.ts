@@ -174,7 +174,9 @@ export class ProxyApiClient {
         throw new Error(`API error: ${response.status} ${response.statusText}`)
       }
       
-      const domains = await response.json() as string[]
+      const data = await response.json() as { domains: Array<{ domain: string; requestCount: number }> }
+      // Extract just the domain strings
+      const domains = data.domains.map(d => d.domain)
       return { domains }
     } catch (error) {
       logger.error('Failed to fetch domains from proxy API', {

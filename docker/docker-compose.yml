@@ -22,15 +22,9 @@ services:
 
   # Proxy Service
   proxy:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: claude-nexus-proxy:latest
+    image: alanpurestake/claude-nexus-proxy:latest
     container_name: claude-nexus-proxy
     environment:
-      # Service selection
-      SERVICE: proxy
-      
       # Server configuration
       PORT: 3000
       HOST: 0.0.0.0
@@ -67,15 +61,9 @@ services:
 
   # Dashboard Service
   dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: claude-nexus-proxy:latest
+    image: alanpurestake/claude-nexus-dashboard:latest
     container_name: claude-nexus-dashboard
     environment:
-      # Service selection
-      SERVICE: dashboard
-      
       # Server configuration
       PORT: 3001
       HOST: 0.0.0.0
