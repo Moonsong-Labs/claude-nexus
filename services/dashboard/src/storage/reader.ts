@@ -1,0 +1,270 @@
+import { Pool } from 'pg'
+import NodeCache from 'node-cache'
+import { logger } from '../middleware/logger.js'
+import { getErrorMessage } from '@claude-nexus/shared'
+
+interface ApiRequest {
+  request_id: string
+  domain: string
+  timestamp: string
+  model: string
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  duration_ms: number
+  error?: string
+  request_type?: string
+  tool_call_count: number
+}
+
+interface RequestDetails {
+  request: ApiRequest | null
+  request_body: any
+  response_body: any
+  chunks: StreamingChunk[]
+}
+
+interface StreamingChunk {
+  chunk_index: number
+  timestamp: string
+  data: string
+  token_count: number
+}
+
+interface StorageStats {
+  total_requests: number
+  total_tokens: number
+  total_input_tokens: number
+  total_output_tokens: number
+  total_tool_calls: number
+  avg_response_time_ms: number
+  error_count: number
+  unique_domains: number
+  requests_by_model: Record<string, number>
+  requests_by_type: Record<string, number>
+}
+
+/**
+ * Storage reader service for retrieving data from the database
+ * Read-only operations for the dashboard service
+ */
+export class StorageReader {
+  private cache: NodeCache
+  
+  constructor(private pool: Pool) {
+    // Cache with 15 minute TTL
+    this.cache = new NodeCache({ stdTTL: 900, checkperiod: 120 })
+  }
+  
+  /**
+   * Get requests by domain
+   */
+  async getRequestsByDomain(domain: string, limit: number = 100): Promise<ApiRequest[]> {
+    const cacheKey = `requests:${domain}:${limit}`
+    const cached = this.cache.get<ApiRequest[]>(cacheKey)
+    if (cached) return cached
+    
+    try {
+      const query = domain
+        ? `SELECT * FROM api_requests 
+           WHERE domain = $1 
+           ORDER BY timestamp DESC 
+           LIMIT $2`
+        : `SELECT * FROM api_requests 
+           ORDER BY timestamp DESC 
+           LIMIT $1`
+      
+      const values = domain ? [domain, limit] : [limit]
+      const result = await this.pool.query(query, values)
+      
+      const requests = result.rows.map(row => ({
+        request_id: row.request_id,
+        domain: row.domain,
+        timestamp: row.timestamp,
+        model: row.model,
+        input_tokens: row.input_tokens || 0,
+        output_tokens: row.output_tokens || 0,
+        total_tokens: row.total_tokens || 0,
+        duration_ms: row.duration_ms || 0,
+        error: row.error,
+        request_type: row.request_type,
+        tool_call_count: row.tool_call_count || 0
+      }))
+      
+      this.cache.set(cacheKey, requests)
+      return requests
+    } catch (error) {
+      logger.error('Failed to get requests by domain', {
+        domain,
+        error: getErrorMessage(error)
+      })
+      throw error
+    }
+  }
+  
+  /**
+   * Get request details including body and chunks
+   */
+  async getRequestDetails(requestId: string): Promise<RequestDetails> {
+    const cacheKey = `details:${requestId}`
+    const cached = this.cache.get<RequestDetails>(cacheKey)
+    if (cached) return cached
+    
+    try {
+      // Get request
+      const requestQuery = `
+        SELECT 
+          request_id, domain, timestamp, model, input_tokens, output_tokens,
+          total_tokens, duration_ms, error, request_type, tool_call_count,
+          body, response_body
+        FROM api_requests 
+        WHERE request_id = $1
+      `
+      const requestResult = await this.pool.query(requestQuery, [requestId])
+      
+      if (requestResult.rows.length === 0) {
+        return { request: null, request_body: null, response_body: null, chunks: [] }
+      }
+      
+      const row = requestResult.rows[0]
+      const request: ApiRequest = {
+        request_id: row.request_id,
+        domain: row.domain,
+        timestamp: row.timestamp,
+        model: row.model,
+        input_tokens: row.input_tokens || 0,
+        output_tokens: row.output_tokens || 0,
+        total_tokens: row.total_tokens || 0,
+        duration_ms: row.duration_ms || 0,
+        error: row.error,
+        request_type: row.request_type,
+        tool_call_count: row.tool_call_count || 0
+      }
+      
+      // Get streaming chunks
+      const chunksQuery = `
+        SELECT chunk_index, timestamp, data, token_count
+        FROM streaming_chunks 
+        WHERE request_id = $1 
+        ORDER BY chunk_index
+      `
+      const chunksResult = await this.pool.query(chunksQuery, [requestId])
+      
+      const details: RequestDetails = {
+        request,
+        request_body: row.body,
+        response_body: row.response_body,
+        chunks: chunksResult.rows
+      }
+      
+      this.cache.set(cacheKey, details)
+      return details
+    } catch (error) {
+      logger.error('Failed to get request details', {
+        requestId,
+        error: getErrorMessage(error)
+      })
+      throw error
+    }
+  }
+  
+  /**
+   * Get aggregated statistics
+   */
+  async getStats(domain?: string, since?: Date): Promise<StorageStats> {
+    const cacheKey = `stats:${domain || 'all'}:${since?.toISOString() || 'all'}`
+    const cached = this.cache.get<StorageStats>(cacheKey)
+    if (cached) return cached
+    
+    try {
+      const conditions = []
+      const values = []
+      let paramCount = 0
+      
+      if (domain) {
+        conditions.push(`domain = $${++paramCount}`)
+        values.push(domain)
+      }
+      
+      if (since) {
+        conditions.push(`timestamp > $${++paramCount}`)
+        values.push(since)
+      }
+      
+      const whereClause = conditions.length > 0 
+        ? `WHERE ${conditions.join(' AND ')}` 
+        : ''
+      
+      const query = `
+        SELECT
+          COUNT(*) as total_requests,
+          COALESCE(SUM(total_tokens), 0) as total_tokens,
+          COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+          COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+          COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
+          COALESCE(AVG(duration_ms), 0) as avg_response_time_ms,
+          COUNT(*) FILTER (WHERE error IS NOT NULL) as error_count,
+          COUNT(DISTINCT domain) as unique_domains
+        FROM api_requests
+        ${whereClause}
+      `
+      
+      const statsResult = await this.pool.query(query, values)
+      const baseStats = statsResult.rows[0]
+      
+      // Get model breakdown
+      const modelQuery = `
+        SELECT model, COUNT(*) as count
+        FROM api_requests
+        ${whereClause}
+        GROUP BY model
+      `
+      const modelResult = await this.pool.query(modelQuery, values)
+      const requestsByModel = Object.fromEntries(
+        modelResult.rows.map(row => [row.model, parseInt(row.count)])
+      )
+      
+      // Get request type breakdown
+      const typeQuery = `
+        SELECT request_type, COUNT(*) as count
+        FROM api_requests
+        ${whereClause}
+        AND request_type IS NOT NULL
+        GROUP BY request_type
+      `
+      const typeResult = await this.pool.query(typeQuery, values)
+      const requestsByType = Object.fromEntries(
+        typeResult.rows.map(row => [row.request_type, parseInt(row.count)])
+      )
+      
+      const stats: StorageStats = {
+        total_requests: parseInt(baseStats.total_requests),
+        total_tokens: parseInt(baseStats.total_tokens),
+        total_input_tokens: parseInt(baseStats.total_input_tokens),
+        total_output_tokens: parseInt(baseStats.total_output_tokens),
+        total_tool_calls: parseInt(baseStats.total_tool_calls),
+        avg_response_time_ms: parseFloat(baseStats.avg_response_time_ms),
+        error_count: parseInt(baseStats.error_count),
+        unique_domains: parseInt(baseStats.unique_domains),
+        requests_by_model: requestsByModel,
+        requests_by_type: requestsByType
+      }
+      
+      this.cache.set(cacheKey, stats)
+      return stats
+    } catch (error) {
+      logger.error('Failed to get storage stats', {
+        domain,
+        error: getErrorMessage(error)
+      })
+      throw error
+    }
+  }
+  
+  /**
+   * Clear cache
+   */
+  clearCache(): void {
+    this.cache.flushAll()
+  }
+}

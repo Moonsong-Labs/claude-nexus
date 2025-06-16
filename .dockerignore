@@ -89,6 +89,7 @@ temp
 
 # Scripts and examples
 scripts/
+!scripts/start-services.sh
 examples/
 
 # Cache directories

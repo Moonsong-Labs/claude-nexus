@@ -1,0 +1,170 @@
+Claude Nexus Proxy Service v2.0.0
+Mode: passthrough (direct proxy to Claude API)
+Target: Claude API (https://api.anthropic.com)
+✓ Credential directory: credentials (default)
+
+Token usage tracking started (reporting every 10s)
+==========================================================================================
+[2025-06-15T15:29:02.234Z] INFO [system] Proxy service starting
+{
+  "metadata": {
+    "version": "2.0.0",
+    "environment": "development",
+    "features": {
+      "storage": false,
+      "slack": true,
+      "telemetry": true,
+      "healthChecks": true
+    }
+  }
+}
+
+✅ Server started successfully
+🌐 Listening on http://0.0.0.0:3000
+📊 Token stats: http://0.0.0.0:3000/token-stats
+
+Network interfaces:
+  http://172.25.83.1:3000
+
+Press Ctrl+C to stop the server
+[2025-06-15T15:29:05.343Z] INFO [hD94WksYv9Ad] Incoming request
+{
+  "domain": "localhost:3000",
+  "method": "POST",
+  "path": "/v1/messages",
+  "metadata": {
+    "userAgent": "claude-cli/1.0.24 (external, cli)"
+  }
+}
+[2025-06-15T15:29:05.347Z] INFO [hD94WksYv9Ad] Forwarding request to Claude
+{
+  "domain": "localhost:3000",
+  "metadata": {
+    "model": "claude-3-5-haiku-20241022",
+    "streaming": false,
+    "requestType": "inference"
+  }
+}
+[2025-06-15T15:29:05.402Z] INFO [fEwT93VNspxU] Incoming request
+{
+  "domain": "localhost:3000",
+  "method": "POST",
+  "path": "/v1/messages",
+  "metadata": {
+    "userAgent": "claude-cli/1.0.24 (external, cli)"
+  }
+}
+[2025-06-15T15:29:05.402Z] INFO [fEwT93VNspxU] Forwarding request to Claude
+{
+  "domain": "localhost:3000",
+  "metadata": {
+    "model": "claude-3-5-haiku-20241022",
+    "streaming": true,
+    "requestType": "query_evaluation"
+  }
+}
+[2025-06-15T15:29:05.533Z] INFO [hD94WksYv9Ad] Retrying after error
+{
+  "operation": "claude_api_call",
+  "attempt": 1,
+  "nextAttempt": 2,
+  "delay": 1046,
+  "error": "authentication_error: invalid x-api-key",
+  "errorType": "UpstreamError"
+}
+[2025-06-15T15:29:05.577Z] INFO [fEwT93VNspxU] Retrying after error
+{
+  "operation": "claude_api_call",
+  "attempt": 1,
+  "nextAttempt": 2,
+  "delay": 1307,
+  "error": "authentication_error: invalid x-api-key",
+  "errorType": "UpstreamError"
+}
+[2025-06-15T15:29:06.187Z] INFO [5GCZECvn3utE] Incoming request
+{
+  "domain": "localhost:3000",
+  "method": "POST",
+  "path": "/v1/messages",
+  "metadata": {
+    "userAgent": "claude-cli/1.0.24 (external, cli)"
+  }
+}
+[2025-06-15T15:29:06.188Z] INFO [5GCZECvn3utE] Forwarding request to Claude
+{
+  "domain": "localhost:3000",
+  "metadata": {
+    "model": "claude-opus-4-20250514",
+    "streaming": true,
+    "requestType": "query_evaluation"
+  }
+}
+[2025-06-15T15:29:06.347Z] INFO [5GCZECvn3utE] Retrying after error
+{
+  "operation": "claude_api_call",
+  "attempt": 1,
+  "nextAttempt": 2,
+  "delay": 1199,
+  "error": "authentication_error: invalid x-api-key",
+  "errorType": "UpstreamError"
+}
+[2025-06-15T15:29:06.717Z] INFO [hD94WksYv9Ad] Retrying after error
+{
+  "operation": "claude_api_call",
+  "attempt": 2,
+  "nextAttempt": 3,
+  "delay": 2762,
+  "error": "authentication_error: invalid x-api-key",
+  "errorType": "UpstreamError"
+}
+[2025-06-15T15:29:07.095Z] INFO [fEwT93VNspxU] Retrying after error
+{
+  "operation": "claude_api_call",
+  "attempt": 2,
+  "nextAttempt": 3,
+  "delay": 2991,
+  "error": "authentication_error: invalid x-api-key",
+  "errorType": "UpstreamError"
+}
+[2025-06-15T15:29:07.704Z] INFO [5GCZECvn3utE] Retrying after error
+{
+  "operation": "claude_api_call",
+  "attempt": 2,
+  "nextAttempt": 3,
+  "delay": 2509,
+  "error": "authentication_error: invalid x-api-key",
+  "errorType": "UpstreamError"
+}
+[2025-06-15T15:29:09.644Z] INFO [hD94WksYv9Ad] Request completed
+{
+  "domain": "localhost:3000",
+  "method": "POST",
+  "path": "/v1/messages",
+  "statusCode": 502,
+  "duration": 4301,
+  "metadata": {
+    "contentLength": null
+  }
+}
+[2025-06-15T15:29:10.227Z] INFO [fEwT93VNspxU] Request completed
+{
+  "domain": "localhost:3000",
+  "method": "POST",
+  "path": "/v1/messages",
+  "statusCode": 502,
+  "duration": 4825,
+  "metadata": {
+    "contentLength": null
+  }
+}
+[2025-06-15T15:29:10.363Z] INFO [5GCZECvn3utE] Request completed
+{
+  "domain": "localhost:3000",
+  "method": "POST",
+  "path": "/v1/messages",
+  "statusCode": 502,
+  "duration": 4176,
+  "metadata": {
+    "contentLength": null
+  }
+}

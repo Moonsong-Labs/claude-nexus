@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "moduleResolution": "node",
+    "module": "ES2022",
+    "target": "ES2022",
+    "allowSyntheticDefaultImports": true
+  }
+}

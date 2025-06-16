@@ -1,164 +1,158 @@
-# Claude Nexus Proxy Architecture
+# Claude Nexus Architecture
 
 ## Overview
 
-Claude Nexus Proxy is a modular proxy service for Claude API with telemetry, multi-subscription support, and a web dashboard.
+Claude Nexus has been refactored into a microservices architecture with two separate services:
 
-## Entry Point
+1. **Proxy Service** - Handles API proxying, authentication, and data collection
+2. **Dashboard Service** - Provides web UI for monitoring and analytics
 
-### `src/main.ts`
-The single entry point for the application that:
-- Handles CLI arguments and environment configuration
-- Initializes the Hono application
-- Starts the HTTP server
-- Manages graceful shutdown
+## Directory Structure
 
-## Core Architecture
+```
+claude-nexus-proxy/
+├── packages/
+│   └── shared/           # Shared types and configurations
+├── services/
+│   ├── proxy/           # Proxy API service
+│   └── dashboard/       # Dashboard web service
+├── scripts/             # Database initialization scripts
+├── credentials/         # Domain credential files
+├── client-setup/        # Client configuration files
+└── docker-compose.yml   # Container orchestration
+```
 
-### Application Structure (`src/app.ts`)
-- Creates and configures the Hono application
-- Mounts all routes and middleware
-- Initializes external services (database, Slack)
+## Services
 
-### Dependency Injection (`src/container.ts`)
-- Manages service lifecycle
-- Provides singleton instances
-- Handles resource cleanup
+### Proxy Service (Port 3000)
 
-## Service Layer
+**Responsibilities:**
+- Proxy requests to Claude API
+- Handle authentication (API keys, OAuth)
+- Track token usage and metrics
+- Send Slack notifications
+- Write request/response data to database
 
-### AuthenticationService (`src/services/AuthenticationService.ts`)
-- Manages API keys and OAuth credentials
-- Handles domain-based authentication
-- Supports credential file loading
+**Endpoints:**
+- `POST /v1/messages` - Main proxy endpoint
+- `GET /token-stats` - Token usage statistics
+- `GET /health` - Health check
+- `GET /client-setup/*` - Client configuration files
 
-### ClaudeApiClient (`src/services/ClaudeApiClient.ts`)
-- Handles communication with Claude API
-- Supports both streaming and non-streaming requests
-- Includes retry logic and error handling
+### Dashboard Service (Port 3001)
 
-### MetricsService (`src/services/MetricsService.ts`)
-- Tracks token usage and costs
-- Collects request statistics
-- Sends telemetry data
+**Responsibilities:**
+- Web dashboard UI
+- Real-time monitoring via SSE
+- Historical data viewing
+- Analytics and reporting
+- Dashboard authentication
 
-### NotificationService (`src/services/NotificationService.ts`)
-- Sends Slack notifications
-- Formats messages for readability
-- Supports domain-specific configurations
+**Endpoints:**
+- `GET /` - Dashboard UI
+- `GET /api/requests` - Request history
+- `GET /api/requests/:id` - Request details
+- `GET /api/storage-stats` - Aggregated statistics
+- `GET /sse` - Server-sent events for real-time updates
+- `GET /health` - Health check
 
-### ProxyService (`src/services/ProxyService.ts`)
-- Orchestrates the request flow
-- Coordinates all other services
-- Handles response formatting
+## Deployment
 
-## Controllers
+### Docker Compose (Recommended)
 
-### MessageController (`src/controllers/MessageController.ts`)
-- Handles `/v1/messages` endpoint
-- Validates requests
-- Delegates to ProxyService
+```bash
+# Start all services
+docker-compose up -d
 
-## Middleware
+# View logs
+docker-compose logs -f
 
-### Authentication (`src/middleware/auth.ts`)
-- Validates API keys
-- Manages sessions
+# Stop all services
+docker-compose down
+```
 
-### Rate Limiting (`src/middleware/rate-limit.ts`)
-- Global and per-domain limits
-- In-memory storage
+### Individual Services
 
-### Logging (`src/middleware/logger.ts`)
-- Structured JSON logging
-- Request/response tracking
-- Correlation IDs
+```bash
+# Build shared package
+cd packages/shared && bun install && bun run build
 
-### Validation (`src/middleware/validation.ts`)
-- Request schema validation
-- Input sanitization
+# Start proxy service
+cd services/proxy
+bun install
+bun run dev  # Development
+bun run start  # Production
 
-## Dashboard
-
-### Routes (`src/dashboard/routes.ts`)
-- Server-rendered HTML pages
-- HTMX for dynamic updates
-- Chart.js visualizations
-
-### Authentication (`src/dashboard/auth.ts`)
-- API key-based login
-- Cookie sessions
-
-### Real-time Updates (`src/dashboard/sse.ts`)
-- Server-Sent Events
-- Live conversation updates
-- Metrics broadcasting
-
-## Storage
-
-### StorageService (`src/storage.ts`)
-- PostgreSQL integration
-- Batch processing
-- Query optimization
+# Start dashboard service
+cd services/dashboard
+bun install
+bun run dev  # Development
+bun run start  # Production
+```
 
 ## Configuration
 
-### Config Module (`src/config/index.ts`)
-- Centralized environment variables
-- Type-safe configuration
-- Validation
+### Environment Variables
 
-## Domain Models
+**Proxy Service:**
+```env
+# Server
+PORT=3000
+HOST=0.0.0.0
 
-### Entities
-- `ProxyRequest` - Request representation
-- `ProxyResponse` - Response formatting
+# Claude API
+CLAUDE_API_KEY=sk-ant-api03-...
+CREDENTIALS_DIR=credentials
 
-### Value Objects
-- `RequestContext` - Request metadata
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/claude_proxy
+STORAGE_ENABLED=true
 
-## Utilities
+# Telemetry
+TELEMETRY_ENDPOINT=https://your-telemetry-endpoint
 
-### Circuit Breaker (`src/utils/circuit-breaker.ts`)
-- Fault tolerance
-- Automatic recovery
+# Slack (optional)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+SLACK_CHANNEL=#notifications
+```
 
-### Retry Logic (`src/utils/retry.ts`)
-- Exponential backoff
-- Smart retry policies
+**Dashboard Service:**
+```env
+# Server
+PORT=3001
+HOST=0.0.0.0
 
-## Legacy Code
+# Authentication
+DASHBOARD_API_KEY=your-secret-key
 
-The `src/legacy/` directory contains the old monolithic implementation for reference. This code is no longer used but kept for migration reference.
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/claude_proxy
 
-## Request Flow
+# Optional
+PROXY_SERVICE_URL=http://localhost:3000
+```
 
-1. Request arrives at Hono server
-2. Passes through middleware chain:
-   - CORS
-   - Logging
-   - Rate limiting
-   - Validation
-3. MessageController receives request
-4. ProxyService orchestrates:
-   - Authentication
-   - Claude API call
-   - Metrics collection
-   - Notifications
-   - Storage
-5. Response sent to client
-6. Post-response tasks execute
+## Database
 
-## Environment Variables
+Both services share a PostgreSQL database:
+- **Proxy Service**: Write-only access
+- **Dashboard Service**: Read-only access
 
-Key configuration:
-- `CLAUDE_API_KEY` - Default API key
-- `DASHBOARD_API_KEY` - Dashboard access
-- `DATABASE_URL` - PostgreSQL connection
-- `SLACK_WEBHOOK_URL` - Notifications
-- `STORAGE_ENABLED` - Enable persistence
+The database is automatically initialized with required tables and indexes.
 
-See `src/config/index.ts` for complete list.
+## Security
+
+- Dashboard requires API key authentication
+- Proxy supports domain-based credential mapping
+- Database credentials are isolated per service
+- Sensitive headers are removed before storage
+
+## Monitoring
+
+- Health checks available on both services
+- Real-time metrics via dashboard SSE
+- Historical data analysis through dashboard UI
+- Optional pgAdmin included in docker-compose
 
 ## Development
 
@@ -166,26 +160,43 @@ See `src/config/index.ts` for complete list.
 # Install dependencies
 bun install
 
-# Run development server
-bun run start
+# Run both services in development
+bun run dev
 
-# Build for production
+# Build all services
 bun run build
 
 # Run tests
 bun test
 ```
 
-## Docker Deployment
+## Production Deployment
+
+### Using Docker
 
 ```bash
-# Build image
-docker build -t claude-nexus-proxy .
+# Build images
+docker-compose build
 
-# Run container
-docker run -p 3000:3000 \
-  -e CLAUDE_API_KEY=sk-ant-... \
-  -e DASHBOARD_API_KEY=... \
-  -e DATABASE_URL=... \
-  claude-nexus-proxy
+# Deploy with environment file
+docker-compose --env-file .env.production up -d
 ```
+
+### Using PM2
+
+```bash
+# Build services
+bun run build
+
+# Start with PM2
+pm2 start services/proxy/dist/main.js --name claude-proxy
+pm2 start services/dashboard/dist/main.js --name claude-dashboard
+```
+
+## Scaling Considerations
+
+- Services can be scaled independently
+- Database connections are pooled
+- Proxy service handles batch operations for efficiency
+- Dashboard uses caching for read operations
+- Both services are stateless and can run multiple instances

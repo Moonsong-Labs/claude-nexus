@@ -1,438 +1,225 @@
 # Claude Nexus Proxy
 
-A direct proxy service for Claude API with telemetry, multi-subscription support, and domain-based credential mapping. Built with Hono framework on Bun runtime, deployable as Docker container or standalone CLI.
+A high-performance proxy for Claude API with monitoring dashboard, built with Bun and Hono.
 
 ## Features
 
-- **Direct API Proxy**: Forwards requests to Claude API without modification
-- **Telemetry Collection**: Track API usage, tokens, and performance metrics
-- **Multi-Subscription Support**: Per-request API key override via headers
-- **Domain-Based Credentials**: Map different domains to different API keys or OAuth tokens
-- **OAuth Support**: Automatic token refresh for OAuth credentials
-- **Token Usage Tracking**: Real-time monitoring of input/output tokens per domain
-- **Slack Integration**: Send notifications for all API interactions
-- **Request/Response Storage**: Optional PostgreSQL storage for monitoring and troubleshooting
-- **Multiple Deployment Options**: Docker container or standalone CLI
+- 🚀 **Direct API Proxy** - Transparent forwarding to Claude API
+- 📊 **Web Dashboard** - Real-time monitoring and analytics (Port 3001)
+- 🔐 **Multi-Auth Support** - API keys and OAuth with auto-refresh
+- 📈 **Token Tracking** - Per-domain usage statistics
+- 💾 **Request Storage** - PostgreSQL backend for history
+- 🔔 **Slack Integration** - Optional notifications
+- 🐳 **Docker Ready** - Single image with flexible deployment
 
-## Installation & Usage
+## Quick Start
 
-### Docker (Recommended)
+### Using Docker Compose (Recommended)
 
 ```bash
-# Quick start with Claude API key
-docker run -d -p 3000:3000 -e CLAUDE_API_KEY=sk-ant-api03-... ghcr.io/moonsong-labs/claude-nexus-proxy:latest
+# Clone and configure
+git clone https://github.com/your-repo/claude-nexus-proxy
+cd claude-nexus-proxy
+cp .env.example .env
+# Edit .env with your CLAUDE_API_KEY
+
+# Start everything
+docker-compose up -d
 
 # Use with Claude Code
-ANTHROPIC_BASE_URL=http://localhost:3000 claude "Help me review this code"
+ANTHROPIC_BASE_URL=http://localhost:3000 claude "Help me with code"
 ```
 
-### Building from Source
+Access:
+- Proxy: http://localhost:3000
+- Dashboard: http://localhost:3001 (requires DASHBOARD_API_KEY)
+
+### Using Docker Image
 
 ```bash
-# Build the Docker image
-docker build -t claude-nexus-proxy:latest .
-
-# Run with credential directory
+# Run proxy only (recommended for production)
 docker run -d -p 3000:3000 \
-  -e CLAUDE_API_KEY=sk-ant-api03-default-key \
-  -e CREDENTIALS_DIR=/app/credentials \
-  -v $(pwd)/credentials:/app/credentials:ro \
-  claude-nexus-proxy:latest
+  -e SERVICE=proxy \
+  -e CLAUDE_API_KEY=your-key \
+  alanpurestake/claude-nexus-proxy:v5
+
+# Run dashboard only (recommended for production)
+docker run -d -p 3001:3001 \
+  -e SERVICE=dashboard \
+  -e DASHBOARD_API_KEY=your-key \
+  -e DATABASE_URL=postgresql://... \
+  alanpurestake/claude-nexus-proxy:v5
+
+# Run both services (development/testing only)
+docker run -d -p 3000:3000 -p 3001:3001 \
+  -e SERVICE=both \
+  -e CLAUDE_API_KEY=your-key \
+  -e DASHBOARD_API_KEY=your-key \
+  -e DATABASE_URL=postgresql://... \
+  alanpurestake/claude-nexus-proxy:v5
 ```
 
-### Docker Compose
-
-```bash
-# Start the service
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop the service
-docker compose down
-```
+**Note:** For production deployments, use Docker Compose or run separate containers for each service. The `SERVICE=both` mode is intended for development and testing only.
 
 ### Local Development
 
 ```bash
-# Clone the repository
-git clone https://github.com/moonsong-labs/claude-nexus-proxy
-cd claude-nexus-proxy
-
-# Install dependencies
+# Install and run
 bun install
+bun run dev
 
-# Run development server (hot reload)
-bun run start
-
-# Or build and run the CLI
-bun run build
-./bin --port 3000
-
-# Use with Claude Code
-export ANTHROPIC_BASE_URL=http://localhost:3000
-claude "Help me review this code"
+# Or run individually
+bun run dev:proxy      # Port 3000
+bun run dev:dashboard  # Port 3001
 ```
-
 
 ## Configuration
 
-### Environment Variables
-
-- `CLAUDE_API_KEY` - Default Claude API key (optional, can be overridden)
-- `CREDENTIALS_DIR` - Directory containing domain credential files (default: 'credentials')
-- `TELEMETRY_ENDPOINT` - URL to send telemetry data (optional)
-- `DEBUG` - Enable debug logging (default: false)
-- `PORT` - Server port for CLI mode (default: 3000)
-- `HOST` - Server hostname/IP to bind to (default: 0.0.0.0)
-- `SLACK_WEBHOOK_URL` - Slack webhook for notifications (optional)
-- `SLACK_CHANNEL` - Slack channel override (optional)
-- `SLACK_USERNAME` - Slack bot username (optional)
-- `SLACK_ICON_EMOJI` - Slack bot icon (optional)
-- `SLACK_ENABLED` - Enable/disable Slack notifications (optional)
-
-### Environment File Configuration
+### Essential Environment Variables
 
 ```bash
-# Copy example environment file
-cp .env.example .env
+# Proxy Service
+CLAUDE_API_KEY=sk-ant-api03-...    # Default API key (optional)
+DATABASE_URL=postgresql://...       # For request storage
+STORAGE_ENABLED=true               # Enable storage (default: false)
 
-# Edit with your settings
-nano .env
+# Dashboard Service  
+DASHBOARD_API_KEY=your-secret      # Required for dashboard access
+DATABASE_URL=postgresql://...      # Same as proxy
 
-# Run with env file
-docker run -d -p 3000:3000 --env-file .env ghcr.io/moonsong-labs/claude-nexus-proxy:latest
+# Optional
+DEBUG=true                         # Enable debug logging
+SLACK_WEBHOOK_URL=https://...      # Slack notifications
 ```
+
+See `.env.example` for all options.
 
 ## Multi-Subscription Support
 
-Different users can use their own Claude credentials by passing them in the Authorization header:
+Users can provide their own API keys:
 
 ```bash
-# User with API key
+# Using API key
 curl -X POST http://localhost:3000/v1/messages \
   -H "Authorization: Bearer sk-ant-api03-user-key" \
   -H "Content-Type: application/json" \
   -d '{"model": "claude-3-opus-20240229", "messages": [...]}'
 
-# User with OAuth token
+# Using OAuth token
 curl -X POST http://localhost:3000/v1/messages \
   -H "Authorization: Bearer oauth-access-token" \
-  -H "Content-Type: application/json" \
+  -H "x-api-key: sk-ant-api03-..." \
   -d '{"model": "claude-3-opus-20240229", "messages": [...]}'
 ```
 
-## Domain-Based Credential Mapping
+## Domain-Based Credentials
 
-Configure different Claude credentials for different domains. Supports both API keys and OAuth credentials with automatic token refresh.
-
-### Credential File Naming
-
-Credential files must be named after the domain they serve:
-- Domain: `claude-1.example.com`
-- File: `claude-1.example.com.credentials.json`
-
-### Credential File Format
-
-**API Key Credential** (`credentials/claude-1.example.com.credentials.json`):
-```json
-{
-  "type": "api_key",
-  "api_key": "sk-ant-api03-team1-key"
-}
-```
-
-**API Key with Slack** (`credentials/claude-2.example.com.credentials.json`):
-```json
-{
-  "type": "api_key",
-  "api_key": "sk-ant-api03-team2-key",
-  "slack": {
-    "webhook_url": "https://hooks.slack.com/services/T00000000/B00000000/XXXX",
-    "channel": "#team2-claude-logs",
-    "username": "Team2 Claude Monitor",
-    "icon_emoji": ":robot_face:",
-    "enabled": true
-  }
-}
-```
-
-**OAuth Credential** (`credentials/claude-3.example.com.credentials.json`):
-```json
-{
-  "type": "oauth",
-  "oauth": {
-    "accessToken": "your-access-token",
-    "refreshToken": "your-refresh-token",
-    "expiresAt": 1705123456789,
-    "scopes": ["org:create_api_key", "user:profile", "user:inference"],
-    "isMax": false
-  }
-}
-```
-
-**OAuth with Slack** (`credentials/claude-4.example.com.credentials.json`):
-```json
-{
-  "type": "oauth",
-  "oauth": {
-    "accessToken": "your-access-token",
-    "refreshToken": "your-refresh-token",
-    "expiresAt": 1705123456789,
-    "scopes": ["org:create_api_key", "user:profile", "user:inference"],
-    "isMax": false
-  },
-  "slack": {
-    "webhook_url": "https://hooks.slack.com/services/T11111111/B11111111/YYYY",
-    "channel": "#oauth-claude-logs",
-    "username": "OAuth Claude Monitor",
-    "icon_emoji": ":lock:",
-    "enabled": true
-  }
-}
-```
-
-### Configuration
+Map different domains to different API keys:
 
 ```bash
-# Set the credentials directory (default: 'credentials')
-export CREDENTIALS_DIR=/path/to/credentials
-
-# Create credential files
+# Create credentials directory
 mkdir -p credentials
-echo '{"type": "api_key", "api_key": "sk-ant-api03-..."}' > credentials/claude-1.example.com.credentials.json
-echo '{"type": "api_key", "api_key": "sk-ant-api03-..."}' > credentials/claude-2.example.com.credentials.json
 
-# Start the proxy
-claude-nexus-proxy
+# Add domain-specific credentials
+echo '{"type": "api_key", "api_key": "sk-ant-..."}' > credentials/team1.example.com.credentials.json
+echo '{"type": "api_key", "api_key": "sk-ant-..."}' > credentials/team2.example.com.credentials.json
+
+# Set environment variable
+export CREDENTIALS_DIR=credentials
 ```
 
-Now requests to different domains will automatically use their mapped credentials:
-- OAuth tokens are automatically refreshed when needed
-- OAuth credentials use `Authorization: Bearer <token>` header
-- API key credentials use `x-api-key: <key>` header
-
-### API Key Selection Priority
-
-The proxy selects credentials in this order:
-1. **Domain credential file** if `<domain>.credentials.json` exists in CREDENTIALS_DIR
-2. **Authorization header** from the request
-3. **CLAUDE_API_KEY** environment variable
+OAuth credentials with auto-refresh:
+```json
+{
+  "type": "oauth",
+  "oauth": {
+    "accessToken": "...",
+    "refreshToken": "...",
+    "expiresAt": 1705123456789,
+    "scopes": ["user:inference"],
+    "isMax": false
+  }
+}
+```
 
 ## Token Usage Tracking
 
-The proxy automatically tracks token usage per domain and displays statistics every 10 seconds.
-
-### Features
-
-- **Per-domain tracking**: Monitors input and output tokens for each domain
-- **Request type classification**: Query evaluation vs inference
-- **Tool call tracking**: Counts tool use in responses
-- **API endpoint**: Access current stats via `/token-stats`
-
-### Console Output Example
-
-```
-==========================================================================================
-Token Usage Report - 1/13/2025, 3:45:23 PM (Uptime: 2m 15s)
-==========================================================================================
-Domain                    Reqs  Query  Infer  Tools   Input Tok   Output Tok    Total Tok
-------------------------------------------------------------------------------------------
-claude-1.example.com        12      8      4      3       5,234        8,921       14,155
-claude-2.example.com         8      5      3      0       3,456        6,789       10,245
-localhost                    3      2      1      2         892        1,234        2,126
-------------------------------------------------------------------------------------------
-TOTAL                       23     15      8      5       9,582       16,944       26,526
-==========================================================================================
-```
-
-### API Access
+View real-time token usage:
 
 ```bash
+# Console output every 10 seconds
+# Or via API
 curl http://localhost:3000/token-stats
 ```
 
-## Slack Integration
+## Dashboard Features
 
-Send user and assistant messages to a Slack channel for monitoring. Can be configured globally via environment variables or per-domain in credential files.
-
-### Global Setup (All Domains)
-
-```bash
-# Configure global Slack webhook
-export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00000000/B00000000/XXXX
-export SLACK_CHANNEL=#claude-proxy-logs
-export SLACK_USERNAME="Claude Monitor"
-export SLACK_ICON_EMOJI=:robot_face:
-
-# Run the proxy
-claude-nexus-proxy
-```
-
-### Domain-Specific Setup
-
-Add Slack configuration to any credential file:
-
-```json
-{
-  "type": "api_key",
-  "api_key": "sk-ant-api03-...",
-  "slack": {
-    "webhook_url": "https://hooks.slack.com/services/...",
-    "channel": "#domain-specific-logs",
-    "username": "Domain Bot",
-    "icon_emoji": ":chart_with_upwards_trend:",
-    "enabled": true
-  }
-}
-```
-
-**Priority**: Domain-specific Slack config takes precedence over global environment variables
-
-## Request/Response Storage
-
-Enable PostgreSQL storage to persist all API interactions for monitoring and troubleshooting.
-
-### Quick Start with Docker Compose
-
-```bash
-# Start proxy with PostgreSQL
-docker-compose up -d
-
-# View logs
-docker-compose logs -f claude-proxy
-
-# Query stored requests
-curl http://localhost:3000/api/requests?domain=claude-1.example.com
-```
-
-### Manual Setup
-
-```bash
-# Configure storage
-export STORAGE_ENABLED=true
-export DATABASE_URL=postgresql://postgres:password@localhost:5432/claude_proxy
-
-# Or use individual settings
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=claude_proxy
-export DB_USER=postgres
-export DB_PASSWORD=password
-
-# Run the proxy
-claude-nexus-proxy
-```
-
-### Storage Features
-
-- **Full capture**: Stores complete request/response including messages, headers, and tool calls
-- **Streaming support**: Captures individual streaming chunks for SSE responses
-- **Batch processing**: Efficient storage with automatic batching for high throughput
-- **Privacy**: Sensitive headers (Authorization, API keys) are automatically removed
-- **Auto-initialization**: Database schema created automatically on first run
-
-### Query API
-
-```bash
-# Get recent requests for a domain
-curl "http://localhost:3000/api/requests?domain=claude-1.example.com&limit=50"
-
-# Get detailed request with all streaming chunks
-curl "http://localhost:3000/api/requests/3593c3d3-d7a9-4cce-bbf8-749bcf4b7771"
-
-# Get aggregated statistics by domain
-curl "http://localhost:3000/api/storage-stats?domain=claude-1.example.com"
-```
-
-## Debug Logging
-
-Enable comprehensive debug logging with `DEBUG=true`. All sensitive data is automatically masked.
-
-```bash
-export DEBUG=true
-claude-nexus-proxy
-
-# Sample output:
-=== Incoming Request ===
-Request ID: abc123-def456
-Method: POST
-URL: http://localhost:3000/v1/messages
-Authentication type: OAuth
-Forwarding headers: {
-  "authorization": "Bearer ********",
-  "anthropic-beta": "oauth-2025-04-20"
-}
-```
+- Real-time request monitoring
+- Token usage analytics
+- Model distribution charts
+- Request history with search
+- Domain-based filtering
+- Export capabilities
 
 ## API Endpoints
 
-- `GET /` - Health check and configuration status
-- `GET /token-stats` - Current token usage statistics
-- `GET /client-setup/:filename` - Download client setup files
-- `POST /v1/messages` - Claude API proxy endpoint
-- `GET /api/requests` - Query stored requests (requires storage enabled)
-- `GET /api/requests/:requestId` - Get detailed request with streaming chunks
-- `GET /api/storage-stats` - Get aggregated token statistics from storage
+**Proxy Service (Port 3000)**
+- `POST /v1/messages` - Claude API proxy
+- `GET /health` - Health check
+- `GET /token-stats` - Usage statistics
 
-## Telemetry Data
-
-When configured with a `TELEMETRY_ENDPOINT`, the proxy sends:
-
-```json
-{
-  "timestamp": "2024-01-15T10:30:00Z",
-  "requestId": "abc123...",
-  "method": "POST",
-  "path": "/v1/messages",
-  "apiKey": "...last10chars",
-  "model": "claude-3-opus-20240229",
-  "inputTokens": 150,
-  "outputTokens": 200,
-  "duration": 1250,
-  "status": 200
-}
-```
+**Dashboard Service (Port 3001)**
+- `GET /` - Web dashboard
+- `GET /api/requests` - Query requests
+- `GET /api/storage-stats` - Aggregated stats
+- `GET /sse` - Real-time updates
 
 ## Development
-
-### Commands
 
 ```bash
 # Install dependencies
 bun install
 
-# Hot reload development server
-bun run start
+# Run development mode
+bun run dev
 
-# Build CLI package
+# Type checking (run before commits)
+bun run typecheck
+
+# Build for production (includes type checking)
 bun run build
+
+# Run tests (coming soon)
+# bun test
 ```
 
-### Testing
+### Type Safety
+
+This project uses TypeScript with strict type checking. Always run type checks before committing:
 
 ```bash
-# Test token tracking
-DEBUG=true node test-token-tracking.js
+# Check all workspaces
+bun run typecheck
 
-# Test request types
-DEBUG=true node test-request-types.js
+# Check specific service
+bun run typecheck:proxy
+bun run typecheck:dashboard
+
+# CI-friendly type check
+bun run typecheck:ci
 ```
 
-## CLI Options
+## Architecture
 
-```bash
-claude-nexus-proxy [options]
+- **Proxy Service**: Handles API forwarding and telemetry
+- **Dashboard Service**: Provides monitoring UI
+- **PostgreSQL**: Stores request/response data
+- **Docker**: Unified image with SERVICE environment variable
 
-Options:
-  -v, --version         Show version number
-  -h, --help           Show help message
-  -p, --port PORT      Set server port (default: 3000)
-  -H, --host HOST      Set hostname/IP to bind (default: 0.0.0.0)
-  -e, --env-file FILE  Load environment from specific file
-```
+## License
+
+MIT
 
 ---
 
-Built with [Bun](https://bun.sh) and [Hono](https://hono.dev/)
+Built with [Bun](https://bun.sh) and [Hono](https://hono.dev)

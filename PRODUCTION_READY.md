@@ -1,201 +1,294 @@
-# Production-Ready Features Implementation Summary
+# Production Deployment Guide
 
-This document summarizes all production-ready features that have been implemented in the Claude Nexus Proxy to transform it from a development prototype into a robust, scalable production service.
+This guide covers everything you need to deploy Claude Nexus Proxy v2.0 in production.
 
-## 🛡️ Error Handling & Resilience
+## Architecture Overview
 
-### ✅ Custom Error Types (`src/types/errors.ts`)
-- Comprehensive error hierarchy with specific error types
-- Structured error responses with correlation IDs
-- Proper error serialization for API responses
-- Operational vs non-operational error distinction
+Version 2.0 uses a microservices architecture with two separate services:
+- **Proxy Service** (Port 3000): Handles API proxying
+- **Dashboard Service** (Port 3001): Provides web UI monitoring
 
-### ✅ Circuit Breaker (`src/utils/circuit-breaker.ts`)
-- Protects against cascading failures
-- Configurable failure thresholds and timeouts
-- Three states: CLOSED, OPEN, HALF_OPEN
-- Automatic recovery testing
-- Per-service circuit breakers
+## Quick Start
 
-### ✅ Retry Logic (`src/utils/retry.ts`)
-- Exponential backoff with jitter
-- Configurable retry policies
-- Respects Retry-After headers
-- Different strategies for different error types
-- Maximum timeout protection
+### Docker Compose (Recommended)
 
-## 📊 Observability
+```bash
+# Clone and configure
+git clone https://github.com/moonsong-labs/claude-nexus-proxy
+cd claude-nexus-proxy
+cp .env.example .env.production
 
-### ✅ Structured Logging (`src/middleware/logger.ts`)
-- JSON-formatted logs for production
-- Request correlation IDs
-- Log levels (DEBUG, INFO, WARN, ERROR)
-- Automatic sensitive data masking
-- Request/response logging with timing
+# Edit .env.production with your settings
+vim .env.production
 
-### ✅ Health Checks (`src/routes/health.ts`)
-- `/health/live` - Kubernetes liveness probe
-- `/health/ready` - Readiness probe with dependency checks
-- `/health` - Comprehensive health status
-- `/metrics` - Prometheus metrics endpoint
-- System resource monitoring
+# Deploy all services
+docker-compose --env-file .env.production up -d
+```
 
-### ✅ Metrics Collection
-- Request rate and latency metrics
-- Token usage tracking
-- Circuit breaker state
-- Database connection pool stats
-- Memory and CPU usage
+### Production docker-compose.yml
 
-## 🔒 Security
+```yaml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: claude_proxy
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
-### ✅ Request Validation (`src/middleware/validation.ts`)
-- Input validation against Claude API schema
-- Request size limits (10MB default)
-- Content type validation
-- Model whitelist validation
-- Parameter range checks
+  proxy:
+    image: ghcr.io/moonsong-labs/claude-nexus-proxy:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@postgres:5432/claude_proxy
+      - STORAGE_ENABLED=true
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-### ✅ Rate Limiting (`src/middleware/rate-limit.ts`)
-- Per API key rate limiting
-- Per domain rate limiting
-- Token-based quotas
-- Sliding window implementation
-- Rate limit headers in responses
+  dashboard:
+    image: ghcr.io/moonsong-labs/claude-nexus-dashboard:latest
+    ports:
+      - "3001:3001"
+    environment:
+      - DASHBOARD_API_KEY=${DASHBOARD_API_KEY}
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@postgres:5432/claude_proxy
+    depends_on:
+      - postgres
+    restart: unless-stopped
 
-### ✅ Security Headers
-- Proper CORS configuration
-- Security headers in Kubernetes ingress
-- API key masking in logs
-- No credential exposure
+volumes:
+  postgres_data:
+```
 
-## 🚀 Performance
+### Kubernetes
 
-### ✅ Connection Pooling
-- PostgreSQL connection pooling
-- Configurable pool sizes
-- Connection health monitoring
-- Automatic cleanup
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-nexus-proxy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: claude-nexus-proxy
+  template:
+    metadata:
+      labels:
+        app: claude-nexus-proxy
+    spec:
+      containers:
+      - name: proxy
+        image: ghcr.io/moonsong-labs/claude-nexus-proxy:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: CLAUDE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: claude-api-key
+              key: api-key
+        - name: STORAGE_ENABLED
+          value: "false"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: claude-nexus-proxy
+spec:
+  selector:
+    app: claude-nexus-proxy
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer
+```
 
-### ✅ Caching Strategies
-- LRU cache for credentials (1 hour TTL)
-- Message cache with size limits
-- Efficient memory management
-- Automatic cache eviction
+## Configuration
 
-### ✅ Resource Management
-- Memory leak prevention
-- Graceful shutdown handling
-- Request timeout handling
-- Backpressure management
+### Environment Variables
 
-## 📝 Documentation
+#### Core Settings
+- `CLAUDE_API_KEY` - Default Claude API key (can be overridden per request)
+- `PORT` - Server port (default: 3000)
+- `HOST` - Server host (default: 0.0.0.0)
+- `CREDENTIALS_DIR` - Directory for domain-specific credentials (default: credentials)
 
-### ✅ TypeScript Interfaces (`src/types/claude.ts`)
-- Complete Claude API type definitions
-- Request/response validation
-- Type guards for runtime checks
-- Comprehensive JSDoc comments
+#### Feature Flags
+- `STORAGE_ENABLED` - Enable request/response storage (default: false)
+- `SLACK_ENABLED` - Enable Slack notifications (default: true if webhook configured)
+- `TELEMETRY_ENABLED` - Enable telemetry collection (default: true if endpoint configured)
+- `ENABLE_DASHBOARD` - Enable web dashboard (default: true)
 
-### ✅ Operational Documentation
-- TEST_PLAN.md - Comprehensive testing strategy
-- TESTING_IMPLEMENTATION.md - Test implementation guide
-- K8s deployment manifests with comments
-- Production Dockerfile with optimizations
+#### Storage Configuration (if enabled)
+- `DATABASE_URL` - PostgreSQL connection string
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - Individual DB settings
 
-## 🏗️ Infrastructure
+#### Slack Configuration
+- `SLACK_WEBHOOK_URL` - Slack webhook for notifications
+- `SLACK_CHANNEL` - Override default channel
+- `SLACK_USERNAME` - Bot username
+- `SLACK_ICON_EMOJI` - Bot icon
 
-### ✅ Kubernetes Deployment (`k8s/`)
-- Production-ready deployment manifests
-- Horizontal Pod Autoscaler (HPA)
-- Service mesh ready
-- ConfigMaps for configuration
-- Secret management templates
+#### Dashboard Configuration
+- `DASHBOARD_USERNAME` - Basic auth username (default: admin)
+- `DASHBOARD_PASSWORD` - Basic auth password (required for production)
 
-### ✅ Monitoring & Alerting
-- Prometheus ServiceMonitor
-- Pre-configured alerts
-- Grafana dashboard template
-- SLO monitoring
+### Domain-Specific Credentials
 
-### ✅ Production Docker Image
-- Multi-stage builds
-- Non-root user
-- Health checks
-- Minimal attack surface
-- Optimized layer caching
+Create credential files in the `CREDENTIALS_DIR`:
 
-## 🔧 Operational Features
+```bash
+# API Key credential
+cat > credentials/api.example.com.credentials.json << EOF
+{
+  "type": "api_key",
+  "api_key": "sk-ant-api03-...",
+  "slack": {
+    "webhook_url": "https://hooks.slack.com/services/...",
+    "channel": "#api-logs",
+    "enabled": true
+  }
+}
+EOF
 
-### ✅ Graceful Shutdown
-- Proper signal handling
-- In-flight request completion
-- Database connection cleanup
-- Final statistics reporting
+# OAuth credential
+cat > credentials/oauth.example.com.credentials.json << EOF
+{
+  "type": "oauth",
+  "oauth": {
+    "accessToken": "...",
+    "refreshToken": "...",
+    "expiresAt": 1705123456789,
+    "scopes": ["org:create_api_key", "user:profile", "user:inference"]
+  }
+}
+EOF
+```
 
-### ✅ Configuration Management
-- Environment-based configuration
-- Secret rotation support
-- Feature flags ready
-- Multi-environment support
+## Production Checklist
 
-### ✅ Database Operations
-- Automatic schema initialization
-- Connection pooling
-- Batch processing for writes
-- Query optimization
+### Security
+- [ ] Set strong `DASHBOARD_PASSWORD` for web interface
+- [ ] Use HTTPS termination (nginx, cloud load balancer)
+- [ ] Restrict network access to trusted sources
+- [ ] Rotate API keys regularly
+- [ ] Enable rate limiting for public endpoints
+- [ ] Use read-only filesystem where possible
+- [ ] Run as non-root user (already configured)
 
-## 📈 Scalability Features
+### Performance
+- [ ] Enable connection pooling for database
+- [ ] Configure appropriate resource limits
+- [ ] Use horizontal scaling for high traffic
+- [ ] Enable caching headers for static assets
+- [ ] Monitor memory usage and adjust limits
 
-### ✅ Horizontal Scaling
-- Stateless design
-- Load balancer ready
-- Session affinity not required
-- Automatic scaling policies
+### Monitoring
+- [ ] Set up health check monitoring
+- [ ] Configure log aggregation
+- [ ] Monitor token usage via `/token-stats`
+- [ ] Set up alerts for errors
+- [ ] Track response times and throughput
 
-### ✅ Performance Optimizations
-- Request streaming support
-- Efficient memory usage
-- Optimized error paths
-- Minimal overhead
+### Backup & Recovery
+- [ ] Backup credential files regularly
+- [ ] Document recovery procedures
+- [ ] Test failover scenarios
+- [ ] Keep previous versions available
 
-## 🧪 Testing Infrastructure
+## Scaling Considerations
 
-### ✅ Test Framework Setup
-- Vitest configuration
-- MSW for API mocking
-- Testcontainers for integration tests
-- Performance test suite
+### Horizontal Scaling
+The proxy is stateless (except for in-memory token tracking) and can be scaled horizontally:
+- Use a load balancer to distribute traffic
+- Token statistics are per-instance
+- Consider using Redis for shared state if needed
 
-### ✅ Test Coverage
-- Unit test examples
-- Integration test patterns
-- E2E test scenarios
-- Load testing scripts
+### Resource Requirements
+- **Memory**: 256MB minimum, 512MB recommended
+- **CPU**: 0.1 CPU minimum, 0.5 CPU recommended
+- **Storage**: Minimal unless using database storage
 
-## 🚨 What's Still Missing
+### Performance Tuning
+```bash
+# Increase Node.js memory limit
+NODE_OPTIONS="--max-old-space-size=1024"
 
-While the service is now production-ready, consider these enhancements:
+# Optimize for throughput
+UV_THREADPOOL_SIZE=8
+```
 
-1. **Distributed Tracing** - OpenTelemetry integration
-2. **Request Deduplication** - Prevent duplicate processing
-3. **Multi-Region Support** - Geographic redundancy
-4. **Advanced Caching** - Redis integration
-5. **API Gateway Features** - Request transformation
-6. **Backup & Recovery** - Automated database backups
-7. **Cost Management** - Usage tracking and billing
+## Troubleshooting
 
-## 🎯 Production Readiness Checklist
+### Common Issues
 
-- [x] Error handling and recovery
-- [x] Structured logging
-- [x] Health checks and monitoring
-- [x] Rate limiting and quotas
-- [x] Request validation
-- [x] Security hardening
-- [x] Performance optimization
-- [x] Kubernetes deployment
-- [x] Testing infrastructure
-- [x] Documentation
+1. **Dashboard 503 Error**
+   - Check if `STORAGE_ENABLED=true` requires database
+   - Verify database connection if storage is enabled
 
-The Claude Nexus Proxy is now ready for production deployment with enterprise-grade reliability, security, and observability features.
+2. **Memory Issues**
+   - Increase container memory limits
+   - Check for memory leaks in custom code
+   - Monitor with `docker stats`
+
+3. **Slow Response Times**
+   - Check Claude API latency
+   - Verify network connectivity
+   - Look for rate limiting
+
+### Debug Mode
+Enable detailed logging:
+```bash
+DEBUG=true
+```
+
+### Health Checks
+- `GET /` - Basic health check
+- `GET /health/live` - Liveness probe
+- `GET /health/ready` - Readiness probe
+- `GET /token-stats` - Token usage statistics
+
+## Migration Guide
+
+### From v0.1.x to v0.2.x
+1. Update Docker image tag
+2. Migrate credential files to new format
+3. Update environment variables:
+   - `ENABLE_STORAGE` → `STORAGE_ENABLED`
+   - `ENABLE_SLACK` → `SLACK_ENABLED`
+
+## Support
+
+- Issues: https://github.com/moonsong-labs/claude-nexus-proxy/issues
+- Documentation: https://github.com/moonsong-labs/claude-nexus-proxy/wiki

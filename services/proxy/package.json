@@ -1,0 +1,46 @@
+{
+  "name": "@claude-nexus/proxy",
+  "version": "2.0.0",
+  "description": "Claude Nexus Proxy Service - API proxy for Claude with telemetry and multi-subscription support",
+  "type": "module",
+  "main": "dist/main.js",
+  "bin": {
+    "claude-nexus-proxy": "./dist/main.js"
+  },
+  "scripts": {
+    "dev": "bun run src/main.ts",
+    "dev:watch": "bun --watch src/main.ts",
+    "build": "bun scripts/build-bun.ts",
+    "build:production": "bun scripts/build-production.ts",
+    "build:check": "bun run typecheck && bun run build:production",
+    "start": "bun dist/index.js",
+    "start:prod": "NODE_ENV=production bun dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "test": "bun test",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.13",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "node-cache": "^5.1.2",
+    "p-limit": "^6.1.0",
+    "zod": "^3.24.1",
+    "@slack/webhook": "^7.0.3",
+    "nanoid": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^9.17.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
