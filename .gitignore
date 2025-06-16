@@ -175,6 +175,12 @@ dist/
 packages/*/dist/
 services/*/dist/
 
+# Compiled JavaScript files from TypeScript
+packages/**/*.js
+!packages/**/*.config.js
+services/**/*.js
+!services/**/*.config.js
+
 # Logs
 *.log
 proxy-*.log
