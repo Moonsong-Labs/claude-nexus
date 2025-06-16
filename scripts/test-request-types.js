@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 // Test script to verify request type detection
 // Usage: DEBUG=true node test-request-types.js

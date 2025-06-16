@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 // Test script to debug token tracking
 // Usage: DEBUG=true node test-token-tracking.js

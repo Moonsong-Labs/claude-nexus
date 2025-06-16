@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 /**
  * Test script to verify token storage is working correctly
@@ -6,6 +6,7 @@
 
 const API_KEY = process.env.CLAUDE_API_KEY || 'your-api-key-here';
 const PROXY_URL = process.env.PROXY_URL || 'http://localhost:3000';
+const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:3001';
 
 async function testTokenStorage() {
   console.log('Testing token storage...');
@@ -50,7 +51,7 @@ async function testTokenStorage() {
 
     // Check storage stats
     console.log('\nChecking storage stats...');
-    const statsResponse = await fetch(`${PROXY_URL}/api/storage-stats`);
+    const statsResponse = await fetch(`${DASHBOARD_URL}/api/storage-stats`);
     
     if (statsResponse.ok) {
       const stats = await statsResponse.json();

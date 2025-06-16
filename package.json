@@ -28,8 +28,6 @@
     "start:dashboard": "cd services/dashboard && bun run start:prod",
     "start": "concurrently -n proxy,dashboard -c blue,green \"bun run start:proxy\" \"bun run start:dashboard\"",
     "docker:build": "docker-compose build",
-    "docker:build:proxy": "docker build -f services/proxy/Dockerfile -t claude-nexus-proxy .",
-    "docker:build:dashboard": "docker build -f services/dashboard/Dockerfile -t claude-nexus-dashboard .",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
