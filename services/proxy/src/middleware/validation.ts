@@ -6,11 +6,6 @@ import { config } from '@claude-nexus/shared/config'
 
 // Request size limits
 const MAX_REQUEST_SIZE = 10 * 1024 * 1024 // 10MB
-const MAX_MESSAGE_COUNT = 100
-const MAX_SYSTEM_LENGTH = 10000
-const MAX_MESSAGE_LENGTH = 100000
-const MAX_TOTAL_LENGTH = 500000
-
 // Validation middleware
 export function validationMiddleware() {
   return async (c: Context, next: Next) => {
@@ -73,16 +68,6 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
   // Model validation removed - allow any model name
   // This allows for new models to be used immediately without proxy updates
   
-  // Validate message count
-  if (request.messages.length > MAX_MESSAGE_COUNT) {
-    errors.push(`Too many messages: ${request.messages.length} (max: ${MAX_MESSAGE_COUNT})`)
-  }
-  
-  // Validate system prompt length
-  if (request.system && request.system.length > MAX_SYSTEM_LENGTH) {
-    errors.push(`System prompt too long: ${request.system.length} (max: ${MAX_SYSTEM_LENGTH})`)
-  }
-  
   // Validate messages
   let totalLength = request.system?.length || 0
   for (let i = 0; i < request.messages.length; i++) {
@@ -92,11 +77,6 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
     const messageLength = typeof message.content === 'string' 
       ? message.content.length 
       : JSON.stringify(message.content).length
-    
-    if (messageLength > MAX_MESSAGE_LENGTH) {
-      errors.push(`Message ${i} too long: ${messageLength} (max: ${MAX_MESSAGE_LENGTH})`)
-    }
-    
     totalLength += messageLength
     
     // Validate message structure
@@ -108,11 +88,6 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
     if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
       errors.push(`Message ${i} has empty content`)
     }
-  }
-  
-  // Check total content length
-  if (totalLength > MAX_TOTAL_LENGTH) {
-    errors.push(`Total content too long: ${totalLength} (max: ${MAX_TOTAL_LENGTH})`)
   }
   
   // Validate max_tokens with a reasonable upper limit
