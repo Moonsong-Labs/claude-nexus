@@ -310,9 +310,22 @@ const layout = (title: string, content: any) => html`
         li {
           margin: 0.1rem 0;
         }
+        /* RenderJSON styles */
+        .renderjson a              { text-decoration: none; }
+        .renderjson .disclosure    { color: #9ca3af; font-size: 110%; cursor: pointer; }
+        .renderjson .syntax        { color: #6b7280; }
+        .renderjson .string        { color: #059669; }
+        .renderjson .number        { color: #2563eb; }
+        .renderjson .boolean       { color: #7c3aed; }
+        .renderjson .key           { color: #1f2937; font-weight: 500; }
+        .renderjson .keyword       { color: #dc2626; }
+        .renderjson .object.syntax { color: #6b7280; }
+        .renderjson .array.syntax  { color: #6b7280; }
+        .renderjson               { font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.875rem; line-height: 1.5; }
       </style>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css">
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/renderjson@1.4.0/renderjson.min.js"></script>
     </head>
     <body>
       <nav>
@@ -629,6 +642,7 @@ dashboardRoutes.get('/request/:id', async (c) => {
       <div class="view-toggle">
         <button class="active" onclick="showView('conversation')">Conversation</button>
         <button onclick="showView('raw')">Raw JSON</button>
+        <button onclick="showView('headers')">Headers & Metadata</button>
       </div>
       
       <!-- Conversation View -->
@@ -640,18 +654,24 @@ dashboardRoutes.get('/request/:id', async (c) => {
       <div id="raw-view" class="hidden">
         ${details.requestBody ? html`
           <div class="section">
-            <div class="section-header">Request Body</div>
+            <div class="section-header">
+              Request Body
+              <button class="btn btn-secondary" style="float: right; font-size: 0.75rem; padding: 0.25rem 0.75rem;" onclick="copyJsonToClipboard('request')">Copy JSON</button>
+            </div>
             <div class="section-content">
-              <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-size: 0.875rem;">${JSON.stringify(details.requestBody, null, 2)}</pre>
+              <div id="request-json" style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"></div>
             </div>
           </div>
         ` : ''}
         
         ${details.responseBody ? html`
           <div class="section">
-            <div class="section-header">Response Body</div>
+            <div class="section-header">
+              Response Body
+              <button class="btn btn-secondary" style="float: right; font-size: 0.75rem; padding: 0.25rem 0.75rem;" onclick="copyJsonToClipboard('response')">Copy JSON</button>
+            </div>
             <div class="section-content">
-              <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-size: 0.875rem;">${JSON.stringify(details.responseBody, null, 2)}</pre>
+              <div id="response-json" style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"></div>
             </div>
           </div>
         ` : ''}
@@ -660,11 +680,11 @@ dashboardRoutes.get('/request/:id', async (c) => {
           <div class="section">
             <div class="section-header">Streaming Chunks (${details.streamingChunks.length})</div>
             <div class="section-content">
-              <div style="max-height: 400px; overflow-y: auto;">
+              <div id="chunks-container" style="max-height: 400px; overflow-y: auto;">
                 ${raw(details.streamingChunks.map((chunk, i) => `
                   <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #f9fafb; border-radius: 0.25rem;">
                     <div class="text-sm text-gray-600">Chunk ${chunk.chunkIndex} - ${chunk.tokenCount || 0} tokens</div>
-                    <pre style="margin: 0.25rem 0 0 0; font-size: 0.75rem; white-space: pre-wrap;">${chunk.data}</pre>
+                    <div id="chunk-${i}" style="margin: 0.25rem 0 0 0; background: white; padding: 0.5rem; border-radius: 0.25rem; border: 1px solid #e5e7eb;"></div>
                   </div>
                 `).join(''))}
               </div>
@@ -673,23 +693,203 @@ dashboardRoutes.get('/request/:id', async (c) => {
         ` : ''}
       </div>
       
+      <!-- Headers & Metadata View (hidden by default) -->
+      <div id="headers-view" class="hidden">
+        ${details.requestHeaders ? html`
+          <div class="section">
+            <div class="section-header">Request Headers</div>
+            <div class="section-content">
+              <div id="request-headers" style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"></div>
+            </div>
+          </div>
+        ` : ''}
+        
+        ${details.responseHeaders ? html`
+          <div class="section">
+            <div class="section-header">Response Headers</div>
+            <div class="section-content">
+              <div id="response-headers" style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"></div>
+            </div>
+          </div>
+        ` : ''}
+        
+        <div class="section">
+          <div class="section-header">Request Metadata</div>
+          <div class="section-content">
+            <div id="request-metadata" style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"></div>
+          </div>
+        </div>
+        
+        ${details.telemetry ? html`
+          <div class="section">
+            <div class="section-header">Telemetry & Performance</div>
+            <div class="section-content">
+              <div id="telemetry-data" style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"></div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+      
       <!-- JavaScript for view toggling and message expansion -->
       <script>
+        // Store the JSON data in hidden divs to avoid escaping issues
+        const getJsonData = (id) => {
+          const el = document.getElementById(id);
+          return el ? JSON.parse(el.textContent) : null;
+        };
+      </script>
+      
+      <!-- Hidden data storage -->
+      <div style="display: none;">
+        <div id="request-data-storage">${details.requestBody ? JSON.stringify(details.requestBody) : 'null'}</div>
+        <div id="response-data-storage">${details.responseBody ? JSON.stringify(details.responseBody) : 'null'}</div>
+        <div id="chunks-data-storage">${details.streamingChunks ? JSON.stringify(details.streamingChunks) : '[]'}</div>
+        <div id="request-headers-storage">${details.requestHeaders ? JSON.stringify(details.requestHeaders) : 'null'}</div>
+        <div id="response-headers-storage">${details.responseHeaders ? JSON.stringify(details.responseHeaders) : 'null'}</div>
+        <div id="telemetry-data-storage">${details.telemetry ? JSON.stringify(details.telemetry) : 'null'}</div>
+        <div id="metadata-storage">${JSON.stringify({
+          id: details.requestId || '',
+          domain: details.domain || '',
+          timestamp: details.timestamp || '',
+          method: details.method || 'POST',
+          endpoint: details.endpoint || '/v1/messages',
+          model: details.model || 'unknown',
+          inputTokens: details.inputTokens || 0,
+          outputTokens: details.outputTokens || 0,
+          totalTokens: (details.inputTokens || 0) + (details.outputTokens || 0),
+          durationMs: details.durationMs || 0,
+          responseStatus: details.responseStatus || 0,
+          streaming: details.streaming === true
+        })}</div>
+      </div>
+      
+      <script>
+        // Get the JSON data from hidden elements
+        const requestData = getJsonData('request-data-storage');
+        const responseData = getJsonData('response-data-storage');
+        const streamingChunks = getJsonData('chunks-data-storage') || [];
+        const requestHeaders = getJsonData('request-headers-storage');
+        const responseHeaders = getJsonData('response-headers-storage');
+        const telemetryData = getJsonData('telemetry-data-storage');
+        const requestMetadata = getJsonData('metadata-storage');
+        
         function showView(view) {
           const conversationView = document.getElementById('conversation-view');
           const rawView = document.getElementById('raw-view');
+          const headersView = document.getElementById('headers-view');
           const buttons = document.querySelectorAll('.view-toggle button');
           
+          // Hide all views
+          conversationView.classList.add('hidden');
+          rawView.classList.add('hidden');
+          headersView.classList.add('hidden');
+          
+          // Remove active from all buttons
           buttons.forEach(btn => btn.classList.remove('active'));
           
           if (view === 'conversation') {
             conversationView.classList.remove('hidden');
-            rawView.classList.add('hidden');
             buttons[0].classList.add('active');
-          } else {
-            conversationView.classList.add('hidden');
+          } else if (view === 'raw') {
             rawView.classList.remove('hidden');
             buttons[1].classList.add('active');
+            
+            // Render JSON using RenderJSON when switching to raw view
+            if (typeof renderjson !== 'undefined') {
+              // Configure RenderJSON
+              renderjson.set_max_string_length(200); // Truncate very long strings
+              renderjson.set_sort_objects(true); // Sort object keys
+              
+              // Parse and render request body
+              if (requestData && document.getElementById('request-json')) {
+                const requestContainer = document.getElementById('request-json');
+                requestContainer.innerHTML = '';
+                try {
+                  requestContainer.appendChild(renderjson.set_show_to_level('all')(requestData));
+                } catch (e) {
+                  console.error('Failed to render request data:', e);
+                }
+              }
+              
+              // Parse and render response body
+              if (responseData && document.getElementById('response-json')) {
+                const responseContainer = document.getElementById('response-json');
+                responseContainer.innerHTML = '';
+                try {
+                  responseContainer.appendChild(renderjson.set_show_to_level('all')(responseData));
+                } catch (e) {
+                  console.error('Failed to render response data:', e);
+                }
+              }
+              
+              // Parse and render streaming chunks
+              try {
+                streamingChunks.forEach((chunk, i) => {
+                  const chunkContainer = document.getElementById('chunk-' + i);
+                  if (chunkContainer) {
+                    chunkContainer.innerHTML = '';
+                    try {
+                      const chunkData = JSON.parse(chunk.data);
+                      chunkContainer.appendChild(renderjson.set_show_to_level('all')(chunkData));
+                    } catch (e) {
+                      // If not valid JSON, display as text
+                      chunkContainer.textContent = chunk.data;
+                    }
+                  }
+                });
+              } catch (e) {
+                console.error('Failed to parse chunks:', e);
+              }
+            }
+          } else if (view === 'headers') {
+            headersView.classList.remove('hidden');
+            buttons[2].classList.add('active');
+            
+            // Render headers and metadata using RenderJSON
+            if (typeof renderjson !== 'undefined') {
+              renderjson.set_max_string_length(200);
+              renderjson.set_sort_objects(true);
+              
+              // Render request headers
+              if (requestHeaders && document.getElementById('request-headers')) {
+                const container = document.getElementById('request-headers');
+                container.innerHTML = '';
+                try {
+                  container.appendChild(renderjson.set_show_to_level('all')(requestHeaders));
+                } catch (e) {
+                  console.error('Failed to render request headers:', e);
+                }
+              }
+              
+              // Render response headers
+              if (responseHeaders && document.getElementById('response-headers')) {
+                const container = document.getElementById('response-headers');
+                container.innerHTML = '';
+                try {
+                  container.appendChild(renderjson.set_show_to_level('all')(responseHeaders));
+                } catch (e) {
+                  console.error('Failed to render response headers:', e);
+                }
+              }
+              
+              // Render request metadata
+              const metadataContainer = document.getElementById('request-metadata');
+              if (metadataContainer) {
+                metadataContainer.innerHTML = '';
+                metadataContainer.appendChild(renderjson.set_show_to_level('all')(requestMetadata));
+              }
+              
+              // Render telemetry data
+              if (telemetryData && document.getElementById('telemetry-data')) {
+                const container = document.getElementById('telemetry-data');
+                container.innerHTML = '';
+                try {
+                  container.appendChild(renderjson.set_show_to_level('all')(telemetryData));
+                } catch (e) {
+                  console.error('Failed to render telemetry data:', e);
+                }
+              }
+            }
           }
         }
         
@@ -704,6 +904,38 @@ dashboardRoutes.get('/request/:id', async (c) => {
           } else {
             content.classList.add('hidden');
             truncated.classList.remove('hidden');
+          }
+        }
+        
+        // Copy JSON to clipboard
+        function copyJsonToClipboard(type) {
+          let data;
+          if (type === 'request') {
+            data = requestData;
+          } else if (type === 'response') {
+            data = responseData;
+          }
+          
+          if (data) {
+            const jsonString = JSON.stringify(data, null, 2);
+            navigator.clipboard.writeText(jsonString).then(() => {
+              // Find the button that was clicked and update its text
+              const buttons = document.querySelectorAll('button');
+              buttons.forEach(btn => {
+                if (btn.onclick && btn.onclick.toString().includes("'" + type + "'")) {
+                  const originalText = btn.textContent;
+                  btn.textContent = 'Copied!';
+                  btn.style.background = '#10b981';
+                  setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                  }, 2000);
+                }
+              });
+            }).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+              alert('Failed to copy to clipboard');
+            });
           }
         }
         
