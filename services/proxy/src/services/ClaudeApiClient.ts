@@ -68,22 +68,29 @@ export class ClaudeApiClient {
       if (!response.ok) {
         const errorBody = await response.text()
         let errorMessage = `Claude API error: ${response.status}`
+        let parsedError: any
 
         try {
-          const errorJson = JSON.parse(errorBody)
-          if (isClaudeError(errorJson)) {
-            errorMessage = `${errorJson.error.type}: ${errorJson.error.message}`
+          parsedError = JSON.parse(errorBody)
+          if (isClaudeError(parsedError)) {
+            errorMessage = `${parsedError.error.type}: ${parsedError.error.message}`
           }
         } catch {
           // Use text error if not JSON
           errorMessage = errorBody || errorMessage
+          parsedError = { error: { message: errorBody, type: 'api_error' } }
         }
 
-        throw new UpstreamError(errorMessage, response.status, {
-          requestId: request.requestId,
-          status: response.status,
-          body: errorBody,
-        })
+        throw new UpstreamError(
+          errorMessage,
+          response.status,
+          {
+            requestId: request.requestId,
+            status: response.status,
+            body: errorBody,
+          },
+          parsedError
+        )
       }
 
       return response
