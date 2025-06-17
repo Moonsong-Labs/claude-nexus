@@ -8,6 +8,7 @@ import { MetricsService } from './MetricsService'
 import { ClaudeMessagesRequest } from '../types/claude'
 import { ValidationError } from '../types/errors'
 import { logger } from '../middleware/logger'
+import { testSampleCollector } from './TestSampleCollector'
 
 /**
  * Main proxy service that orchestrates the request flow
@@ -63,6 +64,13 @@ export class ProxyService {
     const response = new ProxyResponse(
       context.requestId,
       request.isStreaming
+    )
+    
+    // Collect test sample if enabled
+    await testSampleCollector.collectSample(
+      context.honoContext,
+      rawRequest,
+      request.requestType
     )
     
     try {

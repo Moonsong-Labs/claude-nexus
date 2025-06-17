@@ -113,6 +113,8 @@ When `DEBUG=true`:
 - `STORAGE_ENABLED` - Enable storage (default: false)
 - `SLACK_WEBHOOK_URL` - Slack notifications
 - `CREDENTIALS_DIR` - Domain credential directory
+- `COLLECT_TEST_SAMPLES` - Collect request samples for testing (default: false)
+- `TEST_SAMPLES_DIR` - Directory for test samples (default: test-samples)
 
 ## Testing & Type Safety
 
@@ -121,11 +123,20 @@ When `DEBUG=true`:
 - Type checking is automatic during builds
 - Fix all type errors before deploying
 
+**Test Sample Collection:**
+The proxy can collect real request samples for test development:
+- Enable with `COLLECT_TEST_SAMPLES=true`
+- Samples are stored in `test-samples/` directory
+- Each request type gets its own file (e.g., `inference_streaming_opus.json`)
+- Sensitive data is automatically masked
+- Samples include headers, body, and metadata
+
 **Tests:**
 Currently no automated tests. When implementing:
 - Use Bun's built-in test runner
 - Test proxy logic, telemetry, token tracking
 - Test both streaming and non-streaming responses
+- Use collected samples as test data
 
 ## Important Notes
 

@@ -12,7 +12,8 @@ export class RequestContext {
     public readonly path: string,
     public readonly startTime: number,
     public readonly headers: Record<string, string>,
-    public readonly apiKey?: string
+    public readonly apiKey?: string,
+    public readonly honoContext?: Context
   ) {}
   
   /**
@@ -48,7 +49,8 @@ export class RequestContext {
       c.req.path,
       Date.now(),
       headers,
-      apiKey
+      apiKey,
+      c
     )
   }
   

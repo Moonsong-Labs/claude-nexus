@@ -69,66 +69,29 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
   // This allows for new models to be used immediately without proxy updates
   
   // Validate messages
-  let totalLength = request.system?.length || 0
-  for (let i = 0; i < request.messages.length; i++) {
-    const message = request.messages[i]
+  // let totalLength = request.system?.length || 0
+  // for (let i = 0; i < request.messages.length; i++) {
+  //   const message = request.messages[i]
     
-    // Check message content length
-    const messageLength = typeof message.content === 'string' 
-      ? message.content.length 
-      : JSON.stringify(message.content).length
-    totalLength += messageLength
+  //   // Check message content length
+  //   const messageLength = typeof message.content === 'string' 
+  //     ? message.content.length 
+  //     : JSON.stringify(message.content).length
+  //   totalLength += messageLength
     
-    // Validate message structure
-    if (message.role === 'system' && i > 0) {
-      errors.push('System messages must be at the beginning')
-    }
+  //   // Validate message structure
+  //   if (message.role === 'system' && i > 0) {
+  //     errors.push('System messages must be at the beginning')
+  //   }
     
-    // Check for empty content
-    if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
-      errors.push(`Message ${i} has empty content`)
-    }
-  }
+  //   // Check for empty content
+  //   if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
+  //     errors.push(`Message ${i} has empty content`)
+  //   }
+  // }
   
   // max_tokens validation removed - Claude API will handle any model-specific limits
   // This allows the proxy to work with all current and future models without updates
-  
-  // Validate temperature
-  if (request.temperature !== undefined) {
-    if (request.temperature < 0 || request.temperature > 1) {
-      errors.push(`Invalid temperature: ${request.temperature} (must be 0-1)`)
-    }
-  }
-  
-  // Validate top_p
-  if (request.top_p !== undefined) {
-    if (request.top_p < 0 || request.top_p > 1) {
-      errors.push(`Invalid top_p: ${request.top_p} (must be 0-1)`)
-    }
-  }
-  
-  // Validate top_k
-  if (request.top_k !== undefined) {
-    if (request.top_k < 1) {
-      errors.push(`Invalid top_k: ${request.top_k} (must be >= 1)`)
-    }
-  }
-  
-  // Validate tools
-  if (request.tools && request.tools.length > 0) {
-    for (let i = 0; i < request.tools.length; i++) {
-      const tool = request.tools[i]
-      if (!tool.name || typeof tool.name !== 'string') {
-        errors.push(`Tool ${i} missing name`)
-      }
-      if (!tool.description || typeof tool.description !== 'string') {
-        errors.push(`Tool ${i} missing description`)
-      }
-      if (!tool.input_schema || tool.input_schema.type !== 'object') {
-        errors.push(`Tool ${i} has invalid input_schema`)
-      }
-    }
-  }
   
   return errors
 }

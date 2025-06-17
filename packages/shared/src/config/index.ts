@@ -119,7 +119,9 @@ export const config = {
     enableHealthChecks: env.bool('ENABLE_HEALTH_CHECKS', true),
     enableMetrics: env.bool('ENABLE_METRICS', true),
     enableNotifications: env.bool('ENABLE_NOTIFICATIONS', true),
-    enableDashboard: env.bool('ENABLE_DASHBOARD', true)
+    enableDashboard: env.bool('ENABLE_DASHBOARD', true),
+    collectTestSamples: env.bool('COLLECT_TEST_SAMPLES', false),
+    testSamplesDir: env.string('TEST_SAMPLES_DIR', 'test-samples')
   },
   
   // Cache configuration

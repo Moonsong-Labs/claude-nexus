@@ -13,6 +13,7 @@ export class ProxyResponse {
   private _toolCallCount: number = 0
   private _content: string = ''
   private _fullUsageData: any = null
+  private _toolCalls: Array<{name: string, id?: string}> = []
   
   constructor(
     public readonly requestId: string,
@@ -37,6 +38,10 @@ export class ProxyResponse {
   
   get content(): string {
     return this._content
+  }
+  
+  get toolCalls(): Array<{name: string, id?: string}> {
+    return this._toolCalls
   }
   
   get cacheCreationInputTokens(): number {
@@ -152,6 +157,10 @@ export class ProxyResponse {
       case 'content_block_start':
         if (event.content_block?.type === 'tool_use') {
           this._toolCallCount++
+          this._toolCalls.push({
+            name: event.content_block.name,
+            id: event.content_block.id
+          })
         }
         break
         

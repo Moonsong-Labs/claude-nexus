@@ -2,7 +2,7 @@ import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { AuthResult, AuthenticationService } from './AuthenticationService'
-import { sendToSlack, initializeDomainSlack } from './slack.js'
+import { sendToSlack, initializeDomainSlack, MessageInfo } from './slack.js'
 import { logger } from '../middleware/logger'
 
 export interface NotificationConfig {
@@ -43,6 +43,9 @@ export class NotificationService {
   ): Promise<void> {
     if (!this.config.enabled) return
     
+    // Only send notifications for inference requests
+    if (request.requestType !== 'inference') return
+    
     try {
       // Get Slack config for the domain
       const slackConfig = this.authService ? await this.authService.getSlackConfig(context.host) : undefined
@@ -51,7 +54,7 @@ export class NotificationService {
       const domainWebhook = initializeDomainSlack(slackConfig)
       
       // Check if user message changed
-      const userContent = request.getUserContent()
+      const userContent = request.getUserContentForNotification()
       const previousContent = this.getPreviousMessage(context.host)
       const userMessageChanged = userContent !== previousContent
       
@@ -59,43 +62,43 @@ export class NotificationService {
         this.setPreviousMessage(context.host, userContent)
       }
       
-      // Build notification payload
-      const notification = this.buildNotification(
-        request,
-        response,
-        context,
-        auth,
-        userMessageChanged
-      )
+      // Only send notifications when user message changes
+      if (!userMessageChanged) return
       
-      // Send to Slack if we have content
-      const maskedApiKey = this.authService ? this.authService.getMaskedCredentialInfo(auth) : undefined
+      // Prepare the conversation message
+      let conversationMessage = ''
       
-      if (notification.userContent) {
-        await sendToSlack({
-          requestId: context.requestId,
-          domain: context.host,
-          model: request.model,
-          role: 'user',
-          content: notification.userContent,
-          timestamp: new Date().toISOString(),
-          apiKey: maskedApiKey
-        }, domainWebhook)
+      // Add user message
+      if (userContent) {
+        conversationMessage += `:bust_in_silhouette: **User**: ${userContent}\n`
       }
       
-      if (notification.assistantContent) {
-        await sendToSlack({
-          requestId: context.requestId,
-          domain: context.host,
-          model: request.model,
-          role: 'assistant',
-          content: notification.assistantContent,
-          timestamp: new Date().toISOString(),
-          apiKey: maskedApiKey,
-          inputTokens: response.inputTokens,
-          outputTokens: response.outputTokens
-        }, domainWebhook)
+      // Add assistant response
+      const assistantContent = response.getTruncatedContent(this.config.maxLines, this.config.maxLength)
+      if (assistantContent) {
+        conversationMessage += `:robot_face: **Claude**: ${assistantContent}\n`
       }
+      
+      // Add tool calls if any
+      const toolCalls = response.toolCalls
+      if (toolCalls.length > 0) {
+        for (const tool of toolCalls) {
+          conversationMessage += `:wrench: **${tool.name}**\n`
+        }
+      }
+      
+      // Send the conversation to Slack
+      await sendToSlack({
+        requestId: context.requestId,
+        domain: context.host,
+        model: request.model,
+        role: 'conversation',
+        content: conversationMessage,
+        timestamp: new Date().toISOString(),
+        apiKey: this.authService ? this.authService.getMaskedCredentialInfo(auth) : undefined,
+        inputTokens: response.inputTokens,
+        outputTokens: response.outputTokens
+      }, domainWebhook)
       
     } catch (error) {
       // Don't fail the request if notification fails

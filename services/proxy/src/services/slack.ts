@@ -1,18 +1,18 @@
 import { IncomingWebhook, IncomingWebhookSendArguments } from '@slack/webhook'
 
 export interface SlackConfig {
-  webhookUrl: string
+  webhookUrl?: string
   channel?: string
   username?: string
   iconEmoji?: string
-  enabled: boolean
+  enabled?: boolean
 }
 
 export interface MessageInfo {
   requestId: string
   domain?: string
   model?: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'conversation'
   content: string
   timestamp: string
   apiKey?: string // Masked API key for identification
@@ -41,7 +41,7 @@ export function initializeSlack(config: Partial<SlackConfig>) {
     enabled: config.enabled !== false
   }
 
-  webhook = new IncomingWebhook(slackConfig.webhookUrl, {
+  webhook = new IncomingWebhook(slackConfig.webhookUrl!, {
     channel: slackConfig.channel,
     username: slackConfig.username,
     icon_emoji: slackConfig.iconEmoji
@@ -202,7 +202,7 @@ export async function sendErrorToSlack(requestId: string, error: string, domain?
       attachments: [
         {
           color: '#ff0000',
-          author_name: ':warning: Error',
+          author_name: '⚠️ Error',
           title: `Request ${requestId}`,
           text: error,
           fields: [

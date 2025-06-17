@@ -24,13 +24,15 @@ export interface ClaudeContent {
 }
 
 export interface ClaudeTool {
-  name: string
-  description: string
-  input_schema: {
-    type: 'object'
-    properties: Record<string, any>
+  name?: string
+  description?: string
+  input_schema?: {
+    type?: 'object' | string
+    properties?: Record<string, any>
     required?: string[]
+    [key: string]: any  // Allow any additional fields
   }
+  [key: string]: any  // Allow any additional fields at tool level
 }
 
 export interface ClaudeMessagesRequest {
@@ -57,6 +59,11 @@ export interface ClaudeMessagesRequest {
     type: 'auto' | 'any' | 'tool'
     name?: string
   }
+  thinking?: {
+    budget_tokens?: number
+    [key: string]: any  // Allow any additional thinking fields
+  }
+  [key: string]: any  // Allow any additional fields in the request
 }
 
 // Response types
