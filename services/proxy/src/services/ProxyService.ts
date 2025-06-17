@@ -238,11 +238,26 @@ export class ProxyService {
     const writer = writable.getWriter()
 
     // Process stream in background
-    this.processStream(claudeResponse, response, writer, context, request, auth).catch(error => {
+    this.processStream(claudeResponse, response, writer, context, request, auth).catch(async error => {
       log.error(
         'Stream processing error',
         error instanceof Error ? error : new Error(String(error))
       )
+      
+      // Try to send error to client in SSE format
+      try {
+        const encoder = new TextEncoder()
+        const errorEvent = {
+          type: 'error',
+          error: {
+            type: 'stream_error',
+            message: error instanceof Error ? error.message : String(error)
+          }
+        }
+        await writer.write(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`))
+      } catch (writeError) {
+        log.error('Failed to write error to stream', writeError instanceof Error ? writeError : undefined)
+      }
     })
 
     // Return streaming response immediately
@@ -314,6 +329,22 @@ export class ProxyService {
 
       // Send notifications after streaming completes
       await this.notificationService.notify(request, response, context, auth)
+    } catch (error) {
+      // Track error metrics
+      await this.metricsService.trackError(
+        request,
+        error instanceof Error ? error : new Error(String(error)),
+        context,
+        (error as any).statusCode || 500
+      )
+
+      // Notify about error
+      await this.notificationService.notifyError(
+        error instanceof Error ? error : new Error(String(error)),
+        context
+      )
+
+      throw error
     } finally {
       await writer.close()
     }

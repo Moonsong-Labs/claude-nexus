@@ -53,11 +53,16 @@ export class MessageController {
       })
 
       // Serialize error for response
-      const errorResponse = serializeError(
-        error instanceof Error ? error : new Error(String(error))
-      )
+      const errorObj = error instanceof Error ? error : new Error(String(error))
+      const errorResponse = serializeError(errorObj)
 
-      return c.json(errorResponse, (error as any).statusCode || 500)
+      // Determine status code
+      let statusCode = 500
+      if (error instanceof ValidationError) statusCode = 400
+      else if ((error as any).statusCode) statusCode = (error as any).statusCode
+      else if ((error as any).upstreamStatus) statusCode = (error as any).upstreamStatus
+
+      return c.json(errorResponse, statusCode as any)
     }
   }
 

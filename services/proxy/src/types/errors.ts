@@ -66,12 +66,16 @@ export class RateLimitError extends BaseError {
 }
 
 export class UpstreamError extends BaseError {
+  public readonly upstreamResponse?: any
+
   constructor(
     message: string,
     public readonly upstreamStatus?: number,
-    context?: Record<string, any>
+    context?: Record<string, any>,
+    upstreamResponse?: any
   ) {
-    super('UPSTREAM_ERROR', message, 502, context)
+    super('UPSTREAM_ERROR', message, upstreamStatus || 502, context)
+    this.upstreamResponse = upstreamResponse
   }
 }
 
@@ -102,15 +106,13 @@ export function isOperationalError(error: Error): boolean {
 }
 
 // Serialize error for API response
-export function serializeError(error: Error): {
-  error: {
-    code: string
-    message: string
-    statusCode: number
-    timestamp: Date
-    requestId?: string
+export function serializeError(error: Error): any {
+  // Special handling for UpstreamError to return Claude's original error format
+  if (error instanceof UpstreamError && error.upstreamResponse) {
+    // Return Claude's error response directly to maintain compatibility
+    return error.upstreamResponse
   }
-} {
+
   if (error instanceof BaseError) {
     return {
       error: {
@@ -127,7 +129,7 @@ export function serializeError(error: Error): {
   return {
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'An unexpected error occurred',
+      message: error.message || 'An unexpected error occurred',
       statusCode: 500,
       timestamp: new Date(),
     },
