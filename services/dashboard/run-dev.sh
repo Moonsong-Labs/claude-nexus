@@ -13,4 +13,4 @@ elif [ -f .env ]; then
 fi
 
 # Run the service
-exec tsx watch src/main.ts
+exec bun --watch src/main.ts

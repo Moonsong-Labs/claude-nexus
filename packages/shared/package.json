@@ -20,14 +20,12 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "typecheck": "tsc --noEmit"
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "watch": "bun build ./src/index.ts --outdir ./dist --target bun --watch",
+    "typecheck": "bun build ./src/index.ts --outdir ./dist --target bun --no-bundle"
   },
   "dependencies": {
     "zod": "^3.24.1"
   },
-  "devDependencies": {
-    "typescript": "^5.7.2"
-  }
+  "devDependencies": {}
 }

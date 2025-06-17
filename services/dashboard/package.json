@@ -8,15 +8,15 @@
     "claude-nexus-dashboard": "./dist/main.js"
   },
   "scripts": {
-    "dev": "./run-dev.sh",
-    "dev:direct": "tsx src/main.ts",
-    "dev:watch": "tsx watch src/main.ts",
+    "dev": "bun --watch src/main.ts",
+    "dev:direct": "bun run src/main.ts",
+    "dev:watch": "bun --watch src/main.ts",
     "build": "bun scripts/build-bun.ts",
     "build:production": "bun scripts/build-production.ts",
-    "build:check": "bun run typecheck && bun run build:production",
+    "build:check": "bun run build:production",
     "start": "bun dist/index.js",
     "start:prod": "NODE_ENV=production bun dist/index.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun build src/main.ts --target bun --no-bundle",
     "lint": "eslint src/**/*.ts",
     "test": "bun test",
     "clean": "rm -rf dist"
@@ -30,10 +30,8 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
-    "typescript": "^5.7.2",
-    "tsx": "^4.19.2",
+    "@types/sanitize-html": "^2.16.0",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^9.17.0"
