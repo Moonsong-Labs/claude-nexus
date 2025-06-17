@@ -104,11 +104,6 @@ export class ProxyRequest {
     // Check if this is a quota query
     const userContent = this.getUserContent()
     if (userContent && userContent.trim().toLowerCase() === 'quota') {
-      logger.debug('Request type determination', {
-        requestId: this.requestId,
-        userContent: userContent,
-        resultType: 'quota'
-      })
       return 'quota'
     }
     
@@ -133,15 +128,15 @@ export class ProxyRequest {
     
     const resultType = systemMessageCount <= 1 ? 'query_evaluation' : 'inference'
     
-    logger.debug('Request type determination', {
-      requestId: this.requestId,
-      systemField: systemFieldDisplay,
-      systemMessagesInArray,
-      totalSystemMessages: systemMessageCount,
-      messageCount: this.raw.messages.length,
-      messageRoles: this.raw.messages.map(m => m.role),
-      resultType: resultType
-    })
+    // logger.debug('Request type determination', {
+    //   requestId: this.requestId,
+    //   systemField: systemFieldDisplay,
+    //   systemMessagesInArray,
+    //   totalSystemMessages: systemMessageCount,
+    //   messageCount: this.raw.messages.length,
+    //   messageRoles: this.raw.messages.map(m => m.role),
+    //   resultType: resultType
+    // })
     
     // If there are 0 or 1 system messages, it's a query evaluation (insignificant request)
     if (systemMessageCount <= 1) {
