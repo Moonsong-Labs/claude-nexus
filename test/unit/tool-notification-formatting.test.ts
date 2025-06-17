@@ -11,50 +11,50 @@ describe('Tool Notification Formatting', () => {
         role: 'assistant',
         content: [
           { type: 'text', text: 'Let me help you with that.' },
-          { 
-            type: 'tool_use', 
+          {
+            type: 'tool_use',
             id: 'tool_read',
             name: 'Read',
-            input: { file_path: '/home/user/projects/myapp/src/index.ts' }
+            input: { file_path: '/home/user/projects/myapp/src/index.ts' },
           },
-          { 
-            type: 'tool_use', 
+          {
+            type: 'tool_use',
             id: 'tool_edit',
             name: 'Edit',
-            input: { 
+            input: {
               file_path: '/home/user/projects/myapp/src/utils/helper.ts',
               old_string: 'foo',
-              new_string: 'bar'
-            }
-          }
+              new_string: 'bar',
+            },
+          },
         ],
         model: 'claude-3-opus-20240229',
         stop_reason: 'tool_use',
         stop_sequence: null,
-        usage: { input_tokens: 20, output_tokens: 15 }
+        usage: { input_tokens: 20, output_tokens: 15 },
       })
-      
+
       const toolCalls = response.toolCalls
       expect(toolCalls).toHaveLength(2)
       expect(toolCalls[0]).toEqual({
         name: 'Read',
         id: 'tool_read',
-        input: { file_path: '/home/user/projects/myapp/src/index.ts' }
+        input: { file_path: '/home/user/projects/myapp/src/index.ts' },
       })
       expect(toolCalls[1]).toEqual({
         name: 'Edit',
         id: 'tool_edit',
-        input: { 
+        input: {
           file_path: '/home/user/projects/myapp/src/utils/helper.ts',
           old_string: 'foo',
-          new_string: 'bar'
-        }
+          new_string: 'bar',
+        },
       })
     })
 
     it('should extract tool calls from streaming response', () => {
       const response = new ProxyResponse('resp-stream', true)
-      
+
       // Start message
       response.processStreamEvent({
         type: 'message_start',
@@ -64,10 +64,10 @@ describe('Tool Notification Formatting', () => {
           role: 'assistant',
           content: [],
           model: 'claude-3-haiku-20240307',
-          usage: { input_tokens: 8, output_tokens: 0 }
-        }
+          usage: { input_tokens: 8, output_tokens: 0 },
+        },
       })
-      
+
       // Tool use blocks
       response.processStreamEvent({
         type: 'content_block_start',
@@ -76,10 +76,10 @@ describe('Tool Notification Formatting', () => {
           type: 'tool_use',
           id: 'tool_bash',
           name: 'Bash',
-          input: { command: 'npm install express', description: 'Install Express package' }
-        }
+          input: { command: 'npm install express', description: 'Install Express package' },
+        },
       })
-      
+
       response.processStreamEvent({
         type: 'content_block_start',
         index: 1,
@@ -87,21 +87,21 @@ describe('Tool Notification Formatting', () => {
           type: 'tool_use',
           id: 'tool_grep',
           name: 'Grep',
-          input: { pattern: 'TODO.*fix', include: '*.ts' }
-        }
+          input: { pattern: 'TODO.*fix', include: '*.ts' },
+        },
       })
-      
+
       const toolCalls = response.toolCalls
       expect(toolCalls).toHaveLength(2)
       expect(toolCalls[0]).toEqual({
         name: 'Bash',
         id: 'tool_bash',
-        input: { command: 'npm install express', description: 'Install Express package' }
+        input: { command: 'npm install express', description: 'Install Express package' },
       })
       expect(toolCalls[1]).toEqual({
         name: 'Grep',
         id: 'tool_grep',
-        input: { pattern: 'TODO.*fix', include: '*.ts' }
+        input: { pattern: 'TODO.*fix', include: '*.ts' },
       })
     })
 
@@ -112,25 +112,25 @@ describe('Tool Notification Formatting', () => {
         type: 'message',
         role: 'assistant',
         content: [
-          { 
-            type: 'tool_use', 
+          {
+            type: 'tool_use',
             id: 'tool_todo',
-            name: 'TodoRead'
+            name: 'TodoRead',
             // No input field
-          }
+          },
         ],
         model: 'claude-3-opus-20240229',
         stop_reason: 'tool_use',
         stop_sequence: null,
-        usage: { input_tokens: 10, output_tokens: 5 }
+        usage: { input_tokens: 10, output_tokens: 5 },
       })
-      
+
       const toolCalls = response.toolCalls
       expect(toolCalls).toHaveLength(1)
       expect(toolCalls[0]).toEqual({
         name: 'TodoRead',
         id: 'tool_todo',
-        input: undefined
+        input: undefined,
       })
     })
   })
@@ -140,20 +140,23 @@ describe('Tool Notification Formatting', () => {
       const testCases = [
         {
           tool: { name: 'Read', input: { file_path: '/home/user/projects/app/src/index.ts' } },
-          expected: 'Reading file: src/index.ts'
+          expected: 'Reading file: src/index.ts',
         },
         {
-          tool: { name: 'Write', input: { file_path: '/home/user/projects/app/config/settings.json' } },
-          expected: 'Writing file: config/settings.json'
+          tool: {
+            name: 'Write',
+            input: { file_path: '/home/user/projects/app/config/settings.json' },
+          },
+          expected: 'Writing file: config/settings.json',
         },
         {
           tool: { name: 'Edit', input: { file_path: '/home/user/projects/app/lib/utils.ts' } },
-          expected: 'Editing file: lib/utils.ts'
+          expected: 'Editing file: lib/utils.ts',
         },
         {
           tool: { name: 'MultiEdit', input: { file_path: '/home/user/docs/README.md' } },
-          expected: 'Editing file: docs/README.md'
-        }
+          expected: 'Editing file: docs/README.md',
+        },
       ]
 
       testCases.forEach(({ tool, expected }) => {
@@ -165,11 +168,11 @@ describe('Tool Notification Formatting', () => {
 
     it('should format Bash commands with truncation', () => {
       const longCommand = 'git log --pretty=format:"%h %ad | %s%d [%an]" --date=short --graph --all'
-      const tool = { 
-        name: 'Bash', 
-        input: { command: longCommand }
+      const tool = {
+        name: 'Bash',
+        input: { command: longCommand },
       }
-      
+
       const truncated = longCommand.length > 50 ? longCommand.substring(0, 50) + '...' : longCommand
       expect(truncated).toBe('git log --pretty=format:"%h %ad | %s%d [%an]" --da...')
     })
@@ -181,7 +184,7 @@ describe('Tool Notification Formatting', () => {
         { id: '3', content: 'Task 3', status: 'in_progress', priority: 'high' },
         { id: '4', content: 'Task 4', status: 'completed', priority: 'low' },
         { id: '5', content: 'Task 5', status: 'completed', priority: 'medium' },
-        { id: '6', content: 'Task 6', status: 'completed', priority: 'low' }
+        { id: '6', content: 'Task 6', status: 'completed', priority: 'low' },
       ]
 
       const pending = todos.filter(t => t.status === 'pending').length
@@ -204,7 +207,7 @@ describe('Tool Notification Formatting', () => {
     it('should format LS with folder path', () => {
       const tool = {
         name: 'LS',
-        input: { path: '/home/user/projects/myapp/src/components' }
+        input: { path: '/home/user/projects/myapp/src/components' },
       }
 
       const pathParts = tool.input.path.split('/')
@@ -213,10 +216,11 @@ describe('Tool Notification Formatting', () => {
     })
 
     it('should handle WebSearch query truncation', () => {
-      const longQuery = 'How to implement authentication with JWT tokens in Node.js Express application with TypeScript'
+      const longQuery =
+        'How to implement authentication with JWT tokens in Node.js Express application with TypeScript'
       const tool = {
         name: 'WebSearch',
-        input: { query: longQuery }
+        input: { query: longQuery },
       }
 
       const truncated = longQuery.length > 40 ? longQuery.substring(0, 40) + '...' : longQuery
@@ -226,7 +230,7 @@ describe('Tool Notification Formatting', () => {
     it('should extract hostname from WebFetch URL', () => {
       const tool = {
         name: 'WebFetch',
-        input: { url: 'https://docs.anthropic.com/en/docs/claude-code/overview' }
+        input: { url: 'https://docs.anthropic.com/en/docs/claude-code/overview' },
       }
 
       const url = new URL(tool.input.url)
@@ -236,13 +240,17 @@ describe('Tool Notification Formatting', () => {
     it('should handle tools with prompt field', () => {
       const tool = {
         name: 'mcp__zen__debug',
-        input: { 
-          prompt: 'Debug why the authentication middleware is not working correctly in the Express app',
-          files: ['/path/to/auth.ts']
-        }
+        input: {
+          prompt:
+            'Debug why the authentication middleware is not working correctly in the Express app',
+          files: ['/path/to/auth.ts'],
+        },
       }
 
-      const truncated = tool.input.prompt.length > 40 ? tool.input.prompt.substring(0, 40) + '...' : tool.input.prompt
+      const truncated =
+        tool.input.prompt.length > 40
+          ? tool.input.prompt.substring(0, 40) + '...'
+          : tool.input.prompt
       expect(truncated).toBe('Debug why the authentication middleware ...')
     })
   })

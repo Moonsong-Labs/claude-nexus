@@ -50,12 +50,12 @@ interface StorageStats {
  */
 export class StorageReader {
   private cache: NodeCache
-  
+
   constructor(private pool: Pool) {
     // Cache with 15 minute TTL
     this.cache = new NodeCache({ stdTTL: 900, checkperiod: 120 })
   }
-  
+
   /**
    * Get requests by domain
    */
@@ -63,7 +63,7 @@ export class StorageReader {
     const cacheKey = `requests:${domain}:${limit}`
     const cached = this.cache.get<ApiRequest[]>(cacheKey)
     if (cached) return cached
-    
+
     try {
       const query = domain
         ? `SELECT * FROM api_requests 
@@ -73,10 +73,10 @@ export class StorageReader {
         : `SELECT * FROM api_requests 
            ORDER BY timestamp DESC 
            LIMIT $1`
-      
+
       const values = domain ? [domain, limit] : [limit]
       const result = await this.pool.query(query, values)
-      
+
       const requests = result.rows.map(row => ({
         request_id: row.request_id,
         domain: row.domain,
@@ -88,20 +88,20 @@ export class StorageReader {
         duration_ms: row.duration_ms || 0,
         error: row.error,
         request_type: row.request_type,
-        tool_call_count: row.tool_call_count || 0
+        tool_call_count: row.tool_call_count || 0,
       }))
-      
+
       this.cache.set(cacheKey, requests)
       return requests
     } catch (error) {
       logger.error('Failed to get requests by domain', {
         domain,
-        error: getErrorMessage(error)
+        error: getErrorMessage(error),
       })
       throw error
     }
   }
-  
+
   /**
    * Get request details including body and chunks
    */
@@ -109,7 +109,7 @@ export class StorageReader {
     const cacheKey = `details:${requestId}`
     const cached = this.cache.get<RequestDetails>(cacheKey)
     if (cached) return cached
-    
+
     try {
       // Get request
       const requestQuery = `
@@ -121,11 +121,11 @@ export class StorageReader {
         WHERE request_id = $1
       `
       const requestResult = await this.pool.query(requestQuery, [requestId])
-      
+
       if (requestResult.rows.length === 0) {
         return { request: null, request_body: null, response_body: null, chunks: [] }
       }
-      
+
       const row = requestResult.rows[0]
       const request: ApiRequest = {
         request_id: row.request_id,
@@ -138,9 +138,9 @@ export class StorageReader {
         duration_ms: row.duration_ms || 0,
         error: row.error,
         request_type: row.request_type,
-        tool_call_count: row.tool_call_count || 0
+        tool_call_count: row.tool_call_count || 0,
       }
-      
+
       // Get streaming chunks
       const chunksQuery = `
         SELECT chunk_index, timestamp, data, token_count
@@ -149,25 +149,25 @@ export class StorageReader {
         ORDER BY chunk_index
       `
       const chunksResult = await this.pool.query(chunksQuery, [requestId])
-      
+
       const details: RequestDetails = {
         request,
         request_body: row.body,
         response_body: row.response_body,
-        chunks: chunksResult.rows
+        chunks: chunksResult.rows,
       }
-      
+
       this.cache.set(cacheKey, details)
       return details
     } catch (error) {
       logger.error('Failed to get request details', {
         requestId,
-        error: getErrorMessage(error)
+        error: getErrorMessage(error),
       })
       throw error
     }
   }
-  
+
   /**
    * Get aggregated statistics
    */
@@ -175,26 +175,24 @@ export class StorageReader {
     const cacheKey = `stats:${domain || 'all'}:${since?.toISOString() || 'all'}`
     const cached = this.cache.get<StorageStats>(cacheKey)
     if (cached) return cached
-    
+
     try {
       const conditions = []
       const values = []
       let paramCount = 0
-      
+
       if (domain) {
         conditions.push(`domain = $${++paramCount}`)
         values.push(domain)
       }
-      
+
       if (since) {
         conditions.push(`timestamp > $${++paramCount}`)
         values.push(since)
       }
-      
-      const whereClause = conditions.length > 0 
-        ? `WHERE ${conditions.join(' AND ')}` 
-        : ''
-      
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
       const query = `
         SELECT
           COUNT(*) as total_requests,
@@ -208,10 +206,10 @@ export class StorageReader {
         FROM api_requests
         ${whereClause}
       `
-      
+
       const statsResult = await this.pool.query(query, values)
       const baseStats = statsResult.rows[0]
-      
+
       // Get model breakdown
       const modelQuery = `
         SELECT model, COUNT(*) as count
@@ -223,7 +221,7 @@ export class StorageReader {
       const requestsByModel = Object.fromEntries(
         modelResult.rows.map(row => [row.model, parseInt(row.count)])
       )
-      
+
       // Get request type breakdown
       const typeQuery = `
         SELECT request_type, COUNT(*) as count
@@ -236,7 +234,7 @@ export class StorageReader {
       const requestsByType = Object.fromEntries(
         typeResult.rows.map(row => [row.request_type, parseInt(row.count)])
       )
-      
+
       const stats: StorageStats = {
         total_requests: parseInt(baseStats.total_requests),
         total_tokens: parseInt(baseStats.total_tokens),
@@ -247,20 +245,20 @@ export class StorageReader {
         error_count: parseInt(baseStats.error_count),
         unique_domains: parseInt(baseStats.unique_domains),
         requests_by_model: requestsByModel,
-        requests_by_type: requestsByType
+        requests_by_type: requestsByType,
       }
-      
+
       this.cache.set(cacheKey, stats)
       return stats
     } catch (error) {
       logger.error('Failed to get storage stats', {
         domain,
-        error: getErrorMessage(error)
+        error: getErrorMessage(error),
       })
       throw error
     }
   }
-  
+
   /**
    * Clear cache
    */

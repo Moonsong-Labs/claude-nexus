@@ -18,16 +18,16 @@ try {
     rmSync(distDir, { recursive: true, force: true })
   }
   mkdirSync(distDir, { recursive: true })
-  
+
   // Build with Bun
   await $`bun build ${join(srcDir, 'main.ts')} --outdir ${distDir} --target node --minify`
-  
+
   // Copy package.json to dist for runtime
   await $`cp ${join(__dirname, '..', 'package.json')} ${distDir}/`
-  
+
   // Make the main file executable
   await $`chmod +x ${join(distDir, 'main.js')}`
-  
+
   console.log('✅ Build completed successfully!')
   console.log(`📦 Output: ${distDir}`)
 } catch (error) {

@@ -19,19 +19,19 @@ export class NotificationService {
   private previousMessages = new Map<string, string>()
   private readonly maxCacheSize = 1000
   private authService?: AuthenticationService
-  
+
   constructor(
     private config: NotificationConfig = {
       enabled: true,
       maxLines: 20,
-      maxLength: 3000
+      maxLength: 3000,
     }
   ) {}
-  
+
   setAuthService(authService: AuthenticationService) {
     this.authService = authService
   }
-  
+
   /**
    * Send notification for a request/response pair
    */
@@ -42,49 +42,54 @@ export class NotificationService {
     auth: AuthResult
   ): Promise<void> {
     if (!this.config.enabled) return
-    
+
     // Only send notifications for inference requests
     if (request.requestType !== 'inference') return
-    
+
     try {
       // Get Slack config for the domain
-      const slackConfig = this.authService ? await this.authService.getSlackConfig(context.host) : undefined
-      
+      const slackConfig = this.authService
+        ? await this.authService.getSlackConfig(context.host)
+        : undefined
+
       // Initialize Slack for the domain
       const domainWebhook = slackConfig ? initializeDomainSlack(slackConfig) : null
-      
+
       // Check if user message changed
       const userContent = request.getUserContentForNotification()
       const previousContent = this.getPreviousMessage(context.host)
       const userMessageChanged = userContent !== previousContent
-      
+
       if (userContent) {
         this.setPreviousMessage(context.host, userContent)
       }
-      
+
       // Only send notifications when user message changes
       if (!userMessageChanged) return
-      
+
       // Prepare the conversation message
       let conversationMessage = ''
-      
+
       // Add user message
       if (userContent) {
         conversationMessage += `:bust_in_silhouette: User: ${userContent}\n`
       }
-      
+
       // Add assistant response
-      const assistantContent = response.getTruncatedContent(this.config.maxLines, this.config.maxLength)
+      const assistantContent = response.getTruncatedContent(
+        this.config.maxLines,
+        this.config.maxLength
+      )
       if (assistantContent) {
         conversationMessage += `:robot_face: Claude: ${assistantContent}\n`
       }
-      
+
       // Add tool calls if any
       const toolCalls = response.toolCalls
       if (toolCalls.length > 0) {
         for (const tool of toolCalls) {
           let toolMessage = `    :wrench: ${tool.name}`
-          
+
           // Add human-friendly description based on tool name and input
           if (tool.input) {
             switch (tool.name) {
@@ -112,13 +117,19 @@ export class NotificationService {
                 break
               case 'Bash':
                 if (tool.input.command) {
-                  const cmd = tool.input.command.length > 50 ? tool.input.command.substring(0, 50) + '...' : tool.input.command
+                  const cmd =
+                    tool.input.command.length > 50
+                      ? tool.input.command.substring(0, 50) + '...'
+                      : tool.input.command
                   toolMessage += ` - Running: \`${cmd}\``
                 }
                 break
               case 'Grep':
                 if (tool.input.pattern) {
-                  const pattern = tool.input.pattern.length > 30 ? tool.input.pattern.substring(0, 30) + '...' : tool.input.pattern
+                  const pattern =
+                    tool.input.pattern.length > 30
+                      ? tool.input.pattern.substring(0, 30) + '...'
+                      : tool.input.pattern
                   toolMessage += ` - Searching for: "${pattern}"`
                 }
                 break
@@ -140,12 +151,12 @@ export class NotificationService {
                   const pending = todos.filter((t: any) => t.status === 'pending').length
                   const inProgress = todos.filter((t: any) => t.status === 'in_progress').length
                   const completed = todos.filter((t: any) => t.status === 'completed').length
-                  
+
                   const statusParts = []
                   if (pending > 0) statusParts.push(`${pending} pending`)
                   if (inProgress > 0) statusParts.push(`${inProgress} in progress`)
                   if (completed > 0) statusParts.push(`${completed} completed`)
-                  
+
                   if (statusParts.length > 0) {
                     toolMessage += ` - Tasks: ${statusParts.join(', ')}`
                   } else {
@@ -158,7 +169,10 @@ export class NotificationService {
                 break
               case 'WebSearch':
                 if (tool.input.query) {
-                  const query = tool.input.query.length > 40 ? tool.input.query.substring(0, 40) + '...' : tool.input.query
+                  const query =
+                    tool.input.query.length > 40
+                      ? tool.input.query.substring(0, 40) + '...'
+                      : tool.input.query
                   toolMessage += ` - Searching web: "${query}"`
                 }
                 break
@@ -175,56 +189,63 @@ export class NotificationService {
               default:
                 // For other tools, check if there's a prompt or description
                 if (tool.input.prompt && typeof tool.input.prompt === 'string') {
-                  const prompt = tool.input.prompt.length > 40 ? tool.input.prompt.substring(0, 40) + '...' : tool.input.prompt
+                  const prompt =
+                    tool.input.prompt.length > 40
+                      ? tool.input.prompt.substring(0, 40) + '...'
+                      : tool.input.prompt
                   toolMessage += ` - ${prompt}`
                 } else if (tool.input.description && typeof tool.input.description === 'string') {
-                  const desc = tool.input.description.length > 40 ? tool.input.description.substring(0, 40) + '...' : tool.input.description
+                  const desc =
+                    tool.input.description.length > 40
+                      ? tool.input.description.substring(0, 40) + '...'
+                      : tool.input.description
                   toolMessage += ` - ${desc}`
                 }
             }
           }
-          
+
           conversationMessage += `${toolMessage}\n`
         }
       }
-      
+
       // Send the conversation to Slack
-      await sendToSlack({
-        requestId: context.requestId,
-        domain: context.host,
-        model: request.model,
-        role: 'conversation',
-        content: conversationMessage,
-        timestamp: new Date().toISOString(),
-        apiKey: this.authService ? this.authService.getMaskedCredentialInfo(auth) : undefined,
-        inputTokens: response.inputTokens,
-        outputTokens: response.outputTokens
-      }, domainWebhook)
-      
+      await sendToSlack(
+        {
+          requestId: context.requestId,
+          domain: context.host,
+          model: request.model,
+          role: 'conversation',
+          content: conversationMessage,
+          timestamp: new Date().toISOString(),
+          apiKey: this.authService ? this.authService.getMaskedCredentialInfo(auth) : undefined,
+          inputTokens: response.inputTokens,
+          outputTokens: response.outputTokens,
+        },
+        domainWebhook
+      )
     } catch (error) {
       // Don't fail the request if notification fails
       logger.error('Failed to send notification', {
         requestId: context.requestId,
         domain: context.host,
-        error: error instanceof Error ? { message: error.message } : { message: String(error) }
+        error: error instanceof Error ? { message: error.message } : { message: String(error) },
       })
     }
   }
-  
+
   /**
    * Send error notification
    */
-  async notifyError(
-    error: Error,
-    context: RequestContext
-  ): Promise<void> {
+  async notifyError(error: Error, context: RequestContext): Promise<void> {
     if (!this.config.enabled) return
-    
+
     try {
       // Get Slack config for the domain
-      const slackConfig = this.authService ? await this.authService.getSlackConfig(context.host) : undefined
+      const slackConfig = this.authService
+        ? await this.authService.getSlackConfig(context.host)
+        : undefined
       const domainWebhook = slackConfig ? initializeDomainSlack(slackConfig) : null
-      
+
       await sendToSlack(
         {
           requestId: context.requestId,
@@ -234,20 +255,22 @@ export class NotificationService {
           timestamp: new Date().toISOString(),
           metadata: {
             errorType: error.constructor.name,
-            path: context.path
-          }
+            path: context.path,
+          },
         } as MessageInfo,
         domainWebhook
       )
     } catch (notifyError) {
       logger.error('Failed to send error notification', {
         requestId: context.requestId,
-        originalError: error.message,
-        notifyError: notifyError.message
+        metadata: {
+          originalError: error.message,
+          notifyError: notifyError instanceof Error ? notifyError.message : String(notifyError),
+        },
       })
     }
   }
-  
+
   /**
    * Build notification payload
    */
@@ -259,7 +282,7 @@ export class NotificationService {
     userMessageChanged: boolean
   ) {
     const metrics = response.getMetrics()
-    
+
     // Build metadata
     const metadata = {
       domain: context.host,
@@ -271,31 +294,31 @@ export class NotificationService {
       toolCalls: metrics.toolCallCount,
       requestType: request.requestType,
       apiKeyInfo: auth.type === 'api_key' ? auth.key.substring(0, 10) + '****' : 'OAuth',
-      processingTime: `${context.getElapsedTime()}ms`
+      processingTime: `${context.getElapsedTime()}ms`,
     }
-    
+
     // Prepare content
     const userContent = userMessageChanged ? request.getUserContent() : undefined
     const assistantContent = response.getTruncatedContent(
       this.config.maxLines,
       this.config.maxLength
     )
-    
+
     return {
       message: userMessageChanged ? 'New conversation' : 'Continued conversation',
       userContent,
       assistantContent,
-      metadata
+      metadata,
     }
   }
-  
+
   /**
    * Get previous message for a domain
    */
   private getPreviousMessage(domain: string): string {
     return this.previousMessages.get(domain) || ''
   }
-  
+
   /**
    * Set previous message for a domain
    */
@@ -303,7 +326,9 @@ export class NotificationService {
     // Implement cache size limit
     if (this.previousMessages.size >= this.maxCacheSize) {
       const firstKey = this.previousMessages.keys().next().value
-      this.previousMessages.delete(firstKey)
+      if (firstKey !== undefined) {
+        this.previousMessages.delete(firstKey)
+      }
     }
     this.previousMessages.set(domain, message)
   }

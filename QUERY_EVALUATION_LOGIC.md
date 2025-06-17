@@ -26,6 +26,7 @@ The proxy counts the total number of system messages in a request:
 ### Code Location
 
 The logic is implemented in:
+
 - `services/proxy/src/domain/entities/ProxyRequest.ts` - `determineRequestType()` method
 - `services/proxy/src/types/claude.ts` - `countSystemMessages()` helper function
 
@@ -35,12 +36,12 @@ The logic is implemented in:
 // From ProxyRequest.ts
 private determineRequestType(): RequestType {
   const systemMessageCount = this.countSystemMessages()
-  
+
   // If there's only 1 system message, it's a query evaluation (insignificant request)
   if (systemMessageCount === 1) {
     return 'query_evaluation'
   }
-  
+
   // If there are 0 or more than 1 system messages, it's an inference (significant request)
   return 'inference'
 }
@@ -56,6 +57,7 @@ export function countSystemMessages(request: ClaudeMessagesRequest): number {
 ## Behavior Implications
 
 ### For Query Evaluation Requests (1 system message):
+
 - **NOT stored** in the database
 - **NOT tracked** in token statistics
 - **NOT sent** to Slack notifications
@@ -63,6 +65,7 @@ export function countSystemMessages(request: ClaudeMessagesRequest): number {
 - **Telemetry sent** but with minimal data
 
 ### For Inference Requests (0 or >1 system messages):
+
 - **Stored** in the database
 - **Tracked** in token statistics
 - **Sent** to Slack notifications
@@ -82,6 +85,7 @@ From `test-system-message-logic.js`:
 ## Rationale
 
 The logic appears to be designed to filter out simple, single-context requests that might be used for:
+
 - Health checks
 - Simple evaluations
 - Testing

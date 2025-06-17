@@ -9,11 +9,13 @@ This package contains common code shared between services to ensure consistency 
 ## Contents
 
 ### Types (`src/types/`)
+
 - `claude.ts` - Claude API types and interfaces
 - `context.ts` - Hono context types
 - `errors.ts` - Custom error types
 
 ### Configuration (`src/config/`)
+
 - `index.ts` - Centralized configuration management with validation
 
 ## Usage
@@ -41,6 +43,7 @@ bun run watch
 ## Build Output
 
 The package builds to `dist/` with:
+
 - CommonJS and ESM formats
 - TypeScript declarations
 - Source maps for debugging

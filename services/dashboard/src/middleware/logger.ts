@@ -3,14 +3,17 @@ import { customAlphabet } from 'nanoid'
 import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 
 // Generate short request IDs
-const generateRequestId = customAlphabet('123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz', 12)
+const generateRequestId = customAlphabet(
+  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',
+  12
+)
 
 // Log levels
 export enum LogLevel {
   DEBUG = 'debug',
   INFO = 'info',
   WARN = 'warn',
-  ERROR = 'error'
+  ERROR = 'error',
 }
 
 // Structured log entry
@@ -46,7 +49,7 @@ class Logger {
       level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
       prettyPrint: process.env.NODE_ENV !== 'production',
       maskSensitiveData: true,
-      ...config
+      ...config,
     }
   }
 
@@ -59,10 +62,19 @@ class Logger {
 
   private maskSensitive(obj: any): any {
     if (!this.config.maskSensitiveData) return obj
-    
-    const sensitiveKeys = ['api_key', 'apiKey', 'x-api-key', 'authorization', 
-                          'password', 'secret', 'token', 'refreshToken', 'accessToken']
-    
+
+    const sensitiveKeys = [
+      'api_key',
+      'apiKey',
+      'x-api-key',
+      'authorization',
+      'password',
+      'secret',
+      'token',
+      'refreshToken',
+      'accessToken',
+    ]
+
     if (typeof obj === 'string') {
       // Mask API keys
       if (obj.startsWith('sk-ant-')) {
@@ -73,11 +85,11 @@ class Logger {
       }
       return obj
     }
-    
+
     if (Array.isArray(obj)) {
       return obj.map(item => this.maskSensitive(item))
     }
-    
+
     if (obj && typeof obj === 'object') {
       const masked: any = {}
       for (const [key, value] of Object.entries(obj)) {
@@ -89,39 +101,39 @@ class Logger {
       }
       return masked
     }
-    
+
     return obj
   }
 
   private formatLog(entry: LogEntry): string {
     const masked = this.maskSensitive(entry)
-    
+
     if (this.config.prettyPrint) {
       const { timestamp, level, requestId, message, ...rest } = masked
       const prefix = `[${timestamp}] ${level.toUpperCase()} [${requestId}] ${message}`
-      
+
       if (Object.keys(rest).length > 0) {
         return `${prefix}\n${JSON.stringify(rest, null, 2)}`
       }
       return prefix
     }
-    
+
     return JSON.stringify(masked)
   }
 
   log(level: LogLevel, message: string, context: Partial<LogEntry> = {}) {
     if (!this.shouldLog(level)) return
-    
+
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
       requestId: context.requestId || 'system',
       message,
-      ...context
+      ...context,
     }
-    
+
     const formatted = this.formatLog(entry)
-    
+
     switch (level) {
       case LogLevel.DEBUG:
       case LogLevel.INFO:
@@ -161,16 +173,16 @@ export function loggingMiddleware() {
   return async (c: Context, next: Next) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    
+
     // Attach request ID to context
     c.set('requestId', requestId)
-    
+
     // Extract request info
     const domain = c.req.header('host') || 'unknown'
     const method = c.req.method
     const path = c.req.path
     const userAgent = c.req.header('user-agent')
-    
+
     // Log incoming request
     logger.info('Incoming request', {
       requestId,
@@ -180,13 +192,13 @@ export function loggingMiddleware() {
       metadata: {
         userAgent,
         ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
-        headers: logger['config'].level === LogLevel.DEBUG ? c.req.header() : undefined
-      }
+        headers: logger['config'].level === LogLevel.DEBUG ? c.req.header() : undefined,
+      },
     })
-    
+
     try {
       await next()
-      
+
       // Log successful response
       const duration = Date.now() - startTime
       logger.info('Request completed', {
@@ -197,8 +209,8 @@ export function loggingMiddleware() {
         statusCode: c.res.status,
         duration,
         metadata: {
-          contentLength: c.res.headers.get('content-length')
-        }
+          contentLength: c.res.headers.get('content-length'),
+        },
       })
     } catch (error) {
       // Log error
@@ -213,10 +225,10 @@ export function loggingMiddleware() {
         error: {
           message: getErrorMessage(error),
           stack: getErrorStack(error),
-          code: getErrorCode(error)
-        }
+          code: getErrorCode(error),
+        },
       })
-      
+
       throw error
     }
   }
@@ -231,7 +243,7 @@ export function getRequestLogger(c: Context): {
 } {
   const requestId = c.get('requestId') || 'unknown'
   const domain = c.req.header('host') || 'unknown'
-  
+
   return {
     debug: (message: string, metadata?: Record<string, any>) => {
       logger.debug(message, { requestId, domain, metadata })
@@ -246,13 +258,15 @@ export function getRequestLogger(c: Context): {
       logger.error(message, {
         requestId,
         domain,
-        error: error ? {
-          message: error.message,
-          stack: error.stack,
-          code: (error as any).code
-        } : undefined,
-        metadata
+        error: error
+          ? {
+              message: error.message,
+              stack: error.stack,
+              code: (error as any).code,
+            }
+          : undefined,
+        metadata,
       })
-    }
+    },
   }
 }

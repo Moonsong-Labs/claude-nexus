@@ -30,21 +30,23 @@ export interface ClaudeTool {
     type?: 'object' | string
     properties?: Record<string, any>
     required?: string[]
-    [key: string]: any  // Allow any additional fields
+    [key: string]: any // Allow any additional fields
   }
-  [key: string]: any  // Allow any additional fields at tool level
+  [key: string]: any // Allow any additional fields at tool level
 }
 
 export interface ClaudeMessagesRequest {
   model: string
   messages: ClaudeMessage[]
-  system?: string | Array<{
-    type: 'text'
-    text: string
-    cache_control?: {
-      type: 'ephemeral'
-    }
-  }>
+  system?:
+    | string
+    | Array<{
+        type: 'text'
+        text: string
+        cache_control?: {
+          type: 'ephemeral'
+        }
+      }>
   max_tokens: number
   metadata?: {
     user_id?: string
@@ -61,9 +63,9 @@ export interface ClaudeMessagesRequest {
   }
   thinking?: {
     budget_tokens?: number
-    [key: string]: any  // Allow any additional thinking fields
+    [key: string]: any // Allow any additional thinking fields
   }
-  [key: string]: any  // Allow any additional fields in the request
+  [key: string]: any // Allow any additional fields in the request
 }
 
 // Response types
@@ -85,8 +87,15 @@ export interface ClaudeMessagesResponse {
 
 // Streaming response types
 export interface ClaudeStreamEvent {
-  type: 'message_start' | 'content_block_start' | 'content_block_delta' | 
-        'content_block_stop' | 'message_delta' | 'message_stop' | 'ping' | 'error'
+  type:
+    | 'message_start'
+    | 'content_block_start'
+    | 'content_block_delta'
+    | 'content_block_stop'
+    | 'message_delta'
+    | 'message_stop'
+    | 'ping'
+    | 'error'
   message?: ClaudeMessagesResponse
   index?: number
   content_block?: ClaudeContent
@@ -133,32 +142,34 @@ export function hasToolUse(content: ClaudeContent[]): boolean {
 // Request validation
 export function validateClaudeRequest(request: any): request is ClaudeMessagesRequest {
   if (!request || typeof request !== 'object') return false
-  
+
   // Required fields
   if (!request.model || typeof request.model !== 'string') return false
   if (!Array.isArray(request.messages) || request.messages.length === 0) return false
   if (!request.max_tokens || typeof request.max_tokens !== 'number') return false
-  
+
   // Validate messages
   for (const message of request.messages) {
     if (!message.role || !['user', 'assistant', 'system'].includes(message.role)) return false
     if (!message.content && message.content !== '') return false
   }
-  
+
   // Optional fields validation
   if (request.stream !== undefined && typeof request.stream !== 'boolean') return false
-  if (request.temperature !== undefined && 
-      (typeof request.temperature !== 'number' || request.temperature < 0 || request.temperature > 1)) {
+  if (
+    request.temperature !== undefined &&
+    (typeof request.temperature !== 'number' || request.temperature < 0 || request.temperature > 1)
+  ) {
     return false
   }
-  
+
   return true
 }
 
 // Helper to count system messages
 export function countSystemMessages(request: ClaudeMessagesRequest): number {
   let count = 0
-  
+
   // Handle system field - can be string or array
   if (request.system) {
     if (Array.isArray(request.system)) {
@@ -167,7 +178,7 @@ export function countSystemMessages(request: ClaudeMessagesRequest): number {
       count = 1
     }
   }
-  
+
   // Add system messages from messages array
   count += request.messages.filter(m => m.role === 'system').length
   return count

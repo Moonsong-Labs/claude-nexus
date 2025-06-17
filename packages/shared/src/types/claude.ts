@@ -70,8 +70,15 @@ export interface ClaudeMessagesResponse {
 
 // Streaming response types
 export interface ClaudeStreamEvent {
-  type: 'message_start' | 'content_block_start' | 'content_block_delta' | 
-        'content_block_stop' | 'message_delta' | 'message_stop' | 'ping' | 'error'
+  type:
+    | 'message_start'
+    | 'content_block_start'
+    | 'content_block_delta'
+    | 'content_block_stop'
+    | 'message_delta'
+    | 'message_stop'
+    | 'ping'
+    | 'error'
   message?: ClaudeMessagesResponse
   index?: number
   content_block?: ClaudeContent
@@ -116,25 +123,27 @@ export function hasToolUse(content: ClaudeContent[]): boolean {
 // Request validation
 export function validateClaudeRequest(request: any): request is ClaudeMessagesRequest {
   if (!request || typeof request !== 'object') return false
-  
+
   // Required fields
   if (!request.model || typeof request.model !== 'string') return false
   if (!Array.isArray(request.messages) || request.messages.length === 0) return false
   if (!request.max_tokens || typeof request.max_tokens !== 'number') return false
-  
+
   // Validate messages
   for (const message of request.messages) {
     if (!message.role || !['user', 'assistant', 'system'].includes(message.role)) return false
     if (!message.content && message.content !== '') return false
   }
-  
+
   // Optional fields validation
   if (request.stream !== undefined && typeof request.stream !== 'boolean') return false
-  if (request.temperature !== undefined && 
-      (typeof request.temperature !== 'number' || request.temperature < 0 || request.temperature > 1)) {
+  if (
+    request.temperature !== undefined &&
+    (typeof request.temperature !== 'number' || request.temperature < 0 || request.temperature > 1)
+  ) {
     return false
   }
-  
+
   return true
 }
 

@@ -21,11 +21,11 @@ class Container {
   private claudeApiClient?: ClaudeApiClient
   private proxyService?: ProxyService
   private messageController?: MessageController
-  
+
   constructor() {
     this.initializeServices()
   }
-  
+
   private initializeServices(): void {
     // Initialize database pool if configured
     if (config.storage.enabled && config.database.url) {
@@ -35,23 +35,25 @@ class Container {
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
       })
-      
-      this.pool.on('error', (err) => {
-        logger.error('Unexpected database pool error', { error: { message: err.message, stack: err.stack } })
+
+      this.pool.on('error', err => {
+        logger.error('Unexpected database pool error', {
+          error: { message: err.message, stack: err.stack },
+        })
       })
     }
-    
+
     // Initialize storage service if enabled
     if (this.pool && config.storage.enabled) {
       this.storageService = new StorageAdapter(this.pool)
     }
-    
+
     // Initialize services
     this.metricsService = new MetricsService(
       {
         enableTokenTracking: true,
         enableStorage: config.storage.enabled,
-        enableTelemetry: config.telemetry.enabled
+        enableTelemetry: config.telemetry.enabled,
       },
       this.storageService,
       config.telemetry.endpoint
@@ -62,71 +64,70 @@ class Container {
       config.auth.credentialsDir
     )
     this.claudeApiClient = new ClaudeApiClient()
-    
+
     // Wire up dependencies
     this.notificationService.setAuthService(this.authenticationService)
-    
-    
+
     this.proxyService = new ProxyService(
       this.authenticationService,
       this.claudeApiClient,
       this.notificationService,
       this.metricsService
     )
-    
+
     this.messageController = new MessageController(this.proxyService)
   }
-  
+
   getDbPool(): Pool | undefined {
     return this.pool
   }
-  
+
   getStorageService(): StorageAdapter | undefined {
     return this.storageService
   }
-  
+
   getMetricsService(): MetricsService {
     if (!this.metricsService) {
       throw new Error('MetricsService not initialized')
     }
     return this.metricsService
   }
-  
+
   getNotificationService(): NotificationService {
     if (!this.notificationService) {
       throw new Error('NotificationService not initialized')
     }
     return this.notificationService
   }
-  
+
   getAuthenticationService(): AuthenticationService {
     if (!this.authenticationService) {
       throw new Error('AuthenticationService not initialized')
     }
     return this.authenticationService
   }
-  
+
   getClaudeApiClient(): ClaudeApiClient {
     if (!this.claudeApiClient) {
       throw new Error('ClaudeApiClient not initialized')
     }
     return this.claudeApiClient
   }
-  
+
   getProxyService(): ProxyService {
     if (!this.proxyService) {
       throw new Error('ProxyService not initialized')
     }
     return this.proxyService
   }
-  
+
   getMessageController(): MessageController {
     if (!this.messageController) {
       throw new Error('MessageController not initialized')
     }
     return this.messageController
   }
-  
+
   async cleanup(): Promise<void> {
     if (this.storageService) {
       await this.storageService.close()

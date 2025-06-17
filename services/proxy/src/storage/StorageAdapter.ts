@@ -10,11 +10,11 @@ import { randomUUID } from 'crypto'
 export class StorageAdapter {
   private writer: StorageWriter
   private requestIdMap: Map<string, string> = new Map() // Map nanoid to UUID
-  
+
   constructor(pool: Pool) {
     this.writer = new StorageWriter(pool)
   }
-  
+
   /**
    * Store request data
    */
@@ -42,7 +42,7 @@ export class StorageAdapter {
       // Generate a UUID for this request and store the mapping
       const uuid = randomUUID()
       this.requestIdMap.set(data.id, uuid)
-      
+
       await this.writer.storeRequest({
         requestId: uuid,
         domain: data.domain,
@@ -53,17 +53,19 @@ export class StorageAdapter {
         body: data.body,
         apiKey: '', // Can be extracted from headers if needed
         model: data.model,
-        requestType: data.request_type
+        requestType: data.request_type,
       })
     } catch (error) {
       logger.error('Failed to store request', {
         requestId: data.id,
-        error: error.message
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
       throw error
     }
   }
-  
+
   /**
    * Store response data
    */
@@ -87,11 +89,11 @@ export class StorageAdapter {
       const uuid = this.requestIdMap.get(data.request_id)
       if (!uuid) {
         logger.warn('No UUID mapping found for request ID', {
-          requestId: data.request_id
+          requestId: data.request_id,
         })
         return
       }
-      
+
       // The writer's storeResponse method will update the existing request
       await this.writer.storeResponse({
         requestId: uuid,
@@ -108,51 +110,51 @@ export class StorageAdapter {
         firstTokenMs: undefined,
         durationMs: data.processing_time || 0,
         error: undefined,
-        toolCallCount: data.tool_call_count
+        toolCallCount: data.tool_call_count,
       })
     } catch (error) {
       logger.error('Failed to store response', {
         requestId: data.request_id,
-        error: error.message
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
       throw error
     }
   }
-  
+
   /**
    * Store streaming chunk
    */
-  async storeStreamingChunk(
-    requestId: string,
-    chunkIndex: number,
-    data: any
-  ): Promise<void> {
+  async storeStreamingChunk(requestId: string, chunkIndex: number, data: any): Promise<void> {
     try {
       // Get the UUID for this request ID
       const uuid = this.requestIdMap.get(requestId)
       if (!uuid) {
         logger.warn('No UUID mapping found for request ID in storeStreamingChunk', {
-          requestId
+          requestId,
         })
         return
       }
-      
+
       await this.writer.storeStreamingChunk({
         requestId: uuid,
         chunkIndex,
         timestamp: new Date(),
         data: JSON.stringify(data),
-        tokenCount: data.usage?.output_tokens
+        tokenCount: data.usage?.output_tokens,
       })
     } catch (error) {
       logger.error('Failed to store streaming chunk', {
         requestId,
-        chunkIndex,
-        error: error.message
+        metadata: {
+          chunkIndex,
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
     }
   }
-  
+
   /**
    * Close the storage adapter
    */

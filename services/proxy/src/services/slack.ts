@@ -38,13 +38,13 @@ export function initializeSlack(config: Partial<SlackConfig>) {
     channel: config.channel,
     username: config.username || 'Claude Nexus Proxy',
     icon_emoji: config.icon_emoji || ':robot_face:',
-    enabled: config.enabled !== false
+    enabled: config.enabled !== false,
   }
 
   webhook = new IncomingWebhook(slackConfig.webhook_url!, {
     channel: slackConfig.channel,
     username: slackConfig.username,
-    icon_emoji: slackConfig.icon_emoji
+    icon_emoji: slackConfig.icon_emoji,
   })
 }
 
@@ -57,7 +57,7 @@ export function parseSlackConfig(env: any): Partial<SlackConfig> {
     channel: env.SLACK_CHANNEL,
     username: env.SLACK_USERNAME,
     icon_emoji: env.SLACK_ICON_EMOJI,
-    enabled: env.SLACK_ENABLED !== 'false'
+    enabled: env.SLACK_ENABLED !== 'false',
   }
 }
 
@@ -68,7 +68,7 @@ function formatMessageContent(content: any): string {
   if (!content) {
     return 'No content'
   }
-  
+
   if (typeof content === 'string') {
     return content
   }
@@ -91,11 +91,13 @@ function formatMessageContent(content: any): string {
 /**
  * Initialize domain-specific Slack webhook
  */
-export function initializeDomainSlack(slackConfig: Partial<SlackConfig> | undefined): IncomingWebhook | null {
+export function initializeDomainSlack(
+  slackConfig: Partial<SlackConfig> | undefined
+): IncomingWebhook | null {
   if (!slackConfig) {
     return null
   }
-  
+
   if (!slackConfig.webhook_url) {
     return null
   }
@@ -105,7 +107,7 @@ export function initializeDomainSlack(slackConfig: Partial<SlackConfig> | undefi
     channel: slackConfig.channel,
     username: slackConfig.username || 'Claude Nexus Proxy',
     icon_emoji: slackConfig.icon_emoji || ':robot_face:',
-    enabled: slackConfig.enabled !== false
+    enabled: slackConfig.enabled !== false,
   }
 
   if (!config.enabled) {
@@ -115,7 +117,7 @@ export function initializeDomainSlack(slackConfig: Partial<SlackConfig> | undefi
   return new IncomingWebhook(config.webhook_url, {
     channel: config.channel,
     username: config.username,
-    icon_emoji: config.icon_emoji
+    icon_emoji: config.icon_emoji,
   })
 }
 
@@ -125,12 +127,12 @@ export function initializeDomainSlack(slackConfig: Partial<SlackConfig> | undefi
 export async function sendToSlack(info: MessageInfo, domainWebhook?: IncomingWebhook | null) {
   // Use domain-specific webhook if available, otherwise fall back to global webhook
   const webhookToUse = domainWebhook || webhook
-  
+
   // Check if webhook is properly configured and is an instance of IncomingWebhook
   if (!webhookToUse || !(webhookToUse instanceof IncomingWebhook)) {
     return
   }
-  
+
   // Additional check for global webhook configuration
   if (!domainWebhook && !slackConfig?.enabled) {
     return
@@ -153,24 +155,23 @@ export async function sendToSlack(info: MessageInfo, domainWebhook?: IncomingWeb
     const text = content
 
     // Create footer with metadata
-    const metadata = [
-      info.domain || 'Unknown',
-      info.model || 'Unknown',
-      info.apiKey || ''
-    ].filter(Boolean).join(' | ')
-    
-    const tokenInfo = (info.inputTokens || info.outputTokens) 
-      ? ` | Tokens: ${info.inputTokens || 0}/${info.outputTokens || 0}`
-      : ''
+    const metadata = [info.domain || 'Unknown', info.model || 'Unknown', info.apiKey || '']
+      .filter(Boolean)
+      .join(' | ')
+
+    const tokenInfo =
+      info.inputTokens || info.outputTokens
+        ? ` | Tokens: ${info.inputTokens || 0}/${info.outputTokens || 0}`
+        : ''
 
     const message: IncomingWebhookSendArguments = {
       text,
       attachments: [
         {
           footer: `${metadata}${tokenInfo}`,
-          ts: Math.floor(new Date(info.timestamp).getTime() / 1000).toString()
-        }
-      ]
+          ts: Math.floor(new Date(info.timestamp).getTime() / 1000).toString(),
+        },
+      ],
     }
 
     await webhookToUse.send(message)
@@ -182,15 +183,20 @@ export async function sendToSlack(info: MessageInfo, domainWebhook?: IncomingWeb
 /**
  * Send error notification to Slack
  */
-export async function sendErrorToSlack(requestId: string, error: string, domain?: string, domainWebhook?: IncomingWebhook | null) {
+export async function sendErrorToSlack(
+  requestId: string,
+  error: string,
+  domain?: string,
+  domainWebhook?: IncomingWebhook | null
+) {
   // Use domain-specific webhook if available, otherwise fall back to global webhook
   const webhookToUse = domainWebhook || webhook
-  
+
   // Check if webhook is properly configured and is an instance of IncomingWebhook
   if (!webhookToUse || !(webhookToUse instanceof IncomingWebhook)) {
     return
   }
-  
+
   // Additional check for global webhook configuration
   if (!domainWebhook && !slackConfig?.enabled) {
     return
@@ -213,17 +219,17 @@ export async function sendErrorToSlack(requestId: string, error: string, domain?
             {
               title: 'Domain',
               value: domain || 'Unknown',
-              short: true
+              short: true,
             },
             {
               title: 'Time',
               value: new Date().toISOString(),
-              short: true
-            }
+              short: true,
+            },
           ],
-          footer: 'Claude Code Proxy'
-        }
-      ]
+          footer: 'Claude Code Proxy',
+        },
+      ],
     }
 
     await webhookToUse.send(message)

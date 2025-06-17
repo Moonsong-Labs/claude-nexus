@@ -46,6 +46,13 @@ interface RequestDetails extends RequestSummary {
     data: string
     tokenCount: number
   }>
+  // Optional fields that may be added in the future
+  requestHeaders?: Record<string, string>
+  responseHeaders?: Record<string, string>
+  telemetry?: any
+  method?: string
+  endpoint?: string
+  streaming?: boolean
 }
 
 interface DomainsResponse {
@@ -58,24 +65,24 @@ interface DomainsResponse {
 export class ProxyApiClient {
   private baseUrl: string
   private apiKey: string | undefined
-  
+
   constructor(baseUrl?: string, apiKey?: string) {
     this.baseUrl = baseUrl || process.env.PROXY_API_URL || 'http://localhost:3000'
     this.apiKey = apiKey || process.env.DASHBOARD_API_KEY || process.env.INTERNAL_API_KEY
   }
-  
+
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
-    
+
     if (this.apiKey) {
       headers['X-API-Key'] = this.apiKey
     }
-    
+
     return headers
   }
-  
+
   /**
    * Get aggregated statistics
    */
@@ -84,64 +91,64 @@ export class ProxyApiClient {
       const url = new URL('/api/stats', this.baseUrl)
       if (params?.domain) url.searchParams.set('domain', params.domain)
       if (params?.since) url.searchParams.set('since', params.since)
-      
+
       const response = await fetch(url.toString(), {
-        headers: this.getHeaders()
+        headers: this.getHeaders(),
       })
       if (!response.ok) {
         throw new Error(`API error: ${response.status} ${response.statusText}`)
       }
-      
-      return await response.json() as StatsResponse
+
+      return (await response.json()) as StatsResponse
     } catch (error) {
       logger.error('Failed to fetch stats from proxy API', {
         error: getErrorMessage(error),
-        params
+        params,
       })
       throw error
     }
   }
-  
+
   /**
    * Get recent requests
    */
-  async getRequests(params?: { 
+  async getRequests(params?: {
     domain?: string
     limit?: number
-    offset?: number 
+    offset?: number
   }): Promise<RequestsResponse> {
     try {
       const url = new URL('/api/requests', this.baseUrl)
       if (params?.domain) url.searchParams.set('domain', params.domain)
       if (params?.limit) url.searchParams.set('limit', params.limit.toString())
       if (params?.offset) url.searchParams.set('offset', params.offset.toString())
-      
+
       const response = await fetch(url.toString(), {
-        headers: this.getHeaders()
+        headers: this.getHeaders(),
       })
       if (!response.ok) {
         throw new Error(`API error: ${response.status} ${response.statusText}`)
       }
-      
-      return await response.json() as RequestsResponse
+
+      return (await response.json()) as RequestsResponse
     } catch (error) {
       logger.error('Failed to fetch requests from proxy API', {
         error: getErrorMessage(error),
-        params
+        params,
       })
       throw error
     }
   }
-  
+
   /**
    * Get request details
    */
   async getRequestDetails(requestId: string): Promise<RequestDetails> {
     try {
       const url = new URL(`/api/requests/${requestId}`, this.baseUrl)
-      
+
       const response = await fetch(url.toString(), {
-        headers: this.getHeaders()
+        headers: this.getHeaders(),
       })
       if (!response.ok) {
         if (response.status === 404) {
@@ -149,43 +156,45 @@ export class ProxyApiClient {
         }
         throw new Error(`API error: ${response.status} ${response.statusText}`)
       }
-      
-      return await response.json() as RequestDetails
+
+      return (await response.json()) as RequestDetails
     } catch (error) {
       logger.error('Failed to fetch request details from proxy API', {
         error: getErrorMessage(error),
-        requestId
+        requestId,
       })
       throw error
     }
   }
-  
+
   /**
    * Get list of active domains
    */
   async getDomains(): Promise<DomainsResponse> {
     try {
       const url = new URL('/api/domains', this.baseUrl)
-      
+
       const response = await fetch(url.toString(), {
-        headers: this.getHeaders()
+        headers: this.getHeaders(),
       })
       if (!response.ok) {
         throw new Error(`API error: ${response.status} ${response.statusText}`)
       }
-      
-      const data = await response.json() as { domains: Array<{ domain: string; requestCount: number }> }
+
+      const data = (await response.json()) as {
+        domains: Array<{ domain: string; requestCount: number }>
+      }
       // Extract just the domain strings
       const domains = data.domains.map(d => d.domain)
       return { domains }
     } catch (error) {
       logger.error('Failed to fetch domains from proxy API', {
-        error: getErrorMessage(error)
+        error: getErrorMessage(error),
       })
       throw error
     }
   }
-  
+
   /**
    * Convert API response to dashboard format for backward compatibility
    */

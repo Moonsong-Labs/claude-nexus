@@ -57,6 +57,7 @@ See `.env.example` in the root directory for all available environment variables
 ## Architecture
 
 The service uses dependency injection via a container pattern:
+
 - `MessageController` - Handles API requests
 - `ProxyService` - Core proxy logic
 - `AuthenticationService` - API key and OAuth handling

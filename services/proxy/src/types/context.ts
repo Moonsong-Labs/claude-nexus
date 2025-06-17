@@ -5,25 +5,25 @@
 export type HonoVariables = {
   // Request identification
   requestId: string
-  
+
   // Authentication
   apiKey?: string
   teamId?: string
   credential?: any // OAuth or API key credential
-  
+
   // Request/Response data
   validatedBody?: any
   originalRequest?: any
   claudeResponse?: any
-  
+
   // Metrics
   inputTokens?: number
   outputTokens?: number
   startTime?: number
-  
+
   // Post-response tasks
   postRequestTasks?: (() => Promise<void>)[]
-  
+
   // Request metadata
   domain?: string
   requestType?: 'query_evaluation' | 'inference'
@@ -39,7 +39,7 @@ export type HonoBindings = {
   DATABASE_URL?: string
   SLACK_WEBHOOK_URL?: string
   DEBUG?: string
-  
+
   // Cloudflare bindings (if deployed to Workers)
   KV?: any
   DO?: any

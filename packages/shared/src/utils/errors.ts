@@ -14,8 +14,7 @@ export interface HTTPResponseError extends Error {
 export function hasStatusCode(error: unknown): error is HTTPResponseError {
   return (
     error instanceof Error &&
-    (typeof (error as any).status === 'number' ||
-     typeof (error as any).statusCode === 'number')
+    (typeof (error as any).status === 'number' || typeof (error as any).statusCode === 'number')
   )
 }
 

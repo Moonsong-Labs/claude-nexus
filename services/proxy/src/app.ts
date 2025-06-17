@@ -16,77 +16,84 @@ import { HonoVariables, HonoBindings } from '@claude-nexus/shared/types'
 /**
  * Create and configure the Proxy application
  */
-export async function createProxyApp(): Promise<Hono<{ Variables: HonoVariables; Bindings: HonoBindings }>> {
+export async function createProxyApp(): Promise<
+  Hono<{ Variables: HonoVariables; Bindings: HonoBindings }>
+> {
   // Validate configuration
   validateConfig()
-  
+
   // Initialize external services
   await initializeExternalServices()
-  
+
   // Log pool status after initialization
   const pool = container.getDbPool()
   logger.info('Proxy app initialization', {
-    hasPool: !!pool,
-    storageEnabled: config.storage.enabled,
-    databaseUrl: config.database.url ? 'configured' : 'not configured'
+    metadata: {
+      hasPool: !!pool,
+      storageEnabled: config.storage.enabled,
+      databaseUrl: config.database.url ? 'configured' : 'not configured',
+    },
   })
-  
+
   const app = new Hono<{ Variables: HonoVariables; Bindings: HonoBindings }>()
-  
+
   // Centralized error handler
   app.onError((err, c) => {
     const requestId = c.get('requestId') || 'unknown'
-    
+
     logger.error('Unhandled error', {
       error: { message: err.message, stack: err.stack },
       requestId,
       path: c.req.path,
       method: c.req.method,
       domain: c.get('domain'),
-      metadata: {}
+      metadata: {},
     })
-    
+
     // Don't expose internal errors to clients
     const message = config.server.env === 'development' ? err.message : 'Internal server error'
-    
-    return c.json({
-      error: {
-        message,
-        type: 'internal_error',
-        request_id: requestId
-      }
-    }, (err as any).status || 500)
+
+    return c.json(
+      {
+        error: {
+          message,
+          type: 'internal_error',
+          request_id: requestId,
+        },
+      },
+      (err as any).status || 500
+    )
   })
-  
+
   // Global middleware
   app.use('*', cors())
   app.use('*', loggingMiddleware())
-  
+
   // Rate limiting
   if (config.features.enableMetrics) {
     app.use('/v1/*', createRateLimiter())
     app.use('/v1/*', createDomainRateLimiter())
   }
-  
+
   // Validation for API routes
   app.use('/v1/*', validationMiddleware())
-  
+
   // Health check routes
   if (config.features.enableHealthChecks) {
     const healthRoutes = createHealthRoutes({
       pool: container.getDbPool(),
-      version: process.env.npm_package_version
+      version: process.env.npm_package_version,
     })
     app.route('/health', healthRoutes)
   }
-  
+
   // Token stats endpoint
-  app.get('/token-stats', (c) => {
+  app.get('/token-stats', c => {
     const domain = c.req.query('domain')
     const stats = container.getMetricsService().getStats(domain)
     return c.json(stats)
   })
-  
+
   // Dashboard API routes with authentication
   app.use('/api/*', apiAuthMiddleware())
   app.use('/api/*', async (c, next) => {
@@ -94,75 +101,80 @@ export async function createProxyApp(): Promise<Hono<{ Variables: HonoVariables;
     const pool = container.getDbPool()
     if (!pool) {
       logger.error('Database pool not available for API request', {
-        path: c.req.path
+        path: c.req.path,
       })
-      return c.json({
-        error: {
-          code: 'service_unavailable',
-          message: 'Database service is not available'
-        }
-      }, 503)
+      return c.json(
+        {
+          error: {
+            code: 'service_unavailable',
+            message: 'Database service is not available',
+          },
+        },
+        503
+      )
     }
     c.set('pool', pool)
     await next()
   })
   app.route('/api', apiRoutes)
-  
+
   // Client setup files
-  app.get('/client-setup/:filename', async (c) => {
+  app.get('/client-setup/:filename', async c => {
     const filename = c.req.param('filename')
-    
+
     // Validate filename to prevent directory traversal
     if (!filename || filename.includes('..') || filename.includes('/')) {
       return c.text('Invalid filename', 400)
     }
-    
+
     try {
       const fs = await import('fs')
       const path = await import('path')
       const { fileURLToPath } = await import('url')
-      
+
       // Get the directory of this source file
       const __filename = fileURLToPath(import.meta.url)
       const __dirname = path.dirname(__filename)
-      
+
       // Navigate from services/proxy/src to project root, then to client-setup
       const projectRoot = path.join(__dirname, '..', '..', '..')
       const filePath = path.join(projectRoot, 'client-setup', filename)
-      
-      
+
       if (!fs.existsSync(filePath)) {
         return c.text('File not found', 404)
       }
-      
+
       const content = fs.readFileSync(filePath, 'utf-8')
-      const contentType = filename.endsWith('.json') ? 'application/json' :
-                         filename.endsWith('.js') ? 'application/javascript' :
-                         filename.endsWith('.sh') ? 'text/x-shellscript' :
-                         'text/plain'
-      
+      const contentType = filename.endsWith('.json')
+        ? 'application/json'
+        : filename.endsWith('.js')
+          ? 'application/javascript'
+          : filename.endsWith('.sh')
+            ? 'text/x-shellscript'
+            : 'text/plain'
+
       return c.text(content, 200, {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=3600'
+        'Cache-Control': 'public, max-age=3600',
       })
     } catch (error) {
       logger.error('Failed to serve client setup file', {
         metadata: {
           filename,
-          error: error instanceof Error ? error.message : String(error)
-        }
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
       return c.text('Internal server error', 500)
     }
   })
-  
+
   // Main API routes
   const messageController = container.getMessageController()
-  app.post('/v1/messages', (c) => messageController.handle(c))
-  app.options('/v1/messages', (c) => messageController.handleOptions(c))
-  
+  app.post('/v1/messages', c => messageController.handle(c))
+  app.options('/v1/messages', c => messageController.handleOptions(c))
+
   // Root endpoint
-  app.get('/', (c) => {
+  app.get('/', c => {
     return c.json({
       service: 'claude-nexus-proxy',
       version: process.env.npm_package_version || 'unknown',
@@ -176,12 +188,12 @@ export async function createProxyApp(): Promise<Hono<{ Variables: HonoVariables;
           stats: '/api/stats',
           requests: '/api/requests',
           'request-details': '/api/requests/:id',
-          domains: '/api/domains'
-        }
-      }
+          domains: '/api/domains',
+        },
+      },
     })
   })
-  
+
   return app
 }
 
@@ -196,24 +208,28 @@ async function initializeExternalServices(): Promise<void> {
       await initializeDatabase(pool)
       logger.info('Database initialized successfully')
     } catch (error) {
-      logger.error('Failed to initialize database', { error: error instanceof Error ? { message: error.message } : { message: String(error) } })
+      logger.error('Failed to initialize database', {
+        error: error instanceof Error ? { message: error.message } : { message: String(error) },
+      })
       if (config.storage.enabled) {
         throw error // Fatal if storage is required
       }
     }
   }
-  
+
   // Initialize Slack if configured
   if (config.slack.enabled && config.slack.webhookUrl) {
     try {
       initializeSlack(config.slack)
       logger.info('Slack integration initialized')
     } catch (error) {
-      logger.error('Failed to initialize Slack', { error: error instanceof Error ? { message: error.message } : { message: String(error) } })
+      logger.error('Failed to initialize Slack', {
+        error: error instanceof Error ? { message: error.message } : { message: String(error) },
+      })
       // Non-fatal, continue without Slack
     }
   }
-  
+
   // Log startup configuration
   logger.info('Proxy service starting', {
     metadata: {
@@ -223,8 +239,8 @@ async function initializeExternalServices(): Promise<void> {
         storage: config.storage.enabled,
         slack: config.slack.enabled,
         telemetry: config.telemetry.enabled,
-        healthChecks: config.features.enableHealthChecks
-      }
-    }
+        healthChecks: config.features.enableHealthChecks,
+      },
+    },
   })
 }

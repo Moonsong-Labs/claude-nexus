@@ -5,12 +5,14 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 ## Images
 
 ### 1. Proxy Service (`alanpurestake/claude-nexus-proxy`)
+
 - Port: 3000
 - Handles Claude API proxying
 - Manages authentication and token tracking
 - Stores request/response data
 
 ### 2. Dashboard Service (`alanpurestake/claude-nexus-dashboard`)
+
 - Port: 3001
 - Web UI for monitoring and analytics
 - Real-time SSE updates
@@ -65,6 +67,7 @@ docker build -f dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:v9 
 ### Using Docker Compose (Recommended)
 
 The `docker-compose.yml` file is located in this `docker/` directory.
+
 ```bash
 # From project root (recommended)
 ./docker-up.sh up -d
@@ -85,6 +88,7 @@ docker-compose --project-name claude-nexus --env-file ../.env up -d
 ```
 
 ### Running Individually
+
 ```bash
 # Proxy service
 docker run -p 3000:3000 \
@@ -102,6 +106,7 @@ docker run -p 3001:3001 \
 ## Environment Variables
 
 ### Proxy Service
+
 - `CLAUDE_API_KEY` - Default API key
 - `DATABASE_URL` - PostgreSQL connection
 - `STORAGE_ENABLED` - Enable storage (default: false)
@@ -109,6 +114,7 @@ docker run -p 3001:3001 \
 - `CREDENTIALS_DIR` - Domain credential directory
 
 ### Dashboard Service
+
 - `DASHBOARD_API_KEY` - Dashboard authentication
 - `PROXY_API_URL` - Proxy API endpoint
 - `DATABASE_URL` - PostgreSQL connection (read-only)
@@ -116,6 +122,7 @@ docker run -p 3001:3001 \
 ## Architecture Benefits
 
 Splitting into separate images provides:
+
 - **Independent scaling** - Scale proxy and dashboard separately
 - **Smaller images** - Each service only includes what it needs
 - **Better security** - Reduced attack surface
@@ -125,6 +132,7 @@ Splitting into separate images provides:
 ## Image Details
 
 Both images use:
+
 - Multi-stage builds for optimization
 - Bun runtime for performance
 - Alpine Linux base for minimal size
@@ -139,6 +147,7 @@ Both images use:
 4. **Major versions:** Use `vX` tags (e.g., `v9`, `v10`)
 
 When building a version tag, the scripts automatically:
+
 - Build images with the `latest` tag first
 - Additionally tag them with the specified version
 - Provide instructions for pushing both tags

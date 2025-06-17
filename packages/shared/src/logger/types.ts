@@ -94,7 +94,7 @@ export interface StreamingLog extends BaseLogEntry {
 }
 
 // Union type for all log entries
-export type LogEntry = 
+export type LogEntry =
   | BaseLogEntry
   | HttpRequestLog
   | SystemEventLog

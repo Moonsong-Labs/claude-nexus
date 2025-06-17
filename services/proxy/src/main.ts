@@ -72,9 +72,9 @@ function getPackageVersion(): string {
 
     // Try multiple possible paths for package.json
     const possiblePaths = [
-      join(__dirname, '..', 'package.json'),  // Development
-      join(__dirname, 'package.json'),        // npm install
-      join(__dirname, '..', '..', 'package.json')  // Other scenarios
+      join(__dirname, '..', 'package.json'), // Development
+      join(__dirname, 'package.json'), // npm install
+      join(__dirname, '..', '..', 'package.json'), // Other scenarios
     ]
 
     for (const packagePath of possiblePaths) {
@@ -165,18 +165,18 @@ async function main() {
     console.log(`Claude Nexus Proxy Service v${getPackageVersion()}`)
     console.log('Mode: passthrough (direct proxy to Claude API)')
     console.log('Target: Claude API (https://api.anthropic.com)')
-    
+
     // Show credential directory configuration
     if (process.env.CREDENTIALS_DIR) {
       console.log(`✓ Credential directory: ${process.env.CREDENTIALS_DIR}`)
     } else {
       console.log('✓ Credential directory: credentials (default)')
     }
-    
+
     if (process.env.TELEMETRY_ENDPOINT) {
       console.log(`✓ Telemetry: ${process.env.TELEMETRY_ENDPOINT}`)
     }
-    
+
     // Show Slack configuration if enabled
     if (process.env.SLACK_WEBHOOK_URL) {
       console.log('\nSlack Integration:')
@@ -185,37 +185,42 @@ async function main() {
       if (process.env.SLACK_USERNAME) console.log(`  - Username: ${process.env.SLACK_USERNAME}`)
       console.log(`  - Enabled: ${process.env.SLACK_ENABLED !== 'false' ? 'Yes' : 'No'}`)
     }
-    
+
     // Show storage configuration
-    if (process.env.STORAGE_ENABLED === 'true' && (process.env.DATABASE_URL || process.env.DB_HOST)) {
+    if (
+      process.env.STORAGE_ENABLED === 'true' &&
+      (process.env.DATABASE_URL || process.env.DB_HOST)
+    ) {
       console.log('\nStorage:')
       console.log(`  - Enabled: Yes`)
-      console.log(`  - Database: ${process.env.DATABASE_URL ? 'URL configured' : 'Host configured'}`)
+      console.log(
+        `  - Database: ${process.env.DATABASE_URL ? 'URL configured' : 'Host configured'}`
+      )
     }
-    
+
     // Start token usage tracking
     tokenTracker.startReporting(10000) // Report every 10 seconds
-    
+
     // Create the app
     const app = await createProxyApp()
-    
+
     // Start the server
     const server = serve({
       port: port,
       hostname: hostname,
-      fetch: app.fetch
+      fetch: app.fetch,
     })
-    
+
     console.log(`\n✅ Server started successfully`)
     console.log(`🌐 Listening on http://${hostname}:${port}`)
     console.log(`📊 Token stats: http://${hostname}:${port}/token-stats`)
-    
+
     // Get network interfaces to show accessible URLs
     try {
       const os = await import('os')
       const interfaces = os.networkInterfaces()
       const addresses = []
-      
+
       for (const name in interfaces) {
         for (const iface of interfaces[name] || []) {
           if (iface.family === 'IPv4' && !iface.internal) {
@@ -223,7 +228,7 @@ async function main() {
           }
         }
       }
-      
+
       if (addresses.length > 0) {
         console.log('\nNetwork interfaces:')
         addresses.forEach(addr => console.log(`  ${addr}`))
@@ -231,35 +236,34 @@ async function main() {
     } catch {
       // Ignore if we can't get network interfaces
     }
-    
+
     console.log('\nPress Ctrl+C to stop the server')
-    
+
     // Handle graceful shutdown
     const shutdown = async (signal: string) => {
       console.log(`\n${signal} received, shutting down gracefully...`)
-      
+
       // Print final token stats
       console.log('\nFinal token statistics:')
       tokenTracker.printStats()
-      
+
       // Close server
       server.close(() => {
         console.log('Server closed')
       })
-      
+
       // Close rate limit stores
       closeRateLimitStores()
-      
+
       // Clean up container resources
       await container.cleanup()
-      
+
       process.exit(0)
     }
-    
+
     process.on('SIGINT', () => shutdown('SIGINT'))
     process.on('SIGTERM', () => shutdown('SIGTERM'))
     process.on('SIGQUIT', () => shutdown('SIGQUIT'))
-    
   } catch (error: any) {
     console.error('❌ Failed to start server:', error.message)
     process.exit(1)

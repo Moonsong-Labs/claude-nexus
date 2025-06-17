@@ -5,9 +5,9 @@ export const credentialFactory = {
   apiKey: (overrides = {}) => ({
     type: 'api_key' as const,
     api_key: faker.string.alphanumeric({ length: 40, prefix: 'sk-ant-api03-' }),
-    ...overrides
+    ...overrides,
   }),
-  
+
   oauth: (overrides = {}) => ({
     type: 'oauth' as const,
     oauth: {
@@ -16,10 +16,10 @@ export const credentialFactory = {
       expiresAt: Date.now() + faker.number.int({ min: 3600000, max: 7200000 }),
       scopes: ['user:inference', 'org:create_api_key'],
       isMax: faker.datatype.boolean(),
-      ...overrides
-    }
+      ...overrides,
+    },
   }),
-  
+
   withSlack: (baseCredential: any, slackOverrides = {}) => ({
     ...baseCredential,
     slack: {
@@ -28,9 +28,9 @@ export const credentialFactory = {
       username: faker.internet.userName(),
       icon_emoji: faker.helpers.arrayElement([':robot_face:', ':claude:', ':bot:']),
       enabled: true,
-      ...slackOverrides
-    }
-  })
+      ...slackOverrides,
+    },
+  }),
 }
 
 // Factory for creating Claude API requests
@@ -39,37 +39,37 @@ export const requestFactory = {
     model: faker.helpers.arrayElement([
       'claude-3-opus-20240229',
       'claude-3-sonnet-20240229',
-      'claude-3-haiku-20240307'
+      'claude-3-haiku-20240307',
     ]),
     messages: [
       {
         role: 'user' as const,
-        content: faker.lorem.sentence()
-      }
+        content: faker.lorem.sentence(),
+      },
     ],
     max_tokens: faker.number.int({ min: 10, max: 1000 }),
-    ...overrides
+    ...overrides,
   }),
-  
+
   withSystem: (systemPrompt: string, overrides = {}) => ({
     model: 'claude-3-opus-20240229',
     system: systemPrompt,
     messages: [
       {
         role: 'user' as const,
-        content: faker.lorem.sentence()
-      }
+        content: faker.lorem.sentence(),
+      },
     ],
     max_tokens: 100,
-    ...overrides
+    ...overrides,
   }),
-  
+
   streaming: (overrides = {}) => ({
     ...requestFactory.simple(),
     stream: true,
-    ...overrides
+    ...overrides,
   }),
-  
+
   withTools: (overrides = {}) => ({
     ...requestFactory.simple(),
     tools: [
@@ -79,37 +79,37 @@ export const requestFactory = {
         input_schema: {
           type: 'object',
           properties: {
-            location: { type: 'string' }
+            location: { type: 'string' },
           },
-          required: ['location']
-        }
-      }
+          required: ['location'],
+        },
+      },
     ],
-    ...overrides
+    ...overrides,
   }),
-  
+
   conversation: (messageCount = 3) => {
     const messages = []
     for (let i = 0; i < messageCount; i++) {
       messages.push({
         role: i % 2 === 0 ? 'user' : 'assistant',
-        content: faker.lorem.paragraph()
+        content: faker.lorem.paragraph(),
       })
     }
     // Ensure last message is from user
     if (messages[messages.length - 1].role === 'assistant') {
       messages.push({
         role: 'user',
-        content: faker.lorem.sentence()
+        content: faker.lorem.sentence(),
       })
     }
-    
+
     return {
       model: 'claude-3-opus-20240229',
       messages,
-      max_tokens: 500
+      max_tokens: 500,
     }
-  }
+  },
 }
 
 // Factory for creating Claude API responses
@@ -121,45 +121,45 @@ export const responseFactory = {
     content: [
       {
         type: 'text',
-        text: faker.lorem.paragraph()
-      }
+        text: faker.lorem.paragraph(),
+      },
     ],
     model: 'claude-3-opus-20240229',
     stop_reason: 'end_turn',
     stop_sequence: null,
     usage: {
       input_tokens: faker.number.int({ min: 10, max: 1000 }),
-      output_tokens: faker.number.int({ min: 10, max: 1000 })
+      output_tokens: faker.number.int({ min: 10, max: 1000 }),
     },
-    ...overrides
+    ...overrides,
   }),
-  
+
   withToolUse: (overrides = {}) => ({
     ...responseFactory.simple(),
     content: [
       {
         type: 'text',
-        text: 'I\'ll help you with that.'
+        text: "I'll help you with that.",
       },
       {
         type: 'tool_use',
         id: `toolu_${faker.string.alphanumeric(10)}`,
         name: 'get_weather',
         input: {
-          location: faker.location.city()
-        }
-      }
+          location: faker.location.city(),
+        },
+      },
     ],
-    ...overrides
+    ...overrides,
   }),
-  
+
   error: (type: string, message: string, status = 400) => ({
     error: {
       type,
-      message
-    }
+      message,
+    },
   }),
-  
+
   streamChunks: {
     messageStart: (overrides = {}) => ({
       type: 'message_start',
@@ -173,12 +173,12 @@ export const responseFactory = {
         stop_sequence: null,
         usage: {
           input_tokens: faker.number.int({ min: 10, max: 100 }),
-          output_tokens: 0
+          output_tokens: 0,
         },
-        ...overrides
-      }
+        ...overrides,
+      },
     }),
-    
+
     contentBlockStart: (index = 0, blockType = 'text') => ({
       type: 'content_block_start',
       index,
@@ -187,39 +187,39 @@ export const responseFactory = {
         text: blockType === 'text' ? '' : undefined,
         id: blockType === 'tool_use' ? `toolu_${faker.string.alphanumeric(10)}` : undefined,
         name: blockType === 'tool_use' ? 'get_weather' : undefined,
-        input: blockType === 'tool_use' ? {} : undefined
-      }
+        input: blockType === 'tool_use' ? {} : undefined,
+      },
     }),
-    
+
     contentBlockDelta: (index = 0, text: string) => ({
       type: 'content_block_delta',
       index,
       delta: {
         type: 'text_delta',
-        text
-      }
+        text,
+      },
     }),
-    
+
     contentBlockStop: (index = 0) => ({
       type: 'content_block_stop',
-      index
+      index,
     }),
-    
+
     messageDelta: (outputTokens: number, stopReason = 'end_turn') => ({
       type: 'message_delta',
       delta: {
         stop_reason: stopReason,
-        stop_sequence: null
+        stop_sequence: null,
       },
       usage: {
-        output_tokens: outputTokens
-      }
+        output_tokens: outputTokens,
+      },
     }),
-    
+
     messageStop: () => ({
-      type: 'message_stop'
-    })
-  }
+      type: 'message_stop',
+    }),
+  },
 }
 
 // Factory for creating test scenarios
@@ -228,13 +228,13 @@ export const scenarioFactory = {
   streamingResponse: (text: string, chunkSize = 20) => {
     const chunks = []
     const words = text.split(' ')
-    
+
     // Message start
     chunks.push(responseFactory.streamChunks.messageStart())
-    
+
     // Content block start
     chunks.push(responseFactory.streamChunks.contentBlockStart())
-    
+
     // Content deltas
     let currentChunk = ''
     for (let i = 0; i < words.length; i++) {
@@ -244,20 +244,20 @@ export const scenarioFactory = {
         currentChunk = ''
       }
     }
-    
+
     // Content block stop
     chunks.push(responseFactory.streamChunks.contentBlockStop())
-    
+
     // Message delta with token count
     const outputTokens = Math.ceil(text.split(' ').length * 1.3)
     chunks.push(responseFactory.streamChunks.messageDelta(outputTokens))
-    
+
     // Message stop
     chunks.push(responseFactory.streamChunks.messageStop())
-    
+
     return chunks
   },
-  
+
   // Create telemetry data
   telemetryData: (overrides = {}) => ({
     requestId: faker.string.uuid(),
@@ -269,8 +269,8 @@ export const scenarioFactory = {
     outputTokens: faker.number.int({ min: 10, max: 1000 }),
     duration: faker.number.int({ min: 100, max: 5000 }),
     status: 200,
-    ...overrides
-  })
+    ...overrides,
+  }),
 }
 
 // Helper to create realistic conversation data
@@ -279,11 +279,11 @@ export function createConversation(config = {}) {
     messageCount = faker.number.int({ min: 2, max: 10 }),
     includeSystem = faker.datatype.boolean(),
     includeTools = faker.datatype.boolean(),
-    model = 'claude-3-opus-20240229'
+    model = 'claude-3-opus-20240229',
   } = config
-  
+
   const messages = []
-  
+
   // Add system message if requested
   if (includeSystem) {
     messages.push({
@@ -292,40 +292,41 @@ export function createConversation(config = {}) {
         'You are a helpful assistant.',
         'You are an expert programmer.',
         'You are a creative writer.',
-        'Answer concisely and accurately.'
-      ])
+        'Answer concisely and accurately.',
+      ]),
     })
   }
-  
+
   // Generate conversation
   for (let i = 0; i < messageCount; i++) {
     const role = i % 2 === 0 ? 'user' : 'assistant'
     messages.push({
       role,
-      content: role === 'user' 
-        ? faker.helpers.arrayElement([
-            faker.lorem.question(),
-            faker.lorem.sentence(),
-            `Can you help me with ${faker.hacker.phrase()}?`
-          ])
-        : faker.lorem.paragraph({ min: 1, max: 3 })
+      content:
+        role === 'user'
+          ? faker.helpers.arrayElement([
+              faker.lorem.question(),
+              faker.lorem.sentence(),
+              `Can you help me with ${faker.hacker.phrase()}?`,
+            ])
+          : faker.lorem.paragraph({ min: 1, max: 3 }),
     })
   }
-  
+
   // Ensure last message is from user
   if (messages[messages.length - 1].role !== 'user') {
     messages.push({
       role: 'user',
-      content: faker.lorem.sentence()
+      content: faker.lorem.sentence(),
     })
   }
-  
+
   const request = {
     model,
     messages,
-    max_tokens: faker.number.int({ min: 100, max: 1000 })
+    max_tokens: faker.number.int({ min: 100, max: 1000 }),
   }
-  
+
   if (includeTools) {
     request.tools = [
       {
@@ -334,13 +335,13 @@ export function createConversation(config = {}) {
         input_schema: {
           type: 'object',
           properties: {
-            query: { type: 'string' }
+            query: { type: 'string' },
           },
-          required: ['query']
-        }
-      }
+          required: ['query'],
+        },
+      },
     ]
   }
-  
+
   return request
 }

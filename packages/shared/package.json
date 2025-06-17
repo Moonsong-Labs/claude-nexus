@@ -22,10 +22,13 @@
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
     "watch": "bun build ./src/index.ts --outdir ./dist --target bun --watch",
-    "typecheck": "bun build ./src/index.ts --outdir ./dist --target bun --no-bundle"
+    "typecheck": "bun x tsc --noEmit"
   },
   "dependencies": {
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "pino": "^9.5.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/pino": "^7.0.0"
+  }
 }

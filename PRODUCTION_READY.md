@@ -5,6 +5,7 @@ This guide covers everything you need to deploy Claude Nexus Proxy v2.0 in produ
 ## Architecture Overview
 
 Version 2.0 uses a microservices architecture with two separate services:
+
 - **Proxy Service** (Port 3000): Handles API proxying
 - **Dashboard Service** (Port 3001): Provides web UI monitoring
 
@@ -42,7 +43,7 @@ services:
   proxy:
     image: ghcr.io/moonsong-labs/claude-nexus-proxy:latest
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - CLAUDE_API_KEY=${CLAUDE_API_KEY}
       - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@postgres:5432/claude_proxy
@@ -51,7 +52,7 @@ services:
       - postgres
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:3000/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -59,7 +60,7 @@ services:
   dashboard:
     image: ghcr.io/moonsong-labs/claude-nexus-dashboard:latest
     ports:
-      - "3001:3001"
+      - '3001:3001'
     environment:
       - DASHBOARD_API_KEY=${DASHBOARD_API_KEY}
       - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@postgres:5432/claude_proxy
@@ -89,37 +90,37 @@ spec:
         app: claude-nexus-proxy
     spec:
       containers:
-      - name: proxy
-        image: ghcr.io/moonsong-labs/claude-nexus-proxy:latest
-        ports:
-        - containerPort: 3000
-        env:
-        - name: CLAUDE_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: claude-api-key
-              key: api-key
-        - name: STORAGE_ENABLED
-          value: "false"
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 3000
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 3000
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
+        - name: proxy
+          image: ghcr.io/moonsong-labs/claude-nexus-proxy:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: CLAUDE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: claude-api-key
+                  key: api-key
+            - name: STORAGE_ENABLED
+              value: 'false'
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '100m'
+            limits:
+              memory: '512Mi'
+              cpu: '500m'
 ---
 apiVersion: v1
 kind: Service
@@ -129,8 +130,8 @@ spec:
   selector:
     app: claude-nexus-proxy
   ports:
-  - port: 80
-    targetPort: 3000
+    - port: 80
+      targetPort: 3000
   type: LoadBalancer
 ```
 
@@ -139,28 +140,33 @@ spec:
 ### Environment Variables
 
 #### Core Settings
+
 - `CLAUDE_API_KEY` - Default Claude API key (can be overridden per request)
 - `PORT` - Server port (default: 3000)
 - `HOST` - Server host (default: 0.0.0.0)
 - `CREDENTIALS_DIR` - Directory for domain-specific credentials (default: credentials)
 
 #### Feature Flags
+
 - `STORAGE_ENABLED` - Enable request/response storage (default: false)
 - `SLACK_ENABLED` - Enable Slack notifications (default: true if webhook configured)
 - `TELEMETRY_ENABLED` - Enable telemetry collection (default: true if endpoint configured)
 - `ENABLE_DASHBOARD` - Enable web dashboard (default: true)
 
 #### Storage Configuration (if enabled)
+
 - `DATABASE_URL` - PostgreSQL connection string
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - Individual DB settings
 
 #### Slack Configuration
+
 - `SLACK_WEBHOOK_URL` - Slack webhook for notifications
 - `SLACK_CHANNEL` - Override default channel
 - `SLACK_USERNAME` - Bot username
 - `SLACK_ICON_EMOJI` - Bot icon
 
 #### Dashboard Configuration
+
 - `DASHBOARD_USERNAME` - Basic auth username (default: admin)
 - `DASHBOARD_PASSWORD` - Basic auth password (required for production)
 
@@ -199,6 +205,7 @@ EOF
 ## Production Checklist
 
 ### Security
+
 - [ ] Set strong `DASHBOARD_PASSWORD` for web interface
 - [ ] Use HTTPS termination (nginx, cloud load balancer)
 - [ ] Restrict network access to trusted sources
@@ -208,6 +215,7 @@ EOF
 - [ ] Run as non-root user (already configured)
 
 ### Performance
+
 - [ ] Enable connection pooling for database
 - [ ] Configure appropriate resource limits
 - [ ] Use horizontal scaling for high traffic
@@ -215,6 +223,7 @@ EOF
 - [ ] Monitor memory usage and adjust limits
 
 ### Monitoring
+
 - [ ] Set up health check monitoring
 - [ ] Configure log aggregation
 - [ ] Monitor token usage via `/token-stats`
@@ -222,6 +231,7 @@ EOF
 - [ ] Track response times and throughput
 
 ### Backup & Recovery
+
 - [ ] Backup credential files regularly
 - [ ] Document recovery procedures
 - [ ] Test failover scenarios
@@ -230,17 +240,21 @@ EOF
 ## Scaling Considerations
 
 ### Horizontal Scaling
+
 The proxy is stateless (except for in-memory token tracking) and can be scaled horizontally:
+
 - Use a load balancer to distribute traffic
 - Token statistics are per-instance
 - Consider using Redis for shared state if needed
 
 ### Resource Requirements
+
 - **Memory**: 256MB minimum, 512MB recommended
 - **CPU**: 0.1 CPU minimum, 0.5 CPU recommended
 - **Storage**: Minimal unless using database storage
 
 ### Performance Tuning
+
 ```bash
 # Increase Node.js memory limit
 NODE_OPTIONS="--max-old-space-size=1024"
@@ -254,10 +268,12 @@ UV_THREADPOOL_SIZE=8
 ### Common Issues
 
 1. **Dashboard 503 Error**
+
    - Check if `STORAGE_ENABLED=true` requires database
    - Verify database connection if storage is enabled
 
 2. **Memory Issues**
+
    - Increase container memory limits
    - Check for memory leaks in custom code
    - Monitor with `docker stats`
@@ -268,12 +284,15 @@ UV_THREADPOOL_SIZE=8
    - Look for rate limiting
 
 ### Debug Mode
+
 Enable detailed logging:
+
 ```bash
 DEBUG=true
 ```
 
 ### Health Checks
+
 - `GET /` - Basic health check
 - `GET /health/live` - Liveness probe
 - `GET /health/ready` - Readiness probe
@@ -282,6 +301,7 @@ DEBUG=true
 ## Migration Guide
 
 ### From v0.1.x to v0.2.x
+
 1. Update Docker image tag
 2. Migrate credential files to new format
 3. Update environment variables:

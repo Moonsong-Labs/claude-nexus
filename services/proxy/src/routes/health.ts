@@ -8,15 +8,15 @@ interface HealthRouteOptions {
 
 export function createHealthRoutes(options: HealthRouteOptions): Hono {
   const app = new Hono()
-  
-  app.get('/', async (c) => {
+
+  app.get('/', async c => {
     const health: any = {
       status: 'healthy',
       service: 'claude-nexus-proxy',
       version: options.version || 'unknown',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
-    
+
     // Check database connection if available
     if (options.pool) {
       try {
@@ -27,16 +27,16 @@ export function createHealthRoutes(options: HealthRouteOptions): Hono {
         health.database = 'disconnected'
       }
     }
-    
+
     return c.json(health, health.status === 'healthy' ? 200 : 503)
   })
-  
-  app.get('/ready', async (c) => {
+
+  app.get('/ready', async c => {
     const ready = {
       ready: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
-    
+
     // Check if database is ready if configured
     if (options.pool) {
       try {
@@ -46,16 +46,16 @@ export function createHealthRoutes(options: HealthRouteOptions): Hono {
         return c.json(ready, 503)
       }
     }
-    
+
     return c.json(ready)
   })
-  
-  app.get('/live', (c) => {
+
+  app.get('/live', c => {
     return c.json({
       alive: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
   })
-  
+
   return app
 }

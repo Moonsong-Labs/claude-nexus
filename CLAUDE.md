@@ -9,6 +9,7 @@ Claude Nexus Proxy - A high-performance proxy for Claude API with monitoring das
 ## Architecture
 
 ### Monorepo Structure
+
 ```
 claude-nexus-proxy/
 ├── packages/shared/      # Shared types and configurations
@@ -25,6 +26,7 @@ claude-nexus-proxy/
 ### Key Services
 
 **Proxy Service** (`services/proxy/`)
+
 - Direct API forwarding to Claude
 - Multi-auth support (API keys, OAuth with auto-refresh)
 - Token tracking and telemetry
@@ -32,6 +34,7 @@ claude-nexus-proxy/
 - Slack notifications
 
 **Dashboard Service** (`services/dashboard/`)
+
 - Real-time monitoring UI
 - Analytics and usage charts
 - Request history browser
@@ -74,29 +77,35 @@ Docker configurations are in the `docker/` directory. Each service has its own o
 ## Key Implementation Details
 
 ### Authentication Flow
+
 1. Check domain-specific credential files (`<domain>.credentials.json`)
 2. Use Authorization header from request
 3. Fall back to CLAUDE_API_KEY environment variable
 
 ### OAuth Support
+
 - Auto-refresh tokens 1 minute before expiry
 - Stores refreshed tokens back to credential files
 - Adds `anthropic-beta: oauth-2025-04-20` header
 
 ### Token Tracking
+
 - Per-domain statistics
 - Request type classification (query evaluation vs inference)
 - Tool call counting
 - Available at `/token-stats` endpoint
 
 ### Storage
+
 - PostgreSQL for request/response data
 - Write-only access from proxy
 - Read-only access from dashboard
 - Automatic batch processing
 
 ### Debug Logging
+
 When `DEBUG=true`:
+
 - Logs full request/response (with sensitive data masked)
 - Shows streaming chunks
 - Masks patterns: `sk-ant-****`, `Bearer ****`
@@ -104,11 +113,13 @@ When `DEBUG=true`:
 ## Environment Variables
 
 **Essential:**
+
 - `CLAUDE_API_KEY` - Default API key (optional)
 - `DATABASE_URL` - PostgreSQL connection
 - `DASHBOARD_API_KEY` - Dashboard authentication
 
 **Optional:**
+
 - `DEBUG` - Enable debug logging
 - `STORAGE_ENABLED` - Enable storage (default: false)
 - `SLACK_WEBHOOK_URL` - Slack notifications
@@ -119,12 +130,14 @@ When `DEBUG=true`:
 ## Testing & Type Safety
 
 **Type Checking:**
+
 - Run `bun run typecheck` before committing
 - Type checking is automatic during builds
 - Fix all type errors before deploying
 
 **Test Sample Collection:**
 The proxy can collect real request samples for test development:
+
 - Enable with `COLLECT_TEST_SAMPLES=true`
 - Samples are stored in `test-samples/` directory
 - Each request type gets its own file (e.g., `inference_streaming_opus.json`)
@@ -133,6 +146,7 @@ The proxy can collect real request samples for test development:
 
 **Tests:**
 Currently no automated tests. When implementing:
+
 - Use Bun's built-in test runner
 - Test proxy logic, telemetry, token tracking
 - Test both streaming and non-streaming responses
@@ -148,22 +162,26 @@ Currently no automated tests. When implementing:
 ## Common Tasks
 
 ### Add Domain Credentials
+
 ```bash
 echo '{"type": "api_key", "api_key": "sk-ant-..."}' > credentials/domain.com.credentials.json
 ```
 
 ### Enable Storage
+
 ```bash
 export STORAGE_ENABLED=true
 export DATABASE_URL=postgresql://...
 ```
 
 ### View Token Stats
+
 ```bash
 curl http://localhost:3000/token-stats
 ```
 
 ### Access Dashboard
+
 ```bash
 open http://localhost:3001
 # Use DASHBOARD_API_KEY for authentication

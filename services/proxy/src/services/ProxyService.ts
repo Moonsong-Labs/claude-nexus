@@ -21,7 +21,7 @@ export class ProxyService {
     private notificationService: NotificationService,
     private metricsService: MetricsService
   ) {}
-  
+
   /**
    * Handle a proxy request
    */
@@ -43,63 +43,55 @@ export class ProxyService {
         logger.error(message, {
           requestId: context.requestId,
           domain: context.host,
-          error: error ? {
-            message: error.message,
-            stack: error.stack,
-            code: (error as any).code
-          } : undefined,
-          metadata
+          error: error
+            ? {
+                message: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+              }
+            : undefined,
+          metadata,
         })
-      }
+      },
     }
-    
+
     // Create domain entities
-    const request = new ProxyRequest(
-      rawRequest,
-      context.host,
-      context.requestId,
-      context.apiKey
-    )
-    
-    const response = new ProxyResponse(
-      context.requestId,
-      request.isStreaming
-    )
-    
+    const request = new ProxyRequest(rawRequest, context.host, context.requestId, context.apiKey)
+
+    const response = new ProxyResponse(context.requestId, request.isStreaming)
+
     // Collect test sample if enabled
-    await testSampleCollector.collectSample(
-      context.honoContext,
-      rawRequest,
-      request.requestType
-    )
-    
+    if (context.honoContext) {
+      await testSampleCollector.collectSample(context.honoContext, rawRequest, request.requestType)
+    }
+
     try {
       // Authenticate
       // log.debug('Authenticating request', {
       //   hasRequestApiKey: !!context.apiKey,
       //   apiKeySource: context.apiKey ? 'request header' : 'will check credential file'
       // })
-      
+
       const auth = await this.authService.authenticate(context)
-      
+
       // log.debug('Authentication completed', {
       //   authType: auth.type,
       //   usingCredentialFile: !context.apiKey
       // })
-      
+
       // Forward to Claude
       log.info('Forwarding request to Claude', {
         model: request.model,
         streaming: request.isStreaming,
         requestType: request.requestType,
-        authSource: context.apiKey ? 'passthrough from request' : 'domain credential file'
+        authSource: context.apiKey ? 'passthrough from request' : 'domain credential file',
       })
-      
+
       const claudeResponse = await this.apiClient.forward(request, auth)
-      
+
       // Process response based on streaming mode
       let finalResponse: Response
-      
+
       if (request.isStreaming) {
         finalResponse = await this.handleStreamingResponse(
           claudeResponse,
@@ -117,47 +109,39 @@ export class ProxyService {
           auth
         )
       }
-      
+
       // Track metrics for successful request
       // Note: For streaming responses, metrics are tracked after stream completes
       if (!request.isStreaming) {
-        await this.metricsService.trackRequest(
-          request,
-          response,
-          context,
-          claudeResponse.status
-        )
+        await this.metricsService.trackRequest(request, response, context, claudeResponse.status)
       }
-      
+
       // Send notifications
       // Note: For streaming responses, notifications are sent after stream completes
       if (!request.isStreaming) {
-        await this.notificationService.notify(
-          request,
-          response,
-          context,
-          auth
-        )
+        await this.notificationService.notify(request, response, context, auth)
       }
-      
+
       return finalResponse
-      
     } catch (error) {
       // Track error metrics
       await this.metricsService.trackError(
         request,
-        error,
+        error instanceof Error ? error : new Error(String(error)),
         context,
-        error.statusCode || 500
+        (error as any).statusCode || 500
       )
-      
+
       // Notify about error
-      await this.notificationService.notifyError(error, context)
-      
+      await this.notificationService.notifyError(
+        error instanceof Error ? error : new Error(String(error)),
+        context
+      )
+
       throw error
     }
   }
-  
+
   /**
    * Handle non-streaming response
    */
@@ -182,38 +166,37 @@ export class ProxyService {
         logger.error(message, {
           requestId: context.requestId,
           domain: context.host,
-          error: error ? {
-            message: error.message,
-            stack: error.stack,
-            code: (error as any).code
-          } : undefined,
-          metadata
+          error: error
+            ? {
+                message: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+              }
+            : undefined,
+          metadata,
         })
-      }
+      },
     }
-    
+
     // Process the response
-    const jsonResponse = await this.apiClient.processResponse(
-      claudeResponse,
-      response
-    )
-    
+    const jsonResponse = await this.apiClient.processResponse(claudeResponse, response)
+
     log.debug('Non-streaming response processed', {
       inputTokens: response.inputTokens,
       outputTokens: response.outputTokens,
-      toolCalls: response.toolCallCount
+      toolCalls: response.toolCallCount,
     })
-    
+
     // Return the response
     return new Response(JSON.stringify(jsonResponse), {
       status: claudeResponse.status,
       headers: {
         'Content-Type': 'application/json',
-        ...this.getCorsHeaders()
-      }
+        ...this.getCorsHeaders(),
+      },
     })
   }
-  
+
   /**
    * Handle streaming response
    */
@@ -238,44 +221,42 @@ export class ProxyService {
         logger.error(message, {
           requestId: context.requestId,
           domain: context.host,
-          error: error ? {
-            message: error.message,
-            stack: error.stack,
-            code: (error as any).code
-          } : undefined,
-          metadata
+          error: error
+            ? {
+                message: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+              }
+            : undefined,
+          metadata,
         })
-      }
+      },
     }
-    
+
     // Create a transform stream to process events
     const { readable, writable } = new TransformStream()
     const writer = writable.getWriter()
-    
+
     // Process stream in background
-    this.processStream(
-      claudeResponse,
-      response,
-      writer,
-      context,
-      request,
-      auth
-    ).catch(error => {
-      log.error('Stream processing error', error instanceof Error ? error : new Error(String(error)))
+    this.processStream(claudeResponse, response, writer, context, request, auth).catch(error => {
+      log.error(
+        'Stream processing error',
+        error instanceof Error ? error : new Error(String(error))
+      )
     })
-    
+
     // Return streaming response immediately
     return new Response(readable, {
       status: claudeResponse.status,
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        ...this.getCorsHeaders()
-      }
+        Connection: 'keep-alive',
+        ...this.getCorsHeaders(),
+      },
     })
   }
-  
+
   /**
    * Process streaming response
    */
@@ -301,55 +282,43 @@ export class ProxyService {
         logger.error(message, {
           requestId: context.requestId,
           domain: context.host,
-          error: error ? {
-            message: error.message,
-            stack: error.stack,
-            code: (error as any).code
-          } : undefined,
-          metadata
+          error: error
+            ? {
+                message: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+              }
+            : undefined,
+          metadata,
         })
-      }
+      },
     }
-    
+
     try {
       const encoder = new TextEncoder()
-      
+
       // Process each chunk
-      for await (const chunk of this.apiClient.processStreamingResponse(
-        claudeResponse,
-        response
-      )) {
+      for await (const chunk of this.apiClient.processStreamingResponse(claudeResponse, response)) {
         await writer.write(encoder.encode(chunk))
       }
-      
+
       // Stream completed - now track metrics and send notifications
       log.debug('Stream completed', {
         inputTokens: response.inputTokens,
         outputTokens: response.outputTokens,
-        toolCalls: response.toolCallCount
+        toolCalls: response.toolCallCount,
       })
-      
+
       // Track metrics after streaming completes
-      await this.metricsService.trackRequest(
-        request,
-        response,
-        context,
-        claudeResponse.status
-      )
-      
+      await this.metricsService.trackRequest(request, response, context, claudeResponse.status)
+
       // Send notifications after streaming completes
-      await this.notificationService.notify(
-        request,
-        response,
-        context,
-        auth
-      )
-      
+      await this.notificationService.notify(request, response, context, auth)
     } finally {
       await writer.close()
     }
   }
-  
+
   /**
    * Get CORS headers
    */
@@ -357,7 +326,7 @@ export class ProxyService {
     return {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key'
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key',
     }
   }
 }

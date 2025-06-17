@@ -25,17 +25,17 @@ export async function initializePool(): Promise<Pool | undefined> {
     // Test the connection
     await pool.query('SELECT 1')
     logger.info('Database pool initialized successfully')
-    
-    pool.on('error', (err) => {
-      logger.error('Unexpected database pool error', { 
-        error: { message: err.message, stack: err.stack } 
+
+    pool.on('error', err => {
+      logger.error('Unexpected database pool error', {
+        error: { message: err.message, stack: err.stack },
       })
     })
 
     return pool
   } catch (error) {
     logger.error('Failed to initialize database pool', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
     throw error
   }

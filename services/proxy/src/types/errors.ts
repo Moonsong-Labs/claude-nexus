@@ -27,7 +27,7 @@ export class BaseError extends Error {
       statusCode: this.statusCode,
       timestamp: this.timestamp,
       context: this.context,
-      stack: this.stack
+      stack: this.stack,
     }
   }
 }
@@ -118,8 +118,8 @@ export function serializeError(error: Error): {
         message: error.message,
         statusCode: error.statusCode,
         timestamp: error.timestamp,
-        requestId: error.context?.requestId
-      }
+        requestId: error.context?.requestId,
+      },
     }
   }
 
@@ -129,7 +129,7 @@ export function serializeError(error: Error): {
       code: 'INTERNAL_ERROR',
       message: 'An unexpected error occurred',
       statusCode: 500,
-      timestamp: new Date()
-    }
+      timestamp: new Date(),
+    },
   }
 }

@@ -30,7 +30,7 @@ export interface LogContext {
 export function createLogger(options: LoggerOptions) {
   const level = options.level || process.env.LOG_LEVEL || 'info'
   const prettyPrint = options.prettyPrint ?? process.env.NODE_ENV !== 'production'
-  
+
   return {
     debug: (message: string, context?: LogContext) => {
       if (!shouldLog('debug', level)) return
@@ -47,12 +47,12 @@ export function createLogger(options: LoggerOptions) {
     error: (message: string, context?: LogContext) => {
       if (!shouldLog('error', level)) return
       log('error', options.service, message, context, prettyPrint)
-    }
+    },
   }
 }
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const
-type LogLevel = typeof LOG_LEVELS[number]
+type LogLevel = (typeof LOG_LEVELS)[number]
 
 function shouldLog(messageLevel: LogLevel, configuredLevel: string): boolean {
   const messageLevelIndex = LOG_LEVELS.indexOf(messageLevel)
@@ -72,11 +72,11 @@ function log(
     level,
     service,
     message,
-    ...context
+    ...context,
   }
-  
+
   const output = prettyPrint ? formatPretty(entry) : JSON.stringify(entry)
-  
+
   switch (level) {
     case 'debug':
     case 'info':
@@ -94,7 +94,7 @@ function log(
 function formatPretty(entry: any): string {
   const { timestamp, level, service, message, ...rest } = entry
   const prefix = `[${timestamp}] ${level.toUpperCase()} [${service}] ${message}`
-  
+
   if (Object.keys(rest).length > 0) {
     return `${prefix}\n${JSON.stringify(rest, null, 2)}`
   }

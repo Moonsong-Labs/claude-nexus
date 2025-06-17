@@ -62,9 +62,9 @@ function getPackageVersion(): string {
 
     // Try multiple possible paths for package.json
     const possiblePaths = [
-      join(__dirname, '..', 'package.json'),  // Development
-      join(__dirname, 'package.json'),        // npm install
-      join(__dirname, '..', '..', 'package.json')  // Other scenarios
+      join(__dirname, '..', 'package.json'), // Development
+      join(__dirname, 'package.json'), // npm install
+      join(__dirname, '..', '..', 'package.json'), // Other scenarios
     ]
 
     for (const packagePath of possiblePaths) {
@@ -151,44 +151,44 @@ async function main() {
       console.error('❌ Error: DASHBOARD_API_KEY environment variable is required')
       process.exit(1)
     }
-    
+
     if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
       console.error('❌ Error: DATABASE_URL or DB_* environment variables are required')
       process.exit(1)
     }
-    
+
     // Print dashboard configuration
     console.log(`Claude Nexus Dashboard Service v${getPackageVersion()}`)
     console.log('Mode: Web Dashboard for monitoring and analytics')
-    
+
     console.log('\nConfiguration:')
     console.log(`  - Authentication: Configured`)
     console.log(`  - Database: ${process.env.DATABASE_URL ? 'URL configured' : 'Host configured'}`)
-    
+
     if (process.env.PROXY_SERVICE_URL) {
       console.log(`  - Proxy Service: ${process.env.PROXY_SERVICE_URL}`)
     }
-    
+
     // Create the app
     const app = await createDashboardApp()
-    
+
     // Start the server
     const server = serve({
       port: port,
       hostname: hostname,
-      fetch: app.fetch
+      fetch: app.fetch,
     })
-    
+
     console.log(`\n✅ Server started successfully`)
     console.log(`🌐 Listening on http://${hostname}:${port}`)
     console.log(`📈 Dashboard: http://${hostname}:${port}/`)
-    
+
     // Get network interfaces to show accessible URLs
     try {
       const os = await import('os')
       const interfaces = os.networkInterfaces()
       const addresses = []
-      
+
       for (const name in interfaces) {
         for (const iface of interfaces[name] || []) {
           if (iface.family === 'IPv4' && !iface.internal) {
@@ -196,7 +196,7 @@ async function main() {
           }
         }
       }
-      
+
       if (addresses.length > 0) {
         console.log('\nNetwork interfaces:')
         addresses.forEach(addr => console.log(`  ${addr}`))
@@ -204,30 +204,29 @@ async function main() {
     } catch {
       // Ignore if we can't get network interfaces
     }
-    
+
     console.log('\nPress Ctrl+C to stop the server')
-    
+
     // Handle graceful shutdown
     const shutdown = async (signal: string) => {
       console.log(`\n${signal} received, shutting down gracefully...`)
-      
+
       // Close server
       server.close(() => {
         console.log('Server closed')
       })
-      
+
       // Clean up container resources
       await container.cleanup()
-      
+
       process.exit(0)
     }
-    
+
     // Signal handlers - commented out due to bundling issues
     // TODO: Fix process.on not working after bundling
     // process.on('SIGINT', () => shutdown('SIGINT'))
     // process.on('SIGTERM', () => shutdown('SIGTERM'))
     // process.on('SIGQUIT', () => shutdown('SIGQUIT'))
-    
   } catch (error: any) {
     console.error('❌ Failed to start server:', error.message)
     process.exit(1)

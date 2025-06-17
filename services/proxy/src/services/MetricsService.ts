@@ -36,12 +36,12 @@ export class MetricsService {
     private config: MetricsConfig = {
       enableTokenTracking: true,
       enableStorage: true,
-      enableTelemetry: true
+      enableTelemetry: true,
     },
     private storageService?: StorageAdapter,
     private telemetryEndpoint?: string
   ) {}
-  
+
   /**
    * Track metrics for a successful request
    */
@@ -52,7 +52,7 @@ export class MetricsService {
     status: number = 200
   ): Promise<void> {
     const metrics = response.getMetrics()
-    
+
     // logger.debug('Tracking metrics for request', {
     //   requestId: context.requestId,
     //   domain: context.host,
@@ -60,23 +60,23 @@ export class MetricsService {
     //   requestType: request.requestType,
     //   isStreaming: request.isStreaming
     // })
-    
+
     // Track tokens
     if (this.config.enableTokenTracking) {
       tokenTracker.track(
         context.host,
         metrics.inputTokens,
         metrics.outputTokens,
-        request.requestType,
+        request.requestType === 'quota' ? undefined : request.requestType,
         metrics.toolCallCount
       )
     }
-    
+
     // Store in database
     if (this.config.enableStorage && this.storageService) {
       await this.storeRequest(request, response, context, status)
     }
-    
+
     // Send telemetry
     if (this.config.enableTelemetry && this.telemetryEndpoint) {
       await this.sendTelemetry({
@@ -90,22 +90,24 @@ export class MetricsService {
         duration: context.getElapsedTime(),
         status,
         toolCallCount: metrics.toolCallCount,
-        requestType: request.requestType
+        requestType: request.requestType,
       })
     }
-    
+
     // Log metrics
     logger.info('Request processed', {
       requestId: context.requestId,
       domain: context.host,
       model: request.model,
-      inputTokens: metrics.inputTokens,
-      outputTokens: metrics.outputTokens,
-      duration: context.getElapsedTime(),
-      requestType: request.requestType,
-      stored: request.requestType === 'inference' && this.config.enableStorage
+      metadata: {
+        inputTokens: metrics.inputTokens,
+        outputTokens: metrics.outputTokens,
+        duration: context.getElapsedTime(),
+        requestType: request.requestType,
+        stored: request.requestType === 'inference' && this.config.enableStorage,
+      },
     })
-    
+
     // Broadcast to dashboard
     try {
       // Broadcast conversation update
@@ -114,9 +116,9 @@ export class MetricsService {
         domain: context.host,
         model: request.model,
         tokens: metrics.inputTokens + metrics.outputTokens,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
-      
+
       // Broadcast metrics update
       const stats = tokenTracker.getStats()
       const domainStats = stats[context.host]
@@ -125,15 +127,17 @@ export class MetricsService {
           domain: context.host,
           requests: domainStats.requestCount,
           tokens: domainStats.inputTokens + domainStats.outputTokens,
-          activeUsers: Object.keys(stats).length
+          activeUsers: Object.keys(stats).length,
         })
       }
     } catch (e) {
       // Don't fail request if broadcast fails
-      logger.debug('Failed to broadcast metrics', { error: e.message })
+      logger.debug('Failed to broadcast metrics', {
+        metadata: { error: e instanceof Error ? e.message : String(e) },
+      })
     }
   }
-  
+
   /**
    * Track error metrics
    */
@@ -145,9 +149,15 @@ export class MetricsService {
   ): Promise<void> {
     // Track in token stats (error counts)
     if (this.config.enableTokenTracking) {
-      tokenTracker.track(context.host, 0, 0, request.requestType, 0)
+      tokenTracker.track(
+        context.host,
+        0,
+        0,
+        request.requestType === 'quota' ? undefined : request.requestType,
+        0
+      )
     }
-    
+
     // Send telemetry
     if (this.config.enableTelemetry && this.telemetryEndpoint) {
       await this.sendTelemetry({
@@ -159,18 +169,20 @@ export class MetricsService {
         duration: context.getElapsedTime(),
         status,
         error: error.message,
-        requestType: request.requestType
+        requestType: request.requestType,
       })
     }
-    
+
     logger.error('Request error tracked', {
       requestId: context.requestId,
       domain: context.host,
-      error: error.message,
-      status
+      metadata: {
+        error: error.message,
+        status,
+      },
     })
   }
-  
+
   /**
    * Get token statistics
    */
@@ -181,7 +193,7 @@ export class MetricsService {
     }
     return allStats
   }
-  
+
   /**
    * Store request in database
    */
@@ -197,10 +209,10 @@ export class MetricsService {
     if (request.requestType === 'query_evaluation') {
       return
     }
-    
+
     try {
       const metrics = response.getMetrics()
-      
+
       await this.storageService.storeRequest({
         id: context.requestId,
         domain: context.host,
@@ -219,9 +231,9 @@ export class MetricsService {
         usage_data: metrics.fullUsageData,
         tool_call_count: metrics.toolCallCount,
         processing_time: context.getElapsedTime(),
-        status_code: status
+        status_code: status,
       })
-      
+
       // Store response
       await this.storageService.storeResponse({
         request_id: context.requestId,
@@ -236,46 +248,51 @@ export class MetricsService {
         cache_read_input_tokens: metrics.cacheReadInputTokens,
         usage_data: metrics.fullUsageData,
         tool_call_count: metrics.toolCallCount,
-        processing_time: context.getElapsedTime()
+        processing_time: context.getElapsedTime(),
       })
-      
     } catch (error) {
       logger.error('Failed to store request/response', {
         requestId: context.requestId,
-        error: error.message
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
     }
   }
-  
+
   /**
    * Send telemetry data
    */
   private async sendTelemetry(data: TelemetryData): Promise<void> {
     if (!this.telemetryEndpoint) return
-    
+
     try {
       const response = await fetch(this.telemetryEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(5000), // 5 second timeout
       })
-      
+
       if (!response.ok) {
         logger.warn('Telemetry request failed', {
-          status: response.status,
-          endpoint: this.telemetryEndpoint
+          metadata: {
+            status: response.status,
+            endpoint: this.telemetryEndpoint,
+          },
         })
       }
     } catch (error) {
       // Don't fail the request if telemetry fails
       logger.debug('Failed to send telemetry', {
-        error: error.message,
-        endpoint: this.telemetryEndpoint
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+          endpoint: this.telemetryEndpoint,
+        },
       })
     }
   }
-  
+
   /**
    * Mask API key for telemetry
    */

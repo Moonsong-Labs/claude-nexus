@@ -21,20 +21,17 @@ export class ClaudeApiClient {
   constructor(
     private config: ClaudeApiConfig = {
       baseUrl: 'https://api.anthropic.com',
-      timeout: 300000 // 5 minutes
+      timeout: 300000, // 5 minutes
     }
   ) {}
-  
+
   /**
    * Forward a request to Claude API
    */
-  async forward(
-    request: ProxyRequest,
-    auth: AuthResult
-  ): Promise<Response> {
+  async forward(request: ProxyRequest, auth: AuthResult): Promise<Response> {
     const url = `${this.config.baseUrl}/v1/messages`
     const headers = request.createHeaders(auth.headers)
-    
+
     // Use circuit breaker for protection
     return claudeApiCircuitBreaker.execute(async () => {
       // Use retry logic for transient failures
@@ -45,7 +42,7 @@ export class ClaudeApiClient {
       )
     })
   }
-  
+
   /**
    * Make the actual HTTP request
    */
@@ -56,22 +53,22 @@ export class ClaudeApiClient {
   ): Promise<Response> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), this.config.timeout)
-    
+
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify(request.raw),
-        signal: controller.signal
+        signal: controller.signal,
       })
-      
+
       clearTimeout(timeout)
-      
+
       // Check for errors
       if (!response.ok) {
         const errorBody = await response.text()
         let errorMessage = `Claude API error: ${response.status}`
-        
+
         try {
           const errorJson = JSON.parse(errorBody)
           if (isClaudeError(errorJson)) {
@@ -81,34 +78,29 @@ export class ClaudeApiClient {
           // Use text error if not JSON
           errorMessage = errorBody || errorMessage
         }
-        
-        throw new UpstreamError(
-          errorMessage,
-          response.status,
-          {
-            requestId: request.requestId,
-            status: response.status,
-            body: errorBody
-          }
-        )
+
+        throw new UpstreamError(errorMessage, response.status, {
+          requestId: request.requestId,
+          status: response.status,
+          body: errorBody,
+        })
       }
-      
+
       return response
-      
     } catch (error) {
       clearTimeout(timeout)
-      
+
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new TimeoutError(
-          'Claude API request timeout',
-          { requestId: request.requestId, timeout: this.config.timeout }
-        )
+        throw new TimeoutError('Claude API request timeout', {
+          requestId: request.requestId,
+          timeout: this.config.timeout,
+        })
       }
-      
+
       throw error
     }
   }
-  
+
   /**
    * Process a non-streaming response
    */
@@ -116,8 +108,8 @@ export class ClaudeApiClient {
     response: Response,
     proxyResponse: ProxyResponse
   ): Promise<ClaudeMessagesResponse> {
-    const json = await response.json() as ClaudeMessagesResponse
-    
+    const json = (await response.json()) as ClaudeMessagesResponse
+
     logger.debug('Claude API raw response', {
       requestId: proxyResponse.requestId,
       metadata: {
@@ -125,14 +117,14 @@ export class ClaudeApiClient {
         hasContent: !!json.content,
         contentLength: json.content?.length,
         model: json.model,
-        stopReason: json.stop_reason
-      }
+        stopReason: json.stop_reason,
+      },
     })
-    
+
     proxyResponse.processResponse(json)
     return json
   }
-  
+
   /**
    * Process a streaming response
    */
@@ -144,30 +136,30 @@ export class ClaudeApiClient {
     if (!reader) {
       throw new Error('No response body reader available')
     }
-    
+
     const decoder = new TextDecoder()
     let buffer = ''
-    
+
     try {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        
+
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
-        
+
         for (const line of lines) {
           if (line.trim() === '') continue
-          
+
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
-            
+
             if (data === '[DONE]') {
               yield 'data: [DONE]\n\n'
               continue
             }
-            
+
             try {
               const event = JSON.parse(data) as ClaudeStreamEvent
               proxyResponse.processStreamEvent(event)
@@ -176,7 +168,7 @@ export class ClaudeApiClient {
               logger.warn('Failed to parse streaming event', {
                 requestId: proxyResponse.requestId,
                 error: getErrorMessage(error),
-                data
+                data,
               })
               // Still forward the data even if we can't parse it
               yield `data: ${data}\n\n`
@@ -187,7 +179,7 @@ export class ClaudeApiClient {
           }
         }
       }
-      
+
       // Process any remaining buffer
       if (buffer.trim()) {
         yield buffer + '\n'

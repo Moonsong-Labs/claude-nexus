@@ -41,7 +41,10 @@
     "clean": "bun run --filter '*' clean",
     "test": "bun test",
     "db:init": "psql $DATABASE_URL < scripts/init-database.sql",
-    "setup": "bun install && bun run build:shared"
+    "setup": "bun install && bun run build:shared",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "precommit": "bun run typecheck && bun run format:check"
   },
   "devDependencies": {
     "bun-types": "latest",
@@ -53,7 +56,8 @@
     "msw": "^2.0.0",
     "@faker-js/faker": "^8.0.0",
     "testcontainers": "^10.0.0",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "prettier": "^3.4.2"
   },
   "dependencies": {
     "marked": "^15.0.12",

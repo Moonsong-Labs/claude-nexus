@@ -1379,10 +1379,7 @@
               "description": "The task for the agent to perform"
             }
           },
-          "required": [
-            "description",
-            "prompt"
-          ],
+          "required": ["description", "prompt"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1406,9 +1403,7 @@
               "description": " Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'"
             }
           },
-          "required": [
-            "command"
-          ],
+          "required": ["command"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1428,9 +1423,7 @@
               "description": "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided."
             }
           },
-          "required": [
-            "pattern"
-          ],
+          "required": ["pattern"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1454,9 +1447,7 @@
               "description": "File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")"
             }
           },
-          "required": [
-            "pattern"
-          ],
+          "required": ["pattern"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1479,9 +1470,7 @@
               "description": "List of glob patterns to ignore"
             }
           },
-          "required": [
-            "path"
-          ],
+          "required": ["path"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1497,9 +1486,7 @@
               "description": "The plan you came up with, that you want to run by the user for approval. Supports markdown. The plan should be pretty concise."
             }
           },
-          "required": [
-            "plan"
-          ],
+          "required": ["plan"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1523,9 +1510,7 @@
               "description": "The number of lines to read. Only provide if the file is too large to read at once."
             }
           },
-          "required": [
-            "file_path"
-          ],
+          "required": ["file_path"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1554,11 +1539,7 @@
               "description": "Replace all occurences of old_string (default false)"
             }
           },
-          "required": [
-            "file_path",
-            "old_string",
-            "new_string"
-          ],
+          "required": ["file_path", "old_string", "new_string"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1592,20 +1573,14 @@
                     "description": "Replace all occurences of old_string (default false)."
                   }
                 },
-                "required": [
-                  "old_string",
-                  "new_string"
-                ],
+                "required": ["old_string", "new_string"],
                 "additionalProperties": false
               },
               "minItems": 1,
               "description": "Array of edit operations to perform sequentially on the file"
             }
           },
-          "required": [
-            "file_path",
-            "edits"
-          ],
+          "required": ["file_path", "edits"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1625,10 +1600,7 @@
               "description": "The content to write to the file"
             }
           },
-          "required": [
-            "file_path",
-            "content"
-          ],
+          "required": ["file_path", "content"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1648,9 +1620,7 @@
               "description": "The ID of a specific cell to read. If not provided, all cells will be read."
             }
           },
-          "required": [
-            "notebook_path"
-          ],
+          "required": ["notebook_path"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1675,26 +1645,16 @@
             },
             "cell_type": {
               "type": "string",
-              "enum": [
-                "code",
-                "markdown"
-              ],
+              "enum": ["code", "markdown"],
               "description": "The type of the cell (code or markdown). If not specified, it defaults to the current cell type. If using edit_mode=insert, this is required."
             },
             "edit_mode": {
               "type": "string",
-              "enum": [
-                "replace",
-                "insert",
-                "delete"
-              ],
+              "enum": ["replace", "insert", "delete"],
               "description": "The type of edit to make (replace, insert, delete). Defaults to replace."
             }
           },
-          "required": [
-            "notebook_path",
-            "new_source"
-          ],
+          "required": ["notebook_path", "new_source"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1715,10 +1675,7 @@
               "description": "The prompt to run on the fetched content"
             }
           },
-          "required": [
-            "url",
-            "prompt"
-          ],
+          "required": ["url", "prompt"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1751,38 +1708,23 @@
                   },
                   "status": {
                     "type": "string",
-                    "enum": [
-                      "pending",
-                      "in_progress",
-                      "completed"
-                    ]
+                    "enum": ["pending", "in_progress", "completed"]
                   },
                   "priority": {
                     "type": "string",
-                    "enum": [
-                      "high",
-                      "medium",
-                      "low"
-                    ]
+                    "enum": ["high", "medium", "low"]
                   },
                   "id": {
                     "type": "string"
                   }
                 },
-                "required": [
-                  "content",
-                  "status",
-                  "priority",
-                  "id"
-                ],
+                "required": ["content", "status", "priority", "id"],
                 "additionalProperties": false
               },
               "description": "The updated todo list"
             }
           },
-          "required": [
-            "todos"
-          ],
+          "required": ["todos"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1813,9 +1755,7 @@
               "description": "Never include search results from these domains"
             }
           },
-          "required": [
-            "query"
-          ],
+          "required": ["query"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         }
@@ -1860,13 +1800,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth: minimal (0.5% of model max), low (8%), medium (33%), high (67%), max (100% of model max). Defaults to 'high' if not specified."
             },
             "use_websearch": {
@@ -1879,9 +1813,7 @@
               "description": "Thread continuation ID for multi-turn conversations. Can be used to continue conversations across different tools. Only provide this if continuing a previous conversation thread."
             }
           },
-          "required": [
-            "prompt"
-          ]
+          "required": ["prompt"]
         }
       },
       {
@@ -1907,12 +1839,7 @@
             },
             "review_type": {
               "type": "string",
-              "enum": [
-                "full",
-                "security",
-                "performance",
-                "quick"
-              ],
+              "enum": ["full", "security", "performance", "quick"],
               "default": "full",
               "description": "Type of review to perform"
             },
@@ -1926,12 +1853,7 @@
             },
             "severity_filter": {
               "type": "string",
-              "enum": [
-                "critical",
-                "high",
-                "medium",
-                "all"
-              ],
+              "enum": ["critical", "high", "medium", "all"],
               "default": "all",
               "description": "Minimum severity level to report"
             },
@@ -1943,13 +1865,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth: minimal (0.5% of model max), low (8%), medium (33%), high (67%), max (100% of model max)"
             },
             "use_websearch": {
@@ -1962,10 +1878,7 @@
               "description": "Thread continuation ID for multi-turn conversations. Can be used to continue conversations across different tools. Only provide this if continuing a previous conversation thread."
             }
           },
-          "required": [
-            "files",
-            "prompt"
-          ]
+          "required": ["files", "prompt"]
         }
       },
       {
@@ -2009,13 +1922,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth: minimal (0.5% of model max), low (8%), medium (33%), high (67%), max (100% of model max)"
             },
             "use_websearch": {
@@ -2028,9 +1935,7 @@
               "description": "Thread continuation ID for multi-turn conversations. Can be used to continue conversations across different tools. Only provide this if continuing a previous conversation thread."
             }
           },
-          "required": [
-            "prompt"
-          ]
+          "required": ["prompt"]
         }
       },
       {
@@ -2056,22 +1961,12 @@
             },
             "analysis_type": {
               "type": "string",
-              "enum": [
-                "architecture",
-                "performance",
-                "security",
-                "quality",
-                "general"
-              ],
+              "enum": ["architecture", "performance", "security", "quality", "general"],
               "description": "Type of analysis to perform"
             },
             "output_format": {
               "type": "string",
-              "enum": [
-                "summary",
-                "detailed",
-                "actionable"
-              ],
+              "enum": ["summary", "detailed", "actionable"],
               "default": "detailed",
               "description": "How to format the output"
             },
@@ -2083,13 +1978,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth: minimal (0.5% of model max), low (8%), medium (33%), high (67%), max (100% of model max)"
             },
             "use_websearch": {
@@ -2102,10 +1991,7 @@
               "description": "Thread continuation ID for multi-turn conversations. Can be used to continue conversations across different tools. Only provide this if continuing a previous conversation thread."
             }
           },
-          "required": [
-            "files",
-            "prompt"
-          ]
+          "required": ["files", "prompt"]
         }
       },
       {
@@ -2137,13 +2023,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth: minimal (0.5% of model max), low (8%), medium (33%), high (67%), max (100% of model max)"
             },
             "use_websearch": {
@@ -2156,9 +2036,7 @@
               "description": "Thread continuation ID for multi-turn conversations. Can be used to continue conversations across different tools. Only provide this if continuing a previous conversation thread."
             }
           },
-          "required": [
-            "prompt"
-          ]
+          "required": ["prompt"]
         }
       },
       {
@@ -2199,24 +2077,13 @@
             },
             "review_type": {
               "type": "string",
-              "enum": [
-                "full",
-                "security",
-                "performance",
-                "quick"
-              ],
+              "enum": ["full", "security", "performance", "quick"],
               "default": "full",
               "description": "Type of review to perform on the changes."
             },
             "severity_filter": {
               "type": "string",
-              "enum": [
-                "critical",
-                "high",
-                "medium",
-                "low",
-                "all"
-              ],
+              "enum": ["critical", "high", "medium", "low", "all"],
               "default": "all",
               "description": "Minimum severity level to report on the changes."
             },
@@ -2233,13 +2100,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth mode for the assistant."
             },
             "files": {
@@ -2261,9 +2122,7 @@
           },
           "title": "PrecommitRequest",
           "description": "Request model for precommit tool",
-          "required": [
-            "path"
-          ]
+          "required": ["path"]
         }
       },
       {
@@ -2296,13 +2155,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth: minimal (0.5% of model max), low (8%), medium (33%), high (67%), max (100% of model max)"
             },
             "continuation_id": {
@@ -2310,10 +2163,7 @@
               "description": "Thread continuation ID for multi-turn conversations. Can be used to continue conversations across different tools. Only provide this if continuing a previous conversation thread."
             }
           },
-          "required": [
-            "files",
-            "prompt"
-          ]
+          "required": ["files", "prompt"]
         }
       },
       {
@@ -2339,12 +2189,7 @@
             },
             "refactor_type": {
               "type": "string",
-              "enum": [
-                "codesmells",
-                "decompose",
-                "modernize",
-                "organization"
-              ],
+              "enum": ["codesmells", "decompose", "modernize", "organization"],
               "description": "Type of refactoring analysis to perform"
             },
             "focus_areas": {
@@ -2363,13 +2208,7 @@
             },
             "thinking_mode": {
               "type": "string",
-              "enum": [
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "max"
-              ],
+              "enum": ["minimal", "low", "medium", "high", "max"],
               "description": "Thinking depth: minimal (0.5% of model max), low (8%), medium (33%), high (67%), max (100% of model max)"
             },
             "continuation_id": {
@@ -2377,11 +2216,7 @@
               "description": "Thread continuation ID for multi-turn conversations. Can be used to continue conversations across different tools. Only provide this if continuing a previous conversation thread."
             }
           },
-          "required": [
-            "files",
-            "prompt",
-            "refactor_type"
-          ]
+          "required": ["files", "prompt", "refactor_type"]
         }
       },
       {
@@ -2396,17 +2231,11 @@
             },
             "trace_mode": {
               "type": "string",
-              "enum": [
-                "precision",
-                "dependencies"
-              ],
+              "enum": ["precision", "dependencies"],
               "description": "Trace mode: 'precision' (for methods/functions - shows execution flow and usage patterns) or 'dependencies' (for classes/modules/protocols - shows structural relationships)"
             }
           },
-          "required": [
-            "prompt",
-            "trace_mode"
-          ]
+          "required": ["prompt", "trace_mode"]
         }
       },
       {

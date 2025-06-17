@@ -34,6 +34,7 @@ cp .env.example .env
 ```
 
 Required environment variables:
+
 - `DATABASE_URL` - PostgreSQL connection string (required for dashboard)
 - `CLAUDE_API_KEY` - Claude API key (optional, can be overridden per request)
 - `DASHBOARD_API_KEY` - Authentication key for dashboard access
@@ -48,6 +49,7 @@ bun run dev
 ```
 
 This starts:
+
 - Proxy service on http://localhost:3000
 - Dashboard service on http://localhost:3001
 
@@ -67,7 +69,7 @@ bun run dev
 #### Dashboard Service
 
 ```bash
-# From root directory  
+# From root directory
 bun run dev:dashboard
 
 # Or from service directory
@@ -90,7 +92,7 @@ bun run build
 # Build proxy
 bun run build:proxy
 
-# Build dashboard  
+# Build dashboard
 bun run build:dashboard
 ```
 
@@ -178,12 +180,14 @@ The dashboard service needs access to environment variables. Solutions:
 ### Process.on is not a function
 
 This error occurs when using the watch mode with signal handlers. The services will still run normally. To avoid this:
+
 - Use `bun run dev:direct` instead of watch mode
 - Or ignore the error - the service is still running
 
 ### TypeScript Errors
 
 Some TypeScript errors may remain but don't affect functionality. To check:
+
 ```bash
 bun run typecheck
 ```
@@ -206,41 +210,41 @@ claude-nexus-proxy/
 
 ### Root Package Scripts
 
-| Script | Description |
-|--------|-------------|
-| `dev` | Start both services in development mode |
-| `dev:proxy` | Start only proxy service |
-| `dev:dashboard` | Start only dashboard service |
-| `build` | Build all services |
-| `build:shared` | Build shared package |
-| `build:proxy` | Build proxy service |
-| `build:dashboard` | Build dashboard service |
-| `start` | Start both services in production mode |
-| `start:proxy` | Start proxy in production mode |
-| `start:dashboard` | Start dashboard in production mode |
-| `docker:build` | Build all Docker images |
-| `docker:up` | Start services with Docker Compose |
-| `docker:down` | Stop Docker services |
-| `docker:logs` | View Docker logs |
-| `typecheck` | Run TypeScript checks on all packages |
-| `lint` | Run ESLint on all packages |
-| `clean` | Clean build artifacts |
-| `db:init` | Initialize database schema |
-| `setup` | Initial setup (install + build shared) |
+| Script            | Description                             |
+| ----------------- | --------------------------------------- |
+| `dev`             | Start both services in development mode |
+| `dev:proxy`       | Start only proxy service                |
+| `dev:dashboard`   | Start only dashboard service            |
+| `build`           | Build all services                      |
+| `build:shared`    | Build shared package                    |
+| `build:proxy`     | Build proxy service                     |
+| `build:dashboard` | Build dashboard service                 |
+| `start`           | Start both services in production mode  |
+| `start:proxy`     | Start proxy in production mode          |
+| `start:dashboard` | Start dashboard in production mode      |
+| `docker:build`    | Build all Docker images                 |
+| `docker:up`       | Start services with Docker Compose      |
+| `docker:down`     | Stop Docker services                    |
+| `docker:logs`     | View Docker logs                        |
+| `typecheck`       | Run TypeScript checks on all packages   |
+| `lint`            | Run ESLint on all packages              |
+| `clean`           | Clean build artifacts                   |
+| `db:init`         | Initialize database schema              |
+| `setup`           | Initial setup (install + build shared)  |
 
 ### Service-Specific Scripts
 
 Both proxy and dashboard services have these scripts:
 
-| Script | Description |
-|--------|-------------|
-| `dev` | Start in development mode |
-| `dev:direct` | Start without watch mode |
-| `dev:watch` | Start with file watching |
-| `build` | Build for production |
-| `build:check` | Type check then build |
-| `start` | Start production build |
-| `start:prod` | Start with NODE_ENV=production |
-| `typecheck` | Run TypeScript checks |
-| `lint` | Run ESLint |
-| `clean` | Remove build artifacts |
+| Script        | Description                    |
+| ------------- | ------------------------------ |
+| `dev`         | Start in development mode      |
+| `dev:direct`  | Start without watch mode       |
+| `dev:watch`   | Start with file watching       |
+| `build`       | Build for production           |
+| `build:check` | Type check then build          |
+| `start`       | Start production build         |
+| `start:prod`  | Start with NODE_ENV=production |
+| `typecheck`   | Run TypeScript checks          |
+| `lint`        | Run ESLint                     |
+| `clean`       | Remove build artifacts         |

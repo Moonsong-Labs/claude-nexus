@@ -31,6 +31,7 @@ ANTHROPIC_BASE_URL=http://localhost:3000 claude "Help me with code"
 ```
 
 Access:
+
 - Proxy: http://localhost:3000
 - Dashboard: http://localhost:3001 (requires DASHBOARD_API_KEY)
 
@@ -79,7 +80,7 @@ CLAUDE_API_KEY=sk-ant-api03-...    # Default API key (optional)
 DATABASE_URL=postgresql://...       # For request storage
 STORAGE_ENABLED=true               # Enable storage (default: false)
 
-# Dashboard Service  
+# Dashboard Service
 DASHBOARD_API_KEY=your-secret      # Required for dashboard access
 DATABASE_URL=postgresql://...      # Same as proxy
 
@@ -125,6 +126,7 @@ export CREDENTIALS_DIR=credentials
 ```
 
 OAuth credentials with auto-refresh:
+
 ```json
 {
   "type": "oauth",
@@ -160,11 +162,13 @@ curl http://localhost:3000/token-stats
 ## API Endpoints
 
 **Proxy Service (Port 3000)**
+
 - `POST /v1/messages` - Claude API proxy
 - `GET /health` - Health check
 - `GET /token-stats` - Usage statistics
 
 **Dashboard Service (Port 3001)**
+
 - `GET /` - Web dashboard
 - `GET /api/requests` - Query requests
 - `GET /api/storage-stats` - Aggregated stats

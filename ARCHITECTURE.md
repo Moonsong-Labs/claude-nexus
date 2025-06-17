@@ -27,6 +27,7 @@ claude-nexus-proxy/
 ### Proxy Service (Port 3000)
 
 **Responsibilities:**
+
 - Proxy requests to Claude API
 - Handle authentication (API keys, OAuth)
 - Track token usage and metrics
@@ -34,6 +35,7 @@ claude-nexus-proxy/
 - Write request/response data to database
 
 **Endpoints:**
+
 - `POST /v1/messages` - Main proxy endpoint
 - `GET /token-stats` - Token usage statistics
 - `GET /health` - Health check
@@ -42,6 +44,7 @@ claude-nexus-proxy/
 ### Dashboard Service (Port 3001)
 
 **Responsibilities:**
+
 - Web dashboard UI
 - Real-time monitoring via SSE
 - Historical data viewing
@@ -49,6 +52,7 @@ claude-nexus-proxy/
 - Dashboard authentication
 
 **Endpoints:**
+
 - `GET /` - Dashboard UI
 - `GET /api/requests` - Request history
 - `GET /api/requests/:id` - Request details
@@ -95,6 +99,7 @@ bun run start  # Production
 ### Environment Variables
 
 **Proxy Service:**
+
 ```env
 # Server
 PORT=3000
@@ -117,6 +122,7 @@ SLACK_CHANNEL=#notifications
 ```
 
 **Dashboard Service:**
+
 ```env
 # Server
 PORT=3001
@@ -135,6 +141,7 @@ PROXY_SERVICE_URL=http://localhost:3000
 ## Database
 
 Both services share a PostgreSQL database:
+
 - **Proxy Service**: Write-only access
 - **Dashboard Service**: Read-only access
 

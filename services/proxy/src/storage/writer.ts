@@ -49,11 +49,11 @@ export class StorageWriter {
   private batchTimer?: NodeJS.Timeout
   private readonly BATCH_SIZE = 100
   private readonly BATCH_INTERVAL = 1000 // 1 second
-  
+
   constructor(private pool: Pool) {
     this.startBatchProcessor()
   }
-  
+
   /**
    * Store a request (write-only)
    */
@@ -63,7 +63,7 @@ export class StorageWriter {
       const sanitizedHeaders = { ...request.headers }
       delete sanitizedHeaders['authorization']
       delete sanitizedHeaders['x-api-key']
-      
+
       const query = `
         INSERT INTO api_requests (
           request_id, domain, timestamp, method, path, headers, body, 
@@ -71,7 +71,7 @@ export class StorageWriter {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (request_id) DO NOTHING
       `
-      
+
       const values = [
         request.requestId,
         request.domain,
@@ -82,18 +82,20 @@ export class StorageWriter {
         JSON.stringify(request.body),
         this.hashApiKey(request.apiKey),
         request.model,
-        request.requestType
+        request.requestType,
       ]
-      
+
       await this.pool.query(query, values)
     } catch (error) {
       logger.error('Failed to store request', {
         requestId: request.requestId,
-        error: error.message
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
     }
   }
-  
+
   /**
    * Store a response (write-only)
    */
@@ -117,7 +119,7 @@ export class StorageWriter {
           usage_data = $15
         WHERE request_id = $1
       `
-      
+
       const values = [
         response.requestId,
         response.statusCode,
@@ -133,29 +135,31 @@ export class StorageWriter {
         response.toolCallCount || 0,
         response.cacheCreationInputTokens || 0,
         response.cacheReadInputTokens || 0,
-        response.usageData ? JSON.stringify(response.usageData) : null
+        response.usageData ? JSON.stringify(response.usageData) : null,
       ]
-      
+
       await this.pool.query(query, values)
     } catch (error) {
       logger.error('Failed to store response', {
         requestId: response.requestId,
-        error: error.message
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
     }
   }
-  
+
   /**
    * Store streaming chunks (batch operation)
    */
   async storeStreamingChunk(chunk: StreamingChunk): Promise<void> {
     this.batchQueue.push(chunk)
-    
+
     if (this.batchQueue.length >= this.BATCH_SIZE) {
       await this.flushBatch()
     }
   }
-  
+
   /**
    * Start batch processor for streaming chunks
    */
@@ -166,44 +170,48 @@ export class StorageWriter {
       }
     }, this.BATCH_INTERVAL)
   }
-  
+
   /**
    * Flush batch of streaming chunks
    */
   private async flushBatch(): Promise<void> {
     if (this.batchQueue.length === 0) return
-    
+
     const chunks = [...this.batchQueue]
     this.batchQueue = []
-    
+
     try {
       const values = chunks.map(chunk => [
         chunk.requestId,
         chunk.chunkIndex,
         chunk.timestamp,
         chunk.data,
-        chunk.tokenCount || 0
+        chunk.tokenCount || 0,
       ])
-      
+
       // Use COPY for bulk insert
       const query = `
         INSERT INTO streaming_chunks (
           request_id, chunk_index, timestamp, data, token_count
-        ) VALUES ${values.map((_, i) => 
-          `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
-        ).join(', ')}
+        ) VALUES ${values
+          .map(
+            (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
+          )
+          .join(', ')}
         ON CONFLICT DO NOTHING
       `
-      
+
       await this.pool.query(query, values.flat())
     } catch (error) {
       logger.error('Failed to store streaming chunks batch', {
-        count: chunks.length,
-        error: error.message
+        metadata: {
+          count: chunks.length,
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
     }
   }
-  
+
   /**
    * Hash API key for storage
    */
@@ -211,7 +219,7 @@ export class StorageWriter {
     // Simple hash for privacy (in production, use proper crypto)
     return apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4)
   }
-  
+
   /**
    * Cleanup
    */
@@ -236,10 +244,10 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
         AND table_name = 'api_requests'
       )
     `)
-    
+
     if (!result.rows[0].exists) {
       logger.info('Database tables not found, creating schema...')
-      
+
       // Create tables
       await pool.query(`
         CREATE TABLE IF NOT EXISTS api_requests (
@@ -270,7 +278,7 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `)
-      
+
       await pool.query(`
         CREATE TABLE IF NOT EXISTS streaming_chunks (
           id SERIAL PRIMARY KEY,
@@ -284,27 +292,29 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           UNIQUE(request_id, chunk_index)
         )
       `)
-      
+
       // Create indexes
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_api_requests_domain_timestamp 
         ON api_requests(domain, timestamp DESC)
       `)
-      
+
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_api_requests_timestamp 
         ON api_requests(timestamp DESC)
       `)
-      
+
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_streaming_chunks_request_id 
         ON streaming_chunks(request_id, chunk_index)
       `)
-      
+
       logger.info('Database schema created successfully')
     }
   } catch (error) {
-    logger.error('Failed to initialize database', { error: error.message })
+    logger.error('Failed to initialize database', {
+      metadata: { error: error instanceof Error ? error.message : String(error) },
+    })
     throw error
   }
 }
