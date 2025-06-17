@@ -18,25 +18,70 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 
 ## Building Images
 
+### Quick Build
+
 ```bash
-# Build both images
+# Build both images with 'latest' tag
 ./build-images.sh
 
-# Or build individually
-docker build -f proxy/Dockerfile -t alanpurestake/claude-nexus-proxy:latest ..
-docker build -f dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:latest ..
+# Build with 'latest' and also tag as 'v9'
+./build-images.sh v9
+
+# Build with 'latest' and also tag as '1.2.3'
+./build-images.sh 1.2.3
+
+# Show help
+./build-images.sh --help
 ```
+
+### Manual Build
+
+```bash
+# Build individually with custom tags
+docker build -f proxy/Dockerfile -t alanpurestake/claude-nexus-proxy:v9 ..
+docker build -f dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:v9 ..
+```
+
+## Pushing Images
+
+```bash
+# Push images with 'latest' tag
+./push-images.sh
+
+# Push specific version (also pushes 'latest')
+./push-images.sh v9
+
+# Push version only (skip 'latest')
+./push-images.sh v9 no
+
+# Show help
+./push-images.sh --help
+```
+
+**Note:** You must be logged in to Docker Hub first: `docker login`
 
 ## Running Services
 
 ### Using Docker Compose (Recommended)
-```bash
-# From project root
-docker-compose up
 
-# Or run specific service
-docker-compose up proxy
-docker-compose up dashboard
+The `docker-compose.yml` file is located in this `docker/` directory.
+```bash
+# From project root (recommended)
+./docker-up.sh up -d
+
+# Or from docker directory
+cd docker
+docker-compose --project-name claude-nexus --env-file ../.env up -d
+
+# Run specific service
+./docker-up.sh up proxy
+./docker-up.sh up dashboard
+
+# View logs
+./docker-up.sh logs -f
+
+# Stop services
+./docker-up.sh down
 ```
 
 ### Running Individually
@@ -85,3 +130,15 @@ Both images use:
 - Alpine Linux base for minimal size
 - Health checks for container orchestration
 - Non-root user for security
+
+## Versioning Strategy
+
+1. **Development builds:** Use `latest` tag
+2. **Release candidates:** Use `rc-X` tags (e.g., `rc-1`, `rc-2`)
+3. **Production releases:** Use semantic versioning (e.g., `1.0.0`, `1.2.3`)
+4. **Major versions:** Use `vX` tags (e.g., `v9`, `v10`)
+
+When building a version tag, the scripts automatically:
+- Build images with the `latest` tag first
+- Additionally tag them with the specified version
+- Provide instructions for pushing both tags

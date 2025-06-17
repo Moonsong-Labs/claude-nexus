@@ -24,7 +24,7 @@ cp .env.example .env
 # Edit .env with your CLAUDE_API_KEY
 
 # Start everything
-docker-compose up -d
+./docker-up.sh up -d
 
 # Use with Claude Code
 ANTHROPIC_BASE_URL=http://localhost:3000 claude "Help me with code"

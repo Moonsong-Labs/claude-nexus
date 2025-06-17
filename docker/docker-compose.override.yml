@@ -1,0 +1,16 @@
+# Docker Compose Override File
+# This file can be used to override the image tags for specific versions
+# 
+# To use a specific version instead of 'latest':
+# 1. Copy this template below to docker-compose.override.yml
+# 2. Uncomment and update the image tags
+# 3. Run: docker-compose up -d
+#
+# Docker Compose automatically merges this file with docker-compose.yml
+
+# services:
+#   proxy:
+#     image: alanpurestake/claude-nexus-proxy:v9
+#   
+#   dashboard:
+#     image: alanpurestake/claude-nexus-dashboard:v9

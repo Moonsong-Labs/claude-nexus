@@ -120,7 +120,16 @@ export async function createProxyApp(): Promise<Hono<{ Variables: HonoVariables;
     try {
       const fs = await import('fs')
       const path = await import('path')
-      const filePath = path.join(process.cwd(), 'client-setup', filename)
+      const { fileURLToPath } = await import('url')
+      
+      // Get the directory of this source file
+      const __filename = fileURLToPath(import.meta.url)
+      const __dirname = path.dirname(__filename)
+      
+      // Navigate from services/proxy/src to project root, then to client-setup
+      const projectRoot = path.join(__dirname, '..', '..', '..')
+      const filePath = path.join(projectRoot, 'client-setup', filename)
+      
       
       if (!fs.existsSync(filePath)) {
         return c.text('File not found', 404)

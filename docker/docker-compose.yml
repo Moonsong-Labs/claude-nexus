@@ -1,4 +1,10 @@
-version: '3.8'
+# Docker Compose configuration for Claude Nexus Proxy
+# This file is located in the docker/ directory
+# 
+# Usage from project root:
+#   ./docker-up.sh up -d
+# Or from docker directory:
+#   docker compose --env-file ../.env up -d
 
 services:
   # PostgreSQL Database
@@ -11,7 +17,7 @@ services:
       POSTGRES_DB: claude_proxy
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ../scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -19,6 +25,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - tools
 
   # Proxy Service
   proxy:
@@ -50,19 +58,20 @@ services:
       # Debug
       DEBUG: ${DEBUG:-false}
     volumes:
-      - ./credentials:/app/credentials:ro
-      - ./client-setup:/app/client-setup:ro
+      - ../credentials:/app/credentials:ro
+      - ../client-setup:/app/client-setup:ro
     ports:
       - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    profiles:
+      - dev
 
   # Dashboard Service
   dashboard:
     image: alanpurestake/claude-nexus-dashboard:latest
-    container_name: claude-nexus-dashboard
     environment:
       # Server configuration
       PORT: 3001
@@ -82,12 +91,13 @@ services:
       proxy:
         condition: service_started
     restart: unless-stopped
+    profiles:
+      - dev
 
   # Optional: pgAdmin for database management
   # To enable: docker-compose --profile tools up
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: claude-nexus-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -99,6 +109,50 @@ services:
       - postgres
     profiles:
       - tools
+
+
+  # Proxy Service
+  proxy-prod:
+    image: alanpurestake/claude-nexus-proxy:latest
+    container_name: claude-nexus-proxy
+    env_file: ../.env
+    environment:
+      # Server configuration
+      PORT: 3000
+      HOST: 0.0.0.0
+      
+      # Claude API configuration
+      CREDENTIALS_DIR: /app/credentials
+      # Debug
+      DEBUG: ${DEBUG:-true}
+    volumes:
+      - ../.claude:/app/credentials:ro
+      - ../client-setup:/app/client-setup:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    profiles:
+      - prod
+
+  # Dashboard Service
+  dashboard-prod:
+    image: alanpurestake/claude-nexus-dashboard:latest
+    env_file: ../.env
+    environment:
+      # Server configuration
+      PORT: 3001
+      HOST: 0.0.0.0
+      
+      # Proxy API URL for data access
+      PROXY_API_URL: http://proxy-prod:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      proxy-prod:
+        condition: service_started
+    restart: unless-stopped
+    profiles:
+      - prod
 
 volumes:
   postgres_data:

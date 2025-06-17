@@ -27,12 +27,13 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 
 # Create directories for runtime
-RUN mkdir -p credentials services/proxy/dist packages/shared/dist && \
+RUN mkdir -p credentials services/proxy/dist packages/shared/dist client-setup && \
     chmod -R 755 /app
 
 # Copy only necessary files from builder
 COPY --from=builder /app/services/proxy/dist ./services/proxy/dist
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/client-setup ./client-setup
 
 # Copy package files for dependencies
 COPY --from=builder /app/services/proxy/dist/package.json ./services/proxy/dist/
