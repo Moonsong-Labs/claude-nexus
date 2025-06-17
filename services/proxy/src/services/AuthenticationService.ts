@@ -187,7 +187,8 @@ export class AuthenticationService {
     
     try {
       const credentials = loadCredentials(credentialPath)
-      if (credentials?.slack?.enabled) {
+      // Return slack config if it exists and is not explicitly disabled
+      if (credentials?.slack && credentials.slack.enabled !== false) {
         return credentials.slack
       }
     } catch (error) {

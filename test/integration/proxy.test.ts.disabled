@@ -5,7 +5,7 @@ import { GenericContainer, StartedTestContainer } from 'testcontainers'
 import { Pool } from 'pg'
 import { mockServer } from '../../test-setup/setup'
 import { rest } from 'msw'
-import { StorageService, initializeDatabase } from '@/storage'
+import { StorageService, initializeDatabase } from '../../services/proxy/src/storage'
 
 describe('Proxy Integration Tests', () => {
   let app: Hono

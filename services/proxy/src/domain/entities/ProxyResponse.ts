@@ -13,7 +13,9 @@ export class ProxyResponse {
   private _toolCallCount: number = 0
   private _content: string = ''
   private _fullUsageData: any = null
-  private _toolCalls: Array<{name: string, id?: string}> = []
+  private _toolCalls: Array<{name: string, id?: string, input?: any}> = []
+  private _currentToolIndex: number = -1
+  private _toolInputAccumulator: string = ''
   
   constructor(
     public readonly requestId: string,
@@ -40,7 +42,7 @@ export class ProxyResponse {
     return this._content
   }
   
-  get toolCalls(): Array<{name: string, id?: string}> {
+  get toolCalls(): Array<{name: string, id?: string, input?: any}> {
     return this._toolCalls
   }
   
@@ -75,9 +77,15 @@ export class ProxyResponse {
       cacheReadInputTokens: this._cacheReadInputTokens
     })
     
-    // Count tool calls
+    // Count tool calls and extract tool info
     if (response.content && hasToolUse(response.content)) {
-      this._toolCallCount = response.content.filter(c => c.type === 'tool_use').length
+      const toolUses = response.content.filter(c => c.type === 'tool_use')
+      this._toolCallCount = toolUses.length
+      this._toolCalls = toolUses.map(tool => ({
+        name: tool.name || 'unknown',
+        id: tool.id,
+        input: tool.input
+      }))
     }
     
     // Extract text content
@@ -157,9 +165,12 @@ export class ProxyResponse {
       case 'content_block_start':
         if (event.content_block?.type === 'tool_use') {
           this._toolCallCount++
+          this._currentToolIndex = this._toolCalls.length
+          this._toolInputAccumulator = ''
           this._toolCalls.push({
-            name: event.content_block.name,
-            id: event.content_block.id
+            name: event.content_block.name || 'unknown',
+            id: event.content_block.id,
+            input: event.content_block.input || {}
           })
         }
         break
@@ -167,6 +178,28 @@ export class ProxyResponse {
       case 'content_block_delta':
         if (event.delta?.type === 'text_delta' && event.delta.text) {
           this._content += event.delta.text
+        } else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
+          // Accumulate tool input JSON
+          this._toolInputAccumulator += event.delta.partial_json
+        }
+        break
+        
+      case 'content_block_stop':
+        // Parse accumulated tool input when block stops
+        if (this._currentToolIndex >= 0 && this._toolInputAccumulator) {
+          try {
+            const parsedInput = JSON.parse(this._toolInputAccumulator)
+            this._toolCalls[this._currentToolIndex].input = parsedInput
+          } catch (e) {
+            logger.warn('Failed to parse tool input JSON', {
+              requestId: this.requestId,
+              toolIndex: this._currentToolIndex,
+              accumulator: this._toolInputAccumulator,
+              error: e instanceof Error ? e.message : String(e)
+            })
+          }
+          this._currentToolIndex = -1
+          this._toolInputAccumulator = ''
         }
         break
         

@@ -183,7 +183,6 @@ services/**/*.js
 
 # Logs
 *.log
-proxy-*.log
 
 # Credentials (keep the directory but not the files)
 credentials/*.json

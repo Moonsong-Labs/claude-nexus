@@ -1,10 +1,10 @@
 import { IncomingWebhook, IncomingWebhookSendArguments } from '@slack/webhook'
 
 export interface SlackConfig {
-  webhookUrl?: string
+  webhook_url?: string
   channel?: string
   username?: string
-  iconEmoji?: string
+  icon_emoji?: string
   enabled?: boolean
 }
 
@@ -27,24 +27,24 @@ let slackConfig: SlackConfig | null = null
  * Initialize Slack integration
  */
 export function initializeSlack(config: Partial<SlackConfig>) {
-  if (!config.webhookUrl) {
+  if (!config.webhook_url) {
     slackConfig = null
     webhook = null
     return
   }
 
   slackConfig = {
-    webhookUrl: config.webhookUrl,
+    webhook_url: config.webhook_url,
     channel: config.channel,
     username: config.username || 'Claude Nexus Proxy',
-    iconEmoji: config.iconEmoji || ':robot_face:',
+    icon_emoji: config.icon_emoji || ':robot_face:',
     enabled: config.enabled !== false
   }
 
-  webhook = new IncomingWebhook(slackConfig.webhookUrl!, {
+  webhook = new IncomingWebhook(slackConfig.webhook_url!, {
     channel: slackConfig.channel,
     username: slackConfig.username,
-    icon_emoji: slackConfig.iconEmoji
+    icon_emoji: slackConfig.icon_emoji
   })
 }
 
@@ -53,10 +53,10 @@ export function initializeSlack(config: Partial<SlackConfig>) {
  */
 export function parseSlackConfig(env: any): Partial<SlackConfig> {
   return {
-    webhookUrl: env.SLACK_WEBHOOK_URL,
+    webhook_url: env.SLACK_WEBHOOK_URL,
     channel: env.SLACK_CHANNEL,
     username: env.SLACK_USERNAME,
-    iconEmoji: env.SLACK_ICON_EMOJI,
+    icon_emoji: env.SLACK_ICON_EMOJI,
     enabled: env.SLACK_ENABLED !== 'false'
   }
 }
@@ -92,15 +92,19 @@ function formatMessageContent(content: any): string {
  * Initialize domain-specific Slack webhook
  */
 export function initializeDomainSlack(slackConfig: Partial<SlackConfig> | undefined): IncomingWebhook | null {
-  if (!slackConfig?.webhookUrl) {
+  if (!slackConfig) {
+    return null
+  }
+  
+  if (!slackConfig.webhook_url) {
     return null
   }
 
   const config = {
-    webhookUrl: slackConfig.webhookUrl,
+    webhook_url: slackConfig.webhook_url,
     channel: slackConfig.channel,
     username: slackConfig.username || 'Claude Nexus Proxy',
-    iconEmoji: slackConfig.iconEmoji || ':robot_face:',
+    icon_emoji: slackConfig.icon_emoji || ':robot_face:',
     enabled: slackConfig.enabled !== false
   }
 
@@ -108,10 +112,10 @@ export function initializeDomainSlack(slackConfig: Partial<SlackConfig> | undefi
     return null
   }
 
-  return new IncomingWebhook(config.webhookUrl, {
+  return new IncomingWebhook(config.webhook_url, {
     channel: config.channel,
     username: config.username,
-    icon_emoji: config.iconEmoji
+    icon_emoji: config.icon_emoji
   })
 }
 

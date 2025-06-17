@@ -51,7 +51,7 @@ export class NotificationService {
       const slackConfig = this.authService ? await this.authService.getSlackConfig(context.host) : undefined
       
       // Initialize Slack for the domain
-      const domainWebhook = initializeDomainSlack(slackConfig)
+      const domainWebhook = slackConfig ? initializeDomainSlack(slackConfig) : null
       
       // Check if user message changed
       const userContent = request.getUserContentForNotification()
@@ -70,20 +70,121 @@ export class NotificationService {
       
       // Add user message
       if (userContent) {
-        conversationMessage += `:bust_in_silhouette: **User**: ${userContent}\n`
+        conversationMessage += `:bust_in_silhouette: User: ${userContent}\n`
       }
       
       // Add assistant response
       const assistantContent = response.getTruncatedContent(this.config.maxLines, this.config.maxLength)
       if (assistantContent) {
-        conversationMessage += `:robot_face: **Claude**: ${assistantContent}\n`
+        conversationMessage += `:robot_face: Claude: ${assistantContent}\n`
       }
       
       // Add tool calls if any
       const toolCalls = response.toolCalls
       if (toolCalls.length > 0) {
         for (const tool of toolCalls) {
-          conversationMessage += `:wrench: **${tool.name}**\n`
+          let toolMessage = `    :wrench: ${tool.name}`
+          
+          // Add human-friendly description based on tool name and input
+          if (tool.input) {
+            switch (tool.name) {
+              case 'Read':
+                if (tool.input.file_path) {
+                  const pathParts = tool.input.file_path.split('/')
+                  const fileName = pathParts.slice(-2).join('/')
+                  toolMessage += ` - Reading file: ${fileName}`
+                }
+                break
+              case 'Write':
+                if (tool.input.file_path) {
+                  const pathParts = tool.input.file_path.split('/')
+                  const fileName = pathParts.slice(-2).join('/')
+                  toolMessage += ` - Writing file: ${fileName}`
+                }
+                break
+              case 'Edit':
+              case 'MultiEdit':
+                if (tool.input.file_path) {
+                  const pathParts = tool.input.file_path.split('/')
+                  const fileName = pathParts.slice(-2).join('/')
+                  toolMessage += ` - Editing file: ${fileName}`
+                }
+                break
+              case 'Bash':
+                if (tool.input.command) {
+                  const cmd = tool.input.command.length > 50 ? tool.input.command.substring(0, 50) + '...' : tool.input.command
+                  toolMessage += ` - Running: \`${cmd}\``
+                }
+                break
+              case 'Grep':
+                if (tool.input.pattern) {
+                  const pattern = tool.input.pattern.length > 30 ? tool.input.pattern.substring(0, 30) + '...' : tool.input.pattern
+                  toolMessage += ` - Searching for: "${pattern}"`
+                }
+                break
+              case 'Glob':
+                if (tool.input.pattern) {
+                  toolMessage += ` - Finding files: ${tool.input.pattern}`
+                }
+                break
+              case 'LS':
+                if (tool.input.path) {
+                  const pathParts = tool.input.path.split('/')
+                  const dirName = pathParts.slice(-2).join('/')
+                  toolMessage += ` - Listing: ${dirName}/`
+                }
+                break
+              case 'TodoWrite':
+                if (tool.input.todos && Array.isArray(tool.input.todos)) {
+                  const todos = tool.input.todos
+                  const pending = todos.filter((t: any) => t.status === 'pending').length
+                  const inProgress = todos.filter((t: any) => t.status === 'in_progress').length
+                  const completed = todos.filter((t: any) => t.status === 'completed').length
+                  
+                  const statusParts = []
+                  if (pending > 0) statusParts.push(`${pending} pending`)
+                  if (inProgress > 0) statusParts.push(`${inProgress} in progress`)
+                  if (completed > 0) statusParts.push(`${completed} completed`)
+                  
+                  if (statusParts.length > 0) {
+                    toolMessage += ` - Tasks: ${statusParts.join(', ')}`
+                  } else {
+                    toolMessage += ` - Managing ${todos.length} task${todos.length !== 1 ? 's' : ''}`
+                  }
+                }
+                break
+              case 'TodoRead':
+                toolMessage += ` - Checking task list`
+                break
+              case 'WebSearch':
+                if (tool.input.query) {
+                  const query = tool.input.query.length > 40 ? tool.input.query.substring(0, 40) + '...' : tool.input.query
+                  toolMessage += ` - Searching web: "${query}"`
+                }
+                break
+              case 'WebFetch':
+                if (tool.input.url) {
+                  try {
+                    const url = new URL(tool.input.url)
+                    toolMessage += ` - Fetching: ${url.hostname}`
+                  } catch {
+                    toolMessage += ` - Fetching URL`
+                  }
+                }
+                break
+              default:
+                // For other tools, check if there's a prompt or description
+                if (tool.input.prompt && typeof tool.input.prompt === 'string') {
+                  const prompt = tool.input.prompt.length > 40 ? tool.input.prompt.substring(0, 40) + '...' : tool.input.prompt
+                  toolMessage += ` - ${prompt}`
+                } else if (tool.input.description && typeof tool.input.description === 'string') {
+                  const desc = tool.input.description.length > 40 ? tool.input.description.substring(0, 40) + '...' : tool.input.description
+                  toolMessage += ` - ${desc}`
+                }
+            }
+          }
+          
+          conversationMessage += `${toolMessage}\n`
         }
       }
       
@@ -122,7 +223,7 @@ export class NotificationService {
     try {
       // Get Slack config for the domain
       const slackConfig = this.authService ? await this.authService.getSlackConfig(context.host) : undefined
-      const domainWebhook = initializeDomainSlack(slackConfig)
+      const domainWebhook = slackConfig ? initializeDomainSlack(slackConfig) : null
       
       await sendToSlack(
         {

@@ -155,6 +155,12 @@ describe('Message Content Extraction and Formatting', () => {
       
       expect(response.content).toBe('Let me check that for you.\nThe weather is sunny.')
       expect(response.toolCallCount).toBe(1)
+      expect(response.toolCalls).toHaveLength(1)
+      expect(response.toolCalls[0]).toEqual({
+        name: 'get_weather',
+        id: 'tool_123',
+        input: { location: 'NYC' }
+      })
     })
     
     it('should handle streaming content accumulation', () => {
