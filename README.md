@@ -1,5 +1,8 @@
 # Claude Nexus Proxy
 
+[![CI](https://github.com/moonsong-labs/claude-nexus-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/moonsong-labs/claude-nexus-proxy/actions/workflows/ci.yml)
+[![Code Quality](https://github.com/moonsong-labs/claude-nexus-proxy/actions/workflows/code-quality.yml/badge.svg)](https://github.com/moonsong-labs/claude-nexus-proxy/actions/workflows/code-quality.yml)
+
 A high-performance proxy for Claude API with monitoring dashboard, built with Bun and Hono.
 
 ## Features

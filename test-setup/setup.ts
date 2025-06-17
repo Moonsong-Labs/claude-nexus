@@ -15,7 +15,7 @@ afterEach(() => {
   mockServer.resetHandlers()
   vi.clearAllMocks()
   vi.clearAllTimers()
-  
+
   // Clear environment variables set during tests
   delete process.env.TEST_MODE
 })
@@ -29,7 +29,7 @@ afterAll(() => {
 global.testUtils = {
   // Add common test utilities here
   waitForMs: (ms: number) => new Promise(resolve => setTimeout(resolve, ms)),
-  
+
   // Mock streaming response helper
   createStreamResponse: (chunks: any[]) => {
     const encoder = new TextEncoder()
@@ -41,16 +41,16 @@ global.testUtils = {
         }
         controller.enqueue(encoder.encode('data: [DONE]\n\n'))
         controller.close()
-      }
+      },
     })
-    
+
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-      }
+      },
     })
-  }
+  },
 }
 
 // Common MSW handlers that can be used across tests
@@ -59,12 +59,12 @@ export const defaultHandlers = [
   rest.post('https://api.anthropic.com/v1/messages', (req, res, ctx) => {
     const apiKey = req.headers.get('x-api-key')
     const authHeader = req.headers.get('authorization')
-    
+
     // Check authentication
     if (!apiKey && !authHeader) {
       return res(ctx.status(401), ctx.json({ error: 'Unauthorized' }))
     }
-    
+
     // Return mock response
     return res(
       ctx.status(200),
@@ -75,18 +75,18 @@ export const defaultHandlers = [
         content: [
           {
             type: 'text',
-            text: 'Hello! This is a test response.'
-          }
+            text: 'Hello! This is a test response.',
+          },
         ],
         model: 'claude-3-opus-20240229',
         usage: {
           input_tokens: 10,
-          output_tokens: 20
-        }
+          output_tokens: 20,
+        },
       })
     )
   }),
-  
+
   // Mock OAuth token refresh
   rest.post('https://console.anthropic.com/v1/oauth/token', (req, res, ctx) => {
     return res(
@@ -95,20 +95,20 @@ export const defaultHandlers = [
         access_token: 'new_access_token_' + Date.now(),
         refresh_token: 'new_refresh_token_' + Date.now(),
         expires_in: 3600,
-        token_type: 'Bearer'
+        token_type: 'Bearer',
       })
     )
   }),
-  
+
   // Mock telemetry endpoint
   rest.post('https://telemetry.example.com/*', (req, res, ctx) => {
     return res(ctx.status(200), ctx.json({ status: 'ok' }))
   }),
-  
+
   // Mock Slack webhook
   rest.post('https://hooks.slack.com/*', (req, res, ctx) => {
     return res(ctx.status(200), ctx.text('ok'))
-  })
+  }),
 ]
 
 // Set default handlers

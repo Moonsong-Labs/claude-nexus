@@ -16,7 +16,7 @@
     "build:check": "bun run build:production",
     "start": "bun dist/index.js",
     "start:prod": "NODE_ENV=production bun dist/index.js",
-    "typecheck": "bun build src/main.ts --target bun --no-bundle",
+    "typecheck": "bun x tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "test": "bun test",
     "clean": "rm -rf dist"

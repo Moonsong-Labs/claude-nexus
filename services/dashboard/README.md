@@ -64,6 +64,7 @@ The dashboard requires authentication via `DASHBOARD_API_KEY`. Users must login 
 ## Architecture
 
 The service provides read-only access to the database:
+
 - `StorageReader` - Efficient queries with caching
 - Dashboard routes with HTMX for dynamic updates
 - SSE for real-time monitoring

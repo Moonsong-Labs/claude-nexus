@@ -24,7 +24,7 @@ export default defineConfig({
         functions: 85,
         branches: 80,
         statements: 85,
-      }
+      },
     },
     testTimeout: 30000,
     hookTimeout: 30000,
@@ -34,17 +34,17 @@ export default defineConfig({
       threads: {
         singleThread: false,
         isolate: true,
-      }
+      },
     },
     reporters: ['default', 'junit'],
     outputFile: {
-      junit: './test-results/junit.xml'
-    }
+      junit: './test-results/junit.xml',
+    },
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '../src'),
       '@test': path.resolve(__dirname, '../test'),
-    }
-  }
+    },
+  },
 })
