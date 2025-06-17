@@ -122,6 +122,7 @@ export const config = {
     enableDashboard: env.bool('ENABLE_DASHBOARD', true),
     collectTestSamples: env.bool('COLLECT_TEST_SAMPLES', false),
     testSamplesDir: env.string('TEST_SAMPLES_DIR', 'test-samples'),
+    enableClientAuth: env.bool('ENABLE_CLIENT_AUTH', true),
   },
 
   // Cache configuration

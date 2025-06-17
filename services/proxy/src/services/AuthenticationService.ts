@@ -8,6 +8,7 @@ import {
 import { AuthenticationError } from '../types/errors'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { logger } from '../middleware/logger'
+import * as path from 'path'
 
 export interface AuthResult {
   type: 'api_key' | 'oauth'
@@ -43,7 +44,15 @@ export class AuthenticationService {
       // 3. Default API key from environment
 
       // First, check if domain has a credential file
-      const credentialPath = `${this.credentialsDir}/${context.host}.credentials.json`
+      const sanitizedPath = this.getSafeCredentialPath(context.host)
+      if (!sanitizedPath) {
+        logger.warn('Invalid domain name for credentials', {
+          requestId: context.requestId,
+          domain: context.host,
+        })
+        // Continue to fallback options
+      }
+      const credentialPath = sanitizedPath || ''
 
       // Try to load credentials without accessing the file system first
       try {
@@ -197,7 +206,10 @@ export class AuthenticationService {
    * Get Slack configuration for a domain
    */
   async getSlackConfig(domain: string): Promise<SlackConfig | null> {
-    const credentialPath = `${this.credentialsDir}/${domain}.credentials.json`
+    const credentialPath = this.getSafeCredentialPath(domain)
+    if (!credentialPath) {
+      return null
+    }
 
     try {
       const credentials = loadCredentials(credentialPath)
@@ -210,5 +222,71 @@ export class AuthenticationService {
     }
 
     return null
+  }
+
+  /**
+   * Get client API key for a domain
+   * Used for proxy-level authentication (different from Claude API keys)
+   */
+  async getClientApiKey(domain: string): Promise<string | null> {
+    const credentialPath = this.getSafeCredentialPath(domain)
+    if (!credentialPath) {
+      logger.warn('Invalid domain name for client API key', {
+        domain,
+      })
+      return null
+    }
+
+    try {
+      const credentials = loadCredentials(credentialPath)
+      return credentials?.client_api_key || null
+    } catch (error) {
+      logger.debug(`Failed to get client API key for domain: ${domain}`, {
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return null
+    }
+  }
+
+  /**
+   * Get safe credential path, preventing path traversal attacks
+   */
+  private getSafeCredentialPath(domain: string): string | null {
+    try {
+      // Sanitize domain to prevent path traversal
+      const safeDomain = path.basename(domain)
+      
+      // Additional validation: domain should only contain safe characters
+      if (!/^[a-zA-Z0-9.-]+$/.test(safeDomain)) {
+        logger.warn('Domain contains invalid characters', { domain })
+        return null
+      }
+
+      // Resolve the credentials directory to an absolute path
+      const credentialsDir = path.resolve(this.credentialsDir)
+      const credentialPath = path.resolve(credentialsDir, `${safeDomain}.credentials.json`)
+
+      // Security check: ensure the resolved path is within the credentials directory
+      if (!credentialPath.startsWith(credentialsDir + path.sep)) {
+        logger.error('Path traversal attempt detected', {
+          domain,
+          metadata: {
+            attemptedPath: credentialPath,
+            safeDir: credentialsDir,
+          },
+        })
+        return null
+      }
+
+      return credentialPath
+    } catch (error) {
+      logger.error('Error sanitizing credential path', {
+        domain,
+        error: error instanceof Error ? { message: error.message } : { message: String(error) },
+      })
+      return null
+    }
   }
 }

@@ -26,6 +26,7 @@ export interface ClaudeCredentials {
   api_key?: string
   oauth?: OAuthCredentials
   slack?: SlackConfig
+  client_api_key?: string
 }
 
 export interface DomainCredentialMapping {

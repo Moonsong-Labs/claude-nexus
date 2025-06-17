@@ -10,6 +10,8 @@ import { apiRoutes } from './routes/api.js'
 import { initializeSlack } from './services/slack.js'
 import { initializeDatabase } from './storage/writer.js'
 import { apiAuthMiddleware } from './middleware/api-auth.js'
+import { domainExtractorMiddleware } from './middleware/domain-extractor.js'
+import { clientAuthMiddleware } from './middleware/client-auth.js'
 import { logger } from './middleware/logger.js'
 import { HonoVariables, HonoBindings } from '@claude-nexus/shared/types'
 
@@ -68,6 +70,15 @@ export async function createProxyApp(): Promise<
   // Global middleware
   app.use('*', cors())
   app.use('*', loggingMiddleware())
+
+  // Domain extraction for all routes
+  app.use('*', domainExtractorMiddleware())
+
+  // Client authentication for proxy routes
+  // Apply before rate limiting to protect against unauthenticated requests
+  if (config.features.enableClientAuth !== false) {
+    app.use('/v1/*', clientAuthMiddleware())
+  }
 
   // Rate limiting
   if (config.features.enableMetrics) {

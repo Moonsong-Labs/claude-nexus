@@ -78,6 +78,13 @@ Docker configurations are in the `docker/` directory. Each service has its own o
 
 ### Authentication Flow
 
+**Client Authentication (Proxy Level):**
+1. Extract domain from Host header
+2. Check for `client_api_key` in domain credential file
+3. Verify Bearer token against stored key using timing-safe comparison
+4. Return 401 Unauthorized if invalid
+
+**Claude API Authentication:**
 1. Check domain-specific credential files (`<domain>.credentials.json`)
 2. Use Authorization header from request
 3. Fall back to CLAUDE_API_KEY environment variable
@@ -126,6 +133,7 @@ When `DEBUG=true`:
 - `CREDENTIALS_DIR` - Domain credential directory
 - `COLLECT_TEST_SAMPLES` - Collect request samples for testing (default: false)
 - `TEST_SAMPLES_DIR` - Directory for test samples (default: test-samples)
+- `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true)
 
 ## Testing & Type Safety
 
@@ -164,7 +172,17 @@ Currently no automated tests. When implementing:
 ### Add Domain Credentials
 
 ```bash
-echo '{"type": "api_key", "api_key": "sk-ant-..."}' > credentials/domain.com.credentials.json
+# Generate secure client API key
+bun run scripts/generate-api-key.ts
+
+# Create credential file
+cat > credentials/domain.com.credentials.json << EOF
+{
+  "type": "api_key",
+  "api_key": "sk-ant-...",
+  "client_api_key": "cnp_live_..."
+}
+EOF
 ```
 
 ### Enable Storage
