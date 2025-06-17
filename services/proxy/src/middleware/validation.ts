@@ -90,14 +90,8 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
     }
   }
   
-  // Validate max_tokens with a reasonable upper limit
-  // Since we allow any model, we use a generous limit that should work for most models
-  const MAX_TOKENS_LIMIT = 200000 // Very generous limit for future models
-  if (request.max_tokens <= 0) {
-    errors.push(`Invalid max_tokens: ${request.max_tokens} (must be greater than 0)`)
-  } else if (request.max_tokens > MAX_TOKENS_LIMIT) {
-    errors.push(`Invalid max_tokens: ${request.max_tokens} (exceeds reasonable limit of ${MAX_TOKENS_LIMIT})`)
-  }
+  // max_tokens validation removed - Claude API will handle any model-specific limits
+  // This allows the proxy to work with all current and future models without updates
   
   // Validate temperature
   if (request.temperature !== undefined) {

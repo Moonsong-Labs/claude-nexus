@@ -267,7 +267,10 @@ export async function refreshToken(
   const TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
   const CLIENT_ID = process.env.CLAUDE_OAUTH_CLIENT_ID || DEFAULT_OAUTH_CLIENT_ID;
   const response = await fetch(TOKEN_URL, {
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "anthropic-beta": OAUTH_CONFIG.betaHeader
+    },
     method: "POST",
     body: JSON.stringify({
       client_id: CLIENT_ID,
@@ -568,7 +571,6 @@ async function exchangeCodeForTokens(
         redirect_uri: OAUTH_CONFIG.redirectUri,
         client_id: OAUTH_CONFIG.clientId,
         code_verifier: codeVerifier,
-        state: base64URLEncode(randomBytes(16)),
       }),
     });
 
