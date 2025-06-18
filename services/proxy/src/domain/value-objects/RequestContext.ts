@@ -22,7 +22,8 @@ export class RequestContext {
   static fromHono(c: Context): RequestContext {
     const requestId = c.get('requestId') || generateRequestId()
     const host = c.req.header('host') || 'unknown'
-    const apiKey = c.req.header('x-api-key') || c.req.header('authorization')
+    // Only accept Bearer tokens from Authorization header (not x-api-key)
+    const apiKey = c.req.header('authorization')
 
     // Extract relevant headers
     const headers: Record<string, string> = {}

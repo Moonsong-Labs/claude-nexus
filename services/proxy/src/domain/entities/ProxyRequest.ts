@@ -162,10 +162,13 @@ export class ProxyRequest {
    * Create request headers for Claude API
    */
   createHeaders(authHeaders: Record<string, string>): Record<string, string> {
+    // Filter out x-api-key to ensure it's never sent to Claude
+    const { 'x-api-key': _, ...filteredAuthHeaders } = authHeaders
+    
     return {
       'Content-Type': 'application/json',
       'anthropic-version': '2023-06-01',
-      ...authHeaders,
+      ...filteredAuthHeaders,
     }
   }
 }

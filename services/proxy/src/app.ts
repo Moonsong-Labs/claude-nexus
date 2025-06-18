@@ -105,6 +105,13 @@ export async function createProxyApp(): Promise<
     return c.json(stats)
   })
 
+  // OAuth refresh metrics endpoint
+  app.get('/oauth-metrics', async c => {
+    const { getRefreshMetrics } = await import('./credentials.js')
+    const metrics = getRefreshMetrics()
+    return c.json(metrics)
+  })
+
   // Dashboard API routes with authentication
   app.use('/api/*', apiAuthMiddleware())
   app.use('/api/*', async (c, next) => {

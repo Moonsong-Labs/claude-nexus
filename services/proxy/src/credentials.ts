@@ -1,9 +1,26 @@
-import { createServer, IncomingMessage, ServerResponse } from 'http'
+/**
+ * OAuth Credentials Manager
+ *
+ * IMPORTANT: This implementation uses in-memory state for refresh token management
+ * and is designed for SINGLE-INSTANCE deployments only.
+ *
+ * For multi-instance deployments, the refresh token locking mechanism needs to be
+ * replaced with a distributed lock using Redis or similar shared state store.
+ *
+ * Features:
+ * - Concurrent refresh prevention (single-instance only)
+ * - Negative caching for failed refreshes (5-second cooldown)
+ * - Atomic credential saves (save before updating in-memory state)
+ * - Automatic cleanup of stuck operations
+ * - Metrics collection for observability
+ */
+
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import * as process from 'process'
 import { randomBytes, createHash } from 'crypto'
+import { CredentialManager } from './services/CredentialManager'
 
 export interface OAuthCredentials {
   accessToken: string
@@ -41,71 +58,24 @@ const OAUTH_CONFIG = {
   clientId: process.env.CLAUDE_OAUTH_CLIENT_ID || DEFAULT_OAUTH_CLIENT_ID,
   authorizationUrl: 'https://claude.ai/oauth/authorize',
   tokenUrl: 'https://console.anthropic.com/v1/oauth/token',
-  redirectUri: 'http://localhost:54545/callback',
+  redirectUri: 'https://console.anthropic.com/oauth/code/callback',
   scopes: ['org:create_api_key', 'user:profile', 'user:inference'],
   apiKeyEndpoint: 'https://api.anthropic.com/api/oauth/claude_cli/create_api_key',
   profileEndpoint: 'https://api.anthropic.com/api/claude_cli_profile',
   betaHeader: 'oauth-2025-04-20',
 }
 
-// Cache for loaded credentials with TTL
-const CREDENTIAL_CACHE_TTL = 3600000 // 1 hour in milliseconds
-const CREDENTIAL_CACHE_MAX_SIZE = 100 // Maximum number of cached credentials
+// Create a credential manager instance for this module
+// In a larger application, this would be injected via dependency injection
+const credentialManager = new CredentialManager()
 
-interface CachedCredential {
-  credential: ClaudeCredentials
-  timestamp: number
-}
-
-const credentialCache = new Map<string, CachedCredential>()
-
-// Clean up expired entries periodically
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, value] of credentialCache.entries()) {
-    if (now - value.timestamp > CREDENTIAL_CACHE_TTL) {
-      credentialCache.delete(key)
-    }
-  }
-}, 300000) // Clean up every 5 minutes
-
-// Helper functions for cache management
+// Helper functions for cache management - delegate to the credential manager
 function getCachedCredential(key: string): ClaudeCredentials | null {
-  const cached = credentialCache.get(key)
-  if (!cached) return null
-
-  // Check if expired
-  if (Date.now() - cached.timestamp > CREDENTIAL_CACHE_TTL) {
-    credentialCache.delete(key)
-    return null
-  }
-
-  return cached.credential
+  return credentialManager.getCachedCredential(key)
 }
 
 function setCachedCredential(key: string, credential: ClaudeCredentials): void {
-  // Ensure cache doesn't grow too large
-  if (credentialCache.size >= CREDENTIAL_CACHE_MAX_SIZE) {
-    // Remove oldest entry
-    let oldestKey: string | undefined
-    let oldestTime = Date.now()
-
-    for (const [k, v] of credentialCache.entries()) {
-      if (v.timestamp < oldestTime) {
-        oldestTime = v.timestamp
-        oldestKey = k
-      }
-    }
-
-    if (oldestKey) {
-      credentialCache.delete(oldestKey)
-    }
-  }
-
-  credentialCache.set(key, {
-    credential,
-    timestamp: Date.now(),
-  })
+  credentialManager.setCachedCredential(key, credential)
 }
 
 // PKCE helper functions
@@ -257,36 +227,66 @@ async function saveOAuthCredentials(filePath: string, credentials: ClaudeCredent
 export async function refreshToken(refreshToken: string): Promise<OAuthCredentials> {
   const TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token'
   const CLIENT_ID = process.env.CLAUDE_OAUTH_CLIENT_ID || DEFAULT_OAUTH_CLIENT_ID
-  const response = await fetch(TOKEN_URL, {
-    headers: {
-      'Content-Type': 'application/json',
-      'anthropic-beta': OAUTH_CONFIG.betaHeader,
-    },
-    method: 'POST',
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  })
 
-  if (response.ok) {
-    const payload = (await response.json()) as any
-    return {
-      accessToken: payload.access_token,
-      refreshToken: payload.refresh_token || refreshToken, // Keep old refresh token if not provided
-      expiresAt: Date.now() + payload.expires_in * 1000, // Convert to timestamp
-      scopes: payload.scope ? payload.scope.split(' ') : OAUTH_CONFIG.scopes,
-      isMax: payload.is_max || false,
+  try {
+    const response = await fetch(TOKEN_URL, {
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-beta': OAUTH_CONFIG.betaHeader,
+      },
+      method: 'POST',
+      body: JSON.stringify({
+        client_id: CLIENT_ID,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    })
+
+    if (response.ok) {
+      const payload = (await response.json()) as any
+      return {
+        accessToken: payload.access_token,
+        refreshToken: payload.refresh_token || refreshToken, // Keep old refresh token if not provided
+        expiresAt: Date.now() + payload.expires_in * 1000, // Convert to timestamp
+        scopes: payload.scope ? payload.scope.split(' ') : OAUTH_CONFIG.scopes,
+        isMax: payload.is_max || true,
+      }
     }
-  }
 
-  console.error(`Failed to refresh token: ${response.status} ${response.statusText}`)
-  const errorText = await response.text()
-  if (errorText) {
-    console.error('Error details:', errorText)
+    const errorText = await response.text()
+    let errorData: any = {}
+    try {
+      errorData = JSON.parse(errorText)
+    } catch {
+      // Not JSON, use raw text
+    }
+
+    console.error(`Failed to refresh token: ${response.status} ${response.statusText}`)
+    if (errorText) {
+      console.error('Error details:', errorText)
+    }
+
+    // Throw more detailed error
+    const error = new Error(
+      errorData.error_description ||
+        errorData.error ||
+        `Failed to refresh token: ${response.status} ${response.statusText}`
+    ) as any
+    error.status = response.status
+    error.errorCode = errorData.error
+    error.errorDescription = errorData.error_description
+    throw error
+  } catch (error) {
+    // Re-throw if already an Error with details
+    if (error instanceof Error && (error as any).status) {
+      throw error
+    }
+    // Wrap network errors
+    console.error('Network error during token refresh:', error)
+    throw new Error(
+      `Network error during token refresh: ${error instanceof Error ? error.message : String(error)}`
+    )
   }
-  throw new Error('Failed to refresh token')
 }
 
 /**
@@ -313,27 +313,112 @@ export async function getApiKey(
       // Check if token needs refresh (refresh 1 minute before expiry)
       if (oauth.expiresAt && Date.now() >= oauth.expiresAt - 60000) {
         if (debug) {
-          console.log(`OAuth token expired for ${credentialPath}, refreshing...`)
+          console.log(`OAuth token expired for ${credentialPath}, checking refresh...`)
         }
 
         if (!oauth.refreshToken) {
-          console.error('No refresh token available')
+          console.error('No refresh token available for', credentialPath)
+          console.error('OAuth credentials may need to be re-authenticated')
           return null
         }
 
-        const newOAuth = await refreshToken(oauth.refreshToken)
-
-        // Update credentials with new OAuth data
-        credentials.oauth = newOAuth
-
-        // Save updated credentials
-        await saveOAuthCredentials(credentialPath, credentials)
-
-        if (debug) {
-          console.log(`OAuth token refreshed for ${credentialPath}`)
+        // Check if this refresh recently failed (negative cache)
+        const failureCheck = credentialManager.hasRecentFailure(credentialPath)
+        if (failureCheck.failed) {
+          if (debug) {
+            console.log(
+              `[COOLDOWN] Skipping refresh for ${credentialPath}, recent failure: ${failureCheck.error}`
+            )
+          }
+          return null
         }
 
-        return newOAuth.accessToken
+        // Check if a refresh is already in progress for this credential
+        const existingRefresh = credentialManager.getActiveRefresh(credentialPath)
+        if (existingRefresh) {
+          credentialManager.updateMetrics('concurrent')
+          if (debug) {
+            console.log(`[CONCURRENT] Waiting for existing refresh for ${credentialPath}`)
+          } else {
+            console.log(`OAuth refresh already in progress for ${credentialPath}, waiting...`)
+          }
+          return existingRefresh
+        }
+
+        // Create a new refresh promise
+        const refreshPromise = (async () => {
+          const startTime = Date.now()
+          credentialManager.updateMetrics('attempt')
+
+          try {
+            if (debug) {
+              console.log(`Starting OAuth refresh for ${credentialPath}`)
+            }
+
+            const newOAuth = await refreshToken(oauth.refreshToken)
+
+            // Create updated credentials object
+            const updatedCredentials = { ...credentials, oauth: newOAuth }
+
+            // ATOMIC SAVE: Save first, then update in-memory
+            try {
+              await saveOAuthCredentials(credentialPath, updatedCredentials)
+
+              // Only update in-memory state after successful save
+              credentials.oauth = newOAuth
+
+              // Update metrics
+              const duration = Date.now() - startTime
+              credentialManager.updateMetrics('success', duration)
+
+              if (debug) {
+                console.log(
+                  `OAuth token refreshed for ${credentialPath} in ${duration}ms`
+                )
+              }
+
+              return newOAuth.accessToken
+            } catch (saveError) {
+              console.error(
+                `Failed to save refreshed OAuth credentials for ${credentialPath}:`,
+                saveError
+              )
+              // Don't update in-memory state if save failed
+              throw new Error(
+                `Failed to save credentials: ${saveError instanceof Error ? saveError.message : String(saveError)}`
+              )
+            }
+          } catch (refreshError: any) {
+            credentialManager.updateMetrics('failure')
+
+            console.error(
+              `Failed to refresh OAuth token for ${credentialPath}:`,
+              refreshError.message
+            )
+
+            // Cache the failure to prevent thundering herd
+            credentialManager.recordFailedRefresh(
+              credentialPath,
+              refreshError.message || 'Unknown error'
+            )
+
+            // Check for specific error codes
+            if (refreshError.errorCode === 'invalid_grant' || refreshError.status === 400) {
+              console.error('Refresh token is invalid or expired. Re-authentication required.')
+              console.error(`Please run: bun run scripts/oauth-login.ts ${credentialPath}`)
+            }
+
+            return null
+          } finally {
+            // Clean up tracking
+            credentialManager.removeActiveRefresh(credentialPath)
+          }
+        })()
+
+        // Store the refresh promise
+        credentialManager.setActiveRefresh(credentialPath, refreshPromise)
+
+        return refreshPromise
       }
 
       return oauth.accessToken || null
@@ -461,92 +546,85 @@ export async function getAuthorizationHeaderForDomain(
 }
 
 /**
- * Start OAuth flow and get authorization code
+ * Generate OAuth authorization URL
  */
-async function startOAuthFlow(): Promise<{
-  code: string
-  codeVerifier: string
-}> {
+function generateAuthorizationUrl(): {
+  url: string
+  verifier: string
+} {
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
-  const state = base64URLEncode(randomBytes(16))
+
+  const authUrl = new URL(OAUTH_CONFIG.authorizationUrl)
+  authUrl.searchParams.set('code', 'true')
+  authUrl.searchParams.set('client_id', OAUTH_CONFIG.clientId)
+  authUrl.searchParams.set('response_type', 'code')
+  authUrl.searchParams.set('redirect_uri', OAUTH_CONFIG.redirectUri)
+  authUrl.searchParams.set('scope', OAUTH_CONFIG.scopes.join(' '))
+  authUrl.searchParams.set('code_challenge', codeChallenge)
+  authUrl.searchParams.set('code_challenge_method', 'S256')
+  authUrl.searchParams.set('state', codeVerifier) // Store verifier in state
+
+  return {
+    url: authUrl.toString(),
+    verifier: codeVerifier,
+  }
+}
+
+/**
+ * Wait for user to complete OAuth flow and get code
+ */
+async function waitForAuthorizationCode(): Promise<string> {
+  const readline = await import('readline')
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  })
 
   return new Promise((resolve, reject) => {
-    // Create local server to receive callback
-    const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      const url = new URL(req.url!, `http://localhost:54545`)
+    rl.question('\nEnter the authorization code: ', code => {
+      rl.close()
 
-      if (url.pathname === '/callback') {
-        const code = url.searchParams.get('code')
-        const receivedState = url.searchParams.get('state')
-
-        if (code && receivedState === state) {
-          res.writeHead(200, { 'Content-Type': 'text/html' })
-          res.end(
-            '<html><body><h1>Authorization successful!</h1><p>You can close this window.</p></body></html>'
-          )
-
-          server.close()
-          resolve({ code, codeVerifier })
-        } else {
-          res.writeHead(400, { 'Content-Type': 'text/html' })
-          res.end('<html><body><h1>Authorization failed!</h1></body></html>')
-
-          server.close()
-          reject(new Error('Invalid authorization response'))
-        }
-      } else {
-        res.writeHead(404)
-        res.end()
+      if (!code || code.trim().length === 0) {
+        reject(new Error('No authorization code provided'))
+        return
       }
+
+      resolve(code.trim())
     })
-
-    server.listen(54545, () => {
-      // Build authorization URL
-      const authUrl = new URL(OAUTH_CONFIG.authorizationUrl)
-      authUrl.searchParams.append('response_type', 'code')
-      authUrl.searchParams.append('client_id', OAUTH_CONFIG.clientId)
-      authUrl.searchParams.append('redirect_uri', OAUTH_CONFIG.redirectUri)
-      authUrl.searchParams.append('scope', OAUTH_CONFIG.scopes.join(' '))
-      authUrl.searchParams.append('state', state)
-      authUrl.searchParams.append('code_challenge', codeChallenge)
-      authUrl.searchParams.append('code_challenge_method', 'S256')
-
-      console.log('\nPlease visit the following URL to authorize:')
-      console.log(authUrl.toString())
-      console.log('\nWaiting for authorization...')
-    })
-
-    // Timeout after 5 minutes
-    setTimeout(
-      () => {
-        server.close()
-        reject(new Error('Authorization timeout'))
-      },
-      5 * 60 * 1000
-    )
   })
 }
 
 /**
  * Exchange authorization code for tokens
+ *
+ * Note: Anthropic's OAuth implementation returns the authorization code in a
+ * non-standard format: "code#state" instead of separate query parameters.
+ * This deviates from RFC 6749 but matches their actual implementation.
  */
 async function exchangeCodeForTokens(
-  code: string,
+  codeWithState: string,
   codeVerifier: string
 ): Promise<OAuthCredentials> {
   try {
+    // Split the code#state format (Anthropic-specific format)
+    const [code, state] = codeWithState.split('#')
+
+    if (!code || !state) {
+      throw new Error('Invalid authorization code format. Expected format: code#state')
+    }
+
     const response = await fetch(OAUTH_CONFIG.tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'anthropic-beta': OAUTH_CONFIG.betaHeader,
       },
       body: JSON.stringify({
-        grant_type: 'authorization_code',
         code,
-        redirect_uri: OAUTH_CONFIG.redirectUri,
+        state,
+        grant_type: 'authorization_code',
         client_id: OAUTH_CONFIG.clientId,
+        redirect_uri: OAUTH_CONFIG.redirectUri,
         code_verifier: codeVerifier,
       }),
     })
@@ -564,7 +642,7 @@ async function exchangeCodeForTokens(
       refreshToken: data.refresh_token,
       expiresAt: Date.now() + data.expires_in * 1000,
       scopes: data.scope ? data.scope.split(' ') : OAUTH_CONFIG.scopes,
-      isMax: data.is_max || false,
+      isMax: data.is_max || true,
     }
   } catch (err: any) {
     console.error('Failed to exchange code for tokens:', err.message)
@@ -614,12 +692,20 @@ export async function performOAuthLogin(
   try {
     console.log('Starting OAuth login flow...')
 
-    // Start OAuth flow
-    const { code, codeVerifier } = await startOAuthFlow()
+    // Generate authorization URL
+    const { url, verifier } = generateAuthorizationUrl()
+
+    console.log('\nPlease visit the following URL to authorize:')
+    console.log(url)
+    console.log('\nAfter authorizing, you will see an authorization code.')
+    console.log('Copy the entire code (it should contain a # character).')
+
+    // Wait for user to complete authorization
+    const code = await waitForAuthorizationCode()
 
     // Exchange code for tokens
     console.log('Exchanging authorization code for tokens...')
-    const oauthCreds = await exchangeCodeForTokens(code, codeVerifier)
+    const oauthCreds = await exchangeCodeForTokens(code, verifier)
 
     // Create credentials object
     const credentials: ClaudeCredentials = {
@@ -679,5 +765,12 @@ export function addMemoryCredentials(id: string, credentials: ClaudeCredentials)
  * Clear credential cache
  */
 export function clearCredentialCache(): void {
-  credentialCache.clear()
+  credentialManager.clearCredentialCache()
+}
+
+/**
+ * Get current OAuth refresh metrics
+ */
+export function getRefreshMetrics() {
+  return credentialManager.getRefreshMetrics()
 }

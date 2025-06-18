@@ -15,6 +15,8 @@ import { config as dotenvConfig } from 'dotenv'
 import { tokenTracker } from './services/tokenTracker.js'
 import { container } from './container.js'
 import { closeRateLimitStores } from './middleware/rate-limit.js'
+import { CredentialStatusService } from './services/CredentialStatusService.js'
+import { CredentialManager } from './services/CredentialManager.js'
 
 // Load .env file from multiple possible locations
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -198,6 +200,22 @@ async function main() {
       )
     }
 
+    // Check all credentials at startup
+    console.log('\nChecking credentials...')
+    const credentialService = new CredentialStatusService()
+    const credentialStatuses = await credentialService.checkAllCredentials()
+    
+    if (credentialStatuses.length > 0) {
+      const statusLines = credentialService.formatStatusForLogging(credentialStatuses)
+      statusLines.forEach(line => console.log(line))
+    } else {
+      console.log('  No credential files found')
+    }
+
+    // Start credential manager periodic cleanup for long-running service
+    const credentialManager = new CredentialManager()
+    credentialManager.startPeriodicCleanup()
+
     // Start token usage tracking
     tokenTracker.startReporting(10000) // Report every 10 seconds
 
@@ -214,6 +232,7 @@ async function main() {
     console.log(`\n✅ Server started successfully`)
     console.log(`🌐 Listening on http://${hostname}:${port}`)
     console.log(`📊 Token stats: http://${hostname}:${port}/token-stats`)
+    console.log(`🔐 OAuth metrics: http://${hostname}:${port}/oauth-metrics`)
 
     // Get network interfaces to show accessible URLs
     try {
@@ -254,6 +273,9 @@ async function main() {
 
       // Close rate limit stores
       closeRateLimitStores()
+
+      // Stop credential manager cleanup
+      credentialManager.stopPeriodicCleanup()
 
       // Clean up container resources
       await container.cleanup()

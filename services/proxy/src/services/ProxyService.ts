@@ -67,17 +67,9 @@ export class ProxyService {
 
     try {
       // Authenticate
-      // log.debug('Authenticating request', {
-      //   hasRequestApiKey: !!context.apiKey,
-      //   apiKeySource: context.apiKey ? 'request header' : 'will check credential file'
-      // })
-
-      const auth = await this.authService.authenticate(context)
-
-      // log.debug('Authentication completed', {
-      //   authType: auth.type,
-      //   usingCredentialFile: !context.apiKey
-      // })
+      const auth = context.host.toLowerCase().includes('personal')
+        ? await this.authService.authenticatePersonalDomain(context)
+        : await this.authService.authenticateNonPersonalDomain(context)
 
       // Forward to Claude
       log.info('Forwarding request to Claude', {

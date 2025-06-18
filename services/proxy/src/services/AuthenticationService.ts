@@ -34,13 +34,106 @@ export class AuthenticationService {
   }
 
   /**
-   * Authenticate a request and return auth headers
+   * Check if a domain is a personal domain
    */
-  async authenticate(context: RequestContext): Promise<AuthResult> {
+  private isPersonalDomain(domain: string): boolean {
+    return domain.toLowerCase().includes('personal')
+  }
+
+
+  /**
+   * Authenticate non-personal domains - only uses domain credentials, no fallbacks
+   */
+  async authenticateNonPersonalDomain(context: RequestContext): Promise<AuthResult> {
     try {
+        const sanitizedPath = this.getSafeCredentialPath(context.host)
+        if (!sanitizedPath) {
+          throw new AuthenticationError('Invalid domain name', {
+            domain: context.host,
+            requestId: context.requestId,
+          })
+        }
+
+        const credentials = loadCredentials(sanitizedPath)
+        if (!credentials) {
+          throw new AuthenticationError('No credentials configured for domain', {
+            domain: context.host,
+            requestId: context.requestId,
+            hint: 'Domain credentials are required for non-personal domains',
+          })
+        }
+
+        const apiKey = await getApiKey(sanitizedPath)
+        if (!apiKey) {
+          throw new AuthenticationError('Failed to retrieve API key for domain', {
+            domain: context.host,
+            requestId: context.requestId,
+          })
+        }
+
+        // Return auth based on credential type
+        if (credentials.type === 'oauth') {
+          logger.info(`Using OAuth credentials for non-personal domain`, {
+            requestId: context.requestId,
+            domain: context.host,
+          })
+
+          return {
+            type: 'oauth',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'anthropic-beta': 'oauth-2025-04-20',
+            },
+            key: apiKey,
+            betaHeader: 'oauth-2025-04-20',
+          }
+        } else {
+          logger.info(`Using API key for non-personal domain`, {
+            requestId: context.requestId,
+            domain: context.host,
+          })
+
+          return {
+            type: 'api_key',
+            headers: {
+              'x-api-key': apiKey,
+            },
+            key: apiKey,
+          }
+        }
+      } catch (error) {
+        logger.error('Authentication failed for non-personal domain', {
+          requestId: context.requestId,
+          domain: context.host,
+          error:
+            error instanceof Error
+              ? {
+                  message: error.message,
+                  code: (error as any).code,
+                }
+              : { message: String(error) },
+        })
+
+        if (error instanceof AuthenticationError) {
+          throw error
+        }
+
+        throw new AuthenticationError('Authentication failed', {
+          originalError: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+  /**
+   * Authenticate personal domains - uses fallback logic
+   * Priority: Domain credentials → Bearer token → Default API key
+   */
+  async authenticatePersonalDomain(context: RequestContext): Promise<AuthResult> {
+    try {
+      // For personal domains, use the original priority logic
       // Priority order:
       // 1. Domain-specific credentials from file
-      // 2. API key from request header
+      // 2. API key from request header (Bearer token only, not x-api-key)
       // 3. Default API key from environment
 
       // First, check if domain has a credential file
@@ -121,39 +214,43 @@ export class AuthenticationService {
         }
       }
 
-      // Fallback to request API key or default
-      if (context.apiKey || this.defaultApiKey) {
-        const apiKey = context.apiKey || this.defaultApiKey || ''
-        const source = context.apiKey ? 'request header' : 'default API key'
-
-        logger.debug(`Using ${source} for authentication (no domain credentials found)`, {
+      // For personal domains only: fallback to Bearer token from request or default API key
+      if (context.apiKey && context.apiKey.startsWith('Bearer ')) {
+        // Only accept Bearer tokens from Authorization header
+        logger.debug(`Using Bearer token from request header for personal domain`, {
           requestId: context.requestId,
           domain: context.host,
           metadata: {
-            authType: apiKey.startsWith('Bearer ') ? 'oauth' : 'api_key',
-            keyPreview: apiKey.substring(0, 20) + '****',
+            authType: 'oauth',
+            keyPreview: context.apiKey.substring(0, 20) + '****',
           },
         })
 
-        // Check if it's Bearer token (OAuth) or API key
-        if (apiKey.startsWith('Bearer ')) {
-          return {
-            type: 'oauth',
-            headers: {
-              Authorization: apiKey,
-              'anthropic-beta': 'oauth-2025-04-20',
-            },
-            key: apiKey.replace('Bearer ', ''),
-            betaHeader: 'oauth-2025-04-20',
-          }
-        } else {
-          return {
-            type: 'api_key',
-            headers: {
-              'x-api-key': apiKey,
-            },
-            key: apiKey,
-          }
+        return {
+          type: 'oauth',
+          headers: {
+            Authorization: context.apiKey,
+            'anthropic-beta': 'oauth-2025-04-20',
+          },
+          key: context.apiKey.replace('Bearer ', ''),
+          betaHeader: 'oauth-2025-04-20',
+        }
+      } else if (this.defaultApiKey) {
+        // Use default API key as last resort
+        logger.debug(`Using default API key for personal domain`, {
+          requestId: context.requestId,
+          domain: context.host,
+          metadata: {
+            keyPreview: this.defaultApiKey.substring(0, 20) + '****',
+          },
+        })
+
+        return {
+          type: 'api_key',
+          headers: {
+            'x-api-key': this.defaultApiKey,
+          },
+          key: this.defaultApiKey,
         }
       }
 
@@ -162,10 +259,10 @@ export class AuthenticationService {
         domain: context.host,
         hasApiKey: false,
         credentialPath,
-        hint: 'Create a credential file or pass API key in Authorization header',
+        hint: 'For personal domains: create a credential file or pass Bearer token in Authorization header',
       })
     } catch (error) {
-      logger.error('Authentication failed', {
+      logger.error('Authentication failed for personal domain', {
         requestId: context.requestId,
         domain: context.host,
         error:
