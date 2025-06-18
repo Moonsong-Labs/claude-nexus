@@ -34,7 +34,7 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
           type: 'internal_error',
         },
       },
-      hasStatusCode(err) ? ((err.status || 500) as any) : (500 as any)
+      hasStatusCode(err) ? (((err as any).status || 500) as any) : (500 as any)
     )
   })
 

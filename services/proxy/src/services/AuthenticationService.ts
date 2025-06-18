@@ -357,7 +357,6 @@ export class AuthenticationService {
       if (!domainRegex.test(domain)) {
         logger.warn('Domain contains invalid characters', {
           domain,
-          regex: domainRegex.toString(),
           testResult: domainRegex.test(domain),
         })
         return null
