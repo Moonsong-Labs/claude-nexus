@@ -105,6 +105,20 @@ export function isOperationalError(error: Error): boolean {
   return false
 }
 
+// Map error codes to Claude API error types
+const errorCodeToType: Record<string, string> = {
+  'AUTHENTICATION_ERROR': 'authentication_error',
+  'AUTHORIZATION_ERROR': 'permission_error',
+  'VALIDATION_ERROR': 'invalid_request_error',
+  'RATE_LIMIT_ERROR': 'rate_limit_error',
+  'NOT_FOUND': 'not_found_error',
+  'UPSTREAM_ERROR': 'api_error',
+  'TIMEOUT_ERROR': 'timeout_error',
+  'CONFIGURATION_ERROR': 'internal_error',
+  'STORAGE_ERROR': 'internal_error',
+  'INTERNAL_ERROR': 'internal_error',
+}
+
 // Serialize error for API response
 export function serializeError(error: Error): any {
   // Special handling for UpstreamError to return Claude's original error format
@@ -114,13 +128,12 @@ export function serializeError(error: Error): any {
   }
 
   if (error instanceof BaseError) {
+    // Use Claude's error format for compatibility
     return {
       error: {
-        code: error.code,
+        type: errorCodeToType[error.code] || 'internal_error',
         message: error.message,
-        statusCode: error.statusCode,
-        timestamp: error.timestamp,
-        requestId: error.context?.requestId,
+        request_id: error.context?.requestId,
       },
     }
   }

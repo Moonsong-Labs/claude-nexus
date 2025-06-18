@@ -10,6 +10,8 @@ import { apiRoutes } from './routes/api.js'
 import { initializeSlack } from './services/slack.js'
 import { initializeDatabase } from './storage/writer.js'
 import { apiAuthMiddleware } from './middleware/api-auth.js'
+import { domainExtractorMiddleware } from './middleware/domain-extractor.js'
+import { clientAuthMiddleware } from './middleware/client-auth.js'
 import { logger } from './middleware/logger.js'
 import { HonoVariables, HonoBindings } from '@claude-nexus/shared/types'
 
@@ -69,6 +71,15 @@ export async function createProxyApp(): Promise<
   app.use('*', cors())
   app.use('*', loggingMiddleware())
 
+  // Domain extraction for all routes
+  app.use('*', domainExtractorMiddleware())
+
+  // Client authentication for proxy routes
+  // Apply before rate limiting to protect against unauthenticated requests
+  if (config.features.enableClientAuth !== false) {
+    app.use('/v1/*', clientAuthMiddleware())
+  }
+
   // Rate limiting
   if (config.features.enableMetrics) {
     app.use('/v1/*', createRateLimiter())
@@ -92,6 +103,13 @@ export async function createProxyApp(): Promise<
     const domain = c.req.query('domain')
     const stats = container.getMetricsService().getStats(domain)
     return c.json(stats)
+  })
+
+  // OAuth refresh metrics endpoint
+  app.get('/oauth-metrics', async c => {
+    const { getRefreshMetrics } = await import('./credentials.js')
+    const metrics = getRefreshMetrics()
+    return c.json(metrics)
   })
 
   // Dashboard API routes with authentication
