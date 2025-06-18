@@ -1,19 +1,5 @@
 #!/bin/bash
 
-# Convenience script to update only dashboard
-# Usage: ./update-dashboard.sh <version>
-
-VERSION=$1
-
-if [ -z "$VERSION" ]; then
-    echo "Error: Version not specified"
-    echo "Usage: $0 <version>"
-    echo "Example: $0 v8"
-    exit 1
-fi
-
-./update-proxy.sh "$VERSION" dashboard#!/bin/bash
-
 # Script to update Claude Nexus Proxy Docker containers
 # Usage: ./update-proxy.sh <version> [service]
 # Examples:
