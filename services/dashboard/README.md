@@ -46,7 +46,7 @@ bun test
 
 - `PORT` - Server port (default: 3001)
 - `HOST` - Server hostname (default: 0.0.0.0)
-- `PROXY_SERVICE_URL` - URL of proxy service for real-time updates
+- `PROXY_API_URL` - URL of proxy service for real-time updates
 
 ## API Endpoints
 

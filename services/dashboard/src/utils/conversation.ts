@@ -41,6 +41,7 @@ export interface ConversationData {
     message: string
     statusCode?: number
   }
+  rawResponse?: any
 }
 
 const MESSAGE_TRUNCATE_LENGTH = 300
@@ -98,6 +99,7 @@ export async function parseConversation(requestData: any): Promise<ConversationD
     model: requestData.model || 'unknown',
     duration: requestData.duration,
     error,
+    rawResponse: response,
   }
 }
 

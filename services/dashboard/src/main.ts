@@ -99,7 +99,7 @@ Environment Variables:
   HOST                        Server hostname (default: 0.0.0.0)
   DASHBOARD_API_KEY           API key for dashboard access (required)
   DATABASE_URL                PostgreSQL connection string (required)
-  PROXY_SERVICE_URL           URL of the proxy service for real-time updates (optional)
+  PROXY_API_URL               URL of the proxy service for real-time updates (optional)
 
 Examples:
   claude-nexus-dashboard
@@ -165,8 +165,8 @@ async function main() {
     console.log(`  - Authentication: Configured`)
     console.log(`  - Database: ${process.env.DATABASE_URL ? 'URL configured' : 'Host configured'}`)
 
-    if (process.env.PROXY_SERVICE_URL) {
-      console.log(`  - Proxy Service: ${process.env.PROXY_SERVICE_URL}`)
+    if (process.env.PROXY_API_URL) {
+      console.log(`  - Proxy Service: ${process.env.PROXY_API_URL}`)
     }
 
     // Create the app

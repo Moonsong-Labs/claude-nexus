@@ -225,7 +225,7 @@ export function getCircuitBreaker(
 export const claudeApiCircuitBreaker = getCircuitBreaker('claude-api', {
   failureThreshold: 5,
   successThreshold: 3,
-  timeout: 30000, // 30 seconds
+  timeout: 120000, // 2 minutes
   volumeThreshold: 10,
   errorThresholdPercentage: 50,
   rollingWindowSize: 60000, // 1 minute
