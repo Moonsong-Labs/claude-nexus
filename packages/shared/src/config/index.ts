@@ -77,7 +77,7 @@ export const config = {
   circuitBreaker: {
     failureThreshold: env.int('CIRCUIT_BREAKER_FAILURE_THRESHOLD', 5),
     successThreshold: env.int('CIRCUIT_BREAKER_SUCCESS_THRESHOLD', 3),
-    timeout: env.int('CIRCUIT_BREAKER_TIMEOUT', 30000), // 30 seconds
+    timeout: env.int('CIRCUIT_BREAKER_TIMEOUT', 120000), // 2 minutes
     volumeThreshold: env.int('CIRCUIT_BREAKER_VOLUME_THRESHOLD', 10),
     errorThresholdPercentage: env.int('CIRCUIT_BREAKER_ERROR_PERCENTAGE', 50),
   },
