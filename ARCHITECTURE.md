@@ -135,7 +135,7 @@ DASHBOARD_API_KEY=your-secret-key
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/claude_proxy
 
 # Optional
-PROXY_SERVICE_URL=http://localhost:3000
+PROXY_API_URL=http://localhost:3000
 ```
 
 ## Database

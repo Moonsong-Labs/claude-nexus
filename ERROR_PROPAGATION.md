@@ -7,26 +7,31 @@ Enhanced error message propagation from Claude API through the proxy to ensure c
 ## Changes Made
 
 ### 1. Enhanced UpstreamError Class (`src/types/errors.ts`)
+
 - Added `upstreamResponse` property to store the original Claude API error response
 - Updated constructor to accept and store the full error response from Claude
 - Modified status code to use the upstream status instead of defaulting to 502
 
 ### 2. Improved Error Parsing (`src/services/ClaudeApiClient.ts`)
+
 - Parse Claude API error responses and store both the error message and full response
 - For non-JSON errors, create a structured error object to maintain consistency
 - Pass the parsed error response to UpstreamError for propagation
 
 ### 3. Updated Error Serialization (`src/types/errors.ts`)
+
 - Special handling for UpstreamError to return Claude's original error format
 - Preserve original error messages instead of generic "An unexpected error occurred"
 - Maintain compatibility with Claude API error response structure
 
 ### 4. Fixed Status Code Handling (`src/controllers/MessageController.ts`)
+
 - Properly extract status codes from different error types
 - Use the actual upstream status code instead of defaulting to 500
 - Handle ValidationError (400) and other BaseError types correctly
 
 ### 5. Enhanced Streaming Error Handling (`src/services/ProxyService.ts`)
+
 - Added error event sending in SSE format for streaming responses
 - Track metrics and send notifications for streaming errors
 - Ensure errors are properly logged and propagated
@@ -44,6 +49,7 @@ PROXY_URL=https://your-proxy.com ./test-error-propagation.mjs
 ```
 
 The script tests various error scenarios:
+
 - Invalid request format
 - Invalid model names
 - Empty messages array
@@ -60,6 +66,7 @@ The script tests various error scenarios:
 ## Example
 
 Before:
+
 ```json
 {
   "error": {
@@ -71,6 +78,7 @@ Before:
 ```
 
 After:
+
 ```json
 {
   "error": {

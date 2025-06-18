@@ -816,7 +816,31 @@ dashboardRoutes.get('/request/:id', async c => {
       </div>
 
       <!-- Conversation View -->
-      <div id="conversation-view" class="conversation-container">${raw(messagesHtml)}</div>
+      <div id="conversation-view" class="conversation-container">
+        ${raw(messagesHtml)}
+        ${conversation.rawResponse
+          ? html`
+              <div class="section" style="margin-top: 1rem;">
+                <div class="section-header">
+                  Response Body
+                  <button
+                    class="btn btn-secondary"
+                    style="float: right; font-size: 0.75rem; padding: 0.25rem 0.75rem;"
+                    onclick="toggleResponseBody()"
+                  >
+                    Toggle
+                  </button>
+                </div>
+                <div class="section-content" id="response-body-section" style="display: none;">
+                  <div
+                    id="conversation-response-json"
+                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.875rem;"
+                  ></div>
+                </div>
+              </div>
+            `
+          : ''}
+      </div>
 
       <!-- Raw JSON View (hidden by default) -->
       <div id="raw-view" class="hidden">
@@ -990,6 +1014,9 @@ dashboardRoutes.get('/request/:id', async c => {
             streaming: details.streaming === true,
           })}
         </div>
+        <div id="conversation-response-storage">
+          ${conversation.rawResponse ? JSON.stringify(conversation.rawResponse) : 'null'}
+        </div>
       </div>
 
       <script>
@@ -1001,6 +1028,7 @@ dashboardRoutes.get('/request/:id', async c => {
         const responseHeaders = getJsonData('response-headers-storage')
         const telemetryData = getJsonData('telemetry-data-storage')
         const requestMetadata = getJsonData('metadata-storage')
+        const conversationResponse = getJsonData('conversation-response-storage')
 
         function showView(view) {
           const conversationView = document.getElementById('conversation-view')
@@ -1168,6 +1196,34 @@ dashboardRoutes.get('/request/:id', async c => {
                 console.error('Failed to copy to clipboard:', err)
                 alert('Failed to copy to clipboard')
               })
+          }
+        }
+
+        function toggleResponseBody() {
+          const section = document.getElementById('response-body-section')
+          const isHidden = section.style.display === 'none'
+
+          if (isHidden) {
+            section.style.display = 'block'
+
+            // Render the response JSON if not already rendered
+            const container = document.getElementById('conversation-response-json')
+            if (container && container.innerHTML === '' && conversationResponse) {
+              if (typeof renderjson !== 'undefined') {
+                renderjson.set_max_string_length(200)
+                renderjson.set_sort_objects(true)
+                try {
+                  container.appendChild(renderjson.set_show_to_level(2)(conversationResponse))
+                } catch (e) {
+                  console.error('Failed to render conversation response:', e)
+                  container.textContent = JSON.stringify(conversationResponse, null, 2)
+                }
+              } else {
+                container.textContent = JSON.stringify(conversationResponse, null, 2)
+              }
+            }
+          } else {
+            section.style.display = 'none'
           }
         }
 
