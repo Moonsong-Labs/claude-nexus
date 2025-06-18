@@ -7,6 +7,7 @@ This guide helps troubleshoot OAuth authentication issues with the Claude Nexus 
 ### "Failed to refresh token: 400 Bad Request - Refresh token not found or invalid"
 
 This error occurs when:
+
 1. The refresh token has expired or been revoked
 2. The refresh token is invalid or corrupted
 3. The OAuth client ID doesn't match the one used to create the token
@@ -36,6 +37,7 @@ bun run scripts/check-oauth-status.ts credentials/your-domain.credentials.json
 ```
 
 This shows:
+
 - Access token status (valid/expired)
 - Refresh token availability
 - Token expiration time
@@ -124,12 +126,14 @@ A valid OAuth credential file looks like:
 ### During Token Refresh
 
 The improved error handling now provides:
+
 - HTTP status code
 - Error code (e.g., `invalid_grant`)
 - Detailed error description
 - Suggestions for resolution
 
 Example log output:
+
 ```
 Failed to refresh OAuth token for /app/credentials/domain.credentials.json: Refresh token not found or invalid
 Refresh token is invalid or expired. Re-authentication required.

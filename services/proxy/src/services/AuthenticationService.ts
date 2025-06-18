@@ -40,89 +40,88 @@ export class AuthenticationService {
     return domain.toLowerCase().includes('personal')
   }
 
-
   /**
    * Authenticate non-personal domains - only uses domain credentials, no fallbacks
    */
   async authenticateNonPersonalDomain(context: RequestContext): Promise<AuthResult> {
     try {
-        const sanitizedPath = this.getSafeCredentialPath(context.host)
-        if (!sanitizedPath) {
-          throw new AuthenticationError('Invalid domain name', {
-            domain: context.host,
-            requestId: context.requestId,
-          })
-        }
-
-        const credentials = loadCredentials(sanitizedPath)
-        if (!credentials) {
-          throw new AuthenticationError('No credentials configured for domain', {
-            domain: context.host,
-            requestId: context.requestId,
-            hint: 'Domain credentials are required for non-personal domains',
-          })
-        }
-
-        const apiKey = await getApiKey(sanitizedPath)
-        if (!apiKey) {
-          throw new AuthenticationError('Failed to retrieve API key for domain', {
-            domain: context.host,
-            requestId: context.requestId,
-          })
-        }
-
-        // Return auth based on credential type
-        if (credentials.type === 'oauth') {
-          logger.info(`Using OAuth credentials for non-personal domain`, {
-            requestId: context.requestId,
-            domain: context.host,
-          })
-
-          return {
-            type: 'oauth',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'anthropic-beta': 'oauth-2025-04-20',
-            },
-            key: apiKey,
-            betaHeader: 'oauth-2025-04-20',
-          }
-        } else {
-          logger.info(`Using API key for non-personal domain`, {
-            requestId: context.requestId,
-            domain: context.host,
-          })
-
-          return {
-            type: 'api_key',
-            headers: {
-              'x-api-key': apiKey,
-            },
-            key: apiKey,
-          }
-        }
-      } catch (error) {
-        logger.error('Authentication failed for non-personal domain', {
-          requestId: context.requestId,
+      const sanitizedPath = this.getSafeCredentialPath(context.host)
+      if (!sanitizedPath) {
+        throw new AuthenticationError('Invalid domain name', {
           domain: context.host,
-          error:
-            error instanceof Error
-              ? {
-                  message: error.message,
-                  code: (error as any).code,
-                }
-              : { message: String(error) },
-        })
-
-        if (error instanceof AuthenticationError) {
-          throw error
-        }
-
-        throw new AuthenticationError('Authentication failed', {
-          originalError: error instanceof Error ? error.message : String(error),
+          requestId: context.requestId,
         })
       }
+
+      const credentials = loadCredentials(sanitizedPath)
+      if (!credentials) {
+        throw new AuthenticationError('No credentials configured for domain', {
+          domain: context.host,
+          requestId: context.requestId,
+          hint: 'Domain credentials are required for non-personal domains',
+        })
+      }
+
+      const apiKey = await getApiKey(sanitizedPath)
+      if (!apiKey) {
+        throw new AuthenticationError('Failed to retrieve API key for domain', {
+          domain: context.host,
+          requestId: context.requestId,
+        })
+      }
+
+      // Return auth based on credential type
+      if (credentials.type === 'oauth') {
+        logger.info(`Using OAuth credentials for non-personal domain`, {
+          requestId: context.requestId,
+          domain: context.host,
+        })
+
+        return {
+          type: 'oauth',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'anthropic-beta': 'oauth-2025-04-20',
+          },
+          key: apiKey,
+          betaHeader: 'oauth-2025-04-20',
+        }
+      } else {
+        logger.info(`Using API key for non-personal domain`, {
+          requestId: context.requestId,
+          domain: context.host,
+        })
+
+        return {
+          type: 'api_key',
+          headers: {
+            'x-api-key': apiKey,
+          },
+          key: apiKey,
+        }
+      }
+    } catch (error) {
+      logger.error('Authentication failed for non-personal domain', {
+        requestId: context.requestId,
+        domain: context.host,
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                code: (error as any).code,
+              }
+            : { message: String(error) },
+      })
+
+      if (error instanceof AuthenticationError) {
+        throw error
+      }
+
+      throw new AuthenticationError('Authentication failed', {
+        originalError: error instanceof Error ? error.message : String(error),
+      })
     }
+  }
 
   /**
    * Authenticate personal domains - uses fallback logic

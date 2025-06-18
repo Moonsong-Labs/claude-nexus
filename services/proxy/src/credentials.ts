@@ -372,9 +372,7 @@ export async function getApiKey(
               credentialManager.updateMetrics('success', duration)
 
               if (debug) {
-                console.log(
-                  `OAuth token refreshed for ${credentialPath} in ${duration}ms`
-                )
+                console.log(`OAuth token refreshed for ${credentialPath} in ${duration}ms`)
               }
 
               return newOAuth.accessToken

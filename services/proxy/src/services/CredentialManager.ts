@@ -1,6 +1,6 @@
 /**
  * CredentialManager - Manages credential caching and lifecycle
- * 
+ *
  * This class encapsulates credential caching logic and provides
  * lifecycle management for cleanup operations. It replaces the
  * global state and setInterval from credentials.ts.
@@ -52,7 +52,8 @@ export class CredentialManager {
   private cleanupIntervalId?: NodeJS.Timeout
   private readonly CLEANUP_INTERVAL = 300000 // 5 minutes
 
-  constructor(cacheTTL: number = 3600000) { // 1 hour default
+  constructor(cacheTTL: number = 3600000) {
+    // 1 hour default
     this.CREDENTIAL_CACHE_TTL = cacheTTL
   }
 
@@ -250,8 +251,10 @@ export class CredentialManager {
         attempts: this.refreshMetrics.attempts,
         successes: this.refreshMetrics.successes,
         failures: this.refreshMetrics.failures,
-        successRate: ((this.refreshMetrics.successes / this.refreshMetrics.attempts) * 100).toFixed(2) + '%',
-        avgRefreshTime: (this.refreshMetrics.totalRefreshTime / this.refreshMetrics.attempts).toFixed(0) + 'ms',
+        successRate:
+          ((this.refreshMetrics.successes / this.refreshMetrics.attempts) * 100).toFixed(2) + '%',
+        avgRefreshTime:
+          (this.refreshMetrics.totalRefreshTime / this.refreshMetrics.attempts).toFixed(0) + 'ms',
         currentActiveRefreshes: this.activeRefreshes.size,
       })
     }
@@ -264,4 +267,3 @@ export class CredentialManager {
     this.performCleanup()
   }
 }
-

@@ -9,14 +9,17 @@ This document details the security implementation for domain-specific API key au
 ### Threats Addressed
 
 1. **Unauthorized Proxy Usage**
+
    - **Threat**: Attackers discovering proxy endpoint could use it without authorization
    - **Mitigation**: Domain-specific API keys required for access
 
 2. **Path Traversal Attacks**
+
    - **Threat**: Malicious Host headers like `../../../etc/passwd` to read arbitrary files
    - **Mitigation**: Path sanitization and validation in `getSafeCredentialPath()`
 
 3. **Timing Attacks**
+
    - **Threat**: Measuring response times to guess valid API keys character by character
    - **Mitigation**: SHA-256 hashing before timing-safe comparison
 
@@ -32,7 +35,7 @@ This document details the security implementation for domain-specific API key au
 private getSafeCredentialPath(domain: string): string | null {
   // 1. Use path.basename() to remove directory components
   const safeDomain = path.basename(domain)
-  
+
   // 2. Validate characters (alphanumeric, dots, hyphens only)
   if (!/^[a-zA-Z0-9.-]+$/.test(safeDomain)) {
     return null
@@ -60,10 +63,7 @@ const tokenHash = await crypto.subtle.digest('SHA-256', tokenBuffer)
 const keyHash = await crypto.subtle.digest('SHA-256', keyBuffer)
 
 // Use Node.js timing-safe comparison
-const isValid = cryptoTimingSafeEqual(
-  Buffer.from(tokenHash),
-  Buffer.from(keyHash)
-)
+const isValid = cryptoTimingSafeEqual(Buffer.from(tokenHash), Buffer.from(keyHash))
 ```
 
 ### Authentication Flow
@@ -113,12 +113,14 @@ sequenceDiagram
 ### 4. Monitoring
 
 Authentication failures are logged with:
+
 - Timestamp
 - Source IP address
 - Requested domain
 - Request path
 
 Example log entry:
+
 ```json
 {
   "level": "warn",
@@ -133,6 +135,7 @@ Example log entry:
 ### 5. Rate Limiting
 
 Client authentication runs BEFORE rate limiting to:
+
 - Prevent unauthenticated requests from consuming rate limit quota
 - Protect against brute force attacks
 - Reduce load from unauthorized traffic
@@ -142,12 +145,14 @@ Client authentication runs BEFORE rate limiting to:
 ### Test Coverage
 
 1. **Path Traversal Tests**
+
    - Various injection patterns
    - URL encoding attempts
    - Null byte injection
    - Valid domains with dots
 
 2. **Authentication Tests**
+
    - Valid/invalid keys
    - Missing headers
    - Malformed headers

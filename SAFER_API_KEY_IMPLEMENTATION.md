@@ -17,25 +17,31 @@ This document describes the enhanced security implementation for API key handlin
 The proxy now enforces different authentication rules based on domain type:
 
 #### Personal Domains
+
 Domains containing the word "personal" (case-insensitive):
+
 - Can use domain-specific credentials (if configured)
 - Can use Bearer tokens from Authorization header
 - Can fall back to default API key (CLAUDE_API_KEY env var)
 
 Examples:
+
 - `personal.com`
 - `my-personal-site.com`
 - `personal-blog.net`
 - `site.personal.io`
 
 #### Non-Personal Domains
+
 All other domains:
+
 - **MUST** have domain-specific credentials configured
 - Bearer tokens from requests are ignored
 - No fallback to default API key
 - Returns 401 error if credentials are missing
 
 Examples:
+
 - `company.com`
 - `api.service.com`
 - `example.com`
@@ -45,7 +51,7 @@ Examples:
 ```mermaid
 graph TD
     A[Request Received] --> B{Domain contains 'personal'?}
-    
+
     B -->|Yes| C[Personal Domain Flow]
     C --> D[Check domain credentials]
     D -->|Found| E[Use domain credentials]
@@ -53,12 +59,12 @@ graph TD
     F -->|Bearer token| G[Use Bearer token]
     F -->|No Bearer| H[Use default API key]
     H -->|No default| I[Return 401 Error]
-    
+
     B -->|No| J[Non-Personal Domain Flow]
     J --> K[Check domain credentials]
     K -->|Found| L[Use domain credentials]
     K -->|Not Found| M[Return 401 Error]
-    
+
     E --> N[Filter x-api-key header]
     G --> N
     L --> N
@@ -68,16 +74,19 @@ graph TD
 ## Security Improvements
 
 ### 1. Header Filtering
+
 ```typescript
 // x-api-key is always filtered out before sending to Claude
 const { 'x-api-key': _, ...filteredHeaders } = authHeaders
 ```
 
 ### 2. Request Context
+
 - Only accepts Bearer tokens from Authorization header
 - Ignores x-api-key header completely
 
 ### 3. Domain Validation
+
 - Validates domain names to prevent path traversal
 - Case-insensitive matching for "personal" keyword
 
@@ -86,6 +95,7 @@ const { 'x-api-key': _, ...filteredHeaders } = authHeaders
 ### For Personal Domains
 
 No breaking changes. The following still work:
+
 1. Domain credentials in `<domain>.credentials.json`
 2. Bearer tokens in Authorization header
 3. Default API key fallback
@@ -95,6 +105,7 @@ No breaking changes. The following still work:
 **Breaking Change**: Must configure domain credentials.
 
 1. Create credential file:
+
 ```bash
 cat > credentials/company.com.credentials.json << EOF
 {
@@ -105,6 +116,7 @@ EOF
 ```
 
 2. Or use OAuth:
+
 ```bash
 cat > credentials/company.com.credentials.json << EOF
 {
@@ -123,6 +135,7 @@ EOF
 ## Error Messages
 
 ### Personal Domains
+
 ```json
 {
   "error": {
@@ -134,10 +147,11 @@ EOF
 ```
 
 ### Non-Personal Domains
+
 ```json
 {
   "error": {
-    "code": "AUTHENTICATION_ERROR", 
+    "code": "AUTHENTICATION_ERROR",
     "message": "No credentials configured for domain"
   },
   "hint": "Domain credentials are required for non-personal domains"
@@ -147,6 +161,7 @@ EOF
 ## Testing
 
 Run the new test suite:
+
 ```bash
 bun test tests/safer-auth.test.ts
 ```

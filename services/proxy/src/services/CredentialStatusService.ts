@@ -40,7 +40,7 @@ export class CredentialStatusService {
       // Check if directory exists
       if (!existsSync(this.credentialsDir)) {
         logger.info('Credentials directory does not exist', {
-          metadata: { credentialsDir: this.credentialsDir }
+          metadata: { credentialsDir: this.credentialsDir },
         })
         return statuses
       }
@@ -51,7 +51,7 @@ export class CredentialStatusService {
         .sort()
 
       logger.info(`Found ${files.length} credential files to check`, {
-        metadata: { credentialsDir: this.credentialsDir }
+        metadata: { credentialsDir: this.credentialsDir },
       })
 
       for (const file of files) {
@@ -61,7 +61,7 @@ export class CredentialStatusService {
     } catch (error) {
       logger.error('Failed to read credentials directory', {
         error: error instanceof Error ? { message: error.message } : { message: String(error) },
-        metadata: { credentialsDir: this.credentialsDir }
+        metadata: { credentialsDir: this.credentialsDir },
       })
     }
 
@@ -86,7 +86,7 @@ export class CredentialStatusService {
           status: 'error',
           message: 'Not a file',
           hasClientApiKey: false,
-          hasSlackConfig: false
+          hasSlackConfig: false,
         }
       }
 
@@ -100,7 +100,7 @@ export class CredentialStatusService {
           status: 'invalid',
           message: 'Failed to load credentials',
           hasClientApiKey: false,
-          hasSlackConfig: false
+          hasSlackConfig: false,
         }
       }
 
@@ -115,7 +115,7 @@ export class CredentialStatusService {
           status: 'valid',
           message: 'API key configured',
           hasClientApiKey: !!credentials.client_api_key,
-          hasSlackConfig: !!credentials.slack
+          hasSlackConfig: !!credentials.slack,
         }
       } else {
         return {
@@ -125,7 +125,7 @@ export class CredentialStatusService {
           status: 'invalid',
           message: `Missing ${credentials.type === 'oauth' ? 'OAuth data' : 'API key'}`,
           hasClientApiKey: !!credentials.client_api_key,
-          hasSlackConfig: !!credentials.slack
+          hasSlackConfig: !!credentials.slack,
         }
       }
     } catch (error) {
@@ -136,7 +136,7 @@ export class CredentialStatusService {
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown error',
         hasClientApiKey: false,
-        hasSlackConfig: false
+        hasSlackConfig: false,
       }
     }
   }
@@ -144,7 +144,11 @@ export class CredentialStatusService {
   /**
    * Check OAuth credential status
    */
-  private checkOAuthStatus(domain: string, filename: string, credentials: ClaudeCredentials): CredentialStatus {
+  private checkOAuthStatus(
+    domain: string,
+    filename: string,
+    credentials: ClaudeCredentials
+  ): CredentialStatus {
     const oauth = credentials.oauth!
     const now = Date.now()
     const expiresAt = oauth.expiresAt || 0
@@ -160,7 +164,7 @@ export class CredentialStatusService {
         message: 'No refresh token - re-authentication required when token expires',
         expiresAt: expiresAt ? new Date(expiresAt) : undefined,
         hasClientApiKey: !!credentials.client_api_key,
-        hasSlackConfig: !!credentials.slack
+        hasSlackConfig: !!credentials.slack,
       }
     }
 
@@ -174,7 +178,7 @@ export class CredentialStatusService {
         message: 'Token expired - will refresh on next use',
         expiresAt: new Date(expiresAt),
         hasClientApiKey: !!credentials.client_api_key,
-        hasSlackConfig: !!credentials.slack
+        hasSlackConfig: !!credentials.slack,
       }
     }
 
@@ -183,7 +187,7 @@ export class CredentialStatusService {
     if (expiresIn <= twentyFourHours) {
       const hours = Math.floor(expiresIn / (1000 * 60 * 60))
       const minutes = Math.floor((expiresIn % (1000 * 60 * 60)) / (1000 * 60))
-      
+
       return {
         domain,
         file: filename,
@@ -193,14 +197,14 @@ export class CredentialStatusService {
         expiresAt: new Date(expiresAt),
         expiresIn: `${hours}h ${minutes}m`,
         hasClientApiKey: !!credentials.client_api_key,
-        hasSlackConfig: !!credentials.slack
+        hasSlackConfig: !!credentials.slack,
       }
     }
 
     // Token is valid
     const days = Math.floor(expiresIn / (1000 * 60 * 60 * 24))
     const hours = Math.floor((expiresIn % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-    
+
     return {
       domain,
       file: filename,
@@ -210,7 +214,7 @@ export class CredentialStatusService {
       expiresAt: new Date(expiresAt),
       expiresIn: `${days}d ${hours}h`,
       hasClientApiKey: !!credentials.client_api_key,
-      hasSlackConfig: !!credentials.slack
+      hasSlackConfig: !!credentials.slack,
     }
   }
 
@@ -219,7 +223,7 @@ export class CredentialStatusService {
    */
   formatStatusForLogging(statuses: CredentialStatus[]): string[] {
     const lines: string[] = []
-    
+
     // Group by status
     const byStatus = {
       valid: statuses.filter(s => s.status === 'valid'),
@@ -227,7 +231,7 @@ export class CredentialStatusService {
       expiring_soon: statuses.filter(s => s.status === 'expiring_soon'),
       missing_refresh_token: statuses.filter(s => s.status === 'missing_refresh_token'),
       invalid: statuses.filter(s => s.status === 'invalid'),
-      error: statuses.filter(s => s.status === 'error')
+      error: statuses.filter(s => s.status === 'error'),
     }
 
     // Summary
@@ -235,34 +239,37 @@ export class CredentialStatusService {
     lines.push(`  Total: ${statuses.length} domains`)
     lines.push(`  Valid: ${byStatus.valid.length}`)
     if (byStatus.expired.length > 0) lines.push(`  Expired: ${byStatus.expired.length}`)
-    if (byStatus.expiring_soon.length > 0) lines.push(`  Expiring Soon: ${byStatus.expiring_soon.length}`)
-    if (byStatus.missing_refresh_token.length > 0) lines.push(`  Missing Refresh Token: ${byStatus.missing_refresh_token.length}`)
+    if (byStatus.expiring_soon.length > 0)
+      lines.push(`  Expiring Soon: ${byStatus.expiring_soon.length}`)
+    if (byStatus.missing_refresh_token.length > 0)
+      lines.push(`  Missing Refresh Token: ${byStatus.missing_refresh_token.length}`)
     if (byStatus.invalid.length > 0) lines.push(`  Invalid: ${byStatus.invalid.length}`)
     if (byStatus.error.length > 0) lines.push(`  Errors: ${byStatus.error.length}`)
-    
+
     // Details for each domain
     lines.push(`\nDomain Details:`)
     for (const status of statuses) {
       const extras: string[] = []
       if (status.hasClientApiKey) extras.push('client_key')
       if (status.hasSlackConfig) extras.push('slack')
-      
+
       let line = `  ${status.domain}: ${status.type} - ${status.status}`
       if (status.expiresIn) line += ` (expires in ${status.expiresIn})`
       if (extras.length > 0) line += ` [${extras.join(', ')}]`
       lines.push(line)
-      
+
       if (status.status !== 'valid') {
         lines.push(`    → ${status.message}`)
       }
     }
 
     // Warnings for domains that need attention
-    const needsAttention = statuses.filter(s => 
-      s.status === 'expired' || 
-      s.status === 'missing_refresh_token' || 
-      s.status === 'invalid' || 
-      s.status === 'error'
+    const needsAttention = statuses.filter(
+      s =>
+        s.status === 'expired' ||
+        s.status === 'missing_refresh_token' ||
+        s.status === 'invalid' ||
+        s.status === 'error'
     )
 
     if (needsAttention.length > 0) {

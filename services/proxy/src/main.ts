@@ -204,7 +204,7 @@ async function main() {
     console.log('\nChecking credentials...')
     const credentialService = new CredentialStatusService()
     const credentialStatuses = await credentialService.checkAllCredentials()
-    
+
     if (credentialStatuses.length > 0) {
       const statusLines = credentialService.formatStatusForLogging(credentialStatuses)
       statusLines.forEach(line => console.log(line))
