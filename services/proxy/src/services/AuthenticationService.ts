@@ -351,15 +351,25 @@ export class AuthenticationService {
    */
   private getSafeCredentialPath(domain: string): string | null {
     try {
-      // Sanitize domain to prevent path traversal
-      const safeDomain = path.basename(domain)
-
-      // Additional validation: domain should only contain safe characters
-      // Allow colons for port numbers (e.g., localhost:3000)
-      if (!/^[a-zA-Z0-9.-:]+$/.test(safeDomain)) {
-        logger.warn('Domain contains invalid characters', { domain })
+      // Validate domain to prevent path traversal and ensure safe characters
+      // Allow alphanumeric, dots, hyphens, and colons for port numbers
+      const domainRegex = /^[a-zA-Z0-9.\-:]+$/
+      if (!domainRegex.test(domain)) {
+        logger.warn('Domain contains invalid characters', {
+          domain,
+          regex: domainRegex.toString(),
+          testResult: domainRegex.test(domain),
+        })
         return null
       }
+
+      // Additional check to prevent path traversal attempts
+      if (domain.includes('..') || domain.includes('/') || domain.includes('\\')) {
+        logger.warn('Domain contains path traversal attempt', { domain })
+        return null
+      }
+
+      const safeDomain = domain
 
       // Build the credential path using the original credentialsDir value
       // This preserves relative paths for loadCredentials to handle
