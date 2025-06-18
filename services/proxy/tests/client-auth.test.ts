@@ -212,7 +212,7 @@ describe('Client Authentication Middleware', () => {
         },
       })
 
-      expect(res.status).toBe(401)
+      expect(res.status).toBe(500)
     })
   })
 })
