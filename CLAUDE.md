@@ -135,7 +135,7 @@ When `DEBUG=true`:
 - `CREDENTIALS_DIR` - Domain credential directory
 - `COLLECT_TEST_SAMPLES` - Collect request samples for testing (default: false)
 - `TEST_SAMPLES_DIR` - Directory for test samples (default: test-samples)
-- `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true)
+- `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true). Set to false to allow anyone to use the proxy without authentication
 
 ## Testing & Type Safety
 

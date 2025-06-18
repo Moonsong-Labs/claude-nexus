@@ -8,9 +8,9 @@ describe('Domain Extractor Middleware', () => {
   beforeEach(() => {
     app = new Hono()
     app.use('*', domainExtractorMiddleware())
-    
+
     // Test endpoint that returns the extracted domain
-    app.get('/test', (c) => {
+    app.get('/test', c => {
       const domain = c.get('domain')
       return c.json({ domain })
     })
@@ -20,10 +20,10 @@ describe('Domain Extractor Middleware', () => {
     it('should keep domain without subdomain as is', async () => {
       const res = await app.request('/test', {
         headers: {
-          'host': 'example.com:8080'
-        }
+          host: 'example.com:8080',
+        },
       })
-      
+
       const body = await res.json()
       expect(body.domain).toBe('example.com')
     })
@@ -31,10 +31,10 @@ describe('Domain Extractor Middleware', () => {
     it('should remove port from domains with subdomains', async () => {
       const res = await app.request('/test', {
         headers: {
-          'host': 'api.example.com:3000'
-        }
+          host: 'api.example.com:3000',
+        },
       })
-      
+
       const body = await res.json()
       expect(body.domain).toBe('api.example.com')
     })
@@ -42,10 +42,10 @@ describe('Domain Extractor Middleware', () => {
     it('should keep full domain claude-reviews.msldev.io', async () => {
       const res = await app.request('/test', {
         headers: {
-          'host': 'claude-reviews.msldev.io'
-        }
+          host: 'claude-reviews.msldev.io',
+        },
       })
-      
+
       const body = await res.json()
       expect(body.domain).toBe('claude-reviews.msldev.io')
     })
@@ -53,10 +53,10 @@ describe('Domain Extractor Middleware', () => {
     it('should remove port from team-review.msldev.io', async () => {
       const res = await app.request('/test', {
         headers: {
-          'host': 'team-review.msldev.io:443'
-        }
+          host: 'team-review.msldev.io:443',
+        },
       })
-      
+
       const body = await res.json()
       expect(body.domain).toBe('team-review.msldev.io')
     })
@@ -66,10 +66,10 @@ describe('Domain Extractor Middleware', () => {
     it('should preserve port for localhost', async () => {
       const res = await app.request('/test', {
         headers: {
-          'host': 'localhost:3000'
-        }
+          host: 'localhost:3000',
+        },
       })
-      
+
       const body = await res.json()
       expect(body.domain).toBe('localhost:3000')
     })
@@ -77,10 +77,10 @@ describe('Domain Extractor Middleware', () => {
     it('should preserve port for 127.0.0.1', async () => {
       const res = await app.request('/test', {
         headers: {
-          'host': '127.0.0.1:8080'
-        }
+          host: '127.0.0.1:8080',
+        },
       })
-      
+
       const body = await res.json()
       expect(body.domain).toBe('127.0.0.1:8080')
     })
@@ -88,10 +88,10 @@ describe('Domain Extractor Middleware', () => {
     it('should handle localhost without port', async () => {
       const res = await app.request('/test', {
         headers: {
-          'host': 'localhost'
-        }
+          host: 'localhost',
+        },
       })
-      
+
       const body = await res.json()
       expect(body.domain).toBe('localhost')
     })
@@ -100,9 +100,9 @@ describe('Domain Extractor Middleware', () => {
   describe('Error handling', () => {
     it('should return 400 when host header is missing', async () => {
       const res = await app.request('/test', {
-        headers: {}
+        headers: {},
       })
-      
+
       expect(res.status).toBe(400)
       const body = await res.json()
       expect(body.error.code).toBe('bad_request')
@@ -120,9 +120,9 @@ describe('Domain Extractor Middleware', () => {
 
       for (const { host, expected } of testCases) {
         const res = await app.request('/test', {
-          headers: { host }
+          headers: { host },
         })
-        
+
         const body = await res.json()
         expect(body.domain).toBe(expected)
       }
@@ -137,15 +137,18 @@ describe('Domain Extractor Middleware', () => {
         { host: 'team-review.example.org', expected: 'team-review.example.org' },
         { host: 'api.staging.example.com', expected: 'api.staging.example.com' },
         { host: 'www.example.com', expected: 'www.example.com' },
-        { host: 'deep.nested.subdomain.example.com', expected: 'deep.nested.subdomain.example.com' },
+        {
+          host: 'deep.nested.subdomain.example.com',
+          expected: 'deep.nested.subdomain.example.com',
+        },
         { host: 'single-char-x.domain.io:8080', expected: 'single-char-x.domain.io' },
       ]
 
       for (const { host, expected } of testCases) {
         const res = await app.request('/test', {
-          headers: { host }
+          headers: { host },
         })
-        
+
         const body = await res.json()
         expect(body.domain).toBe(expected)
       }
