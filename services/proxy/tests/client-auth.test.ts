@@ -33,7 +33,7 @@ describe('Client Authentication Middleware', () => {
   beforeEach(() => {
     app = new Hono()
     mockAuthService = new MockAuthenticationService()
-    
+
     // Override the container to use our mock
     const originalGetAuthService = container.getAuthenticationService
     container.getAuthenticationService = () => mockAuthService
@@ -41,9 +41,9 @@ describe('Client Authentication Middleware', () => {
     // Apply middlewares
     app.use('*', domainExtractorMiddleware())
     app.use('*', clientAuthMiddleware())
-    
+
     // Test endpoint
-    app.get('/test', (c) => c.json({ success: true }))
+    app.get('/test', c => c.json({ success: true }))
 
     // Restore after each test
     afterEach(() => {
@@ -58,9 +58,9 @@ describe('Client Authentication Middleware', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com',
-          'Authorization': `Bearer ${testKey}`
-        }
+          Host: 'example.com',
+          Authorization: `Bearer ${testKey}`,
+        },
       })
 
       expect(res.status).toBe(200)
@@ -71,34 +71,34 @@ describe('Client Authentication Middleware', () => {
     it('should handle different domains correctly', async () => {
       const key1 = 'cnp_live_domain1key'
       const key2 = 'cnp_live_domain2key'
-      
+
       mockAuthService.setMockKey('domain1.com', key1)
       mockAuthService.setMockKey('domain2.com', key2)
 
       // Test domain1
       const res1 = await app.request('/test', {
         headers: {
-          'Host': 'domain1.com',
-          'Authorization': `Bearer ${key1}`
-        }
+          Host: 'domain1.com',
+          Authorization: `Bearer ${key1}`,
+        },
       })
       expect(res1.status).toBe(200)
 
       // Test domain2
       const res2 = await app.request('/test', {
         headers: {
-          'Host': 'domain2.com',
-          'Authorization': `Bearer ${key2}`
-        }
+          Host: 'domain2.com',
+          Authorization: `Bearer ${key2}`,
+        },
       })
       expect(res2.status).toBe(200)
 
       // Test wrong key for domain1
       const res3 = await app.request('/test', {
         headers: {
-          'Host': 'domain1.com',
-          'Authorization': `Bearer ${key2}`
-        }
+          Host: 'domain1.com',
+          Authorization: `Bearer ${key2}`,
+        },
       })
       expect(res3.status).toBe(401)
     })
@@ -110,8 +110,8 @@ describe('Client Authentication Middleware', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com'
-        }
+          Host: 'example.com',
+        },
       })
 
       expect(res.status).toBe(401)
@@ -123,9 +123,9 @@ describe('Client Authentication Middleware', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com',
-          'Authorization': 'Bearer cnp_live_wrongkey'
-        }
+          Host: 'example.com',
+          Authorization: 'Bearer cnp_live_wrongkey',
+        },
       })
 
       expect(res.status).toBe(401)
@@ -136,9 +136,9 @@ describe('Client Authentication Middleware', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com',
-          'Authorization': 'Bearer cnp_live_somekey'
-        }
+          Host: 'example.com',
+          Authorization: 'Bearer cnp_live_somekey',
+        },
       })
 
       expect(res.status).toBe(401)
@@ -147,8 +147,8 @@ describe('Client Authentication Middleware', () => {
     it('should reject requests without Host header', async () => {
       const res = await app.request('/test', {
         headers: {
-          'Authorization': 'Bearer cnp_live_testkey'
-        }
+          Authorization: 'Bearer cnp_live_testkey',
+        },
       })
 
       expect(res.status).toBe(400)
@@ -175,9 +175,9 @@ describe('Client Authentication Middleware', () => {
       for (const wrongKey of wrongKeys) {
         const res = await app.request('/test', {
           headers: {
-            'Host': 'example.com',
-            'Authorization': `Bearer ${wrongKey}`
-          }
+            Host: 'example.com',
+            Authorization: `Bearer ${wrongKey}`,
+          },
         })
         expect(res.status).toBe(401)
       }
@@ -189,9 +189,9 @@ describe('Client Authentication Middleware', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com:8080',
-          'Authorization': `Bearer ${testKey}`
-        }
+          Host: 'example.com:8080',
+          Authorization: `Bearer ${testKey}`,
+        },
       })
 
       expect(res.status).toBe(200)
@@ -207,9 +207,9 @@ describe('Client Authentication Middleware', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com',
-          'Authorization': 'Bearer cnp_live_anykey'
-        }
+          Host: 'example.com',
+          Authorization: 'Bearer cnp_live_anykey',
+        },
       })
 
       expect(res.status).toBe(401)
@@ -220,7 +220,7 @@ describe('Client Authentication Middleware', () => {
 describe('Path Traversal Protection', () => {
   it('should prevent path traversal attacks', async () => {
     const authService = new AuthenticationService()
-    
+
     // Test various path traversal attempts
     const maliciousDomains = [
       '../../../etc/passwd',
@@ -240,7 +240,7 @@ describe('Path Traversal Protection', () => {
 
   it('should allow valid domain names', async () => {
     const authService = new AuthenticationService()
-    
+
     // These should be allowed (though they won't have keys in tests)
     const validDomains = [
       'example.com',

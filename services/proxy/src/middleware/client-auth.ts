@@ -13,7 +13,7 @@ export function clientAuthMiddleware() {
     verifyToken: async (token: string, c: Context) => {
       const domain = c.get('domain')
       const requestId = c.get('requestId')
-      
+
       if (!domain) {
         logger.error('Client auth middleware: Domain not found in context', {
           requestId,
@@ -42,17 +42,17 @@ export function clientAuthMiddleware() {
         const encoder = new TextEncoder()
         const tokenBuffer = encoder.encode(token)
         const keyBuffer = encoder.encode(clientApiKey)
-        
+
         // Hash both values before comparison
         const tokenHash = await crypto.subtle.digest('SHA-256', tokenBuffer)
         const keyHash = await crypto.subtle.digest('SHA-256', keyBuffer)
-        
+
         // Convert ArrayBuffer to Buffer for Node's timingSafeEqual
         const tokenHashBuffer = Buffer.from(tokenHash)
         const keyHashBuffer = Buffer.from(keyHash)
-        
+
         const isValid = cryptoTimingSafeEqual(tokenHashBuffer, keyHashBuffer)
-        
+
         if (!isValid) {
           logger.warn('Client auth middleware: Invalid API key', {
             requestId,
@@ -67,7 +67,7 @@ export function clientAuthMiddleware() {
           requestId,
           domain,
         })
-        
+
         return true
       } catch (error) {
         logger.error('Client auth middleware: Error verifying token', {

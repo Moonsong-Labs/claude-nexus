@@ -257,7 +257,7 @@ export class AuthenticationService {
     try {
       // Sanitize domain to prevent path traversal
       const safeDomain = path.basename(domain)
-      
+
       // Additional validation: domain should only contain safe characters
       if (!/^[a-zA-Z0-9.-]+$/.test(safeDomain)) {
         logger.warn('Domain contains invalid characters', { domain })

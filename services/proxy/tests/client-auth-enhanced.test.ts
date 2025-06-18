@@ -35,7 +35,7 @@ describe('Enhanced Client Authentication Tests', () => {
   beforeEach(() => {
     app = new Hono()
     mockAuthService = new MockAuthenticationService()
-    
+
     // Override the container to use our mock
     originalGetAuthService = container.getAuthenticationService
     container.getAuthenticationService = () => mockAuthService
@@ -43,9 +43,9 @@ describe('Enhanced Client Authentication Tests', () => {
     // Apply middlewares
     app.use('*', domainExtractorMiddleware())
     app.use('*', clientAuthMiddleware())
-    
+
     // Test endpoint
-    app.get('/test', (c) => c.json({ success: true }))
+    app.get('/test', c => c.json({ success: true }))
   })
 
   afterEach(() => {
@@ -61,8 +61,8 @@ describe('Enhanced Client Authentication Tests', () => {
       // Request with an uppercase domain
       const res = await app.request('/test', {
         headers: {
-          'Host': 'Example.COM',
-          'Authorization': `Bearer ${testKey}`,
+          Host: 'Example.COM',
+          Authorization: `Bearer ${testKey}`,
         },
       })
 
@@ -76,12 +76,12 @@ describe('Enhanced Client Authentication Tests', () => {
       mockAuthService.setMockKey('MiXeD.CaSe.CoM', testKey)
 
       const domains = ['mixed.case.com', 'MIXED.CASE.COM', 'MiXeD.cAsE.cOm']
-      
+
       for (const domain of domains) {
         const res = await app.request('/test', {
           headers: {
-            'Host': domain,
-            'Authorization': `Bearer ${testKey}`,
+            Host: domain,
+            Authorization: `Bearer ${testKey}`,
           },
         })
         expect(res.status).toBe(200)
@@ -100,19 +100,22 @@ describe('Enhanced Client Authentication Tests', () => {
       ['Bearer\tcnp_live_somekey', 'Tab instead of space'],
     ]
 
-    it.each(testCases)('should reject malformed Authorization header: %s (%s)', async (authHeader, _description) => {
-      mockAuthService.setMockKey('example.com', 'cnp_live_validkey')
+    it.each(testCases)(
+      'should reject malformed Authorization header: %s (%s)',
+      async (authHeader, _description) => {
+        mockAuthService.setMockKey('example.com', 'cnp_live_validkey')
 
-      const res = await app.request('/test', {
-        headers: {
-          'Host': 'example.com',
-          'Authorization': authHeader,
-        },
-      })
+        const res = await app.request('/test', {
+          headers: {
+            Host: 'example.com',
+            Authorization: authHeader,
+          },
+        })
 
-      expect(res.status).toBe(401)
-      expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="Claude Nexus Proxy"')
-    })
+        expect(res.status).toBe(401)
+        expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="Claude Nexus Proxy"')
+      }
+    )
   })
 
   describe('Edge Cases', () => {
@@ -121,8 +124,8 @@ describe('Enhanced Client Authentication Tests', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com',
-          'Authorization': 'Bearer ',
+          Host: 'example.com',
+          Authorization: 'Bearer ',
         },
       })
 
@@ -135,8 +138,8 @@ describe('Enhanced Client Authentication Tests', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com',
-          'Authorization': `Bearer ${longKey}`,
+          Host: 'example.com',
+          Authorization: `Bearer ${longKey}`,
         },
       })
 
@@ -149,8 +152,8 @@ describe('Enhanced Client Authentication Tests', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': 'example.com',
-          'Authorization': `Bearer ${specialKey}`,
+          Host: 'example.com',
+          Authorization: `Bearer ${specialKey}`,
         },
       })
 
@@ -163,15 +166,15 @@ describe('Enhanced Client Authentication Tests', () => {
       const realDomain = 'example.com'
       const fakeDomain = 'malicious-actor.com'
       const testKey = 'cnp_live_host_header_key'
-      
+
       mockAuthService.setMockKey(realDomain, testKey)
       // No key is set for the malicious domain
 
       const res = await app.request('/test', {
         headers: {
-          'Host': realDomain,
+          Host: realDomain,
           'X-Forwarded-Host': fakeDomain,
-          'Authorization': `Bearer ${testKey}`,
+          Authorization: `Bearer ${testKey}`,
         },
       })
 
@@ -183,14 +186,14 @@ describe('Enhanced Client Authentication Tests', () => {
       const realDomain = 'example.com'
       const fakeDomain = 'attacker.com'
       const testKey = 'cnp_live_original_host_test'
-      
+
       mockAuthService.setMockKey(realDomain, testKey)
 
       const res = await app.request('/test', {
         headers: {
-          'Host': realDomain,
+          Host: realDomain,
           'X-Original-Host': fakeDomain,
-          'Authorization': `Bearer ${testKey}`,
+          Authorization: `Bearer ${testKey}`,
         },
       })
 
@@ -207,8 +210,8 @@ describe('Enhanced Client Authentication Tests', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': punycodeDomain,
-          'Authorization': `Bearer ${testKey}`,
+          Host: punycodeDomain,
+          Authorization: `Bearer ${testKey}`,
         },
       })
 
@@ -223,8 +226,8 @@ describe('Enhanced Client Authentication Tests', () => {
 
       const res = await app.request('/test', {
         headers: {
-          'Host': punycodeDomain,
-          'Authorization': `Bearer ${testKey}`,
+          Host: punycodeDomain,
+          Authorization: `Bearer ${testKey}`,
         },
       })
 
@@ -237,13 +240,8 @@ describe('Path Traversal Edge Cases', () => {
   it('should allow valid domain names that contain dot sequences', async () => {
     const authService = new AuthenticationService()
     // This domain contains '..' but is a valid subdomain structure
-    const validDomainsWithDots = [
-      'sub..domain.com',
-      'a..b.com',
-      'example..com',
-      'test...com',
-    ]
-    
+    const validDomainsWithDots = ['sub..domain.com', 'a..b.com', 'example..com', 'test...com']
+
     for (const domain of validDomainsWithDots) {
       // We expect it not to find a key, but it shouldn't be rejected as a traversal attempt
       const result = await authService.getClientApiKey(domain)
@@ -253,11 +251,7 @@ describe('Path Traversal Edge Cases', () => {
 
   it('should reject domains with null bytes', async () => {
     const authService = new AuthenticationService()
-    const maliciousDomains = [
-      'example.com\x00.malicious',
-      'example.com\0',
-      '\x00example.com',
-    ]
+    const maliciousDomains = ['example.com\x00.malicious', 'example.com\0', '\x00example.com']
 
     for (const domain of maliciousDomains) {
       const result = await authService.getClientApiKey(domain)
@@ -267,11 +261,7 @@ describe('Path Traversal Edge Cases', () => {
 
   it('should handle domains with URL encoding attempts', async () => {
     const authService = new AuthenticationService()
-    const encodedDomains = [
-      'example%2Ecom',
-      'example%2e%2e%2fcom',
-      '%2e%2e%2fetc%2fpasswd',
-    ]
+    const encodedDomains = ['example%2Ecom', 'example%2e%2e%2fcom', '%2e%2e%2fetc%2fpasswd']
 
     for (const domain of encodedDomains) {
       const result = await authService.getClientApiKey(domain)

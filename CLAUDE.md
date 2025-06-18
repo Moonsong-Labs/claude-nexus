@@ -79,12 +79,14 @@ Docker configurations are in the `docker/` directory. Each service has its own o
 ### Authentication Flow
 
 **Client Authentication (Proxy Level):**
+
 1. Extract domain from Host header
 2. Check for `client_api_key` in domain credential file
 3. Verify Bearer token against stored key using timing-safe comparison
 4. Return 401 Unauthorized if invalid
 
 **Claude API Authentication:**
+
 1. Check domain-specific credential files (`<domain>.credentials.json`)
 2. Use Authorization header from request
 3. Fall back to CLAUDE_API_KEY environment variable

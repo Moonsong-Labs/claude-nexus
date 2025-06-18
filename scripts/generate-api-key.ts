@@ -26,7 +26,7 @@ function generateKeys(count: number = 1, prefix?: string): string[] {
 // CLI interface
 if (import.meta.main) {
   const args = process.argv.slice(2)
-  
+
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
 Claude Nexus Proxy API Key Generator
@@ -59,7 +59,7 @@ Examples:
   // Parse arguments
   let count = 1
   let prefix = 'cnp_live'
-  
+
   for (let i = 0; i < args.length; i++) {
     if ((args[i] === '-n' || args[i] === '--count') && args[i + 1]) {
       count = parseInt(args[i + 1], 10)
@@ -78,7 +78,7 @@ Examples:
 
   // Generate and display keys
   const keys = generateKeys(count, prefix)
-  
+
   if (count === 1) {
     console.log('\nGenerated API Key:')
     console.log(keys[0])
@@ -90,7 +90,7 @@ Examples:
       console.log(`${index + 1}. ${key}`)
     })
   }
-  
+
   console.log('\n⚠️  Keep these keys secure and do not share them publicly!')
 }
 
