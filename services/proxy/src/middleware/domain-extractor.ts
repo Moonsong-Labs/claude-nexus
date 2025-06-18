@@ -26,13 +26,20 @@ export function domainExtractorMiddleware() {
         400
       )
     } else {
-      // Remove port number if present
-      const domain = host.split(':')[0]
+      // For localhost, keep the port as part of the domain
+      // For other domains, remove the port
+      let domain = host
+      if (!host.startsWith('localhost:') && !host.startsWith('127.0.0.1:')) {
+        domain = host.split(':')[0]
+      }
       c.set('domain', domain)
 
       logger.debug('Domain extracted from request', {
         domain,
         path: c.req.path,
+        metadata: {
+          originalHost: host,
+        },
       })
     }
 

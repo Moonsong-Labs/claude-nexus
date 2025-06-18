@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { readdirSync, writeFileSync, mkdirSync } from 'fs'
+import { readdirSync, writeFileSync, mkdirSync, readFileSync } from 'fs'
 import { resolve, join, dirname } from 'path'
 import { loadCredentials, refreshToken } from '../services/proxy/src/credentials'
 
@@ -101,9 +101,27 @@ async function refreshAllOAuthTokens() {
             const newOAuth = await refreshToken(oauth.refreshToken)
             credentials.oauth = newOAuth
 
+            // Load existing file to preserve non-OAuth fields
+            let existingData: any = {}
+            try {
+              const content = readFileSync(filePath, 'utf-8')
+              existingData = JSON.parse(content)
+            } catch (err) {
+              // If we can't read existing data, we'll just save the new data
+            }
+
+            // Merge the OAuth data with existing data, preserving other fields
+            const mergedCredentials = {
+              ...existingData,
+              ...credentials,
+              // Explicitly preserve fields that might exist
+              client_api_key: existingData.client_api_key,
+              slack: existingData.slack,
+            }
+
             // Save updated credentials
             mkdirSync(dirname(filePath), { recursive: true })
-            writeFileSync(filePath, JSON.stringify(credentials, null, 2))
+            writeFileSync(filePath, JSON.stringify(mergedCredentials, null, 2))
 
             const expiresIn = newOAuth.expiresAt - Date.now()
             const hours = Math.floor(expiresIn / (1000 * 60 * 60))

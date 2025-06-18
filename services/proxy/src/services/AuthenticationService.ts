@@ -355,27 +355,33 @@ export class AuthenticationService {
       const safeDomain = path.basename(domain)
 
       // Additional validation: domain should only contain safe characters
-      if (!/^[a-zA-Z0-9.-]+$/.test(safeDomain)) {
+      // Allow colons for port numbers (e.g., localhost:3000)
+      if (!/^[a-zA-Z0-9.-:]+$/.test(safeDomain)) {
         logger.warn('Domain contains invalid characters', { domain })
         return null
       }
 
-      // Resolve the credentials directory to an absolute path
-      const credentialsDir = path.resolve(this.credentialsDir)
-      const credentialPath = path.resolve(credentialsDir, `${safeDomain}.credentials.json`)
+      // Build the credential path using the original credentialsDir value
+      // This preserves relative paths for loadCredentials to handle
+      const credentialPath = path.join(this.credentialsDir, `${safeDomain}.credentials.json`)
 
-      // Security check: ensure the resolved path is within the credentials directory
-      if (!credentialPath.startsWith(credentialsDir + path.sep)) {
+      // Security check: resolve both paths for comparison only
+      const resolvedCredsDir = path.resolve(this.credentialsDir)
+      const resolvedCredPath = path.resolve(credentialPath)
+
+      // Ensure the resolved path is within the credentials directory
+      if (!resolvedCredPath.startsWith(resolvedCredsDir + path.sep)) {
         logger.error('Path traversal attempt detected', {
           domain,
           metadata: {
             attemptedPath: credentialPath,
-            safeDir: credentialsDir,
+            safeDir: this.credentialsDir,
           },
         })
         return null
       }
 
+      // Return the unresolved path for loadCredentials to handle
       return credentialPath
     } catch (error) {
       logger.error('Error sanitizing credential path', {

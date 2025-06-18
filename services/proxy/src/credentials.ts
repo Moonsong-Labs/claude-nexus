@@ -215,7 +215,28 @@ async function saveOAuthCredentials(filePath: string, credentials: ClaudeCredent
     // Ensure directory exists
     mkdirSync(dirname(fullPath), { recursive: true })
 
-    writeFileSync(fullPath, JSON.stringify(credentials, null, 2))
+    // Load existing file to preserve non-OAuth fields
+    let existingData: any = {}
+    try {
+      if (existsSync(fullPath)) {
+        const content = readFileSync(fullPath, 'utf-8')
+        existingData = JSON.parse(content)
+      }
+    } catch (err) {
+      // If we can't read existing data, we'll just save the new data
+      console.warn(`Could not read existing credential file for merging: ${err}`)
+    }
+
+    // Merge the OAuth data with existing data, preserving other fields
+    const mergedData = {
+      ...existingData,
+      ...credentials,
+      // Explicitly preserve fields that might exist but aren't in ClaudeCredentials type
+      client_api_key: existingData.client_api_key || credentials.client_api_key,
+      slack: existingData.slack || credentials.slack,
+    }
+
+    writeFileSync(fullPath, JSON.stringify(mergedData, null, 2))
   } catch (err) {
     console.error(`Failed to save OAuth credentials to ${filePath}:`, err)
   }
