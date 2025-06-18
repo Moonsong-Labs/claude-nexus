@@ -141,9 +141,10 @@ export function serializeError(error: Error): any {
   // Handle non-operational errors
   return {
     error: {
-      type: 'internal_error',
+      code: 'INTERNAL_ERROR',
       message: error.message || 'An unexpected error occurred',
-      request_id: (error as any).context?.requestId,
+      statusCode: 500,
+      timestamp: new Date(),
     },
   }
 }
