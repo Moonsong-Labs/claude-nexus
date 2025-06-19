@@ -32,21 +32,84 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       `)
     }
 
+    // For each request, get the detailed information to calculate message counts
+    const requestDetailsMap = new Map<string, { messageCount: number; messageTypes: string[] }>()
+    
+    // Process each request to get message counts and types
+    for (const req of conversation.requests) {
+      try {
+        const details = await storageService.getRequestDetails(req.request_id)
+        let messageCount = 0
+        const messageTypes: string[] = []
+        
+        if (details.request_body?.messages) {
+          // Count request messages
+          messageCount = details.request_body.messages.length
+          
+          // Get types of last 2 messages in request
+          const lastMessages = details.request_body.messages.slice(-2)
+          for (const msg of lastMessages) {
+            if (Array.isArray(msg.content)) {
+              // Check for tool use/results
+              const hasToolUse = msg.content.some((c: any) => c.type === 'tool_use')
+              const hasToolResult = msg.content.some((c: any) => c.type === 'tool_result')
+              if (hasToolUse) {
+                messageTypes.push('tool_use')
+              } else if (hasToolResult) {
+                messageTypes.push('tool_result')
+              } else {
+                messageTypes.push('text')
+              }
+            } else {
+              messageTypes.push('text')
+            }
+          }
+        }
+        
+        // Add assistant response
+        if (details.response_body?.content || details.response_body?.role === 'assistant') {
+          messageCount += 1
+          // Check response type
+          if (Array.isArray(details.response_body.content)) {
+            const hasToolUse = details.response_body.content.some((c: any) => c.type === 'tool_use')
+            if (hasToolUse) {
+              messageTypes.push('tool_use')
+            } else {
+              messageTypes.push('text')
+            }
+          } else {
+            messageTypes.push('text')
+          }
+        }
+        
+        requestDetailsMap.set(req.request_id, { messageCount, messageTypes: messageTypes.slice(-2) })
+      } catch (err) {
+        // If we can't get details, use defaults
+        requestDetailsMap.set(req.request_id, { messageCount: 0, messageTypes: [] })
+      }
+    }
+
     // Build the graph structure
     const graph: ConversationGraph = {
-      nodes: conversation.requests.map(req => ({
-        id: req.request_id,
-        label: `${req.model}`,
-        timestamp: new Date(req.timestamp),
-        branchId: req.branch_id || 'main',
-        parentId: req.parent_message_hash
-          ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
-              ?.request_id
-          : undefined,
-        tokens: req.total_tokens,
-        model: req.model,
-        hasError: !!req.error,
-      })),
+      nodes: conversation.requests.map((req, index) => {
+        const details = requestDetailsMap.get(req.request_id) || { messageCount: 0, messageTypes: [] }
+        return {
+          id: req.request_id,
+          label: `${req.model}`,
+          timestamp: new Date(req.timestamp),
+          branchId: req.branch_id || 'main',
+          parentId: req.parent_message_hash
+            ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
+                ?.request_id
+            : undefined,
+          tokens: req.total_tokens,
+          model: req.model,
+          hasError: !!req.error,
+          messageIndex: index + 1, // 1-based index
+          messageCount: details.messageCount,
+          messageTypes: details.messageTypes,
+        }
+      }),
       edges: [],
     }
 
@@ -95,7 +158,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
     const content = html`
       <div class="mb-6">
-        <a href="/dashboard/conversations" class="text-blue-600">← Back to Conversations</a>
+        <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
       </div>
 
       <h2 style="margin: 0 0 1.5rem 0;">Conversation Details</h2>
@@ -121,14 +184,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       </div>
 
       <!-- Branch Filter -->
-      <div class="branch-filter">
+      <div class="branch-filter" id="branch-filter">
         <span class="text-sm text-gray-600">Filter by branch:</span>
         <a
           href="/dashboard/conversation/${conversationId}"
           class="branch-chip ${!selectedBranch ? 'branch-chip-active' : 'branch-chip-main'}"
-          hx-get="/dashboard/conversation/${conversationId}/messages"
-          hx-target="#conversation-messages"
-          hx-push-url="/dashboard/conversation/${conversationId}"
+          style="${!selectedBranch ? 'background: #f3f4f6; color: #1f2937; border-color: #9ca3af;' : ''}"
         >
           All Branches
         </a>
@@ -140,10 +201,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               return `
             <a href="/dashboard/conversation/${conversationId}?branch=${branch}"
                class="branch-chip ${isActive ? 'branch-chip-active' : ''}"
-               style="${!isActive && branch !== 'main' ? `background: ${color}20; color: ${color}; border-color: ${color};` : ''}"
-               hx-get="/dashboard/conversation/${conversationId}/messages?branch=${branch}"
-               hx-target="#conversation-messages"
-               hx-push-url="/dashboard/conversation/${conversationId}?branch=${branch}">
+               style="${branch !== 'main' ? `background: ${color}20; color: ${color}; border-color: ${color};` : 'background: #f3f4f6; color: #4b5563; border-color: #e5e7eb;'}${isActive ? ' font-weight: 600;' : ''}">
               ${branch} (${stats.count} messages, ${formatNumber(stats.tokens)} tokens)
             </a>
           `
@@ -209,13 +267,18 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
  * Helper to render conversation messages
  */
 function renderConversationMessages(requests: any[], _branches: string[]) {
+  // Sort requests by timestamp in descending order (newest first)
+  const sortedRequests = [...requests].sort((a, b) => 
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
+
   return html`
     <div style="display: grid; gap: 1rem;">
       ${raw(
-        requests
+        sortedRequests
           .map((req, idx) => {
             const _isFirst = idx === 0
-            const _isLast = idx === requests.length - 1
+            const _isLast = idx === sortedRequests.length - 1
             const branch = req.branch_id || 'main'
             const branchColor = getBranchColor(branch)
 

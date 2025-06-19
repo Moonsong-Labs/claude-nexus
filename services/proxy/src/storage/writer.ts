@@ -237,19 +237,59 @@ export class StorageWriter {
 
   /**
    * Find conversation ID by parent message hash
+   * When multiple conversations have the same parent hash, pick the one with fewer requests
    */
   async findConversationByParentHash(parentHash: string): Promise<string | null> {
     try {
+      // First, find all conversations that have this parent hash
       const query = `
-        SELECT conversation_id 
-        FROM api_requests 
-        WHERE current_message_hash = $1 
-        AND conversation_id IS NOT NULL
-        ORDER BY timestamp DESC
+        WITH conversation_counts AS (
+          SELECT 
+            r.conversation_id,
+            COUNT(*) as request_count
+          FROM api_requests r
+          WHERE r.conversation_id IN (
+            SELECT DISTINCT conversation_id 
+            FROM api_requests 
+            WHERE current_message_hash = $1 
+            AND conversation_id IS NOT NULL
+          )
+          GROUP BY r.conversation_id
+        )
+        SELECT 
+          ar.conversation_id
+        FROM api_requests ar
+        JOIN conversation_counts cc ON ar.conversation_id = cc.conversation_id
+        WHERE ar.current_message_hash = $1 
+        AND ar.conversation_id IS NOT NULL
+        ORDER BY cc.request_count ASC, ar.timestamp DESC
         LIMIT 1
       `
 
       const result = await this.pool.query(query, [parentHash])
+      
+      // Log if we're choosing between multiple conversations
+      if (result.rows.length > 0) {
+        // Check how many conversations actually have this parent hash
+        const countResult = await this.pool.query(
+          `SELECT COUNT(DISTINCT conversation_id) as count 
+           FROM api_requests 
+           WHERE current_message_hash = $1 
+           AND conversation_id IS NOT NULL`,
+          [parentHash]
+        )
+        
+        if (countResult.rows[0].count > 1) {
+          logger.info('Multiple conversations found with same parent hash, selecting the one with fewer requests', {
+            metadata: {
+              parentHash,
+              conversationCount: countResult.rows[0].count,
+              selectedConversation: result.rows[0].conversation_id,
+            },
+          })
+        }
+      }
+      
       return result.rows[0]?.conversation_id || null
     } catch (error) {
       logger.error('Failed to find conversation by parent hash', {
@@ -271,25 +311,53 @@ export class StorageWriter {
     parentMessageHash: string
   ): Promise<string | null> {
     try {
-      // Check if there's already a request with this parent hash in this conversation
-      const result = await this.pool.query(
-        `SELECT COUNT(*) as count, MAX(branch_id) as latest_branch 
+      // First, find the parent message to get its branch
+      const parentResult = await this.pool.query(
+        `SELECT branch_id, current_message_hash
+         FROM api_requests 
+         WHERE conversation_id = $1 
+         AND current_message_hash = $2
+         LIMIT 1`,
+        [conversationId, parentMessageHash]
+      )
+
+      const parentBranch = parentResult.rows[0]?.branch_id || 'main'
+
+      // Now check if there's already a child of this parent in the conversation
+      const childrenResult = await this.pool.query(
+        `SELECT COUNT(*) as count, array_agg(DISTINCT branch_id) as existing_branches
          FROM api_requests 
          WHERE conversation_id = $1 
          AND parent_message_hash = $2`,
         [conversationId, parentMessageHash]
       )
 
-      const { count, latest_branch } = result.rows[0]
+      const { count, existing_branches } = childrenResult.rows[0]
 
       // If there's already a message with this parent, we're creating a new branch
       if (parseInt(count) > 0) {
+        logger.info('Creating new branch - parent already has children', {
+          metadata: {
+            conversationId,
+            parentMessageHash,
+            parentBranch,
+            existingBranches: existing_branches,
+            childCount: count,
+          },
+        })
         // Generate new branch ID based on timestamp
         return `branch_${Date.now()}`
       }
 
-      // If this is the first message with this parent, use the existing branch
-      return latest_branch || 'main'
+      // If this is the first message with this parent, continue on the parent's branch
+      logger.info('Continuing on parent branch', {
+        metadata: {
+          conversationId,
+          parentMessageHash,
+          parentBranch,
+        },
+      })
+      return parentBranch
     } catch (error) {
       logger.error('Error detecting branch', {
         metadata: {

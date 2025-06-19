@@ -156,6 +156,31 @@ export const layout = (title: string, content: any) => html`
           font-size: 1rem;
           background: white;
         }
+        
+        /* Pagination styles */
+        .pagination-link {
+          padding: 0.5rem 0.75rem;
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 0.375rem;
+          text-decoration: none;
+          color: #374151;
+          transition: all 0.15s;
+        }
+        .pagination-link:hover {
+          background: #f3f4f6;
+          border-color: #d1d5db;
+        }
+        .pagination-current {
+          padding: 0.5rem 0.75rem;
+          background: #3b82f6;
+          color: white;
+          border-radius: 0.375rem;
+        }
+        .pagination-disabled {
+          padding: 0.5rem 1rem;
+          color: #9ca3af;
+        }
 
         .text-sm {
           font-size: 0.875rem;
@@ -236,6 +261,12 @@ export const layout = (title: string, content: any) => html`
 
         .message-assistant .message-content {
           background: #f9fafb;
+        }
+        
+        .message-assistant-response .message-content {
+          background: #f0fdf4;
+          border-color: #86efac;
+          border-left: 3px solid #10b981;
         }
 
         .message-system .message-content {
@@ -505,8 +536,9 @@ export const layout = (title: string, content: any) => html`
           display: flex;
           gap: 0.5rem;
           align-items: center;
-          margin-bottom: 1rem;
+          margin-bottom: 1.5rem;
           flex-wrap: wrap;
+          padding-bottom: 0.5rem;
         }
 
         .branch-chip {
@@ -519,23 +551,37 @@ export const layout = (title: string, content: any) => html`
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s;
-          border: 1px solid transparent;
+          border: 2px solid transparent;
+          text-decoration: none;
+          position: relative;
         }
 
         .branch-chip-main {
           background: #f3f4f6;
           color: #4b5563;
-          border-color: #d1d5db;
+          border-color: #e5e7eb;
         }
 
         .branch-chip-active {
-          background: #3b82f6;
-          color: white;
-          border-color: #2563eb;
+          font-weight: 600;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .branch-chip-active::after {
+          content: '';
+          position: absolute;
+          bottom: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: currentColor;
         }
 
         .branch-chip:hover:not(.branch-chip-active) {
-          background: #e5e7eb;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
       </style>
       <link
@@ -553,7 +599,6 @@ export const layout = (title: string, content: any) => html`
           <div class="space-x-4">
             <a href="/dashboard" class="text-sm text-blue-600">Dashboard</a>
             <a href="/dashboard/requests" class="text-sm text-blue-600">Requests</a>
-            <a href="/dashboard/conversations" class="text-sm text-blue-600">Conversations</a>
             <span class="text-sm text-gray-600" id="current-domain">All Domains</span>
             <a href="/dashboard/logout" class="text-sm text-blue-600">Logout</a>
           </div>
@@ -569,13 +614,28 @@ export const layout = (title: string, content: any) => html`
  */
 dashboardRoutes.get('/', async c => {
   const domain = c.req.query('domain')
+  const refresh = c.req.query('refresh')
+  const page = parseInt(c.req.query('page') || '1')
+  const perPage = parseInt(c.req.query('per_page') || '50')
+  const searchQuery = c.req.query('search')?.toLowerCase()
+
+  // Validate pagination params
+  const currentPage = Math.max(1, page)
+  const itemsPerPage = Math.min(Math.max(10, perPage), 100) // Between 10 and 100
 
   // Get storage service from container
   const { container } = await import('../container.js')
   const storageService = container.getStorageService()
 
+  // Clear cache if refresh is requested
+  if (refresh === 'true') {
+    storageService.clearCache()
+  }
+
   try {
-    const conversations = await storageService.getConversations(domain, 1000)
+    // For now, fetch all and paginate in memory
+    // TODO: Add offset/limit support to getConversationSummaries
+    const allConversationSummaries = await storageService.getConversationSummaries(domain, 10000)
 
     // Create flat list of conversation branches
     const conversationBranches: Array<{
@@ -586,42 +646,104 @@ dashboardRoutes.get('/', async c => {
       firstMessage: Date
       lastMessage: Date
       domain: string
+      latestRequestId?: string
     }> = []
 
-    conversations.forEach(conv => {
-      const branches = conv.branches.length > 0 ? conv.branches : ['main']
-
-      branches.forEach(branch => {
-        const branchRequests = conv.requests.filter(r => (r.branch_id || 'main') === branch)
-        if (branchRequests.length > 0) {
+    // We'll need to fetch full conversations to get request IDs
+    // For now, let's work with what we have
+    allConversationSummaries.forEach(conv => {
+      if (conv.branches && Array.isArray(conv.branches)) {
+        conv.branches.forEach((branch: any) => {
           conversationBranches.push({
             conversationId: conv.conversation_id,
-            branch,
-            messageCount: branchRequests.length,
-            tokens: branchRequests.reduce((sum, r) => sum + r.total_tokens, 0),
-            firstMessage: new Date(
-              Math.min(...branchRequests.map(r => new Date(r.timestamp).getTime()))
-            ),
-            lastMessage: new Date(
-              Math.max(...branchRequests.map(r => new Date(r.timestamp).getTime()))
-            ),
-            domain: branchRequests[0]?.domain || 'unknown',
+            branch: branch.branch_id,
+            messageCount: branch.message_count,
+            tokens: branch.branch_tokens || 0,
+            firstMessage: new Date(branch.branch_start),
+            lastMessage: new Date(branch.branch_end),
+            domain: conv.domain,
+            latestRequestId: branch.latest_request_id,
           })
-        }
-      })
+        })
+      }
     })
 
+    // Apply search filter if provided
+    let filteredBranches = conversationBranches
+    if (searchQuery) {
+      filteredBranches = conversationBranches.filter(branch => {
+        return (
+          branch.conversationId.toLowerCase().includes(searchQuery) ||
+          branch.branch.toLowerCase().includes(searchQuery) ||
+          branch.domain.toLowerCase().includes(searchQuery)
+        )
+      })
+    }
+
     // Sort by last message time
-    conversationBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
+    filteredBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
+
+    // Get unique domains for the dropdown
+    const uniqueDomains = [...new Set(conversationBranches.map(branch => branch.domain))].sort()
+
+    // Calculate totals from conversation branches
+    const totalMessages = conversationBranches.reduce((sum, branch) => sum + branch.messageCount, 0)
+    const totalTokens = conversationBranches.reduce((sum, branch) => sum + branch.tokens, 0)
+
+    // Calculate pagination
+    const totalItems = filteredBranches.length
+    const totalPages = Math.ceil(totalItems / itemsPerPage)
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    const paginatedBranches = filteredBranches.slice(startIndex, endIndex)
 
     const content = html`
-      <h2 style="margin: 0 0 1.5rem 0;">Conversations Overview</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 style="margin: 0;">Conversations Overview</h2>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <!-- Search Bar -->
+          <form action="/dashboard" method="get" style="display: flex; gap: 0.5rem;">
+            ${domain ? raw(`<input type="hidden" name="domain" value="${domain}">`) : ''}
+            <input type="hidden" name="page" value="1">
+            <input type="hidden" name="per_page" value="${itemsPerPage}">
+            <input
+              type="search"
+              name="search"
+              placeholder="Search conversations..."
+              value="${c.req.query('search') || ''}"
+              style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 250px; font-size: 0.875rem;"
+            />
+            <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+              Search
+            </button>
+          </form>
+          <a href="/dashboard?refresh=true&page=${currentPage}&per_page=${itemsPerPage}${domain ? `&domain=${domain}` : ''}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}" class="btn btn-secondary" style="font-size: 0.875rem;">
+            Refresh
+          </a>
+        </div>
+      </div>
+
+      <!-- Domain Filter -->
+      <div style="margin-bottom: 1.5rem;">
+        <label class="text-sm text-gray-600">Filter by Domain:</label>
+        <select
+          onchange="window.location.href = '/dashboard' + (this.value ? '?domain=' + this.value : '?') + '&page=1&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}'"
+          style="margin-left: 0.5rem; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;"
+        >
+          <option value="">All Domains</option>
+          ${raw(
+            uniqueDomains
+              .map(d => `<option value="${d}" ${domain === d ? 'selected' : ''}>${d}</option>`)
+              .join('')
+          )}
+        </select>
+      </div>
 
       <!-- Stats Summary -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Total Conversations</div>
-          <div class="stat-value">${conversations.length}</div>
+          <div class="stat-value">${allConversationSummaries.length}</div>
           <div class="stat-meta">Unique conversations</div>
         </div>
         <div class="stat-card">
@@ -632,14 +754,14 @@ dashboardRoutes.get('/', async c => {
         <div class="stat-card">
           <div class="stat-label">Total Messages</div>
           <div class="stat-value">
-            ${conversations.reduce((sum, c) => sum + c.message_count, 0)}
+            ${totalMessages}
           </div>
           <div class="stat-meta">Across all conversations</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Total Tokens</div>
           <div class="stat-value">
-            ${formatNumber(conversations.reduce((sum, c) => sum + c.total_tokens, 0))}
+            ${formatNumber(totalTokens)}
           </div>
           <div class="stat-meta">Combined usage</div>
         </div>
@@ -650,11 +772,11 @@ dashboardRoutes.get('/', async c => {
         <div class="section-header">
           Conversation Branches
           <span class="text-sm text-gray-500" style="float: right;">
-            ${conversationBranches.length} branches across ${conversations.length} conversations
+            Showing ${paginatedBranches.length} of ${totalItems} ${searchQuery ? 'filtered ' : ''}branches (Page ${currentPage} of ${totalPages})
           </span>
         </div>
         <div class="section-content">
-          ${conversationBranches.length === 0
+          ${paginatedBranches.length === 0
             ? html`<p class="text-gray-500">No conversations found</p>`
             : html`
                 <table>
@@ -672,7 +794,7 @@ dashboardRoutes.get('/', async c => {
                   </thead>
                   <tbody>
                     ${raw(
-                      conversationBranches
+                      paginatedBranches
                         .map(branch => {
                           const duration =
                             branch.lastMessage.getTime() - branch.firstMessage.getTime()
@@ -681,7 +803,11 @@ dashboardRoutes.get('/', async c => {
                           return `
                             <tr>
                               <td class="text-sm">
-                                <code style="font-size: 0.75rem;">${branch.conversationId.substring(0, 8)}...</code>
+                                <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
+                                   class="text-blue-600" 
+                                   style="font-family: monospace; font-size: 0.75rem;">
+                                  ${branch.conversationId.substring(0, 8)}...
+                                </a>
                               </td>
                               <td class="text-sm">
                                 ${
@@ -696,7 +822,10 @@ dashboardRoutes.get('/', async c => {
                               <td class="text-sm">${formatDuration(duration)}</td>
                               <td class="text-sm">${formatTimestamp(branch.lastMessage)}</td>
                               <td class="text-sm">
-                                <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" class="text-blue-600">View →</a>
+                                ${branch.latestRequestId 
+                                  ? `<a href="/dashboard/request/${branch.latestRequestId}" class="text-blue-600" title="View latest request">Latest →</a>`
+                                  : '<span class="text-gray-400">N/A</span>'
+                                }
                               </td>
                             </tr>
                           `
@@ -705,6 +834,54 @@ dashboardRoutes.get('/', async c => {
                     )}
                   </tbody>
                 </table>
+                
+                ${totalPages > 1 ? html`
+                  <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 2rem; padding: 1rem 0;">
+                    ${currentPage > 1 ? html`
+                      <a href="?page=${currentPage - 1}${domain ? `&domain=${domain}` : ''}&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}" 
+                         class="pagination-link">
+                        ← Previous
+                      </a>
+                    ` : html`
+                      <span class="pagination-disabled">← Previous</span>
+                    `}
+                    
+                    <div style="display: flex; gap: 0.5rem;">
+                      ${generatePageNumbers(currentPage, totalPages).map(pageNum => 
+                        pageNum === '...' 
+                          ? html`<span style="padding: 0.5rem;">...</span>`
+                          : pageNum === currentPage 
+                            ? html`<span class="pagination-current">${pageNum}</span>`
+                            : html`
+                                <a href="?page=${pageNum}${domain ? `&domain=${domain}` : ''}&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}"
+                                   class="pagination-link">
+                                  ${pageNum}
+                                </a>
+                              `
+                      )}
+                    </div>
+                    
+                    ${currentPage < totalPages ? html`
+                      <a href="?page=${currentPage + 1}${domain ? `&domain=${domain}` : ''}&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}"
+                         class="pagination-link">
+                        Next →
+                      </a>
+                    ` : html`
+                      <span class="pagination-disabled">Next →</span>
+                    `}
+                    
+                    <div style="margin-left: 2rem; color: #6b7280; font-size: 0.875rem;">
+                      Items per page:
+                      <select onchange="window.location.href='?page=1${domain ? `&domain=${domain}` : ''}&per_page=' + this.value + '${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}'"
+                              style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;">
+                        <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                        <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
+                        <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                        <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>100</option>
+                      </select>
+                    </div>
+                  </div>
+                ` : ''}
               `}
         </div>
       </div>
@@ -736,6 +913,44 @@ function formatNumber(num: number): string {
     return `${(num / 1000).toFixed(1)}K`
   }
   return num.toString()
+}
+
+function generatePageNumbers(current: number, total: number): (number | string)[] {
+  const pages: (number | string)[] = []
+  const maxVisible = 7 // Maximum number of page buttons to show
+  
+  if (total <= maxVisible) {
+    // Show all pages if total is small
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    // Always show first page
+    pages.push(1)
+    
+    if (current > 3) {
+      pages.push('...')
+    }
+    
+    // Show pages around current
+    const start = Math.max(2, current - 1)
+    const end = Math.min(total - 1, current + 1)
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    
+    if (current < total - 2) {
+      pages.push('...')
+    }
+    
+    // Always show last page
+    if (total > 1) {
+      pages.push(total)
+    }
+  }
+  
+  return pages
 }
 
 function escapeHtml(text: string): string {
@@ -942,200 +1157,6 @@ dashboardRoutes.get('/requests', async c => {
 })
 
 /**
- * Conversations page - shows all conversations with branch information
- */
-dashboardRoutes.get('/conversations', async c => {
-  const domain = c.req.query('domain')
-  const searchQuery = c.req.query('search')?.toLowerCase()
-
-  // Get storage service from container
-  const { container } = await import('../container.js')
-  const storageService = container.getStorageService()
-
-  try {
-    let conversations = await storageService.getConversations(domain, 1000)
-
-    // Apply search filter if provided
-    if (searchQuery) {
-      conversations = conversations.filter(conv => {
-        // Search in request IDs, models, domains, and branch IDs
-        return (
-          conv.requests.some(
-            req =>
-              req.request_id.toLowerCase().includes(searchQuery) ||
-              req.model.toLowerCase().includes(searchQuery) ||
-              req.domain.toLowerCase().includes(searchQuery) ||
-              (req.branch_id && req.branch_id.toLowerCase().includes(searchQuery)) ||
-              req.request_id.toLowerCase().includes(searchQuery)
-          ) || conv.conversation_id.toLowerCase().includes(searchQuery)
-        )
-      })
-    }
-
-    const content = html`
-      <div class="mb-6">
-        <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
-      </div>
-
-      <div
-        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;"
-      >
-        <h2 style="margin: 0;">Conversations</h2>
-
-        <!-- Search Bar -->
-        <form action="/dashboard/conversations" method="get" style="display: flex; gap: 0.5rem;">
-          ${domain ? `<input type="hidden" name="domain" value="${domain}">` : ''}
-          <input
-            type="search"
-            name="search"
-            placeholder="Search conversations..."
-            value="${c.req.query('search') || ''}"
-            style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 300px;"
-          />
-          <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem;">
-            Search
-          </button>
-        </form>
-      </div>
-
-      <!-- Domain Filter -->
-      <div class="mb-6">
-        <label class="text-sm text-gray-600">Filter by Domain:</label>
-        <select
-          onchange="window.location.href = '/dashboard/conversations' + (this.value ? '?domain=' + this.value : '')"
-          style="margin-left: 0.5rem;"
-        >
-          <option value="">All Domains</option>
-          ${raw(
-            // You'd need to fetch domains here or pass them in
-            ''
-          )}
-        </select>
-      </div>
-
-      <!-- Conversation Statistics -->
-      ${conversations.length > 0
-        ? html`
-            <div class="conversation-stats-grid" style="margin-bottom: 1.5rem;">
-              <div class="conversation-stat-card">
-                <div class="conversation-stat-label">Total Conversations</div>
-                <div class="conversation-stat-value">${conversations.length}</div>
-              </div>
-              <div class="conversation-stat-card">
-                <div class="conversation-stat-label">Total Messages</div>
-                <div class="conversation-stat-value">
-                  ${conversations.reduce((sum, c) => sum + c.message_count, 0)}
-                </div>
-              </div>
-              <div class="conversation-stat-card">
-                <div class="conversation-stat-label">Total Tokens</div>
-                <div class="conversation-stat-value">
-                  ${formatNumber(conversations.reduce((sum, c) => sum + c.total_tokens, 0))}
-                </div>
-              </div>
-              <div class="conversation-stat-card">
-                <div class="conversation-stat-label">Avg Messages/Conv</div>
-                <div class="conversation-stat-value">
-                  ${Math.round(
-                    conversations.reduce((sum, c) => sum + c.message_count, 0) /
-                      conversations.length
-                  )}
-                </div>
-              </div>
-            </div>
-          `
-        : ''}
-      ${conversations.length === 0
-        ? html`<p class="text-gray-500">No conversations found</p>`
-        : html`
-            <div style="display: grid; gap: 1rem;">
-              ${raw(
-                conversations
-                  .map(conv => {
-                    const branches = conv.branches.length > 0 ? conv.branches : ['main']
-                    const branchCount = branches.length
-                    const hasBranches = branchCount > 1
-
-                    return `
-                      <div class="section">
-                        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
-                          <div>
-                            <span style="font-size: 0.875rem; color: #6b7280;">
-                              ${new Date(conv.first_message).toLocaleString()}
-                            </span>
-                            ${hasBranches ? `<span style="margin-left: 0.5rem; font-size: 0.75rem; background: #dbeafe; color: #1e40af; padding: 0.125rem 0.5rem; border-radius: 9999px;">${branchCount} branches</span>` : ''}
-                          </div>
-                          <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <span class="text-sm text-gray-600">${conv.message_count} messages</span>
-                            <span class="text-sm text-gray-600">${formatNumber(conv.total_tokens)} tokens</span>
-                            <a href="/dashboard/conversation/${conv.conversation_id}" class="text-sm text-blue-600">View Details →</a>
-                          </div>
-                        </div>
-                        <div class="section-content">
-                          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            ${conv.requests
-                              .map((req, idx) => {
-                                const isFirst = idx === 0
-                                const isLast = idx === conv.requests.length - 1
-                                const branch = req.branch_id || 'main'
-                                const prevBranch =
-                                  idx > 0 ? conv.requests[idx - 1].branch_id || 'main' : branch
-                                const isBranchStart = branch !== prevBranch
-
-                                return `
-                                  <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
-                                    <div style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0;">
-                                      ${!isFirst ? '<div style="width: 2px; height: 1rem; background: #e5e7eb;"></div>' : ''}
-                                      <div style="width: 12px; height: 12px; border-radius: 50%; background: ${isBranchStart ? '#3b82f6' : '#6b7280'}; border: 2px solid white; box-shadow: 0 0 0 1px #e5e7eb;"></div>
-                                      ${!isLast ? '<div style="width: 2px; flex: 1; background: #e5e7eb;"></div>' : ''}
-                                    </div>
-                                    <div style="flex: 1; padding: 0.5rem; background: #f9fafb; border-radius: 0.375rem; border: 1px solid #e5e7eb;">
-                                      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.25rem;">
-                                        <span class="text-sm text-gray-600">${new Date(req.timestamp).toLocaleTimeString()}</span>
-                                        ${branch !== 'main' ? `<span style="font-size: 0.7rem; background: #eff6ff; color: #2563eb; padding: 0.125rem 0.375rem; border-radius: 0.25rem;">${escapeHtml(branch)}</span>` : ''}
-                                      </div>
-                                      <div class="text-sm">
-                                        <span style="color: #6b7280;">${req.model}</span>
-                                        <span style="margin: 0 0.5rem; color: #d1d5db;">·</span>
-                                        <span>${req.input_tokens + req.output_tokens} tokens</span>
-                                        ${req.error ? '<span style="color: #ef4444; margin-left: 0.5rem;">Error</span>' : ''}
-                                      </div>
-                                      <a href="/dashboard/request/${req.request_id}" class="text-sm text-blue-600" style="display: inline-block; margin-top: 0.25rem;">View details →</a>
-                                    </div>
-                                  </div>
-                                `
-                              })
-                              .join('')}
-                          </div>
-                        </div>
-                      </div>
-                    `
-                  })
-                  .join('')
-              )}
-            </div>
-          `}
-    `
-
-    return c.html(layout('Conversations', content))
-  } catch (error) {
-    return c.html(
-      layout(
-        'Error',
-        html`
-          <div class="error-banner">
-            <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversations'}
-          </div>
-          <div class="mb-6">
-            <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
-          </div>
-        `
-      )
-    )
-  }
-})
-
-/**
  * Request details page with conversation view
  */
 dashboardRoutes.get('/request/:id', async c => {
@@ -1169,8 +1190,10 @@ dashboardRoutes.get('/request/:id', async c => {
     // Calculate cost
     const cost = calculateCost(conversation.totalInputTokens, conversation.totalOutputTokens)
 
-    // Format messages for display
+    // Format messages for display - reverse order to show newest first
     const messagesHtml = conversation.messages
+      .slice()
+      .reverse()
       .map((msg, idx) => {
         const messageId = `message-${idx}`
         const contentId = `content-${idx}`
@@ -1182,6 +1205,11 @@ dashboardRoutes.get('/request/:id', async c => {
           messageClass += ' message-tool-use'
         } else if (msg.isToolResult) {
           messageClass += ' message-tool-result'
+        }
+        
+        // Add special styling for assistant messages
+        if (msg.role === 'assistant') {
+          messageClass += ' message-assistant-response'
         }
 
         // Format role display
@@ -1402,28 +1430,6 @@ dashboardRoutes.get('/request/:id', async c => {
       <!-- Conversation View -->
       <div id="conversation-view" class="conversation-container">
         ${raw(messagesHtml)}
-        ${conversation.rawResponse
-          ? html`
-              <div class="section" style="margin-top: 1rem;">
-                <div class="section-header">
-                  Response Body
-                  <button
-                    class="btn btn-secondary"
-                    style="float: right; font-size: 0.75rem; padding: 0.25rem 0.75rem;"
-                    onclick="toggleResponseBody()"
-                  >
-                    Toggle
-                  </button>
-                </div>
-                <div class="section-content" id="response-body-section" style="display: none;">
-                  <div
-                    id="conversation-response-json"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.875rem;"
-                  ></div>
-                </div>
-              </div>
-            `
-          : ''}
       </div>
 
       <!-- Raw JSON View (hidden by default) -->
@@ -1598,9 +1604,6 @@ dashboardRoutes.get('/request/:id', async c => {
             streaming: details.streaming === true,
           })}
         </div>
-        <div id="conversation-response-storage">
-          ${conversation.rawResponse ? JSON.stringify(conversation.rawResponse) : 'null'}
-        </div>
       </div>
 
       <script>
@@ -1612,7 +1615,6 @@ dashboardRoutes.get('/request/:id', async c => {
         const responseHeaders = getJsonData('response-headers-storage')
         const telemetryData = getJsonData('telemetry-data-storage')
         const requestMetadata = getJsonData('metadata-storage')
-        const conversationResponse = getJsonData('conversation-response-storage')
 
         function showView(view) {
           const conversationView = document.getElementById('conversation-view')
@@ -1783,33 +1785,6 @@ dashboardRoutes.get('/request/:id', async c => {
           }
         }
 
-        function toggleResponseBody() {
-          const section = document.getElementById('response-body-section')
-          const isHidden = section.style.display === 'none'
-
-          if (isHidden) {
-            section.style.display = 'block'
-
-            // Render the response JSON if not already rendered
-            const container = document.getElementById('conversation-response-json')
-            if (container && container.innerHTML === '' && conversationResponse) {
-              if (typeof renderjson !== 'undefined') {
-                renderjson.set_max_string_length(200)
-                renderjson.set_sort_objects(true)
-                try {
-                  container.appendChild(renderjson.set_show_to_level(2)(conversationResponse))
-                } catch (e) {
-                  console.error('Failed to render conversation response:', e)
-                  container.textContent = JSON.stringify(conversationResponse, null, 2)
-                }
-              } else {
-                container.textContent = JSON.stringify(conversationResponse, null, 2)
-              }
-            }
-          } else {
-            section.style.display = 'none'
-          }
-        }
 
         // Initialize syntax highlighting
         document.addEventListener('DOMContentLoaded', function () {

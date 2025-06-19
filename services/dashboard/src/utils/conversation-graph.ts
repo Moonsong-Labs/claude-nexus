@@ -9,6 +9,10 @@ export interface ConversationNode {
   tokens: number
   model: string
   hasError: boolean
+  messageIndex?: number
+  messageCount?: number
+  toolCallCount?: number
+  messageTypes?: string[]
 }
 
 export interface ConversationGraph {
@@ -28,6 +32,10 @@ export interface LayoutNode {
   tokens: number
   model: string
   hasError: boolean
+  messageIndex?: number
+  messageCount?: number
+  toolCallCount?: number
+  messageTypes?: string[]
 }
 
 export interface LayoutEdge {
@@ -90,7 +98,7 @@ export function getBranchColor(branchId: string): string {
  */
 export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true): string {
   const padding = 40
-  const nodeRadius = 6
+  const nodeRadius = 8
   const width = layout.width + padding * 2
   const height = layout.height + padding * 2
 
@@ -132,22 +140,59 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
   // Render nodes
   svg += '<g class="graph-nodes">\n'
   for (const node of layout.nodes) {
-    const cx = node.x + node.width / 2 + padding
-    const cy = node.y + node.height / 2 + padding
+    const x = node.x + padding
+    const y = node.y + padding
     const color = getBranchColor(node.branchId)
     const nodeClass = node.hasError
       ? 'graph-node graph-node-error'
       : `graph-node ${node.branchId === 'main' ? 'graph-node-main' : 'graph-node-branch'}`
 
     if (interactive) {
-      svg += `  <a href="#message-${node.id}" hx-get="/dashboard/conversation/${node.id}/focus" hx-target="#conversation-messages" hx-swap="innerHTML" hx-push-url="false">\n`
+      svg += `  <a href="/dashboard/request/${node.id}">\n`
     }
 
-    svg += `    <circle cx="${cx}" cy="${cy}" r="${nodeRadius}" class="${nodeClass}${interactive ? ' graph-node-clickable' : ''}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''}" />\n`
+    // Draw rectangle with rounded corners
+    svg += `    <rect x="${x}" y="${y}" width="${node.width}" height="${node.height}" rx="6" ry="6" class="${nodeClass}${interactive ? ' graph-node-clickable' : ''}" style="fill: white; stroke: ${node.hasError ? '#ef4444' : color}; stroke-width: 2;" />\n`
 
-    // Add timestamp label
+    // Add message count number on the left
+    if (node.messageCount !== undefined) {
+      svg += `    <text x="${x + 12}" y="${y + node.height / 2 + 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 14px; fill: ${color};">${node.messageCount}</text>\n`
+    }
+
+    // Add model label in the center
+    const modelShort = node.model.includes('claude-3') ? node.model.split('-')[2] : node.model.split('-').slice(-1)[0]
+    svg += `    <text x="${x + node.width / 2 + 5}" y="${y + node.height / 2 - 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${modelShort}</text>\n`
+    
+    // Add timestamp
     const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    svg += `    <text x="${cx}" y="${cy - 12}" text-anchor="middle" class="graph-node-label">${time}</text>\n`
+    svg += `    <text x="${x + node.width / 2 + 5}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
+
+    // Add message type icons on the right side
+    if (node.messageTypes && node.messageTypes.length > 0) {
+      const iconSize = 12
+      const iconSpacing = 14
+      const iconsX = x + node.width - 25
+      const iconsY = y + node.height / 2
+      
+      node.messageTypes.slice(-2).forEach((type, i) => {
+        const iconX = iconsX + (i * iconSpacing)
+        const iconY = iconsY
+        
+        if (type === 'tool_use') {
+          // Tool icon (wrench)
+          svg += `    <text x="${iconX}" y="${iconY + 4}" text-anchor="middle" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
+        } else if (type === 'tool_result') {
+          // Result icon (checkmark)
+          svg += `    <text x="${iconX}" y="${iconY + 4}" text-anchor="middle" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool result">✅</text>\n`
+        } else {
+          // Text icon (speech bubble)
+          svg += `    <text x="${iconX}" y="${iconY + 4}" text-anchor="middle" class="graph-node-label" style="font-size: ${iconSize}px;" title="Text message">💬</text>\n`
+        }
+      })
+    }
+
+    // Add connection point at the bottom
+    svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`
 
     if (interactive) {
       svg += `  </a>\n`

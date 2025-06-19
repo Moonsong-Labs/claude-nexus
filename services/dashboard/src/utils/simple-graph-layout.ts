@@ -61,6 +61,10 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
       tokens: node.tokens,
       model: node.model,
       hasError: node.hasError,
+      messageIndex: node.messageIndex,
+      messageCount: node.messageCount,
+      toolCallCount: node.toolCallCount,
+      messageTypes: node.messageTypes,
     })
 
     // Position children
@@ -75,9 +79,11 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
 
       // If branch changes, offset horizontally
       if (child.branchId !== node.branchId) {
-        const laneDiff =
-          (branchLanes.get(child.branchId) || 0) - (branchLanes.get(node.branchId) || 0)
-        childX = x + laneDiff * horizontalSpacing
+        const childLane = branchLanes.get(child.branchId) || 0
+        const parentLane = branchLanes.get(node.branchId) || 0
+        const laneDiff = childLane - parentLane
+        // Always offset branches to the right to keep them visible
+        childX = x + Math.abs(laneDiff) * horizontalSpacing
       }
 
       const nextY = y + verticalSpacing
@@ -100,6 +106,12 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
     const targetNode = layoutNodes.find(n => n.id === edge.target)
 
     if (sourceNode && targetNode) {
+      // Create a path that goes from bottom of source to top of target
+      const startX = sourceNode.x + sourceNode.width / 2
+      const startY = sourceNode.y + sourceNode.height
+      const endX = targetNode.x + targetNode.width / 2
+      const endY = targetNode.y
+      
       layoutEdges.push({
         id: `e${idx}`,
         source: edge.source,
@@ -107,12 +119,12 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
         sections: [
           {
             startPoint: {
-              x: sourceNode.x + sourceNode.width / 2,
-              y: sourceNode.y + sourceNode.height,
+              x: startX,
+              y: startY,
             },
             endPoint: {
-              x: targetNode.x + targetNode.width / 2,
-              y: targetNode.y,
+              x: endX,
+              y: endY,
             },
           },
         ],

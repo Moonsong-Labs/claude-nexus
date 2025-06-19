@@ -41,6 +41,8 @@
     "clean": "bun run --filter '*' clean",
     "test": "bun test",
     "db:init": "psql $DATABASE_URL < scripts/init-database.sql",
+    "db:analyze-conversations": "bun run scripts/analyze-conversations.ts",
+    "db:rebuild-conversations": "bun run scripts/rebuild-conversations.ts",
     "setup": "bun install && bun run build:shared",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

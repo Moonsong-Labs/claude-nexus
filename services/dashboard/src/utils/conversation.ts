@@ -76,9 +76,11 @@ export async function parseConversation(requestData: any): Promise<ConversationD
   }
 
   // Parse assistant response
-  if (response.content && Array.isArray(response.content)) {
-    // Process tool usage for assistant response
-    processMessageContentForTools(response.content)
+  if (response.content) {
+    // Process tool usage for assistant response if content is an array
+    if (Array.isArray(response.content)) {
+      processMessageContentForTools(response.content)
+    }
     // Assistant response gets the actual timestamp
     const parsedMsg = await parseMessage(
       {
@@ -87,6 +89,10 @@ export async function parseConversation(requestData: any): Promise<ConversationD
       },
       timestamp
     )
+    messages.push(parsedMsg)
+  } else if (response.type === 'message' && response.role === 'assistant') {
+    // Handle case where response is already in message format
+    const parsedMsg = await parseMessage(response, timestamp)
     messages.push(parsedMsg)
   }
 

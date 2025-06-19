@@ -87,6 +87,8 @@ The proxy automatically tracks conversations and detects branches using message 
 3. Requests are linked into conversations by matching parent/child relationships
 4. Conversations support branching (like git) when resumed from earlier points
 5. Branches are automatically detected when multiple requests share the same parent
+6. When multiple conversations have the same parent hash, the system picks the conversation with the fewest requests to continue
+7. Messages continue on the same branch as their parent unless they create a new branch point
 
 **Message Normalization:**
 
@@ -174,6 +176,8 @@ When `DEBUG=true`:
 - `COLLECT_TEST_SAMPLES` - Collect request samples for testing (default: false)
 - `TEST_SAMPLES_DIR` - Directory for test samples (default: test-samples)
 - `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true). Set to false to allow anyone to use the proxy without authentication
+- `DASHBOARD_CACHE_TTL` - Dashboard cache TTL in seconds (default: 30). Set to 0 to disable caching
+- `SLOW_QUERY_THRESHOLD_MS` - Threshold in milliseconds for logging slow SQL queries (default: 5000)
 
 ## Important Notes
 

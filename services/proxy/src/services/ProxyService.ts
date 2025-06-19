@@ -74,7 +74,10 @@ export class ProxyService {
 
     if (this.storageAdapter && rawRequest.messages && rawRequest.messages.length > 0) {
       try {
-        const { currentMessageHash, parentMessageHash } = extractMessageHashes(rawRequest.messages)
+        const { currentMessageHash, parentMessageHash } = extractMessageHashes(
+          rawRequest.messages,
+          rawRequest.system
+        )
 
         // Find or create conversation ID
         let conversationId: string
