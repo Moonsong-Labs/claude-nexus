@@ -159,4 +159,3 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
   return svg
 }
-

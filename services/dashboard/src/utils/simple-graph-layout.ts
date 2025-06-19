@@ -133,4 +133,3 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
     height: maxY - minY + 100,
   }
 }
-

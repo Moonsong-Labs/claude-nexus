@@ -9,7 +9,7 @@ import {
   formatDuration,
   formatMessageTime,
 } from '../utils/conversation.js'
-// Import removed - not used in this file
+import { getBranchColor } from '../utils/conversation-graph.js'
 
 export const dashboardRoutes = new Hono<{
   Variables: {
@@ -552,6 +552,7 @@ export const layout = (title: string, content: any) => html`
           <h1>Claude Nexus Dashboard</h1>
           <div class="space-x-4">
             <a href="/dashboard" class="text-sm text-blue-600">Dashboard</a>
+            <a href="/dashboard/requests" class="text-sm text-blue-600">Requests</a>
             <a href="/dashboard/conversations" class="text-sm text-blue-600">Conversations</a>
             <span class="text-sm text-gray-600" id="current-domain">All Domains</span>
             <a href="/dashboard/logout" class="text-sm text-blue-600">Logout</a>
@@ -562,6 +563,167 @@ export const layout = (title: string, content: any) => html`
     </body>
   </html>
 `
+
+/**
+ * Main dashboard page - Shows conversations overview with branches
+ */
+dashboardRoutes.get('/', async c => {
+  const domain = c.req.query('domain')
+
+  // Get storage service from container
+  const { container } = await import('../container.js')
+  const storageService = container.getStorageService()
+
+  try {
+    const conversations = await storageService.getConversations(domain, 1000)
+
+    // Create flat list of conversation branches
+    const conversationBranches: Array<{
+      conversationId: string
+      branch: string
+      messageCount: number
+      tokens: number
+      firstMessage: Date
+      lastMessage: Date
+      domain: string
+    }> = []
+
+    conversations.forEach(conv => {
+      const branches = conv.branches.length > 0 ? conv.branches : ['main']
+
+      branches.forEach(branch => {
+        const branchRequests = conv.requests.filter(r => (r.branch_id || 'main') === branch)
+        if (branchRequests.length > 0) {
+          conversationBranches.push({
+            conversationId: conv.conversation_id,
+            branch,
+            messageCount: branchRequests.length,
+            tokens: branchRequests.reduce((sum, r) => sum + r.total_tokens, 0),
+            firstMessage: new Date(
+              Math.min(...branchRequests.map(r => new Date(r.timestamp).getTime()))
+            ),
+            lastMessage: new Date(
+              Math.max(...branchRequests.map(r => new Date(r.timestamp).getTime()))
+            ),
+            domain: branchRequests[0]?.domain || 'unknown',
+          })
+        }
+      })
+    })
+
+    // Sort by last message time
+    conversationBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
+
+    const content = html`
+      <h2 style="margin: 0 0 1.5rem 0;">Conversations Overview</h2>
+
+      <!-- Stats Summary -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Conversations</div>
+          <div class="stat-value">${conversations.length}</div>
+          <div class="stat-meta">Unique conversations</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Branches</div>
+          <div class="stat-value">${conversationBranches.length}</div>
+          <div class="stat-meta">Including main branches</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Messages</div>
+          <div class="stat-value">
+            ${conversations.reduce((sum, c) => sum + c.message_count, 0)}
+          </div>
+          <div class="stat-meta">Across all conversations</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Tokens</div>
+          <div class="stat-value">
+            ${formatNumber(conversations.reduce((sum, c) => sum + c.total_tokens, 0))}
+          </div>
+          <div class="stat-meta">Combined usage</div>
+        </div>
+      </div>
+
+      <!-- Conversation Branches Table -->
+      <div class="section">
+        <div class="section-header">
+          Conversation Branches
+          <span class="text-sm text-gray-500" style="float: right;">
+            ${conversationBranches.length} branches across ${conversations.length} conversations
+          </span>
+        </div>
+        <div class="section-content">
+          ${conversationBranches.length === 0
+            ? html`<p class="text-gray-500">No conversations found</p>`
+            : html`
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Conversation</th>
+                      <th>Branch</th>
+                      <th>Domain</th>
+                      <th>Messages</th>
+                      <th>Tokens</th>
+                      <th>Duration</th>
+                      <th>Last Activity</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${raw(
+                      conversationBranches
+                        .map(branch => {
+                          const duration =
+                            branch.lastMessage.getTime() - branch.firstMessage.getTime()
+                          const branchColor = getBranchColor(branch.branch)
+
+                          return `
+                            <tr>
+                              <td class="text-sm">
+                                <code style="font-size: 0.75rem;">${branch.conversationId.substring(0, 8)}...</code>
+                              </td>
+                              <td class="text-sm">
+                                ${
+                                  branch.branch !== 'main'
+                                    ? `<span style="font-size: 0.75rem; background: ${branchColor}20; color: ${branchColor}; padding: 0.125rem 0.5rem; border-radius: 9999px; border: 1px solid ${branchColor};">${escapeHtml(branch.branch)}</span>`
+                                    : '<span style="font-size: 0.75rem; color: #6b7280;">main</span>'
+                                }
+                              </td>
+                              <td class="text-sm">${branch.domain}</td>
+                              <td class="text-sm">${branch.messageCount}</td>
+                              <td class="text-sm">${formatNumber(branch.tokens)}</td>
+                              <td class="text-sm">${formatDuration(duration)}</td>
+                              <td class="text-sm">${formatTimestamp(branch.lastMessage)}</td>
+                              <td class="text-sm">
+                                <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" class="text-blue-600">View →</a>
+                              </td>
+                            </tr>
+                          `
+                        })
+                        .join('')
+                    )}
+                  </tbody>
+                </table>
+              `}
+        </div>
+      </div>
+    `
+
+    return c.html(layout('Dashboard', content))
+  } catch (error) {
+    return c.html(
+      layout(
+        'Error',
+        html`
+          <div class="error-banner">
+            <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversations'}
+          </div>
+        `
+      )
+    )
+  }
+})
 
 /**
  * Helper functions
@@ -576,8 +738,8 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
-function escapeHtml(unsafe: string): string {
-  return unsafe
+function escapeHtml(text: string): string {
+  return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -585,7 +747,7 @@ function escapeHtml(unsafe: string): string {
     .replace(/'/g, '&#039;')
 }
 
-function formatTimestamp(timestamp: string): string {
+function formatTimestamp(timestamp: string | Date): string {
   const date = new Date(timestamp)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
@@ -604,9 +766,9 @@ function formatTimestamp(timestamp: string): string {
 }
 
 /**
- * Main dashboard page - Using Proxy API instead of direct database
+ * Requests page - Shows recent API requests
  */
-dashboardRoutes.get('/', async c => {
+dashboardRoutes.get('/requests', async c => {
   const apiClient = c.get('apiClient')
   const domain = c.req.query('domain')
 
@@ -677,11 +839,15 @@ dashboardRoutes.get('/', async c => {
   const content = html`
     ${error ? html`<div class="error-banner">${error}</div>` : ''}
 
+    <div class="mb-6">
+      <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
+    </div>
+
     <!-- Domain Filter -->
     <div class="mb-6">
       <label class="text-sm text-gray-600">Filter by Domain:</label>
       <select
-        onchange="window.location.href = '/dashboard' + (this.value ? '?domain=' + this.value : '')"
+        onchange="window.location.href = '/dashboard/requests' + (this.value ? '?domain=' + this.value : '')"
         style="margin-left: 0.5rem;"
       >
         <option value="">All Domains</option>
@@ -725,7 +891,7 @@ dashboardRoutes.get('/', async c => {
       <div class="section-header">
         Recent Requests
         <a
-          href="/dashboard${domain ? '?domain=' + domain : ''}"
+          href="/dashboard/requests${domain ? '?domain=' + domain : ''}"
           class="btn btn-secondary"
           style="float: right; font-size: 0.75rem; padding: 0.25rem 0.75rem;"
           >Refresh</a
@@ -772,7 +938,7 @@ dashboardRoutes.get('/', async c => {
     </div>
   `
 
-  return c.html(layout('Dashboard', content))
+  return c.html(layout('Requests', content))
 })
 
 /**
@@ -787,7 +953,7 @@ dashboardRoutes.get('/conversations', async c => {
   const storageService = container.getStorageService()
 
   try {
-    let conversations = await storageService.getConversations(domain, 100)
+    let conversations = await storageService.getConversations(domain, 1000)
 
     // Apply search filter if provided
     if (searchQuery) {
