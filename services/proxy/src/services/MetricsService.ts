@@ -1,4 +1,4 @@
-import { ProxyRequest } from '../domain/entities/ProxyRequest'
+import { ProxyRequest, RequestType } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { tokenTracker } from './tokenTracker.js'
@@ -26,6 +26,9 @@ export interface TelemetryData {
   toolCallCount?: number
   requestType?: string
 }
+
+// Request types that should not be stored in the database
+const NON_STORABLE_REQUEST_TYPES = new Set<RequestType>(['query_evaluation', 'quota'])
 
 /**
  * Service responsible for metrics collection and tracking
@@ -205,8 +208,13 @@ export class MetricsService {
   ): Promise<void> {
     if (!this.storageService) return
 
-    // Skip storing insignificant requests (those with 0 or 1 system messages)
-    if (request.requestType === 'query_evaluation') {
+    // Skip storing requests based on type
+    if (NON_STORABLE_REQUEST_TYPES.has(request.requestType)) {
+      logger.debug('Skipping storage for non-storable request type', {
+        requestId: context.requestId,
+        requestType: request.requestType,
+        domain: context.host,
+      })
       return
     }
 
