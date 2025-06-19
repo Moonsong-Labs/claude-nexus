@@ -281,13 +281,13 @@ export class StorageWriter {
       )
 
       const { count, latest_branch } = result.rows[0]
-      
+
       // If there's already a message with this parent, we're creating a new branch
       if (parseInt(count) > 0) {
         // Generate new branch ID based on timestamp
         return `branch_${Date.now()}`
       }
-      
+
       // If this is the first message with this parent, use the existing branch
       return latest_branch || 'main'
     } catch (error) {

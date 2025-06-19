@@ -76,9 +76,9 @@ Docker configurations are in the `docker/` directory. Each service has its own o
 
 ## Key Implementation Details
 
-### Conversation Grouping
+### Conversation Tracking & Branching
 
-The proxy automatically groups requests into conversations using message hashing:
+The proxy automatically tracks conversations and detects branches using message hashing:
 
 **How it works:**
 
@@ -86,10 +86,17 @@ The proxy automatically groups requests into conversations using message hashing
 2. The current message hash and parent message hash (previous message) are stored
 3. Requests are linked into conversations by matching parent/child relationships
 4. Conversations support branching (like git) when resumed from earlier points
+5. Branches are automatically detected when multiple requests share the same parent
+
+**Message Normalization:**
+
+- String content and array content are normalized to produce consistent hashes
+- Example: `"hello"` and `[{type: "text", text: "hello"}]` produce the same hash
+- This ensures conversations link correctly regardless of content format
 
 **API Endpoints:**
 
-- `/api/conversations` - Get conversations grouped by conversation_id
+- `/api/conversations` - Get conversations grouped by conversation_id with branch information
 - Query parameters: `domain` (filter by domain), `limit` (max conversations)
 
 **Database Schema:**
@@ -97,6 +104,14 @@ The proxy automatically groups requests into conversations using message hashing
 - `conversation_id` - UUID identifying the conversation
 - `current_message_hash` - Hash of the last message in the request
 - `parent_message_hash` - Hash of the previous message (null for first message)
+- `branch_id` - Branch identifier (defaults to 'main', auto-generated for new branches)
+
+**Dashboard Features:**
+
+- **Conversations View** - Visual timeline showing message flow and branches
+- **Branch Visualization** - Blue nodes indicate branch points
+- **Branch Labels** - Non-main branches are labeled with their branch ID
+- **Conversation Grouping** - All related requests grouped under one conversation
 
 ### Authentication Flow
 

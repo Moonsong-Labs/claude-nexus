@@ -18,6 +18,7 @@ interface ApiRequest {
   conversation_id?: string
   current_message_hash?: string
   parent_message_hash?: string
+  branch_id?: string
 }
 
 interface RequestDetails {
@@ -97,6 +98,7 @@ export class StorageReader {
         conversation_id: row.conversation_id,
         current_message_hash: row.current_message_hash,
         parent_message_hash: row.parent_message_hash,
+        branch_id: row.branch_id,
       }))
 
       this.cache.set(cacheKey, requests)
@@ -284,6 +286,7 @@ export class StorageReader {
       first_message: Date
       last_message: Date
       total_tokens: number
+      branches: string[]
       requests: ApiRequest[]
     }[]
   > {
@@ -294,14 +297,15 @@ export class StorageReader {
     }
 
     try {
-      // First get unique conversations
+      // First get unique conversations with branch information
       const conversationQuery = domain
         ? `SELECT 
              conversation_id,
              COUNT(*) as message_count,
              MIN(timestamp) as first_message,
              MAX(timestamp) as last_message,
-             SUM(total_tokens) as total_tokens
+             SUM(total_tokens) as total_tokens,
+             array_agg(DISTINCT branch_id) FILTER (WHERE branch_id IS NOT NULL) as branches
            FROM api_requests
            WHERE domain = $1 AND conversation_id IS NOT NULL
            GROUP BY conversation_id
@@ -312,7 +316,8 @@ export class StorageReader {
              COUNT(*) as message_count,
              MIN(timestamp) as first_message,
              MAX(timestamp) as last_message,
-             SUM(total_tokens) as total_tokens
+             SUM(total_tokens) as total_tokens,
+             array_agg(DISTINCT branch_id) FILTER (WHERE branch_id IS NOT NULL) as branches
            FROM api_requests
            WHERE conversation_id IS NOT NULL
            GROUP BY conversation_id
@@ -357,6 +362,7 @@ export class StorageReader {
           conversation_id: row.conversation_id,
           current_message_hash: row.current_message_hash,
           parent_message_hash: row.parent_message_hash,
+          branch_id: row.branch_id,
         }
 
         if (!requestsByConversation[row.conversation_id]) {
@@ -372,6 +378,7 @@ export class StorageReader {
         first_message: new Date(row.first_message),
         last_message: new Date(row.last_message),
         total_tokens: parseInt(row.total_tokens),
+        branches: row.branches || [],
         requests: requestsByConversation[row.conversation_id] || [],
       }))
 
