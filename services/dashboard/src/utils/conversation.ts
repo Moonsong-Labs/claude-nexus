@@ -32,6 +32,7 @@ export interface ParsedMessage {
 
 export interface ConversationData {
   messages: ParsedMessage[]
+  toolUsage: Record<string, number>
   totalInputTokens: number
   totalOutputTokens: number
   model: string
@@ -52,11 +53,26 @@ export async function parseConversation(requestData: any): Promise<ConversationD
   const timestamp = requestData.timestamp ? new Date(requestData.timestamp) : new Date()
 
   const messages: ParsedMessage[] = []
+  const toolUsage: Record<string, number> = {}
+
+  // Helper function to process message content for tool usage
+  const processMessageContentForTools = (content: any[]) => {
+    if (!Array.isArray(content)) return
+    for (const block of content) {
+      if (block.type === 'tool_use' && block.name) {
+        toolUsage[block.name] = (toolUsage[block.name] || 0) + 1
+      }
+    }
+  }
 
   // Parse request messages
   if (request.messages && Array.isArray(request.messages)) {
     for (let i = 0; i < request.messages.length; i++) {
       const msg = request.messages[i]
+      // Process tool usage for this message
+      if (msg.content && Array.isArray(msg.content)) {
+        processMessageContentForTools(msg.content)
+      }
       // For user messages, use the request timestamp
       // For older messages in conversation, estimate based on position
       const messageTime = new Date(timestamp)
@@ -71,6 +87,8 @@ export async function parseConversation(requestData: any): Promise<ConversationD
 
   // Parse assistant response
   if (response.content && Array.isArray(response.content)) {
+    // Process tool usage for assistant response
+    processMessageContentForTools(response.content)
     // Assistant response gets the actual timestamp
     const parsedMsg = await parseMessage(
       {
@@ -94,6 +112,7 @@ export async function parseConversation(requestData: any): Promise<ConversationD
 
   return {
     messages,
+    toolUsage,
     totalInputTokens: requestData.request_tokens || 0,
     totalOutputTokens: requestData.response_tokens || 0,
     model: requestData.model || 'unknown',

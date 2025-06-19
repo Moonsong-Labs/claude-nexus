@@ -56,7 +56,10 @@ interface RequestDetails extends RequestSummary {
 }
 
 interface DomainsResponse {
-  domains: string[]
+  domains: Array<{
+    domain: string
+    requestCount: number
+  }>
 }
 
 /**
@@ -168,7 +171,7 @@ export class ProxyApiClient {
   }
 
   /**
-   * Get list of active domains
+   * Get list of active domains with request counts
    */
   async getDomains(): Promise<DomainsResponse> {
     try {
@@ -181,12 +184,9 @@ export class ProxyApiClient {
         throw new Error(`API error: ${response.status} ${response.statusText}`)
       }
 
-      const data = (await response.json()) as {
-        domains: Array<{ domain: string; requestCount: number }>
-      }
-      // Extract just the domain strings
-      const domains = data.domains.map(d => d.domain)
-      return { domains }
+      const data = (await response.json()) as DomainsResponse
+      // Return the full domain objects with request counts
+      return data
     } catch (error) {
       logger.error('Failed to fetch domains from proxy API', {
         error: getErrorMessage(error),
