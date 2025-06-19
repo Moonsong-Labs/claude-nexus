@@ -12,6 +12,9 @@ interface StorageRequest {
   apiKey: string
   model: string
   requestType?: string
+  currentMessageHash?: string
+  parentMessageHash?: string | null
+  conversationId?: string
 }
 
 interface StorageResponse {
@@ -67,8 +70,9 @@ export class StorageWriter {
       const query = `
         INSERT INTO api_requests (
           request_id, domain, timestamp, method, path, headers, body, 
-          api_key_hash, model, request_type
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          api_key_hash, model, request_type, current_message_hash, 
+          parent_message_hash, conversation_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -83,6 +87,9 @@ export class StorageWriter {
         this.hashApiKey(request.apiKey),
         request.model,
         request.requestType,
+        request.currentMessageHash || null,
+        request.parentMessageHash || null,
+        request.conversationId || null,
       ]
 
       await this.pool.query(query, values)
@@ -215,6 +222,33 @@ export class StorageWriter {
   }
 
   /**
+   * Find conversation ID by parent message hash
+   */
+  async findConversationByParentHash(parentHash: string): Promise<string | null> {
+    try {
+      const query = `
+        SELECT conversation_id 
+        FROM api_requests 
+        WHERE current_message_hash = $1 
+        AND conversation_id IS NOT NULL
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `
+      
+      const result = await this.pool.query(query, [parentHash])
+      return result.rows[0]?.conversation_id || null
+    } catch (error) {
+      logger.error('Failed to find conversation by parent hash', {
+        metadata: { 
+          parentHash,
+          error: error instanceof Error ? error.message : String(error) 
+        }
+      })
+      return null
+    }
+  }
+
+  /**
    * Hash API key for storage
    */
   private hashApiKey(apiKey: string): string {
@@ -277,6 +311,9 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           duration_ms INTEGER,
           error TEXT,
           tool_call_count INTEGER DEFAULT 0,
+          current_message_hash CHAR(64),
+          parent_message_hash CHAR(64),
+          conversation_id UUID,
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `)
@@ -309,6 +346,21 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_streaming_chunks_request_id 
         ON streaming_chunks(request_id, chunk_index)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_current_message_hash 
+        ON api_requests(current_message_hash)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_parent_message_hash 
+        ON api_requests(parent_message_hash)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_conversation_id 
+        ON api_requests(conversation_id)
       `)
 
       logger.info('Database schema created successfully')

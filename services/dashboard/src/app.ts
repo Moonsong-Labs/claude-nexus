@@ -125,6 +125,24 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     }
   })
 
+  app.get('/api/conversations', async c => {
+    const storageService = container.getStorageService()
+    const domain = c.req.query('domain')
+    const limit = parseInt(c.req.query('limit') || '50')
+
+    try {
+      const conversations = await storageService.getConversations(domain, limit)
+      return c.json({
+        status: 'ok',
+        conversations,
+        count: conversations.length,
+      })
+    } catch (error) {
+      logger.error('Failed to get conversations', { error: getErrorMessage(error) })
+      return c.json({ error: 'Failed to retrieve conversations' }, 500)
+    }
+  })
+
   // Apply auth middleware to all dashboard routes
   app.use('/*', dashboardAuth)
 

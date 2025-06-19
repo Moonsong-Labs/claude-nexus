@@ -76,6 +76,25 @@ Docker configurations are in the `docker/` directory. Each service has its own o
 
 ## Key Implementation Details
 
+### Conversation Grouping
+
+The proxy automatically groups requests into conversations using message hashing:
+
+**How it works:**
+1. Each message in a request is hashed using SHA-256
+2. The current message hash and parent message hash (previous message) are stored
+3. Requests are linked into conversations by matching parent/child relationships
+4. Conversations support branching (like git) when resumed from earlier points
+
+**API Endpoints:**
+- `/api/conversations` - Get conversations grouped by conversation_id
+- Query parameters: `domain` (filter by domain), `limit` (max conversations)
+
+**Database Schema:**
+- `conversation_id` - UUID identifying the conversation
+- `current_message_hash` - Hash of the last message in the request
+- `parent_message_hash` - Hash of the previous message (null for first message)
+
 ### Authentication Flow
 
 **Client Authentication (Proxy Level):**
@@ -110,6 +129,7 @@ Docker configurations are in the `docker/` directory. Each service has its own o
 - Write-only access from proxy
 - Read-only access from dashboard
 - Automatic batch processing
+- **Conversation Grouping**: Requests are automatically grouped by conversation using message hashing
 
 ### Debug Logging
 
