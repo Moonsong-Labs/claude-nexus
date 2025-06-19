@@ -73,13 +73,14 @@ export async function calculateGraphLayout(graph: ConversationGraph, reversed: b
       y: maxY - node.y
     }))
     
-    // Flip edge Y coordinates
+    // Flip edge Y coordinates and swap start/end points since tree is inverted
     const flippedEdges = layout.edges.map(edge => ({
       ...edge,
       sections: edge.sections.map(section => ({
         ...section,
-        startPoint: { x: section.startPoint.x, y: maxY - section.startPoint.y + 40 }, // +40 for node height
-        endPoint: { x: section.endPoint.x, y: maxY - section.endPoint.y },
+        // Swap start and end points when flipping
+        startPoint: { x: section.endPoint.x, y: maxY - section.endPoint.y + 40 }, // +40 for node height
+        endPoint: { x: section.startPoint.x, y: maxY - section.startPoint.y },
       }))
     }))
     
