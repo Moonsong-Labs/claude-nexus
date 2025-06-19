@@ -821,7 +821,7 @@ dashboardRoutes.get('/request/:id', async c => {
             </dl>
           </div>
 
-          <!-- Right side: Tool usage table -->
+          <!-- Right side: Tool usage badges -->
           ${raw(
             Object.keys(conversation.toolUsage).length > 0
               ? (() => {
@@ -831,44 +831,57 @@ dashboardRoutes.get('/request/:id', async c => {
                       countB - countA || toolA.localeCompare(toolB)
                   )
 
-                  // Generate rows from the sorted list
-                  const toolRows = sortedTools
+                  // Calculate total
+                  const totalCalls = sortedTools.reduce((sum, [, count]) => sum + count, 0)
+
+                  // Generate tool badges
+                  const toolBadges = sortedTools
                     .map(
                       ([tool, count]) => `
-                <tr style="border-bottom: 1px solid #f3f4f6;">
-                  <td style="padding: 0.25rem 0.5rem;">${escapeHtml(tool)}</td>
-                  <td style="text-align: right; padding: 0.25rem 0.5rem; font-weight: 500;">${count}</td>
-                </tr>
+                <span style="
+                  display: inline-block;
+                  background-color: #f3f4f6;
+                  color: #374151;
+                  padding: 0.125rem 0.5rem;
+                  margin: 0.125rem;
+                  border-radius: 9999px;
+                  font-size: 0.75rem;
+                  font-weight: 500;
+                  white-space: nowrap;
+                ">
+                  ${escapeHtml(tool)}
+                  <span style="
+                    background-color: #e5e7eb;
+                    color: #1f2937;
+                    padding: 0 0.375rem;
+                    margin-left: 0.25rem;
+                    border-radius: 9999px;
+                    font-weight: 600;
+                  ">${count}</span>
+                </span>
                 `
                     )
                     .join('')
 
-                  // Calculate total efficiently from the same sorted list
-                  const totalCalls = sortedTools.reduce((sum, [, count]) => sum + count, 0)
-
                   // Return the full HTML string
                   return `
-          <div style="min-width: 200px; flex-shrink: 0;">
-            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; font-weight: 600; color: #4b5563;">Tool Usage</h4>
-            <table style="width: 100%; font-size: 0.875rem; border-collapse: collapse;">
-              <thead>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                  <th style="text-align: left; padding: 0.25rem 0.5rem; color: #6b7280;">Tool</th>
-                  <th style="text-align: right; padding: 0.25rem 0.5rem; color: #6b7280;">Calls</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${toolRows}
-              </tbody>
-              <tfoot>
-                <tr style="font-weight: 600;">
-                  <td style="padding: 0.25rem 0.5rem; border-top: 1px solid #e5e7eb;">Total</td>
-                  <td style="text-align: right; padding: 0.25rem 0.5rem; border-top: 1px solid #e5e7eb;">
-                    ${totalCalls}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+          <div style="min-width: 200px; max-width: 300px; flex-shrink: 0;">
+            <div style="
+              display: flex;
+              align-items: baseline;
+              justify-content: space-between;
+              margin-bottom: 0.375rem;
+            ">
+              <h4 style="margin: 0; font-size: 0.875rem; font-weight: 600; color: #4b5563;">
+                Tool Usage
+              </h4>
+              <span style="font-size: 0.75rem; color: #6b7280;">
+                Total: ${totalCalls}
+              </span>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+              ${toolBadges}
+            </div>
           </div>
           `
                 })()
