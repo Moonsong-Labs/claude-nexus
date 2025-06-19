@@ -134,7 +134,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       <!-- Stats Grid -->
       <div class="conversation-stats-grid">
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">Total Messages</div>
+          <div class="conversation-stat-label">Request Count</div>
           <div class="conversation-stat-value">${conversation.message_count}</div>
         </div>
         <div class="conversation-stat-card">
