@@ -480,6 +480,15 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp)
   const now = new Date()
@@ -490,6 +499,32 @@ function formatTimestamp(timestamp: string): string {
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
 
   return date.toLocaleString()
+}
+
+function formatToolUsage(toolUsage: Record<string, number>): { display: string; fullList: string } {
+  const entries = Object.entries(toolUsage)
+  if (entries.length === 0) {
+    return { display: 'None', fullList: 'None' }
+  }
+
+  const MAX_TOOLS_TO_DISPLAY = 3
+  // Sort by count descending, then by name ascending for stable order
+  const sortedTools = entries.sort(([nameA, countA], [nameB, countB]) => {
+    if (countB !== countA) return countB - countA
+    return nameA.localeCompare(nameB)
+  })
+
+  const displayedTools = sortedTools.slice(0, MAX_TOOLS_TO_DISPLAY)
+  const remainingCount = sortedTools.length - displayedTools.length
+
+  let display = displayedTools.map(([name, count]) => `${escapeHtml(name)} (${count})`).join(', ')
+  const fullList = sortedTools.map(([name, count]) => `${escapeHtml(name)} (${count})`).join('\n')
+
+  if (remainingCount > 0) {
+    display += `, and ${remainingCount} more`
+  }
+  
+  return { display, fullList }
 }
 
 /**
@@ -804,6 +839,18 @@ dashboardRoutes.get('/request/:id', async c => {
 
             <dt class="text-gray-600">Status:</dt>
             <dd>${details.responseStatus}</dd>
+            
+            ${raw(
+              Object.keys(conversation.toolUsage).length > 0
+                ? (() => {
+                    const toolInfo = formatToolUsage(conversation.toolUsage)
+                    return `
+            <dt class="text-gray-600">Tools Used:</dt>
+            <dd title="${toolInfo.fullList}" style="cursor: help;">${toolInfo.display}</dd>
+            `
+                  })()
+                : ''
+            )}
           </dl>
         </div>
       </div>
