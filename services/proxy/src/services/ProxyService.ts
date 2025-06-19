@@ -6,7 +6,6 @@ import { ClaudeApiClient } from './ClaudeApiClient'
 import { NotificationService } from './NotificationService'
 import { MetricsService } from './MetricsService'
 import { ClaudeMessagesRequest } from '../types/claude'
-import { ValidationError } from '../types/errors'
 import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
 
@@ -142,7 +141,7 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    auth: any
+    _auth: any
   ): Promise<Response> {
     const log = {
       debug: (message: string, metadata?: Record<string, any>) => {

@@ -41,10 +41,14 @@ export class NotificationService {
     context: RequestContext,
     auth: AuthResult
   ): Promise<void> {
-    if (!this.config.enabled) return
+    if (!this.config.enabled) {
+      return
+    }
 
     // Only send notifications for inference requests
-    if (request.requestType !== 'inference') return
+    if (request.requestType !== 'inference') {
+      return
+    }
 
     try {
       // Get Slack config for the domain
@@ -65,7 +69,9 @@ export class NotificationService {
       }
 
       // Only send notifications when user message changes
-      if (!userMessageChanged) return
+      if (!userMessageChanged) {
+        return
+      }
 
       // Prepare the conversation message
       let conversationMessage = ''
@@ -153,9 +159,15 @@ export class NotificationService {
                   const completed = todos.filter((t: any) => t.status === 'completed').length
 
                   const statusParts = []
-                  if (pending > 0) statusParts.push(`${pending} pending`)
-                  if (inProgress > 0) statusParts.push(`${inProgress} in progress`)
-                  if (completed > 0) statusParts.push(`${completed} completed`)
+                  if (pending > 0) {
+                    statusParts.push(`${pending} pending`)
+                  }
+                  if (inProgress > 0) {
+                    statusParts.push(`${inProgress} in progress`)
+                  }
+                  if (completed > 0) {
+                    statusParts.push(`${completed} completed`)
+                  }
 
                   if (statusParts.length > 0) {
                     toolMessage += ` - Tasks: ${statusParts.join(', ')}`
@@ -237,7 +249,9 @@ export class NotificationService {
    * Send error notification
    */
   async notifyError(error: Error, context: RequestContext): Promise<void> {
-    if (!this.config.enabled) return
+    if (!this.config.enabled) {
+      return
+    }
 
     try {
       // Get Slack config for the domain

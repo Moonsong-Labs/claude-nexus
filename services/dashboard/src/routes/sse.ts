@@ -1,6 +1,5 @@
 import { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import { stream } from 'hono/streaming'
 
 // Store active SSE connections
 const sseConnections = new Map<
@@ -26,7 +25,7 @@ export async function handleSSE(c: Context) {
       write: async (data: string) => {
         try {
           await stream.writeSSE({ data })
-        } catch (e) {
+        } catch (_e) {
           // Connection closed
         }
       },
@@ -48,7 +47,7 @@ export async function handleSSE(c: Context) {
     const heartbeat = setInterval(async () => {
       try {
         await stream.writeSSE({ data: '', id: '', event: 'heartbeat' })
-      } catch (e) {
+      } catch (_e) {
         // Connection closed
         clearInterval(heartbeat)
       }
@@ -88,7 +87,7 @@ export function broadcastEvent(event: { type: string; domain?: string; data: any
     sseConnections.get(event.domain)!.forEach(async connection => {
       try {
         await connection.write(message)
-      } catch (e) {
+      } catch (_e) {
         // Remove dead connections
         sseConnections.get(event.domain!)!.delete(connection)
       }
@@ -100,7 +99,7 @@ export function broadcastEvent(event: { type: string; domain?: string; data: any
     sseConnections.get('global')!.forEach(async connection => {
       try {
         await connection.write(message)
-      } catch (e) {
+      } catch (_e) {
         // Remove dead connections
         sseConnections.get('global')!.delete(connection)
       }

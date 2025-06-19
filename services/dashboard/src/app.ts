@@ -2,12 +2,11 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 // Remove static file serving - will inline CSS instead
 import { container } from './container.js'
-import { loggingMiddleware } from './middleware/logger.js'
+import { loggingMiddleware, logger } from './middleware/logger.js'
 // Use the new API-based dashboard routes
 import { dashboardRoutes } from './routes/dashboard-api.js'
 import { dashboardAuth } from './middleware/auth.js'
-import { logger } from './middleware/logger.js'
-import { getErrorMessage, getErrorStack, hasStatusCode } from '@claude-nexus/shared'
+import { getErrorMessage, hasStatusCode } from '@claude-nexus/shared'
 
 /**
  * Create and configure the Dashboard application

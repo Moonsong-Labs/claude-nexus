@@ -1,5 +1,4 @@
 import { ClaudeMessagesRequest, countSystemMessages } from '../../types/claude'
-import { logger } from '../../middleware/logger'
 
 export type RequestType = 'query_evaluation' | 'inference' | 'quota'
 
@@ -43,7 +42,9 @@ export class ProxyRequest {
     // Find the last user message
     const lastUserMessage = [...this.raw.messages].reverse().find(msg => msg.role === 'user')
 
-    if (!lastUserMessage) return ''
+    if (!lastUserMessage) {
+      return ''
+    }
 
     if (typeof lastUserMessage.content === 'string') {
       return lastUserMessage.content
@@ -65,7 +66,9 @@ export class ProxyRequest {
     // Find the last user message
     const lastUserMessage = [...this.raw.messages].reverse().find(msg => msg.role === 'user')
 
-    if (!lastUserMessage) return ''
+    if (!lastUserMessage) {
+      return ''
+    }
 
     if (typeof lastUserMessage.content === 'string') {
       return lastUserMessage.content
@@ -108,19 +111,11 @@ export class ProxyRequest {
     const systemMessageCount = this.countSystemMessages()
 
     // Always log request type determination
-    const hasSystemField = !!this.raw.system
-    const systemMessagesInArray = this.raw.messages.filter(m => m.role === 'system').length
+    // const systemFieldDisplay = this.raw.system
+    //   ? (Array.isArray(this.raw.system) ? `array[${this.raw.system.length}]` : `string(length: ${this.raw.system.length})`)
+    //   : 'none'
 
-    let systemFieldDisplay = 'none'
-    if (this.raw.system) {
-      if (Array.isArray(this.raw.system)) {
-        systemFieldDisplay = `array[${this.raw.system.length}]`
-      } else {
-        systemFieldDisplay = `string(length: ${this.raw.system.length})`
-      }
-    }
-
-    const resultType = systemMessageCount <= 1 ? 'query_evaluation' : 'inference'
+    // const resultType = systemMessageCount <= 1 ? 'query_evaluation' : 'inference'
 
     // logger.debug('Request type determination', {
     //   requestId: this.requestId,

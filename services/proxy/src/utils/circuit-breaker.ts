@@ -168,7 +168,9 @@ export class CircuitBreaker {
 
   private getErrorRate(): number {
     const recent = this.getRecentOutcomes()
-    if (recent.length === 0) return 0
+    if (recent.length === 0) {
+      return 0
+    }
 
     const errors = recent.filter(o => !o.success).length
     return (errors / recent.length) * 100

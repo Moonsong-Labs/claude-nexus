@@ -58,9 +58,13 @@ export class MessageController {
 
       // Determine status code
       let statusCode = 500
-      if (error instanceof ValidationError) statusCode = 400
-      else if ((error as any).statusCode) statusCode = (error as any).statusCode
-      else if ((error as any).upstreamStatus) statusCode = (error as any).upstreamStatus
+      if (error instanceof ValidationError) {
+        statusCode = 400
+      } else if ((error as any).statusCode) {
+        statusCode = (error as any).statusCode
+      } else if ((error as any).upstreamStatus) {
+        statusCode = (error as any).upstreamStatus
+      }
 
       return c.json(errorResponse, statusCode as any)
     }
@@ -69,7 +73,7 @@ export class MessageController {
   /**
    * Handle OPTIONS /v1/messages (CORS preflight)
    */
-  async handleOptions(c: Context): Promise<Response> {
+  async handleOptions(_c: Context): Promise<Response> {
     return new Response('', {
       status: 204,
       headers: {

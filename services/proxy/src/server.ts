@@ -12,7 +12,6 @@ import { AuthenticationService } from './services/AuthenticationService.js'
 import { ClaudeApiClient } from './services/ClaudeApiClient.js'
 import { MetricsService } from './services/MetricsService.js'
 import { NotificationService } from './services/NotificationService.js'
-import { StorageWriter } from './storage/writer.js'
 import { StorageAdapter } from './storage/StorageAdapter.js'
 import { MessageController } from './controllers/MessageController.js'
 import { tokenTracker } from './services/tokenTracker.js'
@@ -66,8 +65,8 @@ async function startServer() {
   // 3. Create the main proxy service with all its dependencies
   const proxyService = new ProxyService(authService, apiClient, notificationService, metricsService)
 
-  // 4. Create the controller
-  const messageController = new MessageController(proxyService)
+  // 4. Create the controller (created but not used here - app.ts will use it)
+  new MessageController(proxyService)
 
   // === COMPOSITION ROOT END ===
 
@@ -121,7 +120,7 @@ async function startServer() {
 }
 
 // Error handling for uncaught errors
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   logger.error('Unhandled rejection', {
     error: {
       message: reason instanceof Error ? reason.message : String(reason),

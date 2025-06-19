@@ -62,7 +62,9 @@ export class CredentialManager {
    */
   getCachedCredential(key: string): ClaudeCredentials | null {
     const cached = this.credentialCache.get(key)
-    if (!cached) return null
+    if (!cached) {
+      return null
+    }
 
     // Check if expired
     if (Date.now() - cached.timestamp > this.CREDENTIAL_CACHE_TTL) {
@@ -247,7 +249,7 @@ export class CredentialManager {
 
     // Log metrics periodically
     if (this.refreshMetrics.attempts > 0) {
-      console.log('OAuth refresh metrics:', {
+      console.warn('OAuth refresh metrics:', {
         attempts: this.refreshMetrics.attempts,
         successes: this.refreshMetrics.successes,
         failures: this.refreshMetrics.failures,

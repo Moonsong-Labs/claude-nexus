@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
-import { getCookie, setCookie } from 'hono/cookie'
+import { setCookie } from 'hono/cookie'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import {
@@ -475,8 +475,12 @@ const layout = (title: string, content: any) => html`
  * Helper functions
  */
 function formatNumber(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
+  if (num >= 1000000) {
+    return `${(num / 1000000).toFixed(1)}M`
+  }
+  if (num >= 1000) {
+    return `${(num / 1000).toFixed(1)}K`
+  }
   return num.toString()
 }
 
@@ -494,9 +498,15 @@ function formatTimestamp(timestamp: string): string {
   const now = new Date()
   const diff = now.getTime() - date.getTime()
 
-  if (diff < 60000) return 'Just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+  if (diff < 60000) {
+    return 'Just now'
+  }
+  if (diff < 3600000) {
+    return `${Math.floor(diff / 60000)}m ago`
+  }
+  if (diff < 86400000) {
+    return `${Math.floor(diff / 3600000)}h ago`
+  }
 
   return date.toLocaleString()
 }

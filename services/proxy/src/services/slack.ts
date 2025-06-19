@@ -76,10 +76,18 @@ function formatMessageContent(content: any): string {
   if (Array.isArray(content)) {
     return content
       .map(item => {
-        if (typeof item === 'string') return item
-        if (item.type === 'text' && item.text) return item.text
-        if (item.type === 'tool_use') return `🔧 Tool: ${item.name}`
-        if (item.type === 'tool_result') return `✅ Tool Result`
+        if (typeof item === 'string') {
+          return item
+        }
+        if (item.type === 'text' && item.text) {
+          return item.text
+        }
+        if (item.type === 'tool_use') {
+          return `🔧 Tool: ${item.name}`
+        }
+        if (item.type === 'tool_result') {
+          return `✅ Tool Result`
+        }
         return JSON.stringify(item)
       })
       .join('\n')

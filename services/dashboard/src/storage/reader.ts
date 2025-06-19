@@ -62,7 +62,9 @@ export class StorageReader {
   async getRequestsByDomain(domain: string, limit: number = 100): Promise<ApiRequest[]> {
     const cacheKey = `requests:${domain}:${limit}`
     const cached = this.cache.get<ApiRequest[]>(cacheKey)
-    if (cached) return cached
+    if (cached) {
+      return cached
+    }
 
     try {
       const query = domain
@@ -108,7 +110,9 @@ export class StorageReader {
   async getRequestDetails(requestId: string): Promise<RequestDetails> {
     const cacheKey = `details:${requestId}`
     const cached = this.cache.get<RequestDetails>(cacheKey)
-    if (cached) return cached
+    if (cached) {
+      return cached
+    }
 
     try {
       // Get request
@@ -174,7 +178,9 @@ export class StorageReader {
   async getStats(domain?: string, since?: Date): Promise<StorageStats> {
     const cacheKey = `stats:${domain || 'all'}:${since?.toISOString() || 'all'}`
     const cached = this.cache.get<StorageStats>(cacheKey)
-    if (cached) return cached
+    if (cached) {
+      return cached
+    }
 
     try {
       const conditions = []

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
-import { getCookie, setCookie } from 'hono/cookie'
+import { setCookie } from 'hono/cookie'
 import { Pool } from 'pg'
 
 export const dashboardRoutes = new Hono<{
@@ -190,7 +190,7 @@ dashboardRoutes.get('/', async c => {
   const domain = c.req.query('domain')
 
   // Get stats from database
-  let stats = {
+  const stats = {
     totalRequests: 0,
     totalTokens: 0,
     estimatedCost: 0,
@@ -410,9 +410,15 @@ dashboardRoutes.get('/logout', c => {
 
 // Helper functions
 function formatNumber(num: number): string {
-  if (!num) return '0'
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+  if (!num) {
+    return '0'
+  }
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M'
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K'
+  }
   return num.toString()
 }
 

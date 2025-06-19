@@ -2,7 +2,6 @@ import { Context, Next } from 'hono'
 import { ValidationError } from '../types/errors'
 import { validateClaudeRequest, ClaudeMessagesRequest } from '../types/claude'
 import { getRequestLogger } from './logger'
-import { config } from '@claude-nexus/shared/config'
 
 // Request size limits
 const MAX_REQUEST_SIZE = 10 * 1024 * 1024 // 10MB
@@ -64,7 +63,7 @@ export function validationMiddleware() {
 }
 
 // Detailed validation
-function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] {
+function validateClaudeRequestDetails(_request: ClaudeMessagesRequest): string[] {
   const errors: string[] = []
 
   // Model validation removed - allow any model name
