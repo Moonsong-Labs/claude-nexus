@@ -834,25 +834,65 @@ dashboardRoutes.get('/request/:id', async c => {
                   // Calculate total
                   const totalCalls = sortedTools.reduce((sum, [, count]) => sum + count, 0)
 
+                  // Function to get color based on usage proportion
+                  const getColorForProportion = (count: number) => {
+                    const proportion = count / totalCalls
+                    if (proportion >= 0.3) {
+                      // High usage (30%+) - blue tones
+                      return {
+                        bg: '#dbeafe', // blue-100
+                        color: '#1e40af', // blue-800
+                        countBg: '#3b82f6', // blue-500
+                        countColor: '#ffffff',
+                      }
+                    } else if (proportion >= 0.15) {
+                      // Medium usage (15-30%) - green tones
+                      return {
+                        bg: '#d1fae5', // green-100
+                        color: '#065f46', // green-800
+                        countBg: '#10b981', // green-500
+                        countColor: '#ffffff',
+                      }
+                    } else if (proportion >= 0.05) {
+                      // Low usage (5-15%) - amber tones
+                      return {
+                        bg: '#fef3c7', // amber-100
+                        color: '#92400e', // amber-800
+                        countBg: '#f59e0b', // amber-500
+                        countColor: '#ffffff',
+                      }
+                    } else {
+                      // Very low usage (<5%) - gray tones
+                      return {
+                        bg: '#f3f4f6', // gray-100
+                        color: '#374151', // gray-700
+                        countBg: '#6b7280', // gray-500
+                        countColor: '#ffffff',
+                      }
+                    }
+                  }
+
                   // Generate tool badges
                   const toolBadges = sortedTools
-                    .map(
-                      ([tool, count]) => `
+                    .map(([tool, count]) => {
+                      const colors = getColorForProportion(count)
+                      const percentage = ((count / totalCalls) * 100).toFixed(0)
+                      return `
                 <span style="
                   display: inline-block;
-                  background-color: #f3f4f6;
-                  color: #374151;
+                  background-color: ${colors.bg};
+                  color: ${colors.color};
                   padding: 0.125rem 0.5rem;
                   margin: 0.125rem;
                   border-radius: 9999px;
                   font-size: 0.75rem;
                   font-weight: 500;
                   white-space: nowrap;
-                ">
+                " title="${escapeHtml(tool)}: ${count} calls (${percentage}%)">
                   ${escapeHtml(tool)}
                   <span style="
-                    background-color: #e5e7eb;
-                    color: #1f2937;
+                    background-color: ${colors.countBg};
+                    color: ${colors.countColor};
                     padding: 0 0.375rem;
                     margin-left: 0.25rem;
                     border-radius: 9999px;
@@ -860,7 +900,7 @@ dashboardRoutes.get('/request/:id', async c => {
                   ">${count}</span>
                 </span>
                 `
-                    )
+                    })
                     .join('')
 
                   // Return the full HTML string
