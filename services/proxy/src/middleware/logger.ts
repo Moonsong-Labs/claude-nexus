@@ -46,6 +46,7 @@ interface LogEntry {
   model?: string
   data?: any
   params?: Record<string, any>
+  requestType?: string
 }
 
 // Logger configuration
