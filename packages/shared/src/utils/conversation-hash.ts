@@ -57,9 +57,36 @@ function normalizeMessageContent(content: string | any[]): string {
 }
 
 /**
- * Extracts the current and parent message hashes from a request
+ * Generates a hash for an entire conversation state (all messages)
+ * @param messages - Array of messages
+ * @returns A hash representing the full conversation state
+ */
+export function hashConversationState(messages: ClaudeMessage[]): string {
+  if (!messages || messages.length === 0) {
+    return ''
+  }
+  
+  // Create a deterministic representation of all messages
+  const conversationString = messages
+    .map((msg, index) => `[${index}]${msg.role}:${normalizeMessageContent(msg.content)}`)
+    .join('||')
+  
+  return createHash('sha256').update(conversationString, 'utf8').digest('hex')
+}
+
+/**
+ * Extracts the current and parent conversation state hashes
+ * 
+ * For Claude conversations, we need to handle the pattern where:
+ * - First request: [user_msg]
+ * - Second request: [user_msg, assistant_response, user_msg2]
+ * - Third request: [user_msg, assistant_response, user_msg2, assistant_response2, user_msg3]
+ * 
+ * To find the parent, we look for a request whose full message list matches
+ * a prefix of our current messages (excluding the last 2 messages - the latest exchange)
+ * 
  * @param messages - Array of messages from the request
- * @returns Object containing current and parent message hashes
+ * @returns Object containing current state hash and parent state hash
  */
 export function extractMessageHashes(messages: ClaudeMessage[]): {
   currentMessageHash: string
@@ -69,11 +96,27 @@ export function extractMessageHashes(messages: ClaudeMessage[]): {
     throw new Error('Cannot extract hashes from empty messages array')
   }
 
-  // Hash the last message (current)
-  const currentMessageHash = hashMessage(messages[messages.length - 1])
+  // Current hash is the hash of the entire conversation state
+  const currentMessageHash = hashConversationState(messages)
 
-  // Hash the second-to-last message (parent) if it exists
-  const parentMessageHash = messages.length > 1 ? hashMessage(messages[messages.length - 2]) : null
+  // For parent hash, we need to find the previous request state
+  // If we have 3+ messages, the parent likely had all messages except the last 2 (user + assistant)
+  // If we have 1-2 messages, this is likely a new conversation
+  let parentMessageHash: string | null = null
+  
+  if (messages.length === 1) {
+    // First message in conversation, no parent
+    parentMessageHash = null
+  } else if (messages.length === 2) {
+    // This shouldn't happen in normal Claude conversations (should be user -> assistant -> user)
+    // But handle it anyway - parent would be first message only
+    parentMessageHash = hashConversationState(messages.slice(0, 1))
+  } else {
+    // Normal case: we have at least 3 messages
+    // The parent request would have had all messages except the last 2
+    // (removing the most recent user message and the assistant response before it)
+    parentMessageHash = hashConversationState(messages.slice(0, -2))
+  }
 
   return { currentMessageHash, parentMessageHash }
 }
