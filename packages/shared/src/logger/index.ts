@@ -33,19 +33,27 @@ export function createLogger(options: LoggerOptions) {
 
   return {
     debug: (message: string, context?: LogContext) => {
-      if (!shouldLog('debug', level)) {return}
+      if (!shouldLog('debug', level)) {
+        return
+      }
       log('debug', options.service, message, context, prettyPrint)
     },
     info: (message: string, context?: LogContext) => {
-      if (!shouldLog('info', level)) {return}
+      if (!shouldLog('info', level)) {
+        return
+      }
       log('info', options.service, message, context, prettyPrint)
     },
     warn: (message: string, context?: LogContext) => {
-      if (!shouldLog('warn', level)) {return}
+      if (!shouldLog('warn', level)) {
+        return
+      }
       log('warn', options.service, message, context, prettyPrint)
     },
     error: (message: string, context?: LogContext) => {
-      if (!shouldLog('error', level)) {return}
+      if (!shouldLog('error', level)) {
+        return
+      }
       log('error', options.service, message, context, prettyPrint)
     },
   }

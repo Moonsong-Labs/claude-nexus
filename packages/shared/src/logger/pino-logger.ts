@@ -140,12 +140,18 @@ export function createLogger(options: LoggerOptions) {
  * Transform our LogContext to Pino's expected format
  */
 function transformContext(context?: LogContext): Record<string, any> {
-  if (!context) {return {}}
+  if (!context) {
+    return {}
+  }
 
   const result: Record<string, any> = {}
 
-  if (context.requestId) {result.requestId = context.requestId}
-  if (context.domain) {result.domain = context.domain}
+  if (context.requestId) {
+    result.requestId = context.requestId
+  }
+  if (context.domain) {
+    result.domain = context.domain
+  }
 
   // Flatten metadata into the log entry
   if (context.metadata) {

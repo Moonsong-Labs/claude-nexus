@@ -237,7 +237,9 @@ export function createRateLimitAwareRetry(
     // Override retry condition to respect retry-after
     const originalCondition = config.retryCondition!
     config.retryCondition = (error: Error) => {
-      if (!originalCondition(error)) {return false}
+      if (!originalCondition(error)) {
+        return false
+      }
 
       // Check for retry-after header
       const retryAfter = getRetryAfter(error)

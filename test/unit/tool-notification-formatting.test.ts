@@ -168,7 +168,7 @@ describe('Tool Notification Formatting', () => {
 
     it('should format Bash commands with truncation', () => {
       const longCommand = 'git log --pretty=format:"%h %ad | %s%d [%an]" --date=short --graph --all'
-      
+
       const truncated = longCommand.length > 50 ? longCommand.substring(0, 50) + '...' : longCommand
       expect(truncated).toBe('git log --pretty=format:"%h %ad | %s%d [%an]" --da...')
     })
@@ -192,9 +192,15 @@ describe('Tool Notification Formatting', () => {
       expect(completed).toBe(3)
 
       const statusParts = []
-      if (pending > 0) {statusParts.push(`${pending} pending`)}
-      if (inProgress > 0) {statusParts.push(`${inProgress} in progress`)}
-      if (completed > 0) {statusParts.push(`${completed} completed`)}
+      if (pending > 0) {
+        statusParts.push(`${pending} pending`)
+      }
+      if (inProgress > 0) {
+        statusParts.push(`${inProgress} in progress`)
+      }
+      if (completed > 0) {
+        statusParts.push(`${completed} completed`)
+      }
 
       const expectedMessage = `Tasks: ${statusParts.join(', ')}`
       expect(expectedMessage).toBe('Tasks: 2 pending, 1 in progress, 3 completed')
@@ -214,7 +220,7 @@ describe('Tool Notification Formatting', () => {
     it('should handle WebSearch query truncation', () => {
       const longQuery =
         'How to implement authentication with JWT tokens in Node.js Express application with TypeScript'
-      
+
       const truncated = longQuery.length > 40 ? longQuery.substring(0, 40) + '...' : longQuery
       expect(truncated).toBe('How to implement authentication with JWT...')
     })

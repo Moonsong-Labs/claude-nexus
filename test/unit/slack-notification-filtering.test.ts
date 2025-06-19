@@ -3,7 +3,6 @@ import { NotificationService } from '../../services/proxy/src/services/Notificat
 import { ProxyRequest } from '../../services/proxy/src/domain/entities/ProxyRequest'
 
 describe('NotificationService - Request Type Filtering', () => {
-
   describe('request type filtering', () => {
     it('should only notify for inference requests', () => {
       // Inference request (2+ system messages)

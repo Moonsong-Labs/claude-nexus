@@ -1,9 +1,4 @@
-import {
-  getApiKey,
-  DomainCredentialMapping,
-  loadCredentials,
-  SlackConfig,
-} from '../credentials'
+import { getApiKey, DomainCredentialMapping, loadCredentials, SlackConfig } from '../credentials'
 import { AuthenticationError } from '../types/errors'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { logger } from '../middleware/logger'

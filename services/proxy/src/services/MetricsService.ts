@@ -206,7 +206,9 @@ export class MetricsService {
     context: RequestContext,
     status: number
   ): Promise<void> {
-    if (!this.storageService) {return}
+    if (!this.storageService) {
+      return
+    }
 
     // Skip storing requests based on type
     if (NON_STORABLE_REQUEST_TYPES.has(request.requestType)) {
@@ -272,7 +274,9 @@ export class MetricsService {
    * Send telemetry data
    */
   private async sendTelemetry(data: TelemetryData): Promise<void> {
-    if (!this.telemetryEndpoint) {return}
+    if (!this.telemetryEndpoint) {
+      return
+    }
 
     try {
       const response = await fetch(this.telemetryEndpoint, {
@@ -305,8 +309,12 @@ export class MetricsService {
    * Mask API key for telemetry
    */
   private maskApiKey(key?: string): string | undefined {
-    if (!key || key.length < 8) {return undefined}
-    if (key.length <= 10) {return key}
+    if (!key || key.length < 8) {
+      return undefined
+    }
+    if (key.length <= 10) {
+      return key
+    }
     return `...${key.slice(-10)}`
   }
 }

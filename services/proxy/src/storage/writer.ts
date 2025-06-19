@@ -175,7 +175,9 @@ export class StorageWriter {
    * Flush batch of streaming chunks
    */
   private async flushBatch(): Promise<void> {
-    if (this.batchQueue.length === 0) {return}
+    if (this.batchQueue.length === 0) {
+      return
+    }
 
     const chunks = [...this.batchQueue]
     this.batchQueue = []

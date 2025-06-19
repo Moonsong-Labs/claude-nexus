@@ -92,8 +92,12 @@ export class ProxyApiClient {
   async getStats(params?: { domain?: string; since?: string }): Promise<StatsResponse> {
     try {
       const url = new URL('/api/stats', this.baseUrl)
-      if (params?.domain) {url.searchParams.set('domain', params.domain)}
-      if (params?.since) {url.searchParams.set('since', params.since)}
+      if (params?.domain) {
+        url.searchParams.set('domain', params.domain)
+      }
+      if (params?.since) {
+        url.searchParams.set('since', params.since)
+      }
 
       const response = await fetch(url.toString(), {
         headers: this.getHeaders(),
@@ -122,9 +126,15 @@ export class ProxyApiClient {
   }): Promise<RequestsResponse> {
     try {
       const url = new URL('/api/requests', this.baseUrl)
-      if (params?.domain) {url.searchParams.set('domain', params.domain)}
-      if (params?.limit) {url.searchParams.set('limit', params.limit.toString())}
-      if (params?.offset) {url.searchParams.set('offset', params.offset.toString())}
+      if (params?.domain) {
+        url.searchParams.set('domain', params.domain)
+      }
+      if (params?.limit) {
+        url.searchParams.set('limit', params.limit.toString())
+      }
+      if (params?.offset) {
+        url.searchParams.set('offset', params.offset.toString())
+      }
 
       const response = await fetch(url.toString(), {
         headers: this.getHeaders(),

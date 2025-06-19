@@ -42,7 +42,9 @@ export class ProxyRequest {
     // Find the last user message
     const lastUserMessage = [...this.raw.messages].reverse().find(msg => msg.role === 'user')
 
-    if (!lastUserMessage) {return ''}
+    if (!lastUserMessage) {
+      return ''
+    }
 
     if (typeof lastUserMessage.content === 'string') {
       return lastUserMessage.content
@@ -64,7 +66,9 @@ export class ProxyRequest {
     // Find the last user message
     const lastUserMessage = [...this.raw.messages].reverse().find(msg => msg.role === 'user')
 
-    if (!lastUserMessage) {return ''}
+    if (!lastUserMessage) {
+      return ''
+    }
 
     if (typeof lastUserMessage.content === 'string') {
       return lastUserMessage.content
@@ -107,10 +111,10 @@ export class ProxyRequest {
     const systemMessageCount = this.countSystemMessages()
 
     // Always log request type determination
-    // const systemFieldDisplay = this.raw.system 
+    // const systemFieldDisplay = this.raw.system
     //   ? (Array.isArray(this.raw.system) ? `array[${this.raw.system.length}]` : `string(length: ${this.raw.system.length})`)
     //   : 'none'
-    
+
     // const resultType = systemMessageCount <= 1 ? 'query_evaluation' : 'inference'
 
     // logger.debug('Request type determination', {

@@ -45,7 +45,9 @@ export async function parseConversation(requestData: any): Promise<ConversationD
 
   // Helper function to process message content for tool usage
   const processMessageContentForTools = (content: any[]) => {
-    if (!Array.isArray(content)) {return}
+    if (!Array.isArray(content)) {
+      return
+    }
     for (const block of content) {
       if (block.type === 'tool_use' && block.name) {
         toolUsage[block.name] = (toolUsage[block.name] || 0) + 1
@@ -282,7 +284,9 @@ export function calculateCost(
 
 // Format duration for display
 export function formatDuration(ms?: number): string {
-  if (!ms) {return 'N/A'}
+  if (!ms) {
+    return 'N/A'
+  }
 
   if (ms < 1000) {
     return `${ms}ms`
@@ -297,7 +301,9 @@ export function formatDuration(ms?: number): string {
 
 // Format timestamp for display
 export function formatMessageTime(date?: Date): string {
-  if (!date) {return ''}
+  if (!date) {
+    return ''
+  }
 
   const hours = date.getHours().toString().padStart(2, '0')
   const minutes = date.getMinutes().toString().padStart(2, '0')

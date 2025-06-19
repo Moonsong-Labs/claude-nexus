@@ -53,9 +53,15 @@ describe('Notification Message Formatting', () => {
             const completed = todos.filter((t: any) => t.status === 'completed').length
 
             const statusParts = []
-            if (pending > 0) {statusParts.push(`${pending} pending`)}
-            if (inProgress > 0) {statusParts.push(`${inProgress} in progress`)}
-            if (completed > 0) {statusParts.push(`${completed} completed`)}
+            if (pending > 0) {
+              statusParts.push(`${pending} pending`)
+            }
+            if (inProgress > 0) {
+              statusParts.push(`${inProgress} in progress`)
+            }
+            if (completed > 0) {
+              statusParts.push(`${completed} completed`)
+            }
 
             if (statusParts.length > 0) {
               description = `Tasks: ${statusParts.join(', ')}`

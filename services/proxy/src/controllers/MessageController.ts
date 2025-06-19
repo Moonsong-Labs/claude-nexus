@@ -58,9 +58,13 @@ export class MessageController {
 
       // Determine status code
       let statusCode = 500
-      if (error instanceof ValidationError) {statusCode = 400}
-      else if ((error as any).statusCode) {statusCode = (error as any).statusCode}
-      else if ((error as any).upstreamStatus) {statusCode = (error as any).upstreamStatus}
+      if (error instanceof ValidationError) {
+        statusCode = 400
+      } else if ((error as any).statusCode) {
+        statusCode = (error as any).statusCode
+      } else if ((error as any).upstreamStatus) {
+        statusCode = (error as any).upstreamStatus
+      }
 
       return c.json(errorResponse, statusCode as any)
     }
