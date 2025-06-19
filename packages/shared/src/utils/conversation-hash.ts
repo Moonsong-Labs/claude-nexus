@@ -9,10 +9,10 @@ import type { ClaudeMessage } from '../types/claude.js'
 export function hashMessage(message: ClaudeMessage): string {
   // Normalize the message for consistent hashing
   const normalizedContent = normalizeMessageContent(message.content)
-  
+
   // Create a deterministic string representation
   const messageString = `${message.role}:${normalizedContent}`
-  
+
   // Generate SHA-256 hash
   return createHash('sha256').update(messageString, 'utf8').digest('hex')
 }
@@ -26,14 +26,14 @@ function normalizeMessageContent(content: string | any[]): string {
     // Trim whitespace and normalize line endings
     return content.trim().replace(/\r\n/g, '\n')
   }
-  
+
   // For array content, create a deterministic string representation
   // Sort by type to ensure consistent ordering
   const sortedContent = [...content].sort((a, b) => {
     const typeOrder = ['text', 'image', 'tool_use', 'tool_result']
     return typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type)
   })
-  
+
   return sortedContent
     .map(item => {
       switch (item.type) {
@@ -41,16 +41,15 @@ function normalizeMessageContent(content: string | any[]): string {
           return `text:${item.text?.trim() || ''}`
         case 'image':
           // For images, hash the data to avoid storing large base64 strings
-          const imageHash = item.source?.data 
+          const imageHash = item.source?.data
             ? createHash('sha256').update(item.source.data).digest('hex')
             : 'no-data'
           return `image:${item.source?.media_type || 'unknown'}:${imageHash}`
         case 'tool_use':
           return `tool_use:${item.name}:${item.id}:${JSON.stringify(item.input || {})}`
         case 'tool_result':
-          const resultContent = typeof item.content === 'string' 
-            ? item.content 
-            : JSON.stringify(item.content || [])
+          const resultContent =
+            typeof item.content === 'string' ? item.content : JSON.stringify(item.content || [])
           return `tool_result:${item.tool_use_id}:${resultContent}`
         default:
           return `${item.type}:${JSON.stringify(item)}`
@@ -71,15 +70,13 @@ export function extractMessageHashes(messages: ClaudeMessage[]): {
   if (!messages || messages.length === 0) {
     throw new Error('Cannot extract hashes from empty messages array')
   }
-  
+
   // Hash the last message (current)
   const currentMessageHash = hashMessage(messages[messages.length - 1])
-  
+
   // Hash the second-to-last message (parent) if it exists
-  const parentMessageHash = messages.length > 1 
-    ? hashMessage(messages[messages.length - 2])
-    : null
-    
+  const parentMessageHash = messages.length > 1 ? hashMessage(messages[messages.length - 2]) : null
+
   return { currentMessageHash, parentMessageHash }
 }
 

@@ -49,12 +49,11 @@ async function migrateConversationSchema() {
     // Commit transaction
     await pool.query('COMMIT')
     logger.info('Migration completed successfully!')
-
   } catch (error) {
     // Rollback on error
     await pool.query('ROLLBACK')
     logger.error('Migration failed', {
-      metadata: { error: error instanceof Error ? error.message : String(error) }
+      metadata: { error: error instanceof Error ? error.message : String(error) },
     })
     process.exit(1)
   } finally {

@@ -68,30 +68,35 @@ export class ProxyService {
     }
 
     // Extract conversation data if storage is enabled
-    let conversationData: { currentMessageHash: string; parentMessageHash: string | null; conversationId: string } | undefined
-    
+    let conversationData:
+      | { currentMessageHash: string; parentMessageHash: string | null; conversationId: string }
+      | undefined
+
     if (this.storageAdapter && rawRequest.messages && rawRequest.messages.length > 0) {
       try {
         const { currentMessageHash, parentMessageHash } = extractMessageHashes(rawRequest.messages)
-        
+
         // Find or create conversation ID
         let conversationId: string
         if (parentMessageHash) {
           // Try to find existing conversation
-          const existingConversationId = await this.storageAdapter.findConversationByParentHash(parentMessageHash)
+          const existingConversationId =
+            await this.storageAdapter.findConversationByParentHash(parentMessageHash)
           conversationId = existingConversationId || generateConversationId()
         } else {
           // This is the start of a new conversation
           conversationId = generateConversationId()
         }
-        
+
         conversationData = { currentMessageHash, parentMessageHash, conversationId }
-        
+
         log.debug('Conversation tracking', {
           currentMessageHash,
           parentMessageHash,
           conversationId,
-          isNewConversation: !parentMessageHash || !await this.storageAdapter.findConversationByParentHash(parentMessageHash)
+          isNewConversation:
+            !parentMessageHash ||
+            !(await this.storageAdapter.findConversationByParentHash(parentMessageHash)),
         })
       } catch (error) {
         log.warn('Failed to extract conversation data', error as Error)
@@ -139,7 +144,13 @@ export class ProxyService {
       // Track metrics for successful request
       // Note: For streaming responses, metrics are tracked after stream completes
       if (!request.isStreaming) {
-        await this.metricsService.trackRequest(request, response, context, claudeResponse.status, conversationData)
+        await this.metricsService.trackRequest(
+          request,
+          response,
+          context,
+          claudeResponse.status,
+          conversationData
+        )
       }
 
       // Send notifications
@@ -269,32 +280,38 @@ export class ProxyService {
     const writer = writable.getWriter()
 
     // Process stream in background
-    this.processStream(claudeResponse, response, writer, context, request, auth, conversationData).catch(
-      async error => {
-        log.error(
-          'Stream processing error',
-          error instanceof Error ? error : new Error(String(error))
-        )
+    this.processStream(
+      claudeResponse,
+      response,
+      writer,
+      context,
+      request,
+      auth,
+      conversationData
+    ).catch(async error => {
+      log.error(
+        'Stream processing error',
+        error instanceof Error ? error : new Error(String(error))
+      )
 
-        // Try to send error to client in SSE format
-        try {
-          const encoder = new TextEncoder()
-          const errorEvent = {
-            type: 'error',
-            error: {
-              type: 'stream_error',
-              message: error instanceof Error ? error.message : String(error),
-            },
-          }
-          await writer.write(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`))
-        } catch (writeError) {
-          log.error(
-            'Failed to write error to stream',
-            writeError instanceof Error ? writeError : undefined
-          )
+      // Try to send error to client in SSE format
+      try {
+        const encoder = new TextEncoder()
+        const errorEvent = {
+          type: 'error',
+          error: {
+            type: 'stream_error',
+            message: error instanceof Error ? error.message : String(error),
+          },
         }
+        await writer.write(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`))
+      } catch (writeError) {
+        log.error(
+          'Failed to write error to stream',
+          writeError instanceof Error ? writeError : undefined
+        )
       }
-    )
+    })
 
     // Return streaming response immediately
     return new Response(readable, {
@@ -366,7 +383,13 @@ export class ProxyService {
       })
 
       // Track metrics after streaming completes
-      await this.metricsService.trackRequest(request, response, context, claudeResponse.status, conversationData)
+      await this.metricsService.trackRequest(
+        request,
+        response,
+        context,
+        claudeResponse.status,
+        conversationData
+      )
 
       // Send notifications after streaming completes
       await this.notificationService.notify(request, response, context, auth)

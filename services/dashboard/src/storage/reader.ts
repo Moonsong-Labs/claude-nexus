@@ -274,14 +274,19 @@ export class StorageReader {
   /**
    * Get conversations grouped by conversation_id
    */
-  async getConversations(domain?: string, limit: number = 50): Promise<{ 
-    conversation_id: string;
-    message_count: number;
-    first_message: Date;
-    last_message: Date;
-    total_tokens: number;
-    requests: ApiRequest[];
-  }[]> {
+  async getConversations(
+    domain?: string,
+    limit: number = 50
+  ): Promise<
+    {
+      conversation_id: string
+      message_count: number
+      first_message: Date
+      last_message: Date
+      total_tokens: number
+      requests: ApiRequest[]
+    }[]
+  > {
     const cacheKey = `conversations:${domain || 'all'}:${limit}`
     const cached = this.cache.get<any[]>(cacheKey)
     if (cached) {
@@ -353,7 +358,7 @@ export class StorageReader {
           current_message_hash: row.current_message_hash,
           parent_message_hash: row.parent_message_hash,
         }
-        
+
         if (!requestsByConversation[row.conversation_id]) {
           requestsByConversation[row.conversation_id] = []
         }

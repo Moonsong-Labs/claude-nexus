@@ -234,15 +234,15 @@ export class StorageWriter {
         ORDER BY timestamp DESC
         LIMIT 1
       `
-      
+
       const result = await this.pool.query(query, [parentHash])
       return result.rows[0]?.conversation_id || null
     } catch (error) {
       logger.error('Failed to find conversation by parent hash', {
-        metadata: { 
+        metadata: {
           parentHash,
-          error: error instanceof Error ? error.message : String(error) 
-        }
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
       return null
     }
