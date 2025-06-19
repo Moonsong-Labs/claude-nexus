@@ -449,14 +449,14 @@ export const layout = (title: string, content: any) => html`
           font-size: 0.875rem;
           line-height: 1.5;
         }
-        
+
         /* Improved conversation styles */
         .conversation-graph-container {
           display: flex;
           gap: 1.5rem;
           position: relative;
         }
-        
+
         .conversation-graph {
           flex-shrink: 0;
           position: sticky;
@@ -468,39 +468,39 @@ export const layout = (title: string, content: any) => html`
           padding: 1rem;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
-        
+
         .conversation-timeline {
           flex: 1;
           min-width: 0;
         }
-        
+
         .conversation-stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 1rem;
           margin-bottom: 1.5rem;
         }
-        
+
         .conversation-stat-card {
           background: white;
           padding: 1rem;
           border-radius: 0.375rem;
           border: 1px solid #e5e7eb;
         }
-        
+
         .conversation-stat-label {
           font-size: 0.75rem;
           color: #6b7280;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
-        
+
         .conversation-stat-value {
           font-size: 1.5rem;
           font-weight: 600;
           margin-top: 0.25rem;
         }
-        
+
         .branch-filter {
           display: flex;
           gap: 0.5rem;
@@ -508,7 +508,7 @@ export const layout = (title: string, content: any) => html`
           margin-bottom: 1rem;
           flex-wrap: wrap;
         }
-        
+
         .branch-chip {
           display: inline-flex;
           align-items: center;
@@ -521,19 +521,19 @@ export const layout = (title: string, content: any) => html`
           transition: all 0.2s;
           border: 1px solid transparent;
         }
-        
+
         .branch-chip-main {
           background: #f3f4f6;
           color: #4b5563;
           border-color: #d1d5db;
         }
-        
+
         .branch-chip-active {
           background: #3b82f6;
           color: white;
           border-color: #2563eb;
         }
-        
+
         .branch-chip:hover:not(.branch-chip-active) {
           background: #e5e7eb;
         }
@@ -788,18 +788,21 @@ dashboardRoutes.get('/conversations', async c => {
 
   try {
     let conversations = await storageService.getConversations(domain, 100)
-    
+
     // Apply search filter if provided
     if (searchQuery) {
       conversations = conversations.filter(conv => {
         // Search in request IDs, models, domains, and branch IDs
-        return conv.requests.some(req => 
-          req.request_id.toLowerCase().includes(searchQuery) ||
-          req.model.toLowerCase().includes(searchQuery) ||
-          req.domain.toLowerCase().includes(searchQuery) ||
-          (req.branch_id && req.branch_id.toLowerCase().includes(searchQuery)) ||
-          req.request_id.toLowerCase().includes(searchQuery)
-        ) || conv.conversation_id.toLowerCase().includes(searchQuery)
+        return (
+          conv.requests.some(
+            req =>
+              req.request_id.toLowerCase().includes(searchQuery) ||
+              req.model.toLowerCase().includes(searchQuery) ||
+              req.domain.toLowerCase().includes(searchQuery) ||
+              (req.branch_id && req.branch_id.toLowerCase().includes(searchQuery)) ||
+              req.request_id.toLowerCase().includes(searchQuery)
+          ) || conv.conversation_id.toLowerCase().includes(searchQuery)
+        )
       })
     }
 
@@ -808,19 +811,24 @@ dashboardRoutes.get('/conversations', async c => {
         <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;"
+      >
         <h2 style="margin: 0;">Conversations</h2>
-        
+
         <!-- Search Bar -->
         <form action="/dashboard/conversations" method="get" style="display: flex; gap: 0.5rem;">
           ${domain ? `<input type="hidden" name="domain" value="${domain}">` : ''}
-          <input 
-            type="search" 
-            name="search" 
-            placeholder="Search conversations..." 
+          <input
+            type="search"
+            name="search"
+            placeholder="Search conversations..."
             value="${c.req.query('search') || ''}"
-            style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 300px;">
-          <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Search</button>
+            style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 300px;"
+          />
+          <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem;">
+            Search
+          </button>
         </form>
       </div>
 
@@ -838,29 +846,39 @@ dashboardRoutes.get('/conversations', async c => {
           )}
         </select>
       </div>
-      
-      <!-- Conversation Statistics -->
-      ${conversations.length > 0 ? html`
-        <div class="conversation-stats-grid" style="margin-bottom: 1.5rem;">
-          <div class="conversation-stat-card">
-            <div class="conversation-stat-label">Total Conversations</div>
-            <div class="conversation-stat-value">${conversations.length}</div>
-          </div>
-          <div class="conversation-stat-card">
-            <div class="conversation-stat-label">Total Messages</div>
-            <div class="conversation-stat-value">${conversations.reduce((sum, c) => sum + c.message_count, 0)}</div>
-          </div>
-          <div class="conversation-stat-card">
-            <div class="conversation-stat-label">Total Tokens</div>
-            <div class="conversation-stat-value">${formatNumber(conversations.reduce((sum, c) => sum + c.total_tokens, 0))}</div>
-          </div>
-          <div class="conversation-stat-card">
-            <div class="conversation-stat-label">Avg Messages/Conv</div>
-            <div class="conversation-stat-value">${Math.round(conversations.reduce((sum, c) => sum + c.message_count, 0) / conversations.length)}</div>
-          </div>
-        </div>
-      ` : ''}
 
+      <!-- Conversation Statistics -->
+      ${conversations.length > 0
+        ? html`
+            <div class="conversation-stats-grid" style="margin-bottom: 1.5rem;">
+              <div class="conversation-stat-card">
+                <div class="conversation-stat-label">Total Conversations</div>
+                <div class="conversation-stat-value">${conversations.length}</div>
+              </div>
+              <div class="conversation-stat-card">
+                <div class="conversation-stat-label">Total Messages</div>
+                <div class="conversation-stat-value">
+                  ${conversations.reduce((sum, c) => sum + c.message_count, 0)}
+                </div>
+              </div>
+              <div class="conversation-stat-card">
+                <div class="conversation-stat-label">Total Tokens</div>
+                <div class="conversation-stat-value">
+                  ${formatNumber(conversations.reduce((sum, c) => sum + c.total_tokens, 0))}
+                </div>
+              </div>
+              <div class="conversation-stat-card">
+                <div class="conversation-stat-label">Avg Messages/Conv</div>
+                <div class="conversation-stat-value">
+                  ${Math.round(
+                    conversations.reduce((sum, c) => sum + c.message_count, 0) /
+                      conversations.length
+                  )}
+                </div>
+              </div>
+            </div>
+          `
+        : ''}
       ${conversations.length === 0
         ? html`<p class="text-gray-500">No conversations found</p>`
         : html`

@@ -16,24 +16,22 @@ export const conversationDetailRoutes = new Hono()
 conversationDetailRoutes.get('/conversation/:id', async c => {
   const conversationId = c.req.param('id')
   const selectedBranch = c.req.query('branch')
-  
+
   // Get storage service from container
   const { container } = await import('../container.js')
   const storageService = container.getStorageService()
-  
+
   try {
     // Get all conversations to find the one we want
     const conversations = await storageService.getConversations(undefined, 1000)
     const conversation = conversations.find(conv => conv.conversation_id === conversationId)
-    
+
     if (!conversation) {
       return c.html(html`
-        <div class="error-banner">
-          <strong>Error:</strong> Conversation not found
-        </div>
+        <div class="error-banner"><strong>Error:</strong> Conversation not found</div>
       `)
     }
-    
+
     // Build the graph structure
     const graph: ConversationGraph = {
       nodes: conversation.requests.map(req => ({
@@ -41,8 +39,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         label: `${req.model}`,
         timestamp: new Date(req.timestamp),
         branchId: req.branch_id || 'main',
-        parentId: req.parent_message_hash ? 
-          conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)?.request_id 
+        parentId: req.parent_message_hash
+          ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
+              ?.request_id
           : undefined,
         tokens: req.total_tokens,
         model: req.model,
@@ -50,7 +49,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       })),
       edges: [],
     }
-    
+
     // Build edges from parent relationships
     graph.nodes.forEach(node => {
       if (node.parentId) {
@@ -60,27 +59,31 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         })
       }
     })
-    
+
     // Calculate layout
     const graphLayout = await calculateGraphLayout(graph)
     const svgGraph = renderGraphSVG(graphLayout, true)
-    
+
     // Filter requests by branch if selected
-    const filteredRequests = selectedBranch 
+    const filteredRequests = selectedBranch
       ? conversation.requests.filter(r => r.branch_id === selectedBranch)
       : conversation.requests
-    
+
     // Calculate stats
-    const totalDuration = new Date(conversation.last_message).getTime() - new Date(conversation.first_message).getTime()
-    const branchStats = conversation.branches.reduce((acc, branch) => {
-      const branchRequests = conversation.requests.filter(r => (r.branch_id || 'main') === branch)
-      acc[branch] = {
-        count: branchRequests.length,
-        tokens: branchRequests.reduce((sum, r) => sum + r.total_tokens, 0),
-      }
-      return acc
-    }, {} as Record<string, { count: number; tokens: number }>)
-    
+    const totalDuration =
+      new Date(conversation.last_message).getTime() - new Date(conversation.first_message).getTime()
+    const branchStats = conversation.branches.reduce(
+      (acc, branch) => {
+        const branchRequests = conversation.requests.filter(r => (r.branch_id || 'main') === branch)
+        acc[branch] = {
+          count: branchRequests.length,
+          tokens: branchRequests.reduce((sum, r) => sum + r.total_tokens, 0),
+        }
+        return acc
+      },
+      {} as Record<string, { count: number; tokens: number }>
+    )
+
     // Add main branch if not present
     if (!branchStats.main) {
       const mainRequests = conversation.requests.filter(r => !r.branch_id || r.branch_id === 'main')
@@ -89,14 +92,14 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         tokens: mainRequests.reduce((sum, r) => sum + r.total_tokens, 0),
       }
     }
-    
+
     const content = html`
       <div class="mb-6">
         <a href="/dashboard/conversations" class="text-blue-600">← Back to Conversations</a>
       </div>
 
       <h2 style="margin: 0 0 1.5rem 0;">Conversation Details</h2>
-      
+
       <!-- Stats Grid -->
       <div class="conversation-stats-grid">
         <div class="conversation-stat-card">
@@ -116,21 +119,25 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           <div class="conversation-stat-value">${formatDuration(totalDuration)}</div>
         </div>
       </div>
-      
+
       <!-- Branch Filter -->
       <div class="branch-filter">
         <span class="text-sm text-gray-600">Filter by branch:</span>
-        <a href="/dashboard/conversation/${conversationId}" 
-           class="branch-chip ${!selectedBranch ? 'branch-chip-active' : 'branch-chip-main'}"
-           hx-get="/dashboard/conversation/${conversationId}/messages"
-           hx-target="#conversation-messages"
-           hx-push-url="/dashboard/conversation/${conversationId}">
+        <a
+          href="/dashboard/conversation/${conversationId}"
+          class="branch-chip ${!selectedBranch ? 'branch-chip-active' : 'branch-chip-main'}"
+          hx-get="/dashboard/conversation/${conversationId}/messages"
+          hx-target="#conversation-messages"
+          hx-push-url="/dashboard/conversation/${conversationId}"
+        >
           All Branches
         </a>
-        ${raw(Object.entries(branchStats).map(([branch, stats]) => {
-          const color = getBranchColor(branch)
-          const isActive = selectedBranch === branch
-          return `
+        ${raw(
+          Object.entries(branchStats)
+            .map(([branch, stats]) => {
+              const color = getBranchColor(branch)
+              const isActive = selectedBranch === branch
+              return `
             <a href="/dashboard/conversation/${conversationId}?branch=${branch}"
                class="branch-chip ${isActive ? 'branch-chip-active' : ''}"
                style="${!isActive && branch !== 'main' ? `background: ${color}20; color: ${color}; border-color: ${color};` : ''}"
@@ -140,23 +147,23 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               ${branch} (${stats.count} messages, ${formatNumber(stats.tokens)} tokens)
             </a>
           `
-        }).join(''))}
+            })
+            .join('')
+        )}
       </div>
-      
+
       <!-- Main Content -->
       <div class="conversation-graph-container">
         <!-- Graph Visualization -->
-        <div class="conversation-graph">
-          ${raw(svgGraph)}
-        </div>
-        
+        <div class="conversation-graph">${raw(svgGraph)}</div>
+
         <!-- Timeline -->
         <div class="conversation-timeline" id="conversation-messages">
           ${raw(renderConversationMessages(filteredRequests, conversation.branches))}
         </div>
       </div>
     `
-    
+
     // Use the shared layout from dashboard-api
     const { layout: dashboardLayout } = await import('./dashboard-api.js')
     return c.html(dashboardLayout('Conversation Detail', content))
@@ -175,23 +182,23 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 conversationDetailRoutes.get('/conversation/:id/messages', async c => {
   const conversationId = c.req.param('id')
   const selectedBranch = c.req.query('branch')
-  
+
   // Get storage service from container
   const { container } = await import('../container.js')
   const storageService = container.getStorageService()
-  
+
   try {
     const conversations = await storageService.getConversations(undefined, 1000)
     const conversation = conversations.find(conv => conv.conversation_id === conversationId)
-    
+
     if (!conversation) {
       return c.html(html`<div class="error-banner">Conversation not found</div>`)
     }
-    
-    const filteredRequests = selectedBranch 
+
+    const filteredRequests = selectedBranch
       ? conversation.requests.filter(r => r.branch_id === selectedBranch)
       : conversation.requests
-    
+
     return c.html(renderConversationMessages(filteredRequests, conversation.branches))
   } catch (_error) {
     return c.html(html`<div class="error-banner">Failed to load messages</div>`)
@@ -204,24 +211,30 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 function renderConversationMessages(requests: any[], _branches: string[]) {
   return html`
     <div style="display: grid; gap: 1rem;">
-      ${raw(requests.map((req, idx) => {
-        const _isFirst = idx === 0
-        const _isLast = idx === requests.length - 1
-        const branch = req.branch_id || 'main'
-        const branchColor = getBranchColor(branch)
-        
-        return `
+      ${raw(
+        requests
+          .map((req, idx) => {
+            const _isFirst = idx === 0
+            const _isLast = idx === requests.length - 1
+            const branch = req.branch_id || 'main'
+            const branchColor = getBranchColor(branch)
+
+            return `
           <div class="section" id="message-${req.request_id}">
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <span style="font-size: 0.875rem; color: #6b7280;">
                   ${new Date(req.timestamp).toLocaleString()}
                 </span>
-                ${branch !== 'main' ? `
+                ${
+                  branch !== 'main'
+                    ? `
                   <span style="margin-left: 0.5rem; font-size: 0.7rem; background: ${branchColor}20; color: ${branchColor}; padding: 0.125rem 0.375rem; border-radius: 0.25rem; border: 1px solid ${branchColor};">
                     ${escapeHtml(branch)}
                   </span>
-                ` : ''}
+                `
+                    : ''
+                }
               </div>
               <div style="display: flex; gap: 0.5rem; align-items: center;">
                 <span class="text-sm text-gray-600">${req.model}</span>
@@ -240,7 +253,9 @@ function renderConversationMessages(requests: any[], _branches: string[]) {
             </div>
           </div>
         `
-      }).join(''))}
+          })
+          .join('')
+      )}
     </div>
   `
 }
@@ -261,7 +276,7 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
-  
+
   if (days > 0) {
     return `${days}d ${hours % 24}h`
   }
@@ -282,3 +297,4 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
 }
+
