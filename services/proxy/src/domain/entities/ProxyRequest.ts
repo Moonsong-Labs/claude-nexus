@@ -107,16 +107,11 @@ export class ProxyRequest {
     const systemMessageCount = this.countSystemMessages()
 
     // Always log request type determination
-    let systemFieldDisplay = 'none'
-    if (this.raw.system) {
-      if (Array.isArray(this.raw.system)) {
-        systemFieldDisplay = `array[${this.raw.system.length}]`
-      } else {
-        systemFieldDisplay = `string(length: ${this.raw.system.length})`
-      }
-    }
-
-    const resultType = systemMessageCount <= 1 ? 'query_evaluation' : 'inference'
+    // const systemFieldDisplay = this.raw.system 
+    //   ? (Array.isArray(this.raw.system) ? `array[${this.raw.system.length}]` : `string(length: ${this.raw.system.length})`)
+    //   : 'none'
+    
+    // const resultType = systemMessageCount <= 1 ? 'query_evaluation' : 'inference'
 
     // logger.debug('Request type determination', {
     //   requestId: this.requestId,

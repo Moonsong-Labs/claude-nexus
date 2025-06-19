@@ -22,7 +22,7 @@ export function createHealthRoutes(options: HealthRouteOptions): Hono {
       try {
         await options.pool.query('SELECT 1')
         health.database = 'connected'
-      } catch (error) {
+      } catch (_error) {
         health.status = 'unhealthy'
         health.database = 'disconnected'
       }
@@ -41,7 +41,7 @@ export function createHealthRoutes(options: HealthRouteOptions): Hono {
     if (options.pool) {
       try {
         await options.pool.query('SELECT 1')
-      } catch (error) {
+      } catch (_error) {
         ready.ready = false
         return c.json(ready, 503)
       }

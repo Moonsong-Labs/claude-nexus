@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
   // Ignore patterns
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts', 'scripts/**', 'docker/**', 'test-*.js', 'test-*.mjs'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts', 'scripts/**', 'docker/**', 'test-*.js', 'test-*.mjs', '**/preload.js', '**/tests/**'],
   },
 
   // Base ESLint recommended rules

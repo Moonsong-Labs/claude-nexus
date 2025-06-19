@@ -1,6 +1,5 @@
 import {
   getApiKey,
-  getAuthorizationHeaderForDomain,
   DomainCredentialMapping,
   loadCredentials,
   SlackConfig,
