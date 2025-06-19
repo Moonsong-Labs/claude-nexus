@@ -199,7 +199,7 @@ export class AuthenticationService {
             }
           }
         }
-      } catch (e) {
+      } catch (_e) {
         // Credential file doesn't exist or couldn't be loaded, continue to fallback options
         if (!this.warnedDomains.has(context.host)) {
           logger.debug(`No credential file found for domain: ${context.host}`, {
@@ -312,7 +312,7 @@ export class AuthenticationService {
       if (credentials?.slack && credentials.slack.enabled !== false) {
         return credentials.slack
       }
-    } catch (error) {
+    } catch (_error) {
       // Ignore errors - domain might not have credentials
     }
 

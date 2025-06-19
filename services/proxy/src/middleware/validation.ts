@@ -63,7 +63,7 @@ export function validationMiddleware() {
 }
 
 // Detailed validation
-function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] {
+function validateClaudeRequestDetails(_request: ClaudeMessagesRequest): string[] {
   const errors: string[] = []
 
   // Model validation removed - allow any model name

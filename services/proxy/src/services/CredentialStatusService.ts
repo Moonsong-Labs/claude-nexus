@@ -1,5 +1,5 @@
 import { readdirSync, statSync, existsSync } from 'fs'
-import { join, basename, resolve } from 'path'
+import { join, resolve } from 'path'
 import { homedir } from 'os'
 import { loadCredentials, ClaudeCredentials } from '../credentials'
 import { logger } from '../middleware/logger'
