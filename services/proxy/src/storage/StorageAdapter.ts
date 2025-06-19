@@ -40,6 +40,7 @@ export class StorageAdapter {
     currentMessageHash?: string
     parentMessageHash?: string | null
     conversationId?: string
+    branchId?: string
   }): Promise<void> {
     try {
       // Generate a UUID for this request and store the mapping
@@ -60,6 +61,7 @@ export class StorageAdapter {
         currentMessageHash: data.currentMessageHash,
         parentMessageHash: data.parentMessageHash,
         conversationId: data.conversationId,
+        branchId: data.branchId,
       })
     } catch (error) {
       logger.error('Failed to store request', {

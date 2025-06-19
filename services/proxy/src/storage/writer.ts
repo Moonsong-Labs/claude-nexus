@@ -15,6 +15,7 @@ interface StorageRequest {
   currentMessageHash?: string
   parentMessageHash?: string | null
   conversationId?: string
+  branchId?: string
 }
 
 interface StorageResponse {
@@ -67,12 +68,24 @@ export class StorageWriter {
       delete sanitizedHeaders['authorization']
       delete sanitizedHeaders['x-api-key']
 
+      // Detect if this is a branch in the conversation
+      let branchId = request.branchId || 'main'
+      if (request.conversationId && request.parentMessageHash) {
+        const detectedBranch = await this.detectBranch(
+          request.conversationId,
+          request.parentMessageHash
+        )
+        if (detectedBranch) {
+          branchId = detectedBranch
+        }
+      }
+
       const query = `
         INSERT INTO api_requests (
           request_id, domain, timestamp, method, path, headers, body, 
           api_key_hash, model, request_type, current_message_hash, 
-          parent_message_hash, conversation_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          parent_message_hash, conversation_id, branch_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -90,6 +103,7 @@ export class StorageWriter {
         request.currentMessageHash || null,
         request.parentMessageHash || null,
         request.conversationId || null,
+        branchId,
       ]
 
       await this.pool.query(query, values)
@@ -245,6 +259,46 @@ export class StorageWriter {
         },
       })
       return null
+    }
+  }
+
+  /**
+   * Detect if this is a branch in an existing conversation
+   * Returns the branch ID if this is a new branch, null otherwise
+   */
+  private async detectBranch(
+    conversationId: string,
+    parentMessageHash: string
+  ): Promise<string | null> {
+    try {
+      // Check if there's already a request with this parent hash in this conversation
+      const result = await this.pool.query(
+        `SELECT COUNT(*) as count, MAX(branch_id) as latest_branch 
+         FROM api_requests 
+         WHERE conversation_id = $1 
+         AND parent_message_hash = $2`,
+        [conversationId, parentMessageHash]
+      )
+
+      const { count, latest_branch } = result.rows[0]
+      
+      // If there's already a message with this parent, we're creating a new branch
+      if (parseInt(count) > 0) {
+        // Generate new branch ID based on timestamp
+        return `branch_${Date.now()}`
+      }
+      
+      // If this is the first message with this parent, use the existing branch
+      return latest_branch || 'main'
+    } catch (error) {
+      logger.error('Error detecting branch', {
+        metadata: {
+          conversationId,
+          parentMessageHash,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return 'main'
     }
   }
 
