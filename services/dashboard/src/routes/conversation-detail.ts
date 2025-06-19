@@ -163,7 +163,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
   } catch (_error) {
     return c.html(html`
       <div class="error-banner">
-        <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversation'}
+        <strong>Error:</strong> ${getErrorMessage(_error) || 'Failed to load conversation'}
       </div>
     `)
   }
