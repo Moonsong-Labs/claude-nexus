@@ -318,10 +318,10 @@ export async function getApiKey(
   credentialPath: string | null,
   debug: boolean = false
 ): Promise<string | null> {
-  if (!credentialPath) return null
+  if (!credentialPath) {return null}
 
   const credentials = loadCredentials(credentialPath)
-  if (!credentials) return null
+  if (!credentials) {return null}
 
   if (credentials.type === 'api_key') {
     return credentials.api_key || null
@@ -454,18 +454,18 @@ export async function getApiKey(
  * Get masked credential info for logging
  */
 export function getMaskedCredentialInfo(credentialPath: string | null): string {
-  if (!credentialPath) return 'none'
+  if (!credentialPath) {return 'none'}
 
   if (credentialPath.startsWith('memory:')) {
     return credentialPath
   }
 
   const credentials = loadCredentials(credentialPath)
-  if (!credentials) return `invalid:${credentialPath}`
+  if (!credentials) {return `invalid:${credentialPath}`}
 
   if (credentials.type === 'api_key' && credentials.api_key) {
     const key = credentials.api_key
-    if (key.length <= 10) return `api_key:${key}`
+    if (key.length <= 10) {return `api_key:${key}`}
     return `api_key:...${key.slice(-10)}`
   }
 
@@ -547,10 +547,10 @@ export async function getAuthorizationHeaderForDomain(
   }
 
   const apiKey = await getApiKey(credentialPath, debug)
-  if (!apiKey) return null
+  if (!apiKey) {return null}
 
   const credentials = loadCredentials(credentialPath)
-  if (!credentials) return null
+  if (!credentials) {return null}
 
   const headers: { [key: string]: string } = {
     Authorization: credentials.type === 'oauth' ? `Bearer ${apiKey}` : apiKey,

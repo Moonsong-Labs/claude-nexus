@@ -36,7 +36,7 @@ export async function handleSSE(c: Context) {
       send = (data: string) => {
         try {
           controller.enqueue(encoder.encode(`data: ${data}\n\n`))
-        } catch (e) {
+        } catch (_e) {
           // Connection closed
         }
       }
@@ -50,7 +50,7 @@ export async function handleSSE(c: Context) {
       intervalId = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(`:heartbeat\n\n`))
-        } catch (e) {
+        } catch (_e) {
           clearInterval(intervalId)
         }
       }, 30000)
@@ -90,7 +90,7 @@ export function broadcastEvent(event: { type: string; domain?: string; data: any
     connections.get(event.domain)!.forEach(send => {
       try {
         send(message)
-      } catch (e) {
+      } catch (_e) {
         // Remove dead connection
         connections.get(event.domain!)!.delete(send)
       }
@@ -102,7 +102,7 @@ export function broadcastEvent(event: { type: string; domain?: string; data: any
     connections.get('global')!.forEach(send => {
       try {
         send(message)
-      } catch (e) {
+      } catch (_e) {
         connections.get('global')!.delete(send)
       }
     })

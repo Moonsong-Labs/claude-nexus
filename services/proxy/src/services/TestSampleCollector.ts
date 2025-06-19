@@ -112,9 +112,9 @@ export class TestSampleCollector {
   }
 
   private getModelFamily(model: string): string {
-    if (model.includes('opus')) return 'opus'
-    if (model.includes('sonnet')) return 'sonnet'
-    if (model.includes('haiku')) return 'haiku'
+    if (model.includes('opus')) {return 'opus'}
+    if (model.includes('sonnet')) {return 'sonnet'}
+    if (model.includes('haiku')) {return 'haiku'}
     return 'unknown'
   }
 

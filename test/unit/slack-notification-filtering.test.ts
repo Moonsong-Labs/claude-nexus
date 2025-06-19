@@ -1,15 +1,8 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test'
+import { describe, it, expect } from 'bun:test'
 import { NotificationService } from '../../services/proxy/src/services/NotificationService'
 import { ProxyRequest } from '../../services/proxy/src/domain/entities/ProxyRequest'
-import { ProxyResponse } from '../../services/proxy/src/domain/entities/ProxyResponse'
-import { RequestContext } from '../../services/proxy/src/domain/value-objects/RequestContext'
 
 describe('NotificationService - Request Type Filtering', () => {
-  let notificationService: NotificationService
-
-  beforeEach(() => {
-    notificationService = new NotificationService()
-  })
 
   describe('request type filtering', () => {
     it('should only notify for inference requests', () => {

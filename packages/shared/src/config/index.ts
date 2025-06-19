@@ -17,7 +17,7 @@ const env = {
   },
   bool: (key: string, defaultValue: boolean): boolean => {
     const value = process.env[key]
-    if (!value) return defaultValue
+    if (!value) {return defaultValue}
     return value.toLowerCase() === 'true'
   },
 }

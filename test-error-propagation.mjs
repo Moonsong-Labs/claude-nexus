@@ -110,8 +110,8 @@ async function runTests() {
 
   for (const test of tests) {
     const result = await testErrorCase(test.description, test.request, test.expected)
-    if (result) passed++
-    else failed++
+    if (result) {passed++}
+    else {failed++}
 
     // Wait a bit between tests
     await new Promise(resolve => setTimeout(resolve, 1000))

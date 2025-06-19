@@ -76,7 +76,7 @@ class Logger {
   }
 
   private maskSensitive(obj: any): any {
-    if (!this.config.maskSensitiveData) return obj
+    if (!this.config.maskSensitiveData) {return obj}
 
     const sensitiveKeys = [
       'api_key',
@@ -146,7 +146,7 @@ class Logger {
   }
 
   log(level: LogLevel, message: string, context: Partial<LogEntry> = {}) {
-    if (!this.shouldLog(level)) return
+    if (!this.shouldLog(level)) {return}
 
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),

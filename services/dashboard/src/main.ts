@@ -208,7 +208,7 @@ async function main() {
     console.log('\nPress Ctrl+C to stop the server')
 
     // Handle graceful shutdown
-    const shutdown = async (signal: string) => {
+    const _shutdown = async (signal: string) => {
       console.log(`\n${signal} received, shutting down gracefully...`)
 
       // Close server

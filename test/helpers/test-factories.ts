@@ -153,7 +153,7 @@ export const responseFactory = {
     ...overrides,
   }),
 
-  error: (type: string, message: string, status = 400) => ({
+  error: (type: string, message: string, _status = 400) => ({
     error: {
       type,
       message,

@@ -62,7 +62,7 @@ export class CredentialManager {
    */
   getCachedCredential(key: string): ClaudeCredentials | null {
     const cached = this.credentialCache.get(key)
-    if (!cached) return null
+    if (!cached) {return null}
 
     // Check if expired
     if (Date.now() - cached.timestamp > this.CREDENTIAL_CACHE_TTL) {

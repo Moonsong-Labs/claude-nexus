@@ -264,7 +264,7 @@ export function getRateLimitStatus(c: Context): {
   const entry = c.get('rateLimitEntry') as RateLimitEntry | undefined
   const config = c.get('rateLimitConfig') as RateLimitConfig | undefined
 
-  if (!entry || !config) return null
+  if (!entry || !config) {return null}
 
   return {
     limit: config.maxRequests,

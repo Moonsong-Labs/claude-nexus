@@ -183,8 +183,8 @@ async function main() {
     if (process.env.SLACK_WEBHOOK_URL) {
       console.log('\nSlack Integration:')
       console.log(`  - Webhook: Configured`)
-      if (process.env.SLACK_CHANNEL) console.log(`  - Channel: ${process.env.SLACK_CHANNEL}`)
-      if (process.env.SLACK_USERNAME) console.log(`  - Username: ${process.env.SLACK_USERNAME}`)
+      if (process.env.SLACK_CHANNEL) {console.log(`  - Channel: ${process.env.SLACK_CHANNEL}`)}
+      if (process.env.SLACK_USERNAME) {console.log(`  - Username: ${process.env.SLACK_USERNAME}`)}
       console.log(`  - Enabled: ${process.env.SLACK_ENABLED !== 'false' ? 'Yes' : 'No'}`)
     }
 

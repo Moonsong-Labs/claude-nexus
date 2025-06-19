@@ -22,6 +22,18 @@ export default tseslint.config(
         project: true,
         tsconfigRootDir: import.meta.dirname,
       },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        setTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearTimeout: 'readonly',
+        clearInterval: 'readonly',
+        global: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
     },
 
     rules: {
@@ -45,6 +57,22 @@ export default tseslint.config(
       'prefer-const': 'error',
       eqeqeq: ['error', 'always'],
       curly: ['error', 'all'],
+    },
+  },
+
+  // Override for main.ts files - allow console.log for startup messages
+  {
+    files: ['**/main.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
+  // Override for logger implementations - they need console
+  {
+    files: ['**/logger.ts', '**/logger/*.ts'],
+    rules: {
+      'no-console': 'off',
     },
   }
 )

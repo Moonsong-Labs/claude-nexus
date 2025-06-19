@@ -242,7 +242,7 @@ export class ProxyResponse {
    * Get truncated content for notifications
    */
   getTruncatedContent(maxLines: number = 20, maxLength: number = 3000): string {
-    if (!this._content) return ''
+    if (!this._content) {return ''}
 
     // Truncate by lines first
     const lines = this._content.split('\n')

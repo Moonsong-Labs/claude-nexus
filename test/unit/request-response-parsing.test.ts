@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ProxyRequest } from '../../services/proxy/src/domain/entities/ProxyRequest'
 import { ProxyResponse } from '../../services/proxy/src/domain/entities/ProxyResponse'
-import { ClaudeMessagesRequest } from '../../services/proxy/src/types/claude'
 import { responseFactory } from '../helpers/test-factories'
 
 describe('ProxyRequest - Parsing', () => {

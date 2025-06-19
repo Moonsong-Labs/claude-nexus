@@ -238,24 +238,24 @@ export class CredentialStatusService {
     lines.push(`Credential Status Summary:`)
     lines.push(`  Total: ${statuses.length} domains`)
     lines.push(`  Valid: ${byStatus.valid.length}`)
-    if (byStatus.expired.length > 0) lines.push(`  Expired: ${byStatus.expired.length}`)
+    if (byStatus.expired.length > 0) {lines.push(`  Expired: ${byStatus.expired.length}`)}
     if (byStatus.expiring_soon.length > 0)
-      lines.push(`  Expiring Soon: ${byStatus.expiring_soon.length}`)
+      {lines.push(`  Expiring Soon: ${byStatus.expiring_soon.length}`)}
     if (byStatus.missing_refresh_token.length > 0)
-      lines.push(`  Missing Refresh Token: ${byStatus.missing_refresh_token.length}`)
-    if (byStatus.invalid.length > 0) lines.push(`  Invalid: ${byStatus.invalid.length}`)
-    if (byStatus.error.length > 0) lines.push(`  Errors: ${byStatus.error.length}`)
+      {lines.push(`  Missing Refresh Token: ${byStatus.missing_refresh_token.length}`)}
+    if (byStatus.invalid.length > 0) {lines.push(`  Invalid: ${byStatus.invalid.length}`)}
+    if (byStatus.error.length > 0) {lines.push(`  Errors: ${byStatus.error.length}`)}
 
     // Details for each domain
     lines.push(`\nDomain Details:`)
     for (const status of statuses) {
       const extras: string[] = []
-      if (status.hasClientApiKey) extras.push('client_key')
-      if (status.hasSlackConfig) extras.push('slack')
+      if (status.hasClientApiKey) {extras.push('client_key')}
+      if (status.hasSlackConfig) {extras.push('slack')}
 
       let line = `  ${status.domain}: ${status.type} - ${status.status}`
-      if (status.expiresIn) line += ` (expires in ${status.expiresIn})`
-      if (extras.length > 0) line += ` [${extras.join(', ')}]`
+      if (status.expiresIn) {line += ` (expires in ${status.expiresIn})`}
+      if (extras.length > 0) {line += ` [${extras.join(', ')}]`}
       lines.push(line)
 
       if (status.status !== 'valid') {
