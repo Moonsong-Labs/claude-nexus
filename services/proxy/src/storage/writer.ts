@@ -12,6 +12,10 @@ interface StorageRequest {
   apiKey: string
   model: string
   requestType?: string
+  currentMessageHash?: string
+  parentMessageHash?: string | null
+  conversationId?: string
+  branchId?: string
 }
 
 interface StorageResponse {
@@ -64,11 +68,24 @@ export class StorageWriter {
       delete sanitizedHeaders['authorization']
       delete sanitizedHeaders['x-api-key']
 
+      // Detect if this is a branch in the conversation
+      let branchId = request.branchId || 'main'
+      if (request.conversationId && request.parentMessageHash) {
+        const detectedBranch = await this.detectBranch(
+          request.conversationId,
+          request.parentMessageHash
+        )
+        if (detectedBranch) {
+          branchId = detectedBranch
+        }
+      }
+
       const query = `
         INSERT INTO api_requests (
           request_id, domain, timestamp, method, path, headers, body, 
-          api_key_hash, model, request_type
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          api_key_hash, model, request_type, current_message_hash, 
+          parent_message_hash, conversation_id, branch_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -83,6 +100,10 @@ export class StorageWriter {
         this.hashApiKey(request.apiKey),
         request.model,
         request.requestType,
+        request.currentMessageHash || null,
+        request.parentMessageHash || null,
+        request.conversationId || null,
+        branchId,
       ]
 
       await this.pool.query(query, values)
@@ -215,6 +236,73 @@ export class StorageWriter {
   }
 
   /**
+   * Find conversation ID by parent message hash
+   */
+  async findConversationByParentHash(parentHash: string): Promise<string | null> {
+    try {
+      const query = `
+        SELECT conversation_id 
+        FROM api_requests 
+        WHERE current_message_hash = $1 
+        AND conversation_id IS NOT NULL
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `
+
+      const result = await this.pool.query(query, [parentHash])
+      return result.rows[0]?.conversation_id || null
+    } catch (error) {
+      logger.error('Failed to find conversation by parent hash', {
+        metadata: {
+          parentHash,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return null
+    }
+  }
+
+  /**
+   * Detect if this is a branch in an existing conversation
+   * Returns the branch ID if this is a new branch, null otherwise
+   */
+  private async detectBranch(
+    conversationId: string,
+    parentMessageHash: string
+  ): Promise<string | null> {
+    try {
+      // Check if there's already a request with this parent hash in this conversation
+      const result = await this.pool.query(
+        `SELECT COUNT(*) as count, MAX(branch_id) as latest_branch 
+         FROM api_requests 
+         WHERE conversation_id = $1 
+         AND parent_message_hash = $2`,
+        [conversationId, parentMessageHash]
+      )
+
+      const { count, latest_branch } = result.rows[0]
+
+      // If there's already a message with this parent, we're creating a new branch
+      if (parseInt(count) > 0) {
+        // Generate new branch ID based on timestamp
+        return `branch_${Date.now()}`
+      }
+
+      // If this is the first message with this parent, use the existing branch
+      return latest_branch || 'main'
+    } catch (error) {
+      logger.error('Error detecting branch', {
+        metadata: {
+          conversationId,
+          parentMessageHash,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return 'main'
+    }
+  }
+
+  /**
    * Hash API key for storage
    */
   private hashApiKey(apiKey: string): string {
@@ -277,6 +365,9 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           duration_ms INTEGER,
           error TEXT,
           tool_call_count INTEGER DEFAULT 0,
+          current_message_hash CHAR(64),
+          parent_message_hash CHAR(64),
+          conversation_id UUID,
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `)
@@ -309,6 +400,21 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_streaming_chunks_request_id 
         ON streaming_chunks(request_id, chunk_index)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_current_message_hash 
+        ON api_requests(current_message_hash)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_parent_message_hash 
+        ON api_requests(parent_message_hash)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_conversation_id 
+        ON api_requests(conversation_id)
       `)
 
       logger.info('Database schema created successfully')

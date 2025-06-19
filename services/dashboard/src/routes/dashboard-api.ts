@@ -461,6 +461,8 @@ const layout = (title: string, content: any) => html`
         <div class="container">
           <h1>Claude Nexus Dashboard</h1>
           <div class="space-x-4">
+            <a href="/dashboard" class="text-sm text-blue-600">Dashboard</a>
+            <a href="/dashboard/conversations" class="text-sm text-blue-600">Conversations</a>
             <span class="text-sm text-gray-600" id="current-domain">All Domains</span>
             <a href="/dashboard/logout" class="text-sm text-blue-600">Logout</a>
           </div>
@@ -681,6 +683,130 @@ dashboardRoutes.get('/', async c => {
   `
 
   return c.html(layout('Dashboard', content))
+})
+
+/**
+ * Conversations page - shows all conversations with branch information
+ */
+dashboardRoutes.get('/conversations', async c => {
+  const domain = c.req.query('domain')
+
+  // Get storage service from container
+  const { container } = await import('../container.js')
+  const storageService = container.getStorageService()
+
+  try {
+    const conversations = await storageService.getConversations(domain, 100)
+
+    const content = html`
+      <div class="mb-6">
+        <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
+      </div>
+
+      <h2 style="margin: 0 0 1.5rem 0;">Conversations</h2>
+
+      <!-- Domain Filter -->
+      <div class="mb-6">
+        <label class="text-sm text-gray-600">Filter by Domain:</label>
+        <select
+          onchange="window.location.href = '/dashboard/conversations' + (this.value ? '?domain=' + this.value : '')"
+          style="margin-left: 0.5rem;"
+        >
+          <option value="">All Domains</option>
+          ${raw(
+            // You'd need to fetch domains here or pass them in
+            ''
+          )}
+        </select>
+      </div>
+
+      ${conversations.length === 0
+        ? html`<p class="text-gray-500">No conversations found</p>`
+        : html`
+            <div style="display: grid; gap: 1rem;">
+              ${raw(
+                conversations
+                  .map(conv => {
+                    const branches = conv.branches.length > 0 ? conv.branches : ['main']
+                    const branchCount = branches.length
+                    const hasBranches = branchCount > 1
+
+                    return `
+                      <div class="section">
+                        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                          <div>
+                            <span style="font-size: 0.875rem; color: #6b7280;">
+                              ${new Date(conv.first_message).toLocaleString()}
+                            </span>
+                            ${hasBranches ? `<span style="margin-left: 0.5rem; font-size: 0.75rem; background: #dbeafe; color: #1e40af; padding: 0.125rem 0.5rem; border-radius: 9999px;">${branchCount} branches</span>` : ''}
+                          </div>
+                          <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span class="text-sm text-gray-600">${conv.message_count} messages</span>
+                            <span class="text-sm text-gray-600">${formatNumber(conv.total_tokens)} tokens</span>
+                          </div>
+                        </div>
+                        <div class="section-content">
+                          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            ${conv.requests
+                              .map((req, idx) => {
+                                const isFirst = idx === 0
+                                const isLast = idx === conv.requests.length - 1
+                                const branch = req.branch_id || 'main'
+                                const prevBranch =
+                                  idx > 0 ? conv.requests[idx - 1].branch_id || 'main' : branch
+                                const isBranchStart = branch !== prevBranch
+
+                                return `
+                                  <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                                    <div style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0;">
+                                      ${!isFirst ? '<div style="width: 2px; height: 1rem; background: #e5e7eb;"></div>' : ''}
+                                      <div style="width: 12px; height: 12px; border-radius: 50%; background: ${isBranchStart ? '#3b82f6' : '#6b7280'}; border: 2px solid white; box-shadow: 0 0 0 1px #e5e7eb;"></div>
+                                      ${!isLast ? '<div style="width: 2px; flex: 1; background: #e5e7eb;"></div>' : ''}
+                                    </div>
+                                    <div style="flex: 1; padding: 0.5rem; background: #f9fafb; border-radius: 0.375rem; border: 1px solid #e5e7eb;">
+                                      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.25rem;">
+                                        <span class="text-sm text-gray-600">${new Date(req.timestamp).toLocaleTimeString()}</span>
+                                        ${branch !== 'main' ? `<span style="font-size: 0.7rem; background: #eff6ff; color: #2563eb; padding: 0.125rem 0.375rem; border-radius: 0.25rem;">${escapeHtml(branch)}</span>` : ''}
+                                      </div>
+                                      <div class="text-sm">
+                                        <span style="color: #6b7280;">${req.model}</span>
+                                        <span style="margin: 0 0.5rem; color: #d1d5db;">·</span>
+                                        <span>${req.input_tokens + req.output_tokens} tokens</span>
+                                        ${req.error ? '<span style="color: #ef4444; margin-left: 0.5rem;">Error</span>' : ''}
+                                      </div>
+                                      <a href="/dashboard/request/${req.request_id}" class="text-sm text-blue-600" style="display: inline-block; margin-top: 0.25rem;">View details →</a>
+                                    </div>
+                                  </div>
+                                `
+                              })
+                              .join('')}
+                          </div>
+                        </div>
+                      </div>
+                    `
+                  })
+                  .join('')
+              )}
+            </div>
+          `}
+    `
+
+    return c.html(layout('Conversations', content))
+  } catch (error) {
+    return c.html(
+      layout(
+        'Error',
+        html`
+          <div class="error-banner">
+            <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversations'}
+          </div>
+          <div class="mb-6">
+            <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
+          </div>
+        `
+      )
+    )
+  }
 })
 
 /**

@@ -37,6 +37,10 @@ export class StorageAdapter {
     tool_call_count?: number
     processing_time?: number
     status_code?: number
+    currentMessageHash?: string
+    parentMessageHash?: string | null
+    conversationId?: string
+    branchId?: string
   }): Promise<void> {
     try {
       // Generate a UUID for this request and store the mapping
@@ -54,6 +58,10 @@ export class StorageAdapter {
         apiKey: '', // Can be extracted from headers if needed
         model: data.model,
         requestType: data.request_type,
+        currentMessageHash: data.currentMessageHash,
+        parentMessageHash: data.parentMessageHash,
+        conversationId: data.conversationId,
+        branchId: data.branchId,
       })
     } catch (error) {
       logger.error('Failed to store request', {
@@ -153,6 +161,13 @@ export class StorageAdapter {
         },
       })
     }
+  }
+
+  /**
+   * Find conversation ID by parent message hash
+   */
+  async findConversationByParentHash(parentHash: string): Promise<string | null> {
+    return await this.writer.findConversationByParentHash(parentHash)
   }
 
   /**

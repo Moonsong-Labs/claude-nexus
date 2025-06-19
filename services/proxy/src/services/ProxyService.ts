@@ -8,6 +8,8 @@ import { MetricsService } from './MetricsService'
 import { ClaudeMessagesRequest } from '../types/claude'
 import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
+import { extractMessageHashes, generateConversationId } from '@claude-nexus/shared'
+import { StorageAdapter } from '../storage/StorageAdapter.js'
 
 /**
  * Main proxy service that orchestrates the request flow
@@ -18,7 +20,8 @@ export class ProxyService {
     private authService: AuthenticationService,
     private apiClient: ClaudeApiClient,
     private notificationService: NotificationService,
-    private metricsService: MetricsService
+    private metricsService: MetricsService,
+    private storageAdapter?: StorageAdapter
   ) {}
 
   /**
@@ -64,6 +67,42 @@ export class ProxyService {
       await testSampleCollector.collectSample(context.honoContext, rawRequest, request.requestType)
     }
 
+    // Extract conversation data if storage is enabled
+    let conversationData:
+      | { currentMessageHash: string; parentMessageHash: string | null; conversationId: string }
+      | undefined
+
+    if (this.storageAdapter && rawRequest.messages && rawRequest.messages.length > 0) {
+      try {
+        const { currentMessageHash, parentMessageHash } = extractMessageHashes(rawRequest.messages)
+
+        // Find or create conversation ID
+        let conversationId: string
+        if (parentMessageHash) {
+          // Try to find existing conversation
+          const existingConversationId =
+            await this.storageAdapter.findConversationByParentHash(parentMessageHash)
+          conversationId = existingConversationId || generateConversationId()
+        } else {
+          // This is the start of a new conversation
+          conversationId = generateConversationId()
+        }
+
+        conversationData = { currentMessageHash, parentMessageHash, conversationId }
+
+        log.debug('Conversation tracking', {
+          currentMessageHash,
+          parentMessageHash,
+          conversationId,
+          isNewConversation:
+            !parentMessageHash ||
+            !(await this.storageAdapter.findConversationByParentHash(parentMessageHash)),
+        })
+      } catch (error) {
+        log.warn('Failed to extract conversation data', error as Error)
+      }
+    }
+
     try {
       // Authenticate
       const auth = context.host.toLowerCase().includes('personal')
@@ -89,7 +128,8 @@ export class ProxyService {
           request,
           response,
           context,
-          auth
+          auth,
+          conversationData
         )
       } else {
         finalResponse = await this.handleNonStreamingResponse(
@@ -104,7 +144,13 @@ export class ProxyService {
       // Track metrics for successful request
       // Note: For streaming responses, metrics are tracked after stream completes
       if (!request.isStreaming) {
-        await this.metricsService.trackRequest(request, response, context, claudeResponse.status)
+        await this.metricsService.trackRequest(
+          request,
+          response,
+          context,
+          claudeResponse.status,
+          conversationData
+        )
       }
 
       // Send notifications
@@ -196,7 +242,12 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    auth: any
+    auth: any,
+    conversationData?: {
+      currentMessageHash: string
+      parentMessageHash: string | null
+      conversationId: string
+    }
   ): Promise<Response> {
     const log = {
       debug: (message: string, metadata?: Record<string, any>) => {
@@ -229,32 +280,38 @@ export class ProxyService {
     const writer = writable.getWriter()
 
     // Process stream in background
-    this.processStream(claudeResponse, response, writer, context, request, auth).catch(
-      async error => {
-        log.error(
-          'Stream processing error',
-          error instanceof Error ? error : new Error(String(error))
-        )
+    this.processStream(
+      claudeResponse,
+      response,
+      writer,
+      context,
+      request,
+      auth,
+      conversationData
+    ).catch(async error => {
+      log.error(
+        'Stream processing error',
+        error instanceof Error ? error : new Error(String(error))
+      )
 
-        // Try to send error to client in SSE format
-        try {
-          const encoder = new TextEncoder()
-          const errorEvent = {
-            type: 'error',
-            error: {
-              type: 'stream_error',
-              message: error instanceof Error ? error.message : String(error),
-            },
-          }
-          await writer.write(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`))
-        } catch (writeError) {
-          log.error(
-            'Failed to write error to stream',
-            writeError instanceof Error ? writeError : undefined
-          )
+      // Try to send error to client in SSE format
+      try {
+        const encoder = new TextEncoder()
+        const errorEvent = {
+          type: 'error',
+          error: {
+            type: 'stream_error',
+            message: error instanceof Error ? error.message : String(error),
+          },
         }
+        await writer.write(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`))
+      } catch (writeError) {
+        log.error(
+          'Failed to write error to stream',
+          writeError instanceof Error ? writeError : undefined
+        )
       }
-    )
+    })
 
     // Return streaming response immediately
     return new Response(readable, {
@@ -277,7 +334,12 @@ export class ProxyService {
     writer: WritableStreamDefaultWriter,
     context: RequestContext,
     request: ProxyRequest,
-    auth: any
+    auth: any,
+    conversationData?: {
+      currentMessageHash: string
+      parentMessageHash: string | null
+      conversationId: string
+    }
   ): Promise<void> {
     const log = {
       debug: (message: string, metadata?: Record<string, any>) => {
@@ -321,7 +383,13 @@ export class ProxyService {
       })
 
       // Track metrics after streaming completes
-      await this.metricsService.trackRequest(request, response, context, claudeResponse.status)
+      await this.metricsService.trackRequest(
+        request,
+        response,
+        context,
+        claudeResponse.status,
+        conversationData
+      )
 
       // Send notifications after streaming completes
       await this.notificationService.notify(request, response, context, auth)

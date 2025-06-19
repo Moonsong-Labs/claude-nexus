@@ -52,7 +52,12 @@ export class MetricsService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    status: number = 200
+    status: number = 200,
+    conversationData?: {
+      currentMessageHash: string
+      parentMessageHash: string | null
+      conversationId: string
+    }
   ): Promise<void> {
     const metrics = response.getMetrics()
 
@@ -77,7 +82,7 @@ export class MetricsService {
 
     // Store in database
     if (this.config.enableStorage && this.storageService) {
-      await this.storeRequest(request, response, context, status)
+      await this.storeRequest(request, response, context, status, conversationData)
     }
 
     // Send telemetry
@@ -204,7 +209,12 @@ export class MetricsService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    status: number
+    status: number,
+    conversationData?: {
+      currentMessageHash: string
+      parentMessageHash: string | null
+      conversationId: string
+    }
   ): Promise<void> {
     if (!this.storageService) {
       return
@@ -242,6 +252,9 @@ export class MetricsService {
         tool_call_count: metrics.toolCallCount,
         processing_time: context.getElapsedTime(),
         status_code: status,
+        currentMessageHash: conversationData?.currentMessageHash,
+        parentMessageHash: conversationData?.parentMessageHash,
+        conversationId: conversationData?.conversationId,
       })
 
       // Store response

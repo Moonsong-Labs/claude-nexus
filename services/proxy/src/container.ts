@@ -72,7 +72,8 @@ class Container {
       this.authenticationService,
       this.claudeApiClient,
       this.notificationService,
-      this.metricsService
+      this.metricsService,
+      this.storageService
     )
 
     this.messageController = new MessageController(this.proxyService)
