@@ -59,12 +59,15 @@ export interface GraphLayout {
 /**
  * Calculate the layout for a conversation graph
  */
-export async function calculateGraphLayout(graph: ConversationGraph, reversed: boolean = false): Promise<GraphLayout> {
+export async function calculateGraphLayout(
+  graph: ConversationGraph,
+  reversed: boolean = false
+): Promise<GraphLayout> {
   if (reversed) {
     // For reversed layout, we need a custom approach
     return calculateReversedLayout(graph)
   }
-  
+
   // Use the simple layout algorithm
   return calculateSimpleLayout(graph)
 }
@@ -76,7 +79,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   const nodeWidth = 100
   const nodeHeight = 40
   const horizontalSpacing = 120
-  const verticalSpacing = 40 // Reduced by 2
+  const verticalSpacing = 30
 
   // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
@@ -102,16 +105,16 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
     if (!branchLanes.has(node.branchId)) {
       branchLanes.set(node.branchId, nextLane++)
     }
-    
+
     const lane = branchLanes.get(node.branchId) || 0
     const messageCount = node.messageCount || 0
-    
+
     // Y position is based on reversed message count (newest at top)
     const y = (maxMessageCount - messageCount) * verticalSpacing
-    
+
     // X position is based on branch lane
     const x = lane * horizontalSpacing
-    
+
     return {
       id: node.id,
       x,
@@ -143,16 +146,18 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
         id: `e${idx}`,
         source: edge.source,
         target: edge.target,
-        sections: [{
-          startPoint: {
-            x: sourceNode.x + sourceNode.width / 2,
-            y: sourceNode.y, // Top of source (parent/older)
+        sections: [
+          {
+            startPoint: {
+              x: sourceNode.x + sourceNode.width / 2,
+              y: sourceNode.y, // Top of source (parent/older)
+            },
+            endPoint: {
+              x: targetNode.x + targetNode.width / 2,
+              y: targetNode.y + targetNode.height, // Bottom of target (child/newer)
+            },
           },
-          endPoint: {
-            x: targetNode.x + targetNode.width / 2,
-            y: targetNode.y + targetNode.height, // Bottom of target (child/newer)
-          },
-        }],
+        ],
       })
     }
   })
@@ -267,9 +272,11 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     }
 
     // Add model label in the center
-    const modelShort = node.model.includes('claude-3') ? node.model.split('-')[2] : node.model.split('-').slice(-1)[0]
+    const modelShort = node.model.includes('claude-3')
+      ? node.model.split('-')[2]
+      : node.model.split('-').slice(-1)[0]
     svg += `    <text x="${x + node.width / 2 + 5}" y="${y + node.height / 2 - 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${modelShort}</text>\n`
-    
+
     // Add timestamp
     const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     svg += `    <text x="${x + node.width / 2 + 5}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
@@ -278,16 +285,16 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     if (node.messageTypes && node.messageTypes.length > 0) {
       const iconSize = 10
       const iconOffset = 2 // Distance from border
-      
+
       // Get last 2 message types
       const types = node.messageTypes.slice(-2)
-      
+
       // First icon on top-left
       if (types.length >= 1) {
         const iconX = x + iconOffset
         const iconY = y + iconOffset
         const type = types[types.length - 2] || types[0] // Second to last, or first if only one
-        
+
         if (type === 'tool_use') {
           // Tool icon (wrench)
           svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
@@ -302,13 +309,13 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
           svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Assistant message">🤖</text>\n`
         }
       }
-      
+
       // Second icon on top-right
       if (types.length >= 2) {
         const iconX = x + node.width - iconOffset
         const iconY = y + iconOffset
         const type = types[types.length - 1] // Last type
-        
+
         if (type === 'tool_use') {
           // Tool icon (wrench)
           svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
