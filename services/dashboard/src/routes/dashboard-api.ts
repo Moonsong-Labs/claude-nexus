@@ -501,32 +501,6 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleString()
 }
 
-function formatToolUsage(toolUsage: Record<string, number>): { display: string; fullList: string } {
-  const entries = Object.entries(toolUsage)
-  if (entries.length === 0) {
-    return { display: 'None', fullList: 'None' }
-  }
-
-  const MAX_TOOLS_TO_DISPLAY = 3
-  // Sort by count descending, then by name ascending for stable order
-  const sortedTools = entries.sort(([nameA, countA], [nameB, countB]) => {
-    if (countB !== countA) return countB - countA
-    return nameA.localeCompare(nameB)
-  })
-
-  const displayedTools = sortedTools.slice(0, MAX_TOOLS_TO_DISPLAY)
-  const remainingCount = sortedTools.length - displayedTools.length
-
-  let display = displayedTools.map(([name, count]) => `${escapeHtml(name)} (${count})`).join(', ')
-  const fullList = sortedTools.map(([name, count]) => `${escapeHtml(name)} (${count})`).join('\n')
-
-  if (remainingCount > 0) {
-    display += `, and ${remainingCount} more`
-  }
-
-  return { display, fullList }
-}
-
 /**
  * Main dashboard page - Using Proxy API instead of direct database
  */
@@ -801,57 +775,105 @@ dashboardRoutes.get('/request/:id', async c => {
       <!-- Request Summary -->
       <div class="section">
         <div class="section-header">Request Summary</div>
-        <div class="section-content">
-          <dl
-            style="display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; font-size: 0.875rem;"
-          >
-            <dt class="text-gray-600">Request ID:</dt>
-            <dd>${details.requestId}</dd>
+        <div
+          class="section-content"
+          style="display: flex; gap: 2rem; align-items: start; flex-wrap: wrap;"
+        >
+          <!-- Left side: Main details -->
+          <div style="flex: 1; min-width: 300px;">
+            <dl
+              style="display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; font-size: 0.875rem;"
+            >
+              <dt class="text-gray-600">Request ID:</dt>
+              <dd>${details.requestId}</dd>
 
-            <dt class="text-gray-600">Domain:</dt>
-            <dd>${details.domain}</dd>
+              <dt class="text-gray-600">Domain:</dt>
+              <dd>${details.domain}</dd>
 
-            <dt class="text-gray-600">Model:</dt>
-            <dd>${conversation.model}</dd>
+              <dt class="text-gray-600">Model:</dt>
+              <dd>${conversation.model}</dd>
 
-            <dt class="text-gray-600">Timestamp:</dt>
-            <dd>${new Date(details.timestamp).toLocaleString()}</dd>
+              <dt class="text-gray-600">Timestamp:</dt>
+              <dd>${new Date(details.timestamp).toLocaleString()}</dd>
 
-            <dt class="text-gray-600">Tokens:</dt>
-            <dd>
-              <span class="cost-info" style="font-size: 0.8rem;">
-                <span>Input: ${conversation.totalInputTokens.toLocaleString()}</span>
-                <span>Output: ${conversation.totalOutputTokens.toLocaleString()}</span>
-                <span
-                  >Total:
-                  ${(
-                    conversation.totalInputTokens + conversation.totalOutputTokens
-                  ).toLocaleString()}</span
-                >
-              </span>
-            </dd>
+              <dt class="text-gray-600">Tokens:</dt>
+              <dd>
+                <span class="cost-info" style="font-size: 0.8rem;">
+                  <span>Input: ${conversation.totalInputTokens.toLocaleString()}</span>
+                  <span>Output: ${conversation.totalOutputTokens.toLocaleString()}</span>
+                  <span
+                    >Total:
+                    ${(
+                      conversation.totalInputTokens + conversation.totalOutputTokens
+                    ).toLocaleString()}</span
+                  >
+                </span>
+              </dd>
 
-            <dt class="text-gray-600">Cost:</dt>
-            <dd>${cost.formattedTotal}</dd>
+              <dt class="text-gray-600">Cost:</dt>
+              <dd>${cost.formattedTotal}</dd>
 
-            <dt class="text-gray-600">Duration:</dt>
-            <dd>${formatDuration(conversation.duration)}</dd>
+              <dt class="text-gray-600">Duration:</dt>
+              <dd>${formatDuration(conversation.duration)}</dd>
 
-            <dt class="text-gray-600">Status:</dt>
-            <dd>${details.responseStatus}</dd>
+              <dt class="text-gray-600">Status:</dt>
+              <dd>${details.responseStatus}</dd>
+            </dl>
+          </div>
 
-            ${raw(
-              Object.keys(conversation.toolUsage).length > 0
-                ? (() => {
-                    const toolInfo = formatToolUsage(conversation.toolUsage)
-                    return `
-            <dt class="text-gray-600">Tools Used:</dt>
-            <dd title="${toolInfo.fullList}" style="cursor: help;">${toolInfo.display}</dd>
-            `
-                  })()
-                : ''
-            )}
-          </dl>
+          <!-- Right side: Tool usage table -->
+          ${raw(
+            Object.keys(conversation.toolUsage).length > 0
+              ? (() => {
+                  // Create a stable-sorted list of tools
+                  const sortedTools = Object.entries(conversation.toolUsage).sort(
+                    ([toolA, countA], [toolB, countB]) =>
+                      countB - countA || toolA.localeCompare(toolB)
+                  )
+
+                  // Generate rows from the sorted list
+                  const toolRows = sortedTools
+                    .map(
+                      ([tool, count]) => `
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                  <td style="padding: 0.25rem 0.5rem;">${escapeHtml(tool)}</td>
+                  <td style="text-align: right; padding: 0.25rem 0.5rem; font-weight: 500;">${count}</td>
+                </tr>
+                `
+                    )
+                    .join('')
+
+                  // Calculate total efficiently from the same sorted list
+                  const totalCalls = sortedTools.reduce((sum, [, count]) => sum + count, 0)
+
+                  // Return the full HTML string
+                  return `
+          <div style="min-width: 200px; flex-shrink: 0;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; font-weight: 600; color: #4b5563;">Tool Usage</h4>
+            <table style="width: 100%; font-size: 0.875rem; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                  <th style="text-align: left; padding: 0.25rem 0.5rem; color: #6b7280;">Tool</th>
+                  <th style="text-align: right; padding: 0.25rem 0.5rem; color: #6b7280;">Calls</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${toolRows}
+              </tbody>
+              <tfoot>
+                <tr style="font-weight: 600;">
+                  <td style="padding: 0.25rem 0.5rem; border-top: 1px solid #e5e7eb;">Total</td>
+                  <td style="text-align: right; padding: 0.25rem 0.5rem; border-top: 1px solid #e5e7eb;">
+                    ${totalCalls}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          `
+                })()
+              : ''
+          )}
         </div>
       </div>
 
