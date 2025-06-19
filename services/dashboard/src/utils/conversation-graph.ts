@@ -76,7 +76,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   const nodeWidth = 100
   const nodeHeight = 40
   const horizontalSpacing = 120
-  const verticalSpacing = 80
+  const verticalSpacing = 40 // Reduced by 2
 
   // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
