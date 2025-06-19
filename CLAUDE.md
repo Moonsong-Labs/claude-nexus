@@ -160,6 +160,12 @@ When `DEBUG=true`:
 - `TEST_SAMPLES_DIR` - Directory for test samples (default: test-samples)
 - `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true). Set to false to allow anyone to use the proxy without authentication
 
+## Important Notes
+
+### Request Metadata
+
+- Query evaluation and quota are not part of the conversation, they serve as metadata queries
+
 ## Testing & Type Safety
 
 **Type Checking:**

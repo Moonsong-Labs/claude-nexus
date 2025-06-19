@@ -28,31 +28,29 @@ function normalizeMessageContent(content: string | any[]): string {
   }
 
   // For array content, create a deterministic string representation
-  // Sort by type to ensure consistent ordering
-  const sortedContent = [...content].sort((a, b) => {
-    const typeOrder = ['text', 'image', 'tool_use', 'tool_result']
-    return typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type)
-  })
-
-  return sortedContent
-    .map(item => {
+  // DO NOT sort - preserve the original order as it's semantically important
+  return content
+    .map((item, index) => {
+      // Extract only the essential fields, ignoring cache_control and other metadata
       switch (item.type) {
         case 'text':
-          return `text:${item.text?.trim() || ''}`
+          return `[${index}]text:${item.text?.trim() || ''}`
         case 'image':
           // For images, hash the data to avoid storing large base64 strings
           const imageHash = item.source?.data
             ? createHash('sha256').update(item.source.data).digest('hex')
             : 'no-data'
-          return `image:${item.source?.media_type || 'unknown'}:${imageHash}`
+          return `[${index}]image:${item.source?.media_type || 'unknown'}:${imageHash}`
         case 'tool_use':
-          return `tool_use:${item.name}:${item.id}:${JSON.stringify(item.input || {})}`
+          return `[${index}]tool_use:${item.name}:${item.id}:${JSON.stringify(item.input || {})}`
         case 'tool_result':
           const resultContent =
             typeof item.content === 'string' ? item.content : JSON.stringify(item.content || [])
-          return `tool_result:${item.tool_use_id}:${resultContent}`
+          return `[${index}]tool_result:${item.tool_use_id}:${resultContent}`
         default:
-          return `${item.type}:${JSON.stringify(item)}`
+          // For unknown types, only include type and essential content
+          const essentialItem = { type: item.type, content: item.content, text: item.text }
+          return `[${index}]${item.type}:${JSON.stringify(essentialItem)}`
       }
     })
     .join('|')
