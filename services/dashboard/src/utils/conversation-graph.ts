@@ -60,19 +60,38 @@ export interface GraphLayout {
  * Calculate the layout for a conversation graph
  */
 export async function calculateGraphLayout(graph: ConversationGraph, reversed: boolean = false): Promise<GraphLayout> {
-  if (reversed) {
-    // For reversed layout, we need to invert the parent-child relationships
-    const reversedGraph: ConversationGraph = {
-      nodes: graph.nodes,
-      edges: graph.edges.map(edge => ({
-        source: edge.target,
-        target: edge.source,
-      })),
-    }
-    return calculateSimpleLayout(reversedGraph)
-  }
   // Use the simple layout algorithm
-  return calculateSimpleLayout(graph)
+  const layout = calculateSimpleLayout(graph)
+  
+  if (reversed) {
+    // Flip Y coordinates to show newest at top
+    const maxY = Math.max(...layout.nodes.map(n => n.y))
+    
+    // Flip all node Y coordinates
+    const flippedNodes = layout.nodes.map(node => ({
+      ...node,
+      y: maxY - node.y
+    }))
+    
+    // Flip edge Y coordinates
+    const flippedEdges = layout.edges.map(edge => ({
+      ...edge,
+      sections: edge.sections.map(section => ({
+        ...section,
+        startPoint: { x: section.startPoint.x, y: maxY - section.startPoint.y + 40 }, // +40 for node height
+        endPoint: { x: section.endPoint.x, y: maxY - section.endPoint.y },
+      }))
+    }))
+    
+    return {
+      nodes: flippedNodes,
+      edges: flippedEdges,
+      width: layout.width,
+      height: layout.height,
+    }
+  }
+  
+  return layout
 }
 
 /**

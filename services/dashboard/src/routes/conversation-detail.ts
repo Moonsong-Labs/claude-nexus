@@ -100,41 +100,19 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       }
     }
 
-    // Build a map for quick lookup of request by message hash
-    const messageHashToRequest = new Map<string, any>()
-    conversation.requests.forEach(req => {
-      if (req.current_message_hash) {
-        messageHashToRequest.set(req.current_message_hash, req)
-      }
-    })
-
-    // Build a map of children for each request
-    const childrenMap = new Map<string, string[]>()
-    conversation.requests.forEach(req => {
-      if (req.parent_message_hash) {
-        const parent = messageHashToRequest.get(req.parent_message_hash)
-        if (parent) {
-          const children = childrenMap.get(parent.request_id) || []
-          children.push(req.request_id)
-          childrenMap.set(parent.request_id, children)
-        }
-      }
-    })
-
-    // Build the graph structure - for reversed tree, swap parent/child relationships
+    // Build the graph structure - keep original relationships but display in reverse order
     const graph: ConversationGraph = {
       nodes: conversation.requests.map((req, index) => {
         const details = requestDetailsMap.get(req.request_id) || { messageCount: 0, messageTypes: [] }
-        // For reversed tree, the parent is actually the first child
-        const children = childrenMap.get(req.request_id) || []
-        const newParentId = children.length > 0 ? children[0] : undefined
-        
         return {
           id: req.request_id,
           label: `${req.model}`,
           timestamp: new Date(req.timestamp),
           branchId: req.branch_id || 'main',
-          parentId: newParentId, // Use child as parent for reversed view
+          parentId: req.parent_message_hash
+            ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
+                ?.request_id
+            : undefined,
           tokens: req.total_tokens,
           model: req.model,
           hasError: !!req.error,
@@ -156,8 +134,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       }
     })
 
-    // Calculate layout
-    const graphLayout = await calculateGraphLayout(graph)
+    // Calculate layout with reversed flag to show newest at top
+    const graphLayout = await calculateGraphLayout(graph, true)
     const svgGraph = renderGraphSVG(graphLayout, true)
 
     // Filter requests by branch if selected
