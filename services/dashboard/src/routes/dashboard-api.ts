@@ -512,11 +512,37 @@ function formatTimestamp(timestamp: string): string {
 }
 
 /**
+ * Helper function to build query string from parameters
+ */
+function buildQueryString(params: {
+  domain?: string | null
+  page?: number
+  limit?: number
+}): string {
+  const queryParams = new URLSearchParams()
+
+  if (params.domain) {
+    queryParams.set('domain', params.domain)
+  }
+  if (params.page && params.page !== 1) {
+    queryParams.set('page', params.page.toString())
+  }
+  if (params.limit && params.limit !== 20) {
+    queryParams.set('limit', params.limit.toString())
+  }
+
+  const queryString = queryParams.toString()
+  return queryString ? `?${queryString}` : ''
+}
+
+/**
  * Main dashboard page - Using Proxy API instead of direct database
  */
 dashboardRoutes.get('/', async c => {
   const apiClient = c.get('apiClient')
   const domain = c.req.query('domain')
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = parseInt(c.req.query('limit') || '20')
 
   if (!apiClient) {
     return c.html(
@@ -531,6 +557,9 @@ dashboardRoutes.get('/', async c => {
     )
   }
 
+  // Calculate offset from page number
+  const offset = (page - 1) * limit
+
   // Initialize default data
   let stats = {
     totalRequests: 0,
@@ -540,12 +569,18 @@ dashboardRoutes.get('/', async c => {
   }
   let recentRequests: any[] = []
   let domains: Array<{ domain: string; requestCount: number }> = []
+  let pagination = {
+    total: 0,
+    limit: limit,
+    offset: offset,
+    hasMore: false,
+  }
   let error: string | null = null
 
   // Fetch data from Proxy API with individual error handling
   const results = await Promise.allSettled([
     apiClient.getStats({ domain }),
-    apiClient.getRequests({ domain, limit: 20 }),
+    apiClient.getRequests({ domain, limit, offset }),
     apiClient.getDomains(),
   ])
 
@@ -564,7 +599,9 @@ dashboardRoutes.get('/', async c => {
 
   // Handle requests result
   if (results[1].status === 'fulfilled') {
-    recentRequests = results[1].value.requests
+    const requestsResponse = results[1].value
+    recentRequests = requestsResponse.requests
+    pagination = requestsResponse.pagination
   } else {
     console.error('Failed to fetch requests:', results[1].reason)
   }
@@ -588,10 +625,7 @@ dashboardRoutes.get('/', async c => {
     <!-- Domain Filter -->
     <div class="mb-6">
       <label class="text-sm text-gray-600">Filter by Domain:</label>
-      <select
-        onchange="window.location.href = '/dashboard' + (this.value ? '?domain=' + this.value : '')"
-        style="margin-left: 0.5rem;"
-      >
+      <select onchange="updateFilters('domain', this.value)" style="margin-left: 0.5rem;">
         <option value="">All Domains</option>
         ${raw(
           domains
@@ -632,12 +666,25 @@ dashboardRoutes.get('/', async c => {
     <div class="section">
       <div class="section-header">
         Recent Requests
-        <a
-          href="/dashboard${domain ? '?domain=' + domain : ''}"
-          class="btn btn-secondary"
-          style="float: right; font-size: 0.75rem; padding: 0.25rem 0.75rem;"
-          >Refresh</a
-        >
+        <div style="float: right; display: flex; align-items: center; gap: 1rem;">
+          <label class="text-sm text-gray-600">
+            Rows per page:
+            <select
+              onchange="updateFilters('limit', this.value)"
+              style="margin-left: 0.25rem; font-size: 0.875rem; padding: 0.25rem;"
+            >
+              <option value="20" ${limit === 20 ? 'selected' : ''}>20</option>
+              <option value="50" ${limit === 50 ? 'selected' : ''}>50</option>
+              <option value="100" ${limit === 100 ? 'selected' : ''}>100</option>
+            </select>
+          </label>
+          <a
+            href="/dashboard${buildQueryString({ domain, page, limit })}"
+            class="btn btn-secondary"
+            style="font-size: 0.75rem; padding: 0.25rem 0.75rem;"
+            >Refresh</a
+          >
+        </div>
       </div>
       <div class="section-content">
         ${recentRequests.length === 0
@@ -675,9 +722,85 @@ dashboardRoutes.get('/', async c => {
                   )}
                 </tbody>
               </table>
+
+              <!-- Pagination Controls -->
+              ${pagination.total > 0
+                ? html`
+                    <div
+                      style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;"
+                    >
+                      <div class="text-sm text-gray-600">
+                        Showing ${offset + 1}-${Math.min(offset + limit, pagination.total)} of
+                        ${pagination.total} results
+                      </div>
+                      <div style="display: flex; gap: 0.5rem;">
+                        <button
+                          onclick="navigatePage(${page - 1})"
+                          class="btn btn-secondary"
+                          style="font-size: 0.875rem; padding: 0.5rem 1rem;"
+                          ${page <= 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                        >
+                          Previous
+                        </button>
+                        <span
+                          style="display: flex; align-items: center; padding: 0 1rem; font-size: 0.875rem;"
+                        >
+                          Page ${page} of ${Math.ceil(pagination.total / limit)}
+                        </span>
+                        <button
+                          onclick="navigatePage(${page + 1})"
+                          class="btn btn-secondary"
+                          style="font-size: 0.875rem; padding: 0.5rem 1rem;"
+                          ${!pagination.hasMore
+                            ? 'disabled style="opacity: 0.5; cursor: not-allowed;"'
+                            : ''}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  `
+                : ''}
             `}
       </div>
     </div>
+
+    <!-- JavaScript for pagination and filter handling -->
+    <script>
+      const currentParams = {
+        domain: ${domain ? `'${domain}'` : 'null'},
+        page: ${page},
+        limit: ${limit},
+      }
+
+      function buildQueryString(params) {
+        const filtered = Object.entries(params)
+          .filter(
+            ([key, value]) =>
+              value && (key !== 'page' || value !== 1) && (key !== 'limit' || value !== 20)
+          )
+          .map(([key, value]) => \`\${key}=\${encodeURIComponent(value)}\`)
+        return filtered.length > 0 ? '?' + filtered.join('&') : ''
+      }
+
+      function updateFilters(key, value) {
+        const params = { ...currentParams }
+        if (key === 'domain') {
+          params.domain = value || null
+          params.page = 1 // Reset to first page when changing domain
+        } else if (key === 'limit') {
+          params.limit = parseInt(value)
+          params.page = 1 // Reset to first page when changing limit
+        }
+        window.location.href = '/dashboard' + buildQueryString(params)
+      }
+
+      function navigatePage(newPage) {
+        if (newPage < 1) return
+        const params = { ...currentParams, page: newPage }
+        window.location.href = '/dashboard' + buildQueryString(params)
+      }
+    </script>
   `
 
   return c.html(layout('Dashboard', content))
