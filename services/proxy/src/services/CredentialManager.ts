@@ -247,7 +247,7 @@ export class CredentialManager {
 
     // Log metrics periodically
     if (this.refreshMetrics.attempts > 0) {
-      console.log('OAuth refresh metrics:', {
+      console.warn('OAuth refresh metrics:', {
         attempts: this.refreshMetrics.attempts,
         successes: this.refreshMetrics.successes,
         failures: this.refreshMetrics.failures,

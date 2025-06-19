@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
   // Ignore patterns
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts', 'scripts/**', 'docker/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts', 'scripts/**', 'docker/**', 'test-*.js', 'test-*.mjs'],
   },
 
   // Base ESLint recommended rules
@@ -43,6 +43,7 @@ export default tseslint.config(
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
@@ -71,6 +72,14 @@ export default tseslint.config(
   // Override for logger implementations - they need console
   {
     files: ['**/logger.ts', '**/logger/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
+  // Override for token tracker - it outputs reports to console
+  {
+    files: ['**/tokenTracker.ts'],
     rules: {
       'no-console': 'off',
     },
