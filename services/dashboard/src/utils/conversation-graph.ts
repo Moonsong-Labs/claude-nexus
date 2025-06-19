@@ -60,53 +60,164 @@ export interface GraphLayout {
  * Calculate the layout for a conversation graph
  */
 export async function calculateGraphLayout(graph: ConversationGraph, reversed: boolean = false): Promise<GraphLayout> {
-  // Use the simple layout algorithm
-  const layout = calculateSimpleLayout(graph)
-  
   if (reversed) {
-    // Flip Y coordinates to show newest at top
-    const maxY = Math.max(...layout.nodes.map(n => n.y))
+    // For reversed layout, we need a custom approach
+    return calculateReversedLayout(graph)
+  }
+  
+  // Use the simple layout algorithm
+  return calculateSimpleLayout(graph)
+}
+
+/**
+ * Calculate layout for reversed tree (newest at top)
+ */
+function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
+  const nodeWidth = 100
+  const nodeHeight = 40
+  const horizontalSpacing = 120
+  const verticalSpacing = 80
+
+  // Build parent-child relationships
+  const childrenMap = new Map<string | undefined, string[]>()
+  const parentMap = new Map<string, string | undefined>()
+  const nodeMap = new Map<string, (typeof graph.nodes)[0]>()
+
+  graph.nodes.forEach(node => {
+    nodeMap.set(node.id, node)
+    parentMap.set(node.id, node.parentId)
+    const children = childrenMap.get(node.parentId) || []
+    children.push(node.id)
+    childrenMap.set(node.parentId, children)
+  })
+
+  // Find leaf nodes (nodes without children - these are the newest)
+  const leaves = graph.nodes.filter(node => {
+    const children = childrenMap.get(node.id) || []
+    return children.length === 0
+  }).map(n => n.id)
+
+  // Track branch lanes
+  const branchLanes = new Map<string, number>()
+  let nextLane = 0
+
+  // Position nodes
+  const layoutNodes: LayoutNode[] = []
+  const nodePositions = new Map<string, { x: number; y: number }>()
+
+  // Start from leaves and work backwards
+  let currentY = 0
+  const visited = new Set<string>()
+  
+  function positionBranch(nodeId: string, x: number, y: number): void {
+    if (visited.has(nodeId)) return
+    visited.add(nodeId)
     
-    // Flip all node Y coordinates
-    const flippedNodes = layout.nodes.map(node => ({
-      ...node,
-      y: maxY - node.y
-    }))
+    const node = nodeMap.get(nodeId)
+    if (!node) return
+
+    // Assign lane to branch if not already assigned
+    if (!branchLanes.has(node.branchId)) {
+      branchLanes.set(node.branchId, nextLane++)
+    }
+
+    // Position this node
+    nodePositions.set(nodeId, { x, y })
     
-    // Flip edge Y coordinates
-    const flippedEdges = layout.edges.map(edge => {
-      // Find the source and target nodes in the flipped layout
-      const sourceNode = flippedNodes.find(n => n.id === edge.source)
-      const targetNode = flippedNodes.find(n => n.id === edge.target)
-      
-      if (!sourceNode || !targetNode) return edge
-      
-      // In the flipped layout, edges still go from parent (source) to child (target)
-      // but the visual positions are inverted
-      return {
-        ...edge,
+    // Position parent
+    if (node.parentId && !visited.has(node.parentId)) {
+      const parent = nodeMap.get(node.parentId)
+      if (parent) {
+        let parentX = x
+        
+        // If branch changes, offset horizontally
+        if (parent.branchId !== node.branchId) {
+          const parentLane = branchLanes.get(parent.branchId) || 0
+          const childLane = branchLanes.get(node.branchId) || 0
+          const laneDiff = Math.abs(parentLane - childLane)
+          parentX = x - laneDiff * horizontalSpacing
+        }
+        
+        positionBranch(node.parentId, parentX, y + verticalSpacing)
+      }
+    }
+  }
+
+  // Position each leaf branch
+  let currentX = 0
+  leaves.forEach(leafId => {
+    const node = nodeMap.get(leafId)
+    if (node) {
+      const lane = branchLanes.get(node.branchId) || nextLane++
+      branchLanes.set(node.branchId, lane)
+      const x = lane * horizontalSpacing
+      currentX = Math.max(currentX, x + nodeWidth + horizontalSpacing)
+      positionBranch(leafId, x, currentY)
+    }
+  })
+
+  // Create layout nodes
+  nodePositions.forEach((pos, nodeId) => {
+    const node = nodeMap.get(nodeId)
+    if (node) {
+      layoutNodes.push({
+        id: node.id,
+        x: pos.x,
+        y: pos.y,
+        width: nodeWidth,
+        height: nodeHeight,
+        branchId: node.branchId,
+        timestamp: node.timestamp,
+        label: node.label,
+        tokens: node.tokens,
+        model: node.model,
+        hasError: node.hasError,
+        messageIndex: node.messageIndex,
+        messageCount: node.messageCount,
+        toolCallCount: node.toolCallCount,
+        messageTypes: node.messageTypes,
+      })
+    }
+  })
+
+  // Create edges
+  const layoutEdges: LayoutEdge[] = []
+  graph.edges.forEach((edge, idx) => {
+    const sourceNode = layoutNodes.find(n => n.id === edge.source)
+    const targetNode = layoutNodes.find(n => n.id === edge.target)
+
+    if (sourceNode && targetNode) {
+      // In reversed layout, child is above parent
+      layoutEdges.push({
+        id: `e${idx}`,
+        source: edge.source,
+        target: edge.target,
         sections: [{
           startPoint: {
             x: sourceNode.x + sourceNode.width / 2,
-            y: sourceNode.y + sourceNode.height, // Bottom of source node
+            y: sourceNode.y, // Top of source (parent)
           },
           endPoint: {
             x: targetNode.x + targetNode.width / 2,
-            y: targetNode.y, // Top of target node
+            y: targetNode.y + targetNode.height, // Bottom of target (child)
           },
-        }]
-      }
-    })
-    
-    return {
-      nodes: flippedNodes,
-      edges: flippedEdges,
-      width: layout.width,
-      height: layout.height,
+        }],
+      })
     }
+  })
+
+  // Calculate bounds
+  const minX = Math.min(...layoutNodes.map(n => n.x))
+  const maxX = Math.max(...layoutNodes.map(n => n.x + n.width))
+  const minY = Math.min(...layoutNodes.map(n => n.y))
+  const maxY = Math.max(...layoutNodes.map(n => n.y + n.height))
+
+  return {
+    nodes: layoutNodes,
+    edges: layoutEdges,
+    width: maxX - minX + 100,
+    height: maxY - minY + 100,
   }
-  
-  return layout
 }
 
 /**
