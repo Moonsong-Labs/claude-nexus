@@ -32,10 +32,7 @@
     "nanoid": "^5.0.8"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.10",
-    "@typescript-eslint/eslint-plugin": "^8.18.0",
-    "@typescript-eslint/parser": "^8.18.0",
-    "eslint": "^9.17.0"
+    "@types/pg": "^8.11.10"
   },
   "engines": {
     "node": ">=20.0.0"
