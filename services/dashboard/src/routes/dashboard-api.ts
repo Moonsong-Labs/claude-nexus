@@ -482,11 +482,11 @@ function formatNumber(num: number): string {
 
 function escapeHtml(unsafe: string): string {
   return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -523,7 +523,7 @@ function formatToolUsage(toolUsage: Record<string, number>): { display: string; 
   if (remainingCount > 0) {
     display += `, and ${remainingCount} more`
   }
-  
+
   return { display, fullList }
 }
 
@@ -839,7 +839,7 @@ dashboardRoutes.get('/request/:id', async c => {
 
             <dt class="text-gray-600">Status:</dt>
             <dd>${details.responseStatus}</dd>
-            
+
             ${raw(
               Object.keys(conversation.toolUsage).length > 0
                 ? (() => {
