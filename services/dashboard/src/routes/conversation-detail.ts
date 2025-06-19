@@ -100,9 +100,10 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       }
     }
 
-    // Build the graph structure
+    // Build the graph structure - reverse the requests to show newest first
+    const reversedRequests = [...conversation.requests].reverse()
     const graph: ConversationGraph = {
-      nodes: conversation.requests.map((req, index) => {
+      nodes: reversedRequests.map((req, index) => {
         const details = requestDetailsMap.get(req.request_id) || { messageCount: 0, messageTypes: [] }
         return {
           id: req.request_id,
@@ -116,7 +117,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           tokens: req.total_tokens,
           model: req.model,
           hasError: !!req.error,
-          messageIndex: index + 1, // 1-based index
+          messageIndex: conversation.requests.length - index, // Reverse the index
           messageCount: details.messageCount,
           messageTypes: details.messageTypes,
         }
@@ -134,8 +135,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       }
     })
 
-    // Calculate layout
-    const graphLayout = await calculateGraphLayout(graph)
+    // Calculate layout with reversed flag
+    const graphLayout = await calculateGraphLayout(graph, true)
     const svgGraph = renderGraphSVG(graphLayout, true)
 
     // Filter requests by branch if selected

@@ -59,7 +59,18 @@ export interface GraphLayout {
 /**
  * Calculate the layout for a conversation graph
  */
-export async function calculateGraphLayout(graph: ConversationGraph): Promise<GraphLayout> {
+export async function calculateGraphLayout(graph: ConversationGraph, reversed: boolean = false): Promise<GraphLayout> {
+  if (reversed) {
+    // For reversed layout, we need to invert the parent-child relationships
+    const reversedGraph: ConversationGraph = {
+      nodes: graph.nodes,
+      edges: graph.edges.map(edge => ({
+        source: edge.target,
+        target: edge.source,
+      })),
+    }
+    return calculateSimpleLayout(reversedGraph)
+  }
   // Use the simple layout algorithm
   return calculateSimpleLayout(graph)
 }
