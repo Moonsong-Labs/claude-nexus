@@ -463,23 +463,25 @@ const layout = (title: string, content: any) => html`
           cursor: pointer;
           border-radius: 4px;
           opacity: 0;
-          transition: opacity 0.2s, background-color 0.2s;
+          transition:
+            opacity 0.2s,
+            background-color 0.2s;
         }
-        
+
         .message:hover .copy-link-btn {
           opacity: 1;
         }
-        
+
         .copy-link-btn:hover {
           background-color: #f3f4f6;
           color: #3b82f6;
         }
-        
+
         /* Message highlight animation */
         .highlight-pulse {
           animation: pulse-highlight 3s ease-out;
         }
-        
+
         @keyframes pulse-highlight {
           0% {
             background-color: #fef3c7;
@@ -493,7 +495,7 @@ const layout = (title: string, content: any) => html`
             background-color: transparent;
           }
         }
-        
+
         /* Toast notification */
         .toast-notification {
           position: fixed;
@@ -506,15 +508,17 @@ const layout = (title: string, content: any) => html`
           box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           opacity: 0;
           transform: translateY(10px);
-          transition: opacity 0.3s, transform 0.3s;
+          transition:
+            opacity 0.3s,
+            transform 0.3s;
           z-index: 1000;
         }
-        
+
         .toast-notification.toast-show {
           opacity: 1;
           transform: translateY(0);
         }
-        
+
         /* Make message-meta wider to accommodate the button */
         .message-meta {
           width: 100px;
@@ -522,31 +526,31 @@ const layout = (title: string, content: any) => html`
           flex-direction: column;
           align-items: flex-start;
         }
-        
+
         /* Message selection checkbox */
         .message-select {
           margin-right: 8px;
           cursor: pointer;
         }
-        
+
         /* Range selection indicators */
         .message-in-range {
           background-color: #eff6ff;
           border-left: 3px solid #3b82f6;
         }
-        
+
         .message-range-start {
           border-top: 2px solid #3b82f6;
           border-top-left-radius: 4px;
           border-top-right-radius: 4px;
         }
-        
+
         .message-range-end {
           border-bottom: 2px solid #3b82f6;
           border-bottom-left-radius: 4px;
           border-bottom-right-radius: 4px;
         }
-        
+
         /* Floating range link button */
         .range-link-button {
           position: fixed;
@@ -556,26 +560,26 @@ const layout = (title: string, content: any) => html`
           box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           border-radius: 6px;
         }
-        
+
         /* Button styles */
         .bg-blue-600 {
           background-color: #2563eb;
         }
-        
+
         .text-white {
           color: white;
         }
-        
+
         .px-4 {
           padding-left: 1rem;
           padding-right: 1rem;
         }
-        
+
         .py-2 {
           padding-top: 0.5rem;
           padding-bottom: 0.5rem;
         }
-        
+
         .rounded {
           border-radius: 0.375rem;
         }
@@ -1505,40 +1509,42 @@ dashboardRoutes.get('/request/:id', async c => {
 
         // Handle message fragment navigation
         function handleMessageFragment() {
-          const hash = window.location.hash;
-          
+          const hash = window.location.hash
+
           // Clear previous highlights
-          document.querySelectorAll('.message-in-range, .message-range-start, .message-range-end').forEach(el => {
-            el.classList.remove('message-in-range', 'message-range-start', 'message-range-end');
-          });
-          
+          document
+            .querySelectorAll('.message-in-range, .message-range-start, .message-range-end')
+            .forEach(el => {
+              el.classList.remove('message-in-range', 'message-range-start', 'message-range-end')
+            })
+
           if (hash.startsWith('#message-')) {
             // Single message
-            const messageEl = document.querySelector(hash);
+            const messageEl = document.querySelector(hash)
             if (messageEl) {
-              messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              messageEl.classList.add('highlight-pulse');
+              messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              messageEl.classList.add('highlight-pulse')
               setTimeout(() => {
-                messageEl.classList.remove('highlight-pulse');
-              }, 3000);
+                messageEl.classList.remove('highlight-pulse')
+              }, 3000)
             }
           } else if (hash.startsWith('#messages-')) {
             // Message range
-            const match = hash.match(/#messages-(\d+)-(\d+)/);
+            const match = hash.match(/#messages-(d+)-(d+)/)
             if (match) {
-              const startIdx = parseInt(match[1]);
-              const endIdx = parseInt(match[2]);
-              
+              const startIdx = parseInt(match[1])
+              const endIdx = parseInt(match[2])
+
               for (let i = startIdx; i <= endIdx; i++) {
-                const messageEl = document.querySelector(\`#message-\${i}\`);
+                const messageEl = document.querySelector(\`#message-\${i}\`)
                 if (messageEl) {
-                  messageEl.classList.add('message-in-range');
+                  messageEl.classList.add('message-in-range')
                   if (i === startIdx) {
-                    messageEl.classList.add('message-range-start');
-                    messageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    messageEl.classList.add('message-range-start')
+                    messageEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }
                   if (i === endIdx) {
-                    messageEl.classList.add('message-range-end');
+                    messageEl.classList.add('message-range-end')
                   }
                 }
               }
@@ -1548,138 +1554,141 @@ dashboardRoutes.get('/request/:id', async c => {
 
         // Copy message link to clipboard
         function copyMessageLink(idx) {
-          const url = \`\${window.location.origin}\${window.location.pathname}#message-\${idx}\`;
-          
+          const url = \`\${window.location.origin}\${window.location.pathname}#message-\${idx}\`
+
           // Try modern clipboard API first
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(url).then(() => {
-              showToast('Message link copied to clipboard');
-            }).catch(() => {
-              fallbackCopyToClipboard(url);
-            });
+            navigator.clipboard
+              .writeText(url)
+              .then(() => {
+                showToast('Message link copied to clipboard')
+              })
+              .catch(() => {
+                fallbackCopyToClipboard(url)
+              })
           } else {
-            fallbackCopyToClipboard(url);
+            fallbackCopyToClipboard(url)
           }
         }
-        
+
         function fallbackCopyToClipboard(text) {
-          const textarea = document.createElement('textarea');
-          textarea.value = text;
-          textarea.style.position = 'fixed';
-          textarea.style.opacity = '0';
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-          showToast('Message link copied to clipboard');
+          const textarea = document.createElement('textarea')
+          textarea.value = text
+          textarea.style.position = 'fixed'
+          textarea.style.opacity = '0'
+          document.body.appendChild(textarea)
+          textarea.select()
+          document.execCommand('copy')
+          document.body.removeChild(textarea)
+          showToast('Message link copied to clipboard')
         }
-        
+
         function showToast(message) {
-          const toast = document.createElement('div');
-          toast.className = 'toast-notification';
-          toast.textContent = message;
-          document.body.appendChild(toast);
-          
+          const toast = document.createElement('div')
+          toast.className = 'toast-notification'
+          toast.textContent = message
+          document.body.appendChild(toast)
+
           setTimeout(() => {
-            toast.classList.add('toast-show');
-          }, 10);
-          
+            toast.classList.add('toast-show')
+          }, 10)
+
           setTimeout(() => {
-            toast.classList.remove('toast-show');
+            toast.classList.remove('toast-show')
             setTimeout(() => {
-              document.body.removeChild(toast);
-            }, 300);
-          }, 2000);
+              document.body.removeChild(toast)
+            }, 300)
+          }, 2000)
         }
 
         // Handle message selection for range links
         function handleMessageSelection() {
-          const checkboxes = document.querySelectorAll('.message-select:checked');
-          const button = document.getElementById('range-link-button');
-          const countSpan = document.getElementById('selected-count');
-          
+          const checkboxes = document.querySelectorAll('.message-select:checked')
+          const button = document.getElementById('range-link-button')
+          const countSpan = document.getElementById('selected-count')
+
           if (checkboxes.length >= 2) {
-            button.style.display = 'block';
-            countSpan.textContent = checkboxes.length;
+            button.style.display = 'block'
+            countSpan.textContent = checkboxes.length
           } else {
-            button.style.display = 'none';
+            button.style.display = 'none'
           }
         }
-        
+
         function createRangeLink() {
-          const checkboxes = Array.from(document.querySelectorAll('.message-select:checked'));
-          const indices = checkboxes.map(cb => parseInt(cb.dataset.idx)).sort((a, b) => a - b);
-          
+          const checkboxes = Array.from(document.querySelectorAll('.message-select:checked'))
+          const indices = checkboxes.map(cb => parseInt(cb.dataset.idx)).sort((a, b) => a - b)
+
           // Validate contiguous selection
-          let isContiguous = true;
+          let isContiguous = true
           for (let i = 1; i < indices.length; i++) {
-            if (indices[i] - indices[i-1] !== 1) {
-              isContiguous = false;
-              break;
+            if (indices[i] - indices[i - 1] !== 1) {
+              isContiguous = false
+              break
             }
           }
-          
+
           if (!isContiguous) {
-            showToast('Please select contiguous messages (no gaps)');
-            return;
+            showToast('Please select contiguous messages (no gaps)')
+            return
           }
-          
-          const startIdx = indices[0];
-          const endIdx = indices[indices.length - 1];
-          const url = \`\${window.location.origin}\${window.location.pathname}#messages-\${startIdx}-\${endIdx}\`;
-          
+
+          const startIdx = indices[0]
+          const endIdx = indices[indices.length - 1]
+          const url = \`\${window.location.origin}\${window.location.pathname}#messages-\${startIdx}-\${endIdx}\`
+
           // Copy to clipboard
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(url).then(() => {
-              showToast(\`Range link copied (messages \${startIdx}-\${endIdx})\`);
-              clearSelection();
-            });
+              showToast(\`Range link copied (messages \${startIdx}-\${endIdx})\`)
+              clearSelection()
+            })
           } else {
-            fallbackCopyToClipboard(url);
-            clearSelection();
+            fallbackCopyToClipboard(url)
+            clearSelection()
           }
         }
-        
+
         function clearSelection() {
           document.querySelectorAll('.message-select:checked').forEach(cb => {
-            cb.checked = false;
-          });
-          handleMessageSelection();
+            cb.checked = false
+          })
+          handleMessageSelection()
         }
 
         // Shift-click range selection
-        let lastCheckedIdx = null;
-        
-        document.addEventListener('click', function(e) {
+        let lastCheckedIdx = null
+
+        document.addEventListener('click', function (e) {
           if (e.target.classList.contains('message-select')) {
-            const currentIdx = parseInt(e.target.dataset.idx);
-            
+            const currentIdx = parseInt(e.target.dataset.idx)
+
             if (e.shiftKey && lastCheckedIdx !== null) {
               // Select range
-              const start = Math.min(lastCheckedIdx, currentIdx);
-              const end = Math.max(lastCheckedIdx, currentIdx);
-              
+              const start = Math.min(lastCheckedIdx, currentIdx)
+              const end = Math.max(lastCheckedIdx, currentIdx)
+
               for (let i = start; i <= end; i++) {
-                const checkbox = document.querySelector(\`.message-select[data-idx="\${i}"]\`);
+                const checkbox = document.querySelector(\`.message-select[data-idx="\${i}"]\`)
                 if (checkbox) {
-                  checkbox.checked = true;
+                  checkbox.checked = true
                 }
               }
             }
-            
-            lastCheckedIdx = currentIdx;
-            handleMessageSelection();
+
+            lastCheckedIdx = currentIdx
+            handleMessageSelection()
           }
-        });
+        })
 
         // Initialize syntax highlighting
         document.addEventListener('DOMContentLoaded', function () {
           hljs.highlightAll()
-          handleMessageFragment();
+          handleMessageFragment()
         })
-        
+
         // Handle hash changes
-        window.addEventListener('hashchange', handleMessageFragment);
+        window.addEventListener('hashchange', handleMessageFragment)
       </script>
     `
 
