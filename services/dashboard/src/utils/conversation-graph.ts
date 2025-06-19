@@ -78,105 +78,56 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   const horizontalSpacing = 120
   const verticalSpacing = 80
 
-  // Build parent-child relationships
+  // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
-  const parentMap = new Map<string, string | undefined>()
   const nodeMap = new Map<string, (typeof graph.nodes)[0]>()
 
   graph.nodes.forEach(node => {
     nodeMap.set(node.id, node)
-    parentMap.set(node.id, node.parentId)
     const children = childrenMap.get(node.parentId) || []
     children.push(node.id)
     childrenMap.set(node.parentId, children)
   })
 
-  // Find leaf nodes (nodes without children - these are the newest)
-  const leaves = graph.nodes.filter(node => {
-    const children = childrenMap.get(node.id) || []
-    return children.length === 0
-  }).map(n => n.id)
-
   // Track branch lanes
   const branchLanes = new Map<string, number>()
   let nextLane = 0
 
-  // Position nodes
-  const layoutNodes: LayoutNode[] = []
-  const nodePositions = new Map<string, { x: number; y: number }>()
+  // Find max message count to reverse Y positions
+  const maxMessageCount = Math.max(...graph.nodes.map(n => n.messageCount || 0))
 
-  // Start from leaves and work backwards
-  let currentY = 0
-  const visited = new Set<string>()
-  
-  function positionBranch(nodeId: string, x: number, y: number): void {
-    if (visited.has(nodeId)) return
-    visited.add(nodeId)
-    
-    const node = nodeMap.get(nodeId)
-    if (!node) return
-
+  // Position nodes based on message count
+  const layoutNodes: LayoutNode[] = graph.nodes.map(node => {
     // Assign lane to branch if not already assigned
     if (!branchLanes.has(node.branchId)) {
       branchLanes.set(node.branchId, nextLane++)
     }
-
-    // Position this node
-    nodePositions.set(nodeId, { x, y })
     
-    // Position parent
-    if (node.parentId && !visited.has(node.parentId)) {
-      const parent = nodeMap.get(node.parentId)
-      if (parent) {
-        let parentX = x
-        
-        // If branch changes, offset horizontally
-        if (parent.branchId !== node.branchId) {
-          const parentLane = branchLanes.get(parent.branchId) || 0
-          const childLane = branchLanes.get(node.branchId) || 0
-          const laneDiff = Math.abs(parentLane - childLane)
-          parentX = x - laneDiff * horizontalSpacing
-        }
-        
-        positionBranch(node.parentId, parentX, y + verticalSpacing)
-      }
-    }
-  }
-
-  // Position each leaf branch
-  let currentX = 0
-  leaves.forEach(leafId => {
-    const node = nodeMap.get(leafId)
-    if (node) {
-      const lane = branchLanes.get(node.branchId) || nextLane++
-      branchLanes.set(node.branchId, lane)
-      const x = lane * horizontalSpacing
-      currentX = Math.max(currentX, x + nodeWidth + horizontalSpacing)
-      positionBranch(leafId, x, currentY)
-    }
-  })
-
-  // Create layout nodes
-  nodePositions.forEach((pos, nodeId) => {
-    const node = nodeMap.get(nodeId)
-    if (node) {
-      layoutNodes.push({
-        id: node.id,
-        x: pos.x,
-        y: pos.y,
-        width: nodeWidth,
-        height: nodeHeight,
-        branchId: node.branchId,
-        timestamp: node.timestamp,
-        label: node.label,
-        tokens: node.tokens,
-        model: node.model,
-        hasError: node.hasError,
-        messageIndex: node.messageIndex,
-        messageCount: node.messageCount,
-        toolCallCount: node.toolCallCount,
-        messageTypes: node.messageTypes,
-      })
+    const lane = branchLanes.get(node.branchId) || 0
+    const messageCount = node.messageCount || 0
+    
+    // Y position is based on reversed message count (newest at top)
+    const y = (maxMessageCount - messageCount) * verticalSpacing
+    
+    // X position is based on branch lane
+    const x = lane * horizontalSpacing
+    
+    return {
+      id: node.id,
+      x,
+      y,
+      width: nodeWidth,
+      height: nodeHeight,
+      branchId: node.branchId,
+      timestamp: node.timestamp,
+      label: node.label,
+      tokens: node.tokens,
+      model: node.model,
+      hasError: node.hasError,
+      messageIndex: node.messageIndex,
+      messageCount: node.messageCount,
+      toolCallCount: node.toolCallCount,
+      messageTypes: node.messageTypes,
     }
   })
 
@@ -187,7 +138,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
     const targetNode = layoutNodes.find(n => n.id === edge.target)
 
     if (sourceNode && targetNode) {
-      // In reversed layout, child is above parent
+      // In reversed layout, newer messages (higher count) are above
       layoutEdges.push({
         id: `e${idx}`,
         source: edge.source,
@@ -195,11 +146,11 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
         sections: [{
           startPoint: {
             x: sourceNode.x + sourceNode.width / 2,
-            y: sourceNode.y, // Top of source (parent)
+            y: sourceNode.y, // Top of source (parent/older)
           },
           endPoint: {
             x: targetNode.x + targetNode.width / 2,
-            y: targetNode.y + targetNode.height, // Bottom of target (child)
+            y: targetNode.y + targetNode.height, // Bottom of target (child/newer)
           },
         }],
       })
