@@ -9,6 +9,11 @@ import {
   formatDuration,
   formatMessageTime,
 } from '../utils/conversation.js'
+import {
+  ConversationGraph,
+  calculateGraphLayout,
+  renderGraphSVG,
+} from '../utils/conversation-graph.js'
 
 export const dashboardRoutes = new Hono<{
   Variables: {
@@ -20,7 +25,7 @@ export const dashboardRoutes = new Hono<{
 /**
  * Dashboard HTML layout template
  */
-const layout = (title: string, content: any) => html`
+export const layout = (title: string, content: any) => html`
   <!DOCTYPE html>
   <html lang="en">
     <head>
@@ -448,6 +453,94 @@ const layout = (title: string, content: any) => html`
           font-size: 0.875rem;
           line-height: 1.5;
         }
+        
+        /* Improved conversation styles */
+        .conversation-graph-container {
+          display: flex;
+          gap: 1.5rem;
+          position: relative;
+        }
+        
+        .conversation-graph {
+          flex-shrink: 0;
+          position: sticky;
+          top: 1rem;
+          height: fit-content;
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 0.5rem;
+          padding: 1rem;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .conversation-timeline {
+          flex: 1;
+          min-width: 0;
+        }
+        
+        .conversation-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+        
+        .conversation-stat-card {
+          background: white;
+          padding: 1rem;
+          border-radius: 0.375rem;
+          border: 1px solid #e5e7eb;
+        }
+        
+        .conversation-stat-label {
+          font-size: 0.75rem;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        
+        .conversation-stat-value {
+          font-size: 1.5rem;
+          font-weight: 600;
+          margin-top: 0.25rem;
+        }
+        
+        .branch-filter {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+          margin-bottom: 1rem;
+          flex-wrap: wrap;
+        }
+        
+        .branch-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.25rem 0.75rem;
+          border-radius: 9999px;
+          font-size: 0.75rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          border: 1px solid transparent;
+        }
+        
+        .branch-chip-main {
+          background: #f3f4f6;
+          color: #4b5563;
+          border-color: #d1d5db;
+        }
+        
+        .branch-chip-active {
+          background: #3b82f6;
+          color: white;
+          border-color: #2563eb;
+        }
+        
+        .branch-chip:hover:not(.branch-chip-active) {
+          background: #e5e7eb;
+        }
       </style>
       <link
         rel="stylesheet"
@@ -455,6 +548,7 @@ const layout = (title: string, content: any) => html`
       />
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/renderjson@1.4.0/renderjson.min.js"></script>
+      <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     </head>
     <body>
       <nav>
@@ -690,20 +784,49 @@ dashboardRoutes.get('/', async c => {
  */
 dashboardRoutes.get('/conversations', async c => {
   const domain = c.req.query('domain')
+  const searchQuery = c.req.query('search')?.toLowerCase()
 
   // Get storage service from container
   const { container } = await import('../container.js')
   const storageService = container.getStorageService()
 
   try {
-    const conversations = await storageService.getConversations(domain, 100)
+    let conversations = await storageService.getConversations(domain, 100)
+    
+    // Apply search filter if provided
+    if (searchQuery) {
+      conversations = conversations.filter(conv => {
+        // Search in request IDs, models, domains, and branch IDs
+        return conv.requests.some(req => 
+          req.request_id.toLowerCase().includes(searchQuery) ||
+          req.model.toLowerCase().includes(searchQuery) ||
+          req.domain.toLowerCase().includes(searchQuery) ||
+          (req.branch_id && req.branch_id.toLowerCase().includes(searchQuery)) ||
+          req.request_id.toLowerCase().includes(searchQuery)
+        ) || conv.conversation_id.toLowerCase().includes(searchQuery)
+      })
+    }
 
     const content = html`
       <div class="mb-6">
         <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
       </div>
 
-      <h2 style="margin: 0 0 1.5rem 0;">Conversations</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 style="margin: 0;">Conversations</h2>
+        
+        <!-- Search Bar -->
+        <form action="/dashboard/conversations" method="get" style="display: flex; gap: 0.5rem;">
+          ${domain ? `<input type="hidden" name="domain" value="${domain}">` : ''}
+          <input 
+            type="search" 
+            name="search" 
+            placeholder="Search conversations..." 
+            value="${c.req.query('search') || ''}"
+            style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 300px;">
+          <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Search</button>
+        </form>
+      </div>
 
       <!-- Domain Filter -->
       <div class="mb-6">
@@ -719,6 +842,28 @@ dashboardRoutes.get('/conversations', async c => {
           )}
         </select>
       </div>
+      
+      <!-- Conversation Statistics -->
+      ${conversations.length > 0 ? html`
+        <div class="conversation-stats-grid" style="margin-bottom: 1.5rem;">
+          <div class="conversation-stat-card">
+            <div class="conversation-stat-label">Total Conversations</div>
+            <div class="conversation-stat-value">${conversations.length}</div>
+          </div>
+          <div class="conversation-stat-card">
+            <div class="conversation-stat-label">Total Messages</div>
+            <div class="conversation-stat-value">${conversations.reduce((sum, c) => sum + c.message_count, 0)}</div>
+          </div>
+          <div class="conversation-stat-card">
+            <div class="conversation-stat-label">Total Tokens</div>
+            <div class="conversation-stat-value">${formatNumber(conversations.reduce((sum, c) => sum + c.total_tokens, 0))}</div>
+          </div>
+          <div class="conversation-stat-card">
+            <div class="conversation-stat-label">Avg Messages/Conv</div>
+            <div class="conversation-stat-value">${Math.round(conversations.reduce((sum, c) => sum + c.message_count, 0) / conversations.length)}</div>
+          </div>
+        </div>
+      ` : ''}
 
       ${conversations.length === 0
         ? html`<p class="text-gray-500">No conversations found</p>`
@@ -743,6 +888,7 @@ dashboardRoutes.get('/conversations', async c => {
                           <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <span class="text-sm text-gray-600">${conv.message_count} messages</span>
                             <span class="text-sm text-gray-600">${formatNumber(conv.total_tokens)} tokens</span>
+                            <a href="/dashboard/conversation/${conv.conversation_id}" class="text-sm text-blue-600">View Details →</a>
                           </div>
                         </div>
                         <div class="section-content">

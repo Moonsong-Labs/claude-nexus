@@ -166,6 +166,7 @@ const layout = (title: string, content: any) => html`
           margin-left: 1rem;
         }
       </style>
+      <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     </head>
     <body>
       <nav>
