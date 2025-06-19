@@ -32,73 +32,30 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       `)
     }
 
-    // For each request, get the detailed information to calculate message counts
+    // For performance, we'll use the message_count from the conversation object
+    // and just show simple icons based on position in conversation
     const requestDetailsMap = new Map<string, { messageCount: number; messageTypes: string[] }>()
     
-    // Process each request to get message counts and types
-    for (const req of conversation.requests) {
-      try {
-        const details = await storageService.getRequestDetails(req.request_id)
-        let messageCount = 0
-        const messageTypes: string[] = []
-        
-        if (details.request_body?.messages) {
-          // Count request messages
-          messageCount = details.request_body.messages.length
-          
-          // Get types of last 2 messages in request
-          const lastMessages = details.request_body.messages.slice(-2)
-          for (const msg of lastMessages) {
-            if (Array.isArray(msg.content)) {
-              // Check for tool use/results
-              const hasToolUse = msg.content.some((c: any) => c.type === 'tool_use')
-              const hasToolResult = msg.content.some((c: any) => c.type === 'tool_result')
-              if (hasToolUse) {
-                messageTypes.push('tool_use')
-              } else if (hasToolResult) {
-                messageTypes.push('tool_result')
-              } else if (msg.role === 'user') {
-                messageTypes.push('user')
-              } else if (msg.role === 'assistant') {
-                messageTypes.push('assistant')
-              } else {
-                messageTypes.push('text')
-              }
-            } else {
-              // String content - check role
-              if (msg.role === 'user') {
-                messageTypes.push('user')
-              } else if (msg.role === 'assistant') {
-                messageTypes.push('assistant')
-              } else {
-                messageTypes.push('text')
-              }
-            }
-          }
-        }
-        
-        // Add assistant response
-        if (details.response_body?.content || details.response_body?.role === 'assistant') {
-          messageCount += 1
-          // Check response type
-          if (Array.isArray(details.response_body.content)) {
-            const hasToolUse = details.response_body.content.some((c: any) => c.type === 'tool_use')
-            if (hasToolUse) {
-              messageTypes.push('tool_use')
-            } else {
-              messageTypes.push('assistant')
-            }
-          } else {
-            messageTypes.push('assistant')
-          }
-        }
-        
-        requestDetailsMap.set(req.request_id, { messageCount, messageTypes: messageTypes.slice(-2) })
-      } catch (err) {
-        // If we can't get details, use defaults
-        requestDetailsMap.set(req.request_id, { messageCount: 0, messageTypes: [] })
+    // Calculate message counts based on position without fetching details
+    let cumulativeMessageCount = 0
+    conversation.requests.forEach((req, index) => {
+      // Estimate messages per request (usually 1-2 new messages per request)
+      const isFirst = index === 0
+      const estimatedNewMessages = isFirst ? 1 : 2 // First request has 1 message, others add user + assistant
+      cumulativeMessageCount += estimatedNewMessages
+      
+      // Simple type assignment based on position
+      const messageTypes: string[] = []
+      if (!isFirst) {
+        messageTypes.push('user') // Previous user message
       }
-    }
+      messageTypes.push('assistant') // Current assistant response
+      
+      requestDetailsMap.set(req.request_id, { 
+        messageCount: cumulativeMessageCount,
+        messageTypes: messageTypes.slice(-2)
+      })
+    })
 
     // Build the graph structure - keep original relationships but display in reverse order
     const graph: ConversationGraph = {
