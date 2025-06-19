@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import { Pool } from 'pg'
-import { logger } from '../packages/shared/src/logger/index.js'
 
 /**
  * Migration script to add conversation tracking columns to the database
@@ -8,20 +7,20 @@ import { logger } from '../packages/shared/src/logger/index.js'
 async function migrateConversationSchema() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
-    logger.error('DATABASE_URL environment variable is required')
+    console.error('DATABASE_URL environment variable is required')
     process.exit(1)
   }
 
   const pool = new Pool({ connectionString: databaseUrl })
 
   try {
-    logger.info('Starting conversation schema migration...')
+    console.log('Starting conversation schema migration...')
 
     // Start transaction
     await pool.query('BEGIN')
 
     // Add new columns to api_requests table
-    logger.info('Adding conversation tracking columns...')
+    console.log('Adding conversation tracking columns...')
     await pool.query(`
       ALTER TABLE api_requests
       ADD COLUMN IF NOT EXISTS current_message_hash CHAR(64),
@@ -30,7 +29,7 @@ async function migrateConversationSchema() {
     `)
 
     // Create indexes for efficient lookups
-    logger.info('Creating indexes...')
+    console.log('Creating indexes...')
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_requests_current_message_hash 
       ON api_requests(current_message_hash)
@@ -48,13 +47,11 @@ async function migrateConversationSchema() {
 
     // Commit transaction
     await pool.query('COMMIT')
-    logger.info('Migration completed successfully!')
+    console.log('Migration completed successfully!')
   } catch (error) {
     // Rollback on error
     await pool.query('ROLLBACK')
-    logger.error('Migration failed', {
-      metadata: { error: error instanceof Error ? error.message : String(error) },
-    })
+    console.error('Migration failed:', error instanceof Error ? error.message : String(error))
     process.exit(1)
   } finally {
     await pool.end()
