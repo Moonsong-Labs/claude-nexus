@@ -15,7 +15,7 @@ describe('MetricsService', () => {
     // Create mock storage adapter
     mockStoreRequest = mock(() => Promise.resolve())
     mockStoreResponse = mock(() => Promise.resolve())
-    
+
     mockStorageAdapter = {
       storeRequest: mockStoreRequest,
       storeResponse: mockStoreResponse,
