@@ -57,11 +57,22 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
                 messageTypes.push('tool_use')
               } else if (hasToolResult) {
                 messageTypes.push('tool_result')
+              } else if (msg.role === 'user') {
+                messageTypes.push('user')
+              } else if (msg.role === 'assistant') {
+                messageTypes.push('assistant')
               } else {
                 messageTypes.push('text')
               }
             } else {
-              messageTypes.push('text')
+              // String content - check role
+              if (msg.role === 'user') {
+                messageTypes.push('user')
+              } else if (msg.role === 'assistant') {
+                messageTypes.push('assistant')
+              } else {
+                messageTypes.push('text')
+              }
             }
           }
         }
@@ -75,10 +86,10 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             if (hasToolUse) {
               messageTypes.push('tool_use')
             } else {
-              messageTypes.push('text')
+              messageTypes.push('assistant')
             }
           } else {
-            messageTypes.push('text')
+            messageTypes.push('assistant')
           }
         }
         

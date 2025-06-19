@@ -167,28 +167,55 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     svg += `    <text x="${x + node.width / 2 + 5}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
 
-    // Add message type icons on the right side
+    // Add message type icons on the borders (top-left and top-right)
     if (node.messageTypes && node.messageTypes.length > 0) {
-      const iconSize = 12
-      const iconSpacing = 14
-      const iconsX = x + node.width - 25
-      const iconsY = y + node.height / 2
+      const iconSize = 10
+      const iconOffset = 2 // Distance from border
       
-      node.messageTypes.slice(-2).forEach((type, i) => {
-        const iconX = iconsX + (i * iconSpacing)
-        const iconY = iconsY
+      // Get last 2 message types
+      const types = node.messageTypes.slice(-2)
+      
+      // First icon on top-left
+      if (types.length >= 1) {
+        const iconX = x + iconOffset
+        const iconY = y + iconOffset
+        const type = types[types.length - 2] || types[0] // Second to last, or first if only one
         
         if (type === 'tool_use') {
           // Tool icon (wrench)
-          svg += `    <text x="${iconX}" y="${iconY + 4}" text-anchor="middle" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
         } else if (type === 'tool_result') {
           // Result icon (checkmark)
-          svg += `    <text x="${iconX}" y="${iconY + 4}" text-anchor="middle" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool result">✅</text>\n`
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool result">✅</text>\n`
+        } else if (type === 'user' || type === 'text') {
+          // User/text icon (page)
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="User message">📄</text>\n`
         } else {
-          // Text icon (speech bubble)
-          svg += `    <text x="${iconX}" y="${iconY + 4}" text-anchor="middle" class="graph-node-label" style="font-size: ${iconSize}px;" title="Text message">💬</text>\n`
+          // Assistant icon (robot)
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Assistant message">🤖</text>\n`
         }
-      })
+      }
+      
+      // Second icon on top-right
+      if (types.length >= 2) {
+        const iconX = x + node.width - iconOffset
+        const iconY = y + iconOffset
+        const type = types[types.length - 1] // Last type
+        
+        if (type === 'tool_use') {
+          // Tool icon (wrench)
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
+        } else if (type === 'tool_result') {
+          // Result icon (checkmark)
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool result">✅</text>\n`
+        } else if (type === 'user' || type === 'text') {
+          // User/text icon (page)
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="User message">📄</text>\n`
+        } else {
+          // Assistant icon (robot)
+          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="Assistant message">🤖</text>\n`
+        }
+      }
     }
 
     // Add connection point at the bottom
