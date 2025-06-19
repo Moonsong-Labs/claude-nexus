@@ -160,7 +160,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Use the shared layout from dashboard-api
     const { layout: dashboardLayout } = await import('./dashboard-api.js')
     return c.html(dashboardLayout('Conversation Detail', content))
-  } catch (error) {
+  } catch (_error) {
     return c.html(html`
       <div class="error-banner">
         <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversation'}
@@ -193,7 +193,7 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
       : conversation.requests
     
     return c.html(renderConversationMessages(filteredRequests, conversation.branches))
-  } catch (error) {
+  } catch (_error) {
     return c.html(html`<div class="error-banner">Failed to load messages</div>`)
   }
 })
@@ -201,12 +201,12 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 /**
  * Helper to render conversation messages
  */
-function renderConversationMessages(requests: any[], branches: string[]) {
+function renderConversationMessages(requests: any[], _branches: string[]) {
   return html`
     <div style="display: grid; gap: 1rem;">
       ${raw(requests.map((req, idx) => {
-        const isFirst = idx === 0
-        const isLast = idx === requests.length - 1
+        const _isFirst = idx === 0
+        const _isLast = idx === requests.length - 1
         const branch = req.branch_id || 'main'
         const branchColor = getBranchColor(branch)
         
@@ -262,9 +262,15 @@ function formatDuration(ms: number): string {
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
   
-  if (days > 0) return `${days}d ${hours % 24}h`
-  if (hours > 0) return `${hours}h ${minutes % 60}m`
-  if (minutes > 0) return `${minutes}m`
+  if (days > 0) {
+    return `${days}d ${hours % 24}h`
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m`
+  }
   return `${seconds}s`
 }
 

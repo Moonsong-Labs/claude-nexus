@@ -32,12 +32,16 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
   const layoutNodes: LayoutNode[] = []
   const visitedNodes = new Set<string>()
   
-  function positionNode(nodeId: string, x: number, y: number, parentBranch?: string): number {
-    if (visitedNodes.has(nodeId)) return x
+  function positionNode(nodeId: string, x: number, y: number, _parentBranch?: string): number {
+    if (visitedNodes.has(nodeId)) {
+      return x
+    }
     visitedNodes.add(nodeId)
     
     const node = nodeMap.get(nodeId)
-    if (!node) return x
+    if (!node) {
+      return x
+    }
     
     // Assign lane to branch
     if (!branchLanes.has(node.branchId)) {
@@ -63,9 +67,11 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
     const children = childrenMap.get(nodeId) || []
     let childX = x
     
-    children.forEach((childId, index) => {
+    children.forEach((childId, _index) => {
       const child = nodeMap.get(childId)
-      if (!child) return
+      if (!child) {
+        return
+      }
       
       // If branch changes, offset horizontally
       if (child.branchId !== node.branchId) {
