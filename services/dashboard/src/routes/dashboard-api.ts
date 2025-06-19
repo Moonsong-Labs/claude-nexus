@@ -552,7 +552,7 @@ dashboardRoutes.get('/', async c => {
 
   // Handle domains result
   if (results[2].status === 'fulfilled') {
-    domains = results[2].value.domains.map(d => ({ domain: d, requestCount: 0 }))
+    domains = results[2].value.domains
   } else {
     console.error('Failed to fetch domains:', results[2].reason)
     // Don't show error banner for domains failure since it's not critical
