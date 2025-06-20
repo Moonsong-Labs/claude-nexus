@@ -255,6 +255,18 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       }
     }
 
+    // Calculate total sub-tasks spawned by this conversation
+    let totalSubtasksSpawned = 0
+    let requestsWithSubtasks = 0
+    for (const req of conversation.requests) {
+      const enrichedInvocations = subtasksMap.get(req.request_id)
+      const taskInvocations = enrichedInvocations || req.task_tool_invocation
+      if (taskInvocations && Array.isArray(taskInvocations) && taskInvocations.length > 0) {
+        totalSubtasksSpawned += taskInvocations.length
+        requestsWithSubtasks++
+      }
+    }
+
     // Calculate stats for selected branch or total
     let displayStats
     if (selectedBranch && branchStats[selectedBranch]) {
@@ -263,6 +275,16 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const totalTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
       const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
       const duration = timestamps.length > 0 ? Math.max(...timestamps) - Math.min(...timestamps) : 0
+      
+      // Calculate sub-tasks for filtered branch
+      let branchSubtasks = 0
+      for (const req of filteredRequests) {
+        const enrichedInvocations = subtasksMap.get(req.request_id)
+        const taskInvocations = enrichedInvocations || req.task_tool_invocation
+        if (taskInvocations && Array.isArray(taskInvocations) && taskInvocations.length > 0) {
+          branchSubtasks += taskInvocations.length
+        }
+      }
 
       displayStats = {
         messageCount: maxMessageCount,
@@ -270,6 +292,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         branchCount: 1,
         duration: duration,
         requestCount: filteredRequests.length,
+        totalSubtasks: branchSubtasks,
       }
     } else {
       // Show total stats for all branches
@@ -279,6 +302,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         branchCount: Object.keys(branchStats).length,
         duration: totalDuration,
         requestCount: conversation.requests.length,
+        totalSubtasks: totalSubtasksSpawned,
       }
     }
 
@@ -294,6 +318,10 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <div class="conversation-stat-card">
           <div class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Messages</div>
           <div class="conversation-stat-value">${displayStats.messageCount}</div>
+        </div>
+        <div class="conversation-stat-card">
+          <div class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Sub-tasks</div>
+          <div class="conversation-stat-value">${displayStats.totalSubtasks}</div>
         </div>
         <div class="conversation-stat-card">
           <div class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Tokens</div>
