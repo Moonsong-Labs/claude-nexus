@@ -271,66 +271,14 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       svg += `    <text x="${x + 12}" y="${y + node.height / 2 + 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 14px; fill: ${color};">${node.messageCount}</text>\n`
     }
 
-    // Add model label in the center
-    const modelShort = node.model.includes('claude-3')
-      ? node.model.split('-')[2]
-      : node.model.split('-').slice(-1)[0]
-    svg += `    <text x="${x + node.width / 2 + 5}" y="${y + node.height / 2 - 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${modelShort}</text>\n`
+    // Add request ID (first 8 chars) in the center
+    const requestIdShort = node.id.substring(0, 8)
+    svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 - 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
 
     // Add timestamp
     const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    svg += `    <text x="${x + node.width / 2 + 5}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
+    svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
 
-    // Add message type icons on the borders (top-left and top-right)
-    if (node.messageTypes && node.messageTypes.length > 0) {
-      const iconSize = 10
-      const iconOffset = 2 // Distance from border
-
-      // Get last 2 message types
-      const types = node.messageTypes.slice(-2)
-
-      // First icon on top-left
-      if (types.length >= 1) {
-        const iconX = x + iconOffset
-        const iconY = y + iconOffset
-        const type = types[types.length - 2] || types[0] // Second to last, or first if only one
-
-        if (type === 'tool_use') {
-          // Tool icon (wrench)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
-        } else if (type === 'tool_result') {
-          // Result icon (checkmark)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool result">✅</text>\n`
-        } else if (type === 'user' || type === 'text') {
-          // User/text icon (page)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="User message">📄</text>\n`
-        } else {
-          // Assistant icon (robot)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="start" class="graph-node-label" style="font-size: ${iconSize}px;" title="Assistant message">🤖</text>\n`
-        }
-      }
-
-      // Second icon on top-right
-      if (types.length >= 2) {
-        const iconX = x + node.width - iconOffset
-        const iconY = y + iconOffset
-        const type = types[types.length - 1] // Last type
-
-        if (type === 'tool_use') {
-          // Tool icon (wrench)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool use">🔧</text>\n`
-        } else if (type === 'tool_result') {
-          // Result icon (checkmark)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="Tool result">✅</text>\n`
-        } else if (type === 'user' || type === 'text') {
-          // User/text icon (page)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="User message">📄</text>\n`
-        } else {
-          // Assistant icon (robot)
-          svg += `    <text x="${iconX}" y="${iconY + iconSize}" text-anchor="end" class="graph-node-label" style="font-size: ${iconSize}px;" title="Assistant message">🤖</text>\n`
-        }
-      }
-    }
 
     // Add connection point at the bottom
     svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`
