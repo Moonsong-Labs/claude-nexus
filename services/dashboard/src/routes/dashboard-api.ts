@@ -1300,7 +1300,8 @@ dashboardRoutes.get('/request/:id', async c => {
               <dt class="text-gray-600">Request ID:</dt>
               <dd>${details.requestId}</dd>
 
-              ${details.conversationId ? `
+              ${details.conversationId
+                ? `
               <dt class="text-gray-600">Conversation ID:</dt>
               <dd>
                 <a href="/dashboard/conversation/${details.conversationId}" 
@@ -1308,7 +1309,8 @@ dashboardRoutes.get('/request/:id', async c => {
                   ${details.conversationId}
                 </a>
               </dd>
-              ` : ''}
+              `
+                : ''}
 
               <dt class="text-gray-600">Domain:</dt>
               <dd>${details.domain}</dd>
