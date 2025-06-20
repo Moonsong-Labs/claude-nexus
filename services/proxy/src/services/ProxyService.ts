@@ -65,7 +65,11 @@ export class ProxyService {
     // Collect test sample if enabled
     let sampleId: string | undefined
     if (context.honoContext) {
-      sampleId = await testSampleCollector.collectSample(context.honoContext, rawRequest, request.requestType)
+      sampleId = await testSampleCollector.collectSample(
+        context.honoContext,
+        rawRequest,
+        request.requestType
+      )
     }
 
     // Extract conversation data if storage is enabled
@@ -244,16 +248,11 @@ export class ProxyService {
 
     // Update test sample with response if enabled
     if (sampleId) {
-      await testSampleCollector.updateSampleWithResponse(
-        sampleId,
-        claudeResponse,
-        jsonResponse,
-        {
-          inputTokens: response.inputTokens,
-          outputTokens: response.outputTokens,
-          toolCalls: response.toolCallCount,
-        }
-      )
+      await testSampleCollector.updateSampleWithResponse(sampleId, claudeResponse, jsonResponse, {
+        inputTokens: response.inputTokens,
+        outputTokens: response.outputTokens,
+        toolCalls: response.toolCallCount,
+      })
     }
 
     // Return the response
@@ -409,7 +408,7 @@ export class ProxyService {
       // Process each chunk
       for await (const chunk of this.apiClient.processStreamingResponse(claudeResponse, response)) {
         await writer.write(encoder.encode(chunk))
-        
+
         // Collect chunks for test sample if enabled
         if (sampleId) {
           try {
@@ -441,17 +440,12 @@ export class ProxyService {
 
       // Update test sample with streaming response if enabled
       if (sampleId) {
-        await testSampleCollector.updateSampleWithResponse(
-          sampleId,
-          claudeResponse,
-          fullResponse,
-          {
-            inputTokens: response.inputTokens,
-            outputTokens: response.outputTokens,
-            toolCalls: response.toolCallCount,
-            streamingChunks: streamingChunks,
-          }
-        )
+        await testSampleCollector.updateSampleWithResponse(sampleId, claudeResponse, fullResponse, {
+          inputTokens: response.inputTokens,
+          outputTokens: response.outputTokens,
+          toolCalls: response.toolCallCount,
+          streamingChunks: streamingChunks,
+        })
       }
 
       // Extract response headers

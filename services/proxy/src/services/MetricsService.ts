@@ -84,7 +84,15 @@ export class MetricsService {
 
     // Store in database
     if (this.config.enableStorage && this.storageService) {
-      await this.storeRequest(request, response, context, status, conversationData, responseHeaders, fullResponseBody)
+      await this.storeRequest(
+        request,
+        response,
+        context,
+        status,
+        conversationData,
+        responseHeaders,
+        fullResponseBody
+      )
     }
 
     // Send telemetry

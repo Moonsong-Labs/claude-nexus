@@ -387,7 +387,7 @@ export class StorageWriter {
   private maskSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
     const masked = { ...headers }
     const sensitiveHeaders = ['authorization', 'x-api-key']
-    
+
     for (const [key, value] of Object.entries(headers)) {
       const lowerKey = key.toLowerCase()
       if (sensitiveHeaders.includes(lowerKey) && typeof value === 'string') {
@@ -400,7 +400,7 @@ export class StorageWriter {
         }
       }
     }
-    
+
     return masked
   }
 
