@@ -93,44 +93,127 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     })
 
     // Build the graph structure - keep original relationships but display in reverse order
-    const graph: ConversationGraph = {
-      nodes: conversation.requests.map((req, index) => {
-        const details = requestDetailsMap.get(req.request_id) || {
-          messageCount: 0,
-          messageTypes: [],
+    const graphNodes: ConversationNode[] = []
+    const graphEdges: Array<{ source: string; target: string }> = []
+    
+    // First, add all conversation request nodes
+    conversation.requests.forEach((req, index) => {
+      const details = requestDetailsMap.get(req.request_id) || {
+        messageCount: 0,
+        messageTypes: [],
+      }
+      
+      // Get sub-task info
+      const enrichedInvocations = subtasksMap.get(req.request_id)
+      const hasSubtasks = enrichedInvocations && enrichedInvocations.length > 0
+      const subtaskCount = enrichedInvocations?.length || 0
+      
+      // Also check raw task_tool_invocation if not in subtasksMap
+      const hasTaskInvocation = req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0
+      const finalHasSubtasks = hasSubtasks || hasTaskInvocation
+      const finalSubtaskCount = subtaskCount || (hasTaskInvocation ? req.task_tool_invocation.length : 0)
+      
+      graphNodes.push({
+        id: req.request_id,
+        label: `${req.model}`,
+        timestamp: new Date(req.timestamp),
+        branchId: req.branch_id || 'main',
+        parentId: req.parent_message_hash
+          ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
+              ?.request_id
+          : undefined,
+        tokens: req.total_tokens,
+        model: req.model,
+        hasError: !!req.error,
+        messageIndex: index + 1,
+        messageCount: details.messageCount,
+        messageTypes: details.messageTypes,
+        isSubtask: req.is_subtask,
+        hasSubtasks: finalHasSubtasks,
+        subtaskCount: finalSubtaskCount,
+      })
+    })
+    
+    // Track sub-task numbers across the conversation
+    let subtaskNumber = 0
+    
+    // Now add sub-task summary nodes for requests that spawned tasks
+    for (const req of conversation.requests) {
+      // Check if this request has task invocations
+      if (req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0) {
+        // Get actual sub-task count from database
+        const actualSubtaskCount = await storageService.countSubtasksForRequests([req.request_id])
+        
+        // Even if actualSubtaskCount is 0, show the task invocations if they exist
+        const displayCount = actualSubtaskCount || req.task_tool_invocation.length
+        
+        // Increment sub-task number
+        subtaskNumber++
+        
+        // Try to find the linked conversation ID and prompt from the enriched invocations
+        const enrichedInvocations = subtasksMap.get(req.request_id)
+        let linkedConversationId = null
+        let subtaskPrompt = ''
+        
+        if (enrichedInvocations && enrichedInvocations.length > 0) {
+          // Look for any invocation with a linked conversation
+          const linkedInvocation = enrichedInvocations.find((inv: any) => inv.linked_conversation_id)
+          if (linkedInvocation) {
+            linkedConversationId = linkedInvocation.linked_conversation_id
+            // Get the prompt from the first invocation
+            if (linkedInvocation.input?.prompt) {
+              subtaskPrompt = linkedInvocation.input.prompt
+            }
+          } else if (enrichedInvocations[0]?.input?.prompt) {
+            // If no linked conversation yet, still get the prompt from first invocation
+            subtaskPrompt = enrichedInvocations[0].input.prompt
+          }
         }
         
-        // Get sub-task info
-        const enrichedInvocations = subtasksMap.get(req.request_id)
-        const hasSubtasks = enrichedInvocations && enrichedInvocations.length > 0
-        const subtaskCount = enrichedInvocations?.length || 0
+        // If we don't have a prompt yet, try from the raw task invocations
+        if (!subtaskPrompt && req.task_tool_invocation && req.task_tool_invocation[0]?.input?.prompt) {
+          subtaskPrompt = req.task_tool_invocation[0].input.prompt
+        }
         
-        // Also check raw task_tool_invocation if not in subtasksMap
-        const hasTaskInvocation = req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0
-        const finalHasSubtasks = hasSubtasks || hasTaskInvocation
-        const finalSubtaskCount = subtaskCount || (hasTaskInvocation ? req.task_tool_invocation.length : 0)
+        // If we still don't have a linked conversation, try to find it from sub-tasks
+        if (!linkedConversationId) {
+          const subtasks = await storageService.getSubtasksForRequest(req.request_id)
+          if (subtasks.length > 0 && subtasks[0].conversation_id) {
+            linkedConversationId = subtasks[0].conversation_id
+          }
+        }
         
-        return {
-          id: req.request_id,
-          label: `${req.model}`,
+        // Create a sub-task summary node
+        const subtaskNodeId = `${req.request_id}-subtasks`
+        graphNodes.push({
+          id: subtaskNodeId,
+          label: `sub-task ${subtaskNumber} (${displayCount})`,
           timestamp: new Date(req.timestamp),
           branchId: req.branch_id || 'main',
-          parentId: req.parent_message_hash
-            ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
-                ?.request_id
-            : undefined,
-          tokens: req.total_tokens,
-          model: req.model,
-          hasError: !!req.error,
-          messageIndex: index + 1,
-          messageCount: details.messageCount,
-          messageTypes: details.messageTypes,
-          isSubtask: req.is_subtask,
-          hasSubtasks: finalHasSubtasks,
-          subtaskCount: finalSubtaskCount,
-        }
-      }),
-      edges: [],
+          parentId: req.request_id, // Parent is the request that spawned it
+          tokens: 0, // We don't have aggregate token count here
+          model: 'sub-tasks',
+          hasError: false,
+          messageIndex: req.message_count || 0, // Use parent's message count
+          messageCount: req.message_count || 0, // Use parent's message count for positioning
+          isSubtask: true,
+          hasSubtasks: false,
+          subtaskCount: displayCount,
+          linkedConversationId: linkedConversationId, // Store the linked conversation ID
+          subtaskPrompt: subtaskPrompt, // Store the prompt snippet
+        })
+        
+        // Add edge from parent request to sub-task node
+        graphEdges.push({
+          source: req.request_id,
+          target: subtaskNodeId,
+        })
+      }
+    }
+    
+    const graph: ConversationGraph = {
+      nodes: graphNodes,
+      edges: graphEdges,
     }
 
     // Build edges from parent relationships with branch awareness
@@ -159,7 +242,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         }
 
         if (parentReq) {
-          graph.edges.push({
+          graphEdges.push({
             source: parentReq.request_id,
             target: req.request_id,
           })
@@ -384,6 +467,26 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           ${raw(renderConversationMessages(filteredRequests, conversation.branches, subtasksMap))}
         </div>
       </div>
+      
+      <script>
+        // Add hover functionality for sub-task tooltips
+        document.addEventListener('DOMContentLoaded', function() {
+          const subtaskGroups = document.querySelectorAll('.subtask-node-group');
+          
+          subtaskGroups.forEach(group => {
+            const promptHover = group.querySelector('.subtask-prompt-hover');
+            if (promptHover) {
+              group.addEventListener('mouseenter', function() {
+                promptHover.style.display = 'block';
+              });
+              
+              group.addEventListener('mouseleave', function() {
+                promptHover.style.display = 'none';
+              });
+            }
+          });
+        });
+      </script>
     `
 
     // Use the shared layout from dashboard-api
