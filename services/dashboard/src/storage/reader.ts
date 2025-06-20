@@ -534,7 +534,7 @@ export class StorageReader {
                  branch_id,
                  MIN(timestamp) as branch_start,
                  MAX(timestamp) as branch_end,
-                 COUNT(*) as message_count,
+                 MAX(message_count) as message_count,
                  SUM(total_tokens) as branch_tokens,
                  (SELECT request_id FROM api_requests r2 
                   WHERE r2.conversation_id = api_requests.conversation_id 
@@ -587,7 +587,7 @@ export class StorageReader {
                  branch_id,
                  MIN(timestamp) as branch_start,
                  MAX(timestamp) as branch_end,
-                 COUNT(*) as message_count,
+                 MAX(message_count) as message_count,
                  SUM(total_tokens) as branch_tokens,
                  (SELECT request_id FROM api_requests r2 
                   WHERE r2.conversation_id = api_requests.conversation_id 

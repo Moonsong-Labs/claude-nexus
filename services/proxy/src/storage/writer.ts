@@ -347,7 +347,7 @@ export class StorageWriter {
             childCount: count,
           },
         })
-        // Generate new branch ID based on timestamp
+        // Generate new branch ID based on current timestamp
         return `branch_${Date.now()}`
       }
 

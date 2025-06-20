@@ -233,16 +233,34 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
   // Render edges
   svg += '<g class="graph-edges">\n'
   for (const edge of layout.edges) {
+    // Find the source and target nodes to check if this is a branch divergence
+    const sourceNode = layout.nodes.find(n => n.id === edge.source)
+    const targetNode = layout.nodes.find(n => n.id === edge.target)
+    const isBranchDiverging = sourceNode && targetNode && sourceNode.branchId !== targetNode.branchId
+
     for (const section of edge.sections) {
-      let path = `M${section.startPoint.x + padding},${section.startPoint.y + padding}`
+      let path = ''
+      const startX = section.startPoint.x + padding
+      const startY = section.startPoint.y + padding
+      const endX = section.endPoint.x + padding
+      const endY = section.endPoint.y + padding
 
-      if (section.bendPoints && section.bendPoints.length > 0) {
-        for (const bend of section.bendPoints) {
-          path += ` L${bend.x + padding},${bend.y + padding}`
+      if (isBranchDiverging && Math.abs(startX - endX) > 5) {
+        // For diverging branches, create a squared path with right angles
+        const midY = startY + (endY - startY) / 2
+        path = `M${startX},${startY} L${startX},${midY} L${endX},${midY} L${endX},${endY}`
+      } else {
+        // For regular edges, use straight line or bend points if available
+        path = `M${startX},${startY}`
+        
+        if (section.bendPoints && section.bendPoints.length > 0) {
+          for (const bend of section.bendPoints) {
+            path += ` L${bend.x + padding},${bend.y + padding}`
+          }
         }
+        
+        path += ` L${endX},${endY}`
       }
-
-      path += ` L${section.endPoint.x + padding},${section.endPoint.y + padding}`
 
       svg += `  <path d="${path}" class="graph-edge" />\n`
     }
@@ -267,7 +285,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     svg += `    <rect x="${x}" y="${y}" width="${node.width}" height="${node.height}" rx="6" ry="6" class="${nodeClass}${interactive ? ' graph-node-clickable' : ''}" style="fill: white; stroke: ${node.hasError ? '#ef4444' : color}; stroke-width: 2;" />\n`
 
     // Add message count number on the left
-    if (node.messageCount !== undefined) {
+    if (node.messageCount !== undefined && node.messageCount > 0) {
       svg += `    <text x="${x + 12}" y="${y + node.height / 2 + 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 14px; fill: ${color};">${node.messageCount}</text>\n`
     }
 
