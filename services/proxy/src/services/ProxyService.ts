@@ -423,7 +423,7 @@ export class ProxyService {
                 }
               }
             }
-          } catch (parseError) {
+          } catch {
             // Ignore parsing errors for test collection
           }
         }
