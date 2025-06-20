@@ -50,6 +50,12 @@ export class StorageAdapter {
       // Generate a UUID for this request and store the mapping
       const uuid = randomUUID()
       this.requestIdMap.set(data.id, uuid)
+      
+      logger.debug('Stored request ID mapping', {
+        claudeId: data.id,
+        uuid: uuid,
+        mapSize: this.requestIdMap.size
+      })
 
       await this.writer.storeRequest({
         requestId: uuid,
@@ -185,11 +191,25 @@ export class StorageAdapter {
     const taskInvocations = this.writer.findTaskToolInvocations(responseBody)
 
     if (taskInvocations.length > 0) {
+      logger.info('Found Task tool invocations', {
+        requestId,
+        metadata: {
+          taskCount: taskInvocations.length,
+          tasks: taskInvocations.map(t => ({ id: t.id, name: t.name }))
+        }
+      })
+      
       // Get the UUID for this request
-      const uuid = this.requestIdMap.get(requestId)
+      // First check if requestId is already a UUID
+      const uuid = this.isValidUUID(requestId) ? requestId : this.requestIdMap.get(requestId)
+      
       if (!uuid) {
         logger.warn('No UUID mapping found for request when processing task invocations', {
           requestId,
+          metadata: {
+            mapSize: this.requestIdMap.size,
+            isUUID: this.isValidUUID(requestId)
+          }
         })
         return
       }
@@ -202,6 +222,14 @@ export class StorageAdapter {
         await this.writer.linkSubtaskConversations(uuid, task.input)
       }
     }
+  }
+
+  /**
+   * Check if a string is a valid UUID
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
   }
 
   /**

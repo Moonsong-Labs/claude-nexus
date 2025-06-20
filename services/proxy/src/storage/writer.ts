@@ -129,6 +129,29 @@ export class StorageWriter {
    */
   async storeResponse(response: StorageResponse): Promise<void> {
     try {
+      // Check if response contains Task tool invocations
+      let taskToolInvocation = null
+      if (response.body && response.body.content && Array.isArray(response.body.content)) {
+        const taskInvocations = []
+        for (const content of response.body.content) {
+          if (content.type === 'tool_use' && content.name === 'Task') {
+            taskInvocations.push({
+              id: content.id,
+              name: content.name,
+              prompt: content.input?.prompt || '',
+              description: content.input?.description || ''
+            })
+          }
+        }
+        if (taskInvocations.length > 0) {
+          taskToolInvocation = JSON.stringify(taskInvocations)
+          logger.info('Found Task invocations in response', {
+            requestId: response.requestId,
+            metadata: { count: taskInvocations.length }
+          })
+        }
+      }
+
       const query = `
         UPDATE api_requests SET
           response_status = $2,
@@ -144,7 +167,8 @@ export class StorageWriter {
           tool_call_count = $12,
           cache_creation_input_tokens = $13,
           cache_read_input_tokens = $14,
-          usage_data = $15
+          usage_data = $15,
+          task_tool_invocation = COALESCE($16, task_tool_invocation)
         WHERE request_id = $1
       `
 
@@ -164,6 +188,7 @@ export class StorageWriter {
         response.cacheCreationInputTokens || 0,
         response.cacheReadInputTokens || 0,
         response.usageData ? JSON.stringify(response.usageData) : null,
+        taskToolInvocation,
       ]
 
       await this.pool.query(query, values)
