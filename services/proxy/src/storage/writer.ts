@@ -17,6 +17,9 @@ interface StorageRequest {
   conversationId?: string
   branchId?: string
   messageCount?: number
+  parentTaskRequestId?: string
+  isSubtask?: boolean
+  taskToolInvocation?: any
 }
 
 interface StorageResponse {
@@ -83,8 +86,9 @@ export class StorageWriter {
         INSERT INTO api_requests (
           request_id, domain, timestamp, method, path, headers, body, 
           api_key_hash, model, request_type, current_message_hash, 
-          parent_message_hash, conversation_id, branch_id, message_count
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          parent_message_hash, conversation_id, branch_id, message_count,
+          parent_task_request_id, is_subtask, task_tool_invocation
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -104,6 +108,9 @@ export class StorageWriter {
         request.conversationId || null,
         branchId,
         request.messageCount || 0,
+        request.parentTaskRequestId || null,
+        request.isSubtask || false,
+        request.taskToolInvocation ? JSON.stringify(request.taskToolInvocation) : null,
       ]
 
       await this.pool.query(query, values)
@@ -405,6 +412,118 @@ export class StorageWriter {
   }
 
   /**
+   * Find Task tool invocations in a response
+   */
+  findTaskToolInvocations(responseBody: any): Array<{ id: string; name: string; input: any }> {
+    const taskInvocations: Array<{ id: string; name: string; input: any }> = []
+
+    if (!responseBody || !responseBody.content || !Array.isArray(responseBody.content)) {
+      return taskInvocations
+    }
+
+    for (const content of responseBody.content) {
+      if (content.type === 'tool_use' && content.name === 'Task') {
+        taskInvocations.push({
+          id: content.id,
+          name: content.name,
+          input: content.input,
+        })
+      }
+    }
+
+    return taskInvocations
+  }
+
+  /**
+   * Mark requests that have Task tool invocations
+   */
+  async markTaskToolInvocations(requestId: string, taskInvocations: any[]): Promise<void> {
+    if (taskInvocations.length === 0) {
+      return
+    }
+
+    try {
+      // Store task invocations in a separate tracking table or update the request
+      const query = `
+        UPDATE api_requests 
+        SET task_tool_invocation = $2
+        WHERE request_id = $1
+      `
+
+      await this.pool.query(query, [requestId, JSON.stringify(taskInvocations)])
+
+      logger.info('Marked request with Task tool invocations', {
+        requestId,
+        metadata: {
+          taskCount: taskInvocations.length,
+        },
+      })
+    } catch (error) {
+      logger.error('Failed to mark task tool invocations', {
+        requestId,
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+    }
+  }
+
+  /**
+   * Find and link sub-task conversations
+   * This matches conversations where the first user message matches a Task tool input
+   */
+  async linkSubtaskConversations(parentRequestId: string, taskInput: any): Promise<void> {
+    try {
+      // The task input should contain a prompt field
+      const taskPrompt = taskInput?.prompt || taskInput?.description || ''
+
+      if (!taskPrompt) {
+        return
+      }
+
+      // Find conversations that start with this prompt
+      // We look for conversations where the first message content matches the task prompt
+      const query = `
+        UPDATE api_requests
+        SET parent_task_request_id = $1,
+            is_subtask = true
+        WHERE conversation_id IN (
+          SELECT DISTINCT conversation_id
+          FROM api_requests
+          WHERE parent_message_hash IS NULL -- First message in conversation
+          AND body->'messages'->0->>'role' = 'user'
+          AND (
+            -- Check if content matches (handling both string and array formats)
+            (body->'messages'->0->>'content' = $2)
+            OR 
+            (body->'messages'->0->'content'->1->>'text' = $2)
+          )
+          AND request_id != $1
+          AND parent_task_request_id IS NULL -- Not already linked
+        )
+      `
+
+      const result = await this.pool.query(query, [parentRequestId, taskPrompt])
+
+      if (result.rowCount && result.rowCount > 0) {
+        logger.info('Linked sub-task conversations', {
+          metadata: {
+            parentRequestId,
+            linkedCount: result.rowCount,
+          },
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to link sub-task conversations', {
+        metadata: {
+          parentRequestId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+    }
+  }
+
+  /**
    * Cleanup
    */
   async cleanup(): Promise<void> {
@@ -462,6 +581,11 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           current_message_hash CHAR(64),
           parent_message_hash CHAR(64),
           conversation_id UUID,
+          branch_id VARCHAR(255) DEFAULT 'main',
+          message_count INTEGER DEFAULT 0,
+          parent_task_request_id UUID REFERENCES api_requests(request_id),
+          is_subtask BOOLEAN DEFAULT false,
+          task_tool_invocation JSONB,
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `)

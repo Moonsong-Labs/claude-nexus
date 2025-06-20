@@ -42,6 +42,9 @@ export class StorageAdapter {
     conversationId?: string
     branchId?: string
     messageCount?: number
+    parentTaskRequestId?: string
+    isSubtask?: boolean
+    taskToolInvocation?: any
   }): Promise<void> {
     try {
       // Generate a UUID for this request and store the mapping
@@ -64,6 +67,9 @@ export class StorageAdapter {
         conversationId: data.conversationId,
         branchId: data.branchId,
         messageCount: data.messageCount,
+        parentTaskRequestId: data.parentTaskRequestId,
+        isSubtask: data.isSubtask,
+        taskToolInvocation: data.taskToolInvocation,
       })
     } catch (error) {
       logger.error('Failed to store request', {
@@ -170,6 +176,32 @@ export class StorageAdapter {
    */
   async findConversationByParentHash(parentHash: string): Promise<string | null> {
     return await this.writer.findConversationByParentHash(parentHash)
+  }
+
+  /**
+   * Process Task tool invocations in a response
+   */
+  async processTaskToolInvocations(requestId: string, responseBody: any): Promise<void> {
+    const taskInvocations = this.writer.findTaskToolInvocations(responseBody)
+
+    if (taskInvocations.length > 0) {
+      // Get the UUID for this request
+      const uuid = this.requestIdMap.get(requestId)
+      if (!uuid) {
+        logger.warn('No UUID mapping found for request when processing task invocations', {
+          requestId,
+        })
+        return
+      }
+
+      // Mark the request as having task invocations
+      await this.writer.markTaskToolInvocations(uuid, taskInvocations)
+
+      // Link sub-task conversations for each task invocation
+      for (const task of taskInvocations) {
+        await this.writer.linkSubtaskConversations(uuid, task.input)
+      }
+    }
   }
 
   /**

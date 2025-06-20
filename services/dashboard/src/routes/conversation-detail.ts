@@ -387,6 +387,12 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
             const branch = req.branch_id || 'main'
             const branchColor = getBranchColor(branch)
 
+            // Check if this request has sub-tasks based on task_tool_invocation
+            const hasTaskInvocation =
+              req.task_tool_invocation &&
+              Array.isArray(req.task_tool_invocation) &&
+              req.task_tool_invocation.length > 0
+
             return `
           <div class="section" id="message-${req.request_id}">
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0.625rem 1rem;">
@@ -403,6 +409,16 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
                 `
                     : ''
                 }
+                ${
+                  req.is_subtask
+                    ? '<span style="margin-left: 0.5rem; font-size: 0.875rem;" title="Sub-task conversation">🔗</span>'
+                    : ''
+                }
+                ${
+                  hasTaskInvocation
+                    ? `<span style="margin-left: 0.5rem; font-size: 0.875rem;" title="Has sub-tasks">📋 (${req.task_tool_invocation.length})</span>`
+                    : ''
+                }
               </div>
               <div style="display: flex; gap: 0.75rem; align-items: center;">
                 <span class="text-sm text-gray-600">${req.message_count || 0} messages</span>
@@ -410,13 +426,61 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
                 ${req.error ? '<span style="color: #ef4444; font-size: 0.875rem;">Error</span>' : ''}
               </div>
             </div>
-            <div class="section-content" style="padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center;">
-              <div class="text-sm text-gray-500">
-                Request ID: ${req.request_id}
+            <div class="section-content" style="padding: 0.75rem 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="text-sm text-gray-500">
+                  Request ID: ${req.request_id}
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                  ${
+                    req.parent_task_request_id
+                      ? `<a href="/dashboard/request/${req.parent_task_request_id}" class="text-sm text-blue-600" title="View parent task">
+                          ↑ Parent Task
+                        </a>`
+                      : ''
+                  }
+                  ${
+                    hasTaskInvocation
+                      ? `<button onclick="toggleSubtasks('${req.request_id}')" class="text-sm text-blue-600" style="cursor: pointer; background: none; border: none; padding: 0;">
+                          View Sub-tasks ▼
+                        </button>`
+                      : ''
+                  }
+                  <a href="/dashboard/request/${req.request_id}" class="text-sm text-blue-600">
+                    View details →
+                  </a>
+                </div>
               </div>
-              <a href="/dashboard/request/${req.request_id}" class="text-sm text-blue-600">
-                View details →
-              </a>
+              ${
+                hasTaskInvocation
+                  ? `<div id="subtasks-${req.request_id}" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                      <div class="text-sm text-gray-600" style="margin-bottom: 0.5rem;">Sub-tasks spawned by this request:</div>
+                      ${req.task_tool_invocation
+                        .map(
+                          (task: any) => `
+                          <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #f9fafb; border-radius: 0.25rem;">
+                            <div style="font-size: 0.875rem; color: #4b5563;">
+                              <strong>Task:</strong> ${escapeHtml(task.name || 'Unnamed task')}
+                            </div>
+                            ${task.prompt ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">${escapeHtml(task.prompt.substring(0, 200))}${task.prompt.length > 200 ? '...' : ''}</div>` : ''}
+                            ${
+                              task.linked_conversation_id
+                                ? `
+                              <div style="margin-top: 0.5rem;">
+                                <a href="/dashboard/conversation/${task.linked_conversation_id}" class="text-sm text-blue-600">
+                                  View sub-task conversation →
+                                </a>
+                              </div>
+                            `
+                                : ''
+                            }
+                          </div>
+                        `
+                        )
+                        .join('')}
+                    </div>`
+                  : ''
+              }
             </div>
           </div>
         `
@@ -424,5 +488,14 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
           .join('')
       )}
     </div>
+
+    <script>
+      function toggleSubtasks(requestId) {
+        const subtasksDiv = document.getElementById('subtasks-' + requestId)
+        if (subtasksDiv) {
+          subtasksDiv.style.display = subtasksDiv.style.display === 'none' ? 'block' : 'none'
+        }
+      }
+    </script>
   `
 }

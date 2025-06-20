@@ -292,6 +292,11 @@ export class MetricsService {
         tool_call_count: metrics.toolCallCount,
         processing_time: context.getElapsedTime(),
       })
+
+      // Process Task tool invocations if we have the full response body
+      if (fullResponseBody) {
+        await this.storageService.processTaskToolInvocations(context.requestId, fullResponseBody)
+      }
     } catch (error) {
       logger.error('Failed to store request/response', {
         requestId: context.requestId,
