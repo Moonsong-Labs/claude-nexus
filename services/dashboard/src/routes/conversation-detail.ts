@@ -265,25 +265,10 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       .filter(req => req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0)
       .map(req => req.request_id)
     
-    // Debug logging
-    console.log(`[DEBUG] Conversation ${conversationId}:`)
-    console.log(`- Total requests: ${conversation.requests.length}`)
-    console.log(`- Requests with task invocations: ${requestIdsWithTasks.length}`)
-    console.log(`- Request IDs with tasks:`, requestIdsWithTasks)
-    
-    // Debug first few requests
-    conversation.requests.slice(0, 5).forEach((req, i) => {
-      console.log(`[DEBUG] Request ${i}: ${req.request_id}`)
-      console.log(`  - has task_tool_invocation: ${!!req.task_tool_invocation}`)
-      console.log(`  - is array: ${Array.isArray(req.task_tool_invocation)}`)
-      console.log(`  - length: ${req.task_tool_invocation?.length}`)
-    })
-    
     if (requestIdsWithTasks.length > 0) {
       // Count actual sub-tasks linked to these requests
       totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsWithTasks)
       requestsWithSubtasks = requestIdsWithTasks.length
-      console.log(`- Total sub-tasks found: ${totalSubtasksSpawned}`)
     }
 
     // Calculate stats for selected branch or total
