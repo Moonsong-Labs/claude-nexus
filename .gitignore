@@ -183,6 +183,8 @@ services/**/*.js
 
 # Logs
 *.log
+proxy.log
+dashboard.log
 
 # Credentials (keep the directory but not the files)
 credentials/*.json
@@ -191,6 +193,24 @@ credentials/*.credentials.json
 # Temporary files
 *.tmp
 *.bak
+*.swp
+*~
 
 # Test samples directory
 test-samples/
+
+# Database backups
+*.sql
+claude_nexus_backup_*
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.tsbuildinfo

@@ -23,10 +23,11 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "hono": "^4.6.13",
     "dotenv": "^16.4.7",
-    "pg": "^8.13.1",
+    "elkjs": "^0.10.0",
+    "hono": "^4.6.13",
     "node-cache": "^5.1.2",
+    "pg": "^8.13.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

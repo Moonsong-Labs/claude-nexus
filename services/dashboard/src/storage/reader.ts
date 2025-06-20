@@ -19,6 +19,7 @@ interface ApiRequest {
   current_message_hash?: string
   parent_message_hash?: string
   branch_id?: string
+  message_count?: number
 }
 
 interface RequestDetails {
@@ -54,10 +55,52 @@ interface StorageStats {
  */
 export class StorageReader {
   private cache: NodeCache
+  private readonly SLOW_QUERY_THRESHOLD_MS: number
 
   constructor(private pool: Pool) {
-    // Cache with 15 minute TTL
-    this.cache = new NodeCache({ stdTTL: 900, checkperiod: 120 })
+    // Cache TTL from environment or default to 30 seconds
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+    this.cache = new NodeCache({ stdTTL: cacheTTL, checkperiod: Math.max(10, cacheTTL / 3) })
+
+    // Slow query threshold from environment or default to 5 seconds
+    this.SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS || '5000')
+  }
+
+  /**
+   * Execute a query with performance logging
+   */
+  private async executeQuery<T>(query: string, params: any[], queryName: string): Promise<T[]> {
+    const startTime = Date.now()
+
+    try {
+      const result = await this.pool.query(query, params)
+      const duration = Date.now() - startTime
+
+      if (duration > this.SLOW_QUERY_THRESHOLD_MS) {
+        logger.warn('Slow SQL query detected', {
+          metadata: {
+            queryName,
+            duration_ms: duration,
+            query: query.substring(0, 200) + (query.length > 200 ? '...' : ''),
+            params: params.length > 0 ? `${params.length} params` : 'no params',
+            rowCount: result.rowCount,
+          },
+        })
+      }
+
+      return result.rows
+    } catch (error) {
+      const duration = Date.now() - startTime
+      logger.error('SQL query failed', {
+        metadata: {
+          queryName,
+          duration_ms: duration,
+          error: getErrorMessage(error),
+          query: query.substring(0, 200) + (query.length > 200 ? '...' : ''),
+        },
+      })
+      throw error
+    }
   }
 
   /**
@@ -65,9 +108,14 @@ export class StorageReader {
    */
   async getRequestsByDomain(domain: string, limit: number = 100): Promise<ApiRequest[]> {
     const cacheKey = `requests:${domain}:${limit}`
-    const cached = this.cache.get<ApiRequest[]>(cacheKey)
-    if (cached) {
-      return cached
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+
+    // Only use cache if TTL > 0
+    if (cacheTTL > 0) {
+      const cached = this.cache.get<ApiRequest[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
 
     try {
@@ -81,9 +129,9 @@ export class StorageReader {
            LIMIT $1`
 
       const values = domain ? [domain, limit] : [limit]
-      const result = await this.pool.query(query, values)
+      const rows = await this.executeQuery<any>(query, values, 'getRequestsByDomain')
 
-      const requests = result.rows.map(row => ({
+      const requests = rows.map(row => ({
         request_id: row.request_id,
         domain: row.domain,
         timestamp: row.timestamp,
@@ -101,7 +149,10 @@ export class StorageReader {
         branch_id: row.branch_id,
       }))
 
-      this.cache.set(cacheKey, requests)
+      // Only cache if TTL > 0
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, requests)
+      }
       return requests
     } catch (error) {
       logger.error('Failed to get requests by domain', {
@@ -117,9 +168,14 @@ export class StorageReader {
    */
   async getRequestDetails(requestId: string): Promise<RequestDetails> {
     const cacheKey = `details:${requestId}`
-    const cached = this.cache.get<RequestDetails>(cacheKey)
-    if (cached) {
-      return cached
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+
+    // Only use cache if TTL > 0
+    if (cacheTTL > 0) {
+      const cached = this.cache.get<RequestDetails>(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
 
     try {
@@ -132,13 +188,17 @@ export class StorageReader {
         FROM api_requests 
         WHERE request_id = $1
       `
-      const requestResult = await this.pool.query(requestQuery, [requestId])
+      const requestRows = await this.executeQuery<any>(
+        requestQuery,
+        [requestId],
+        'getRequestDetails-request'
+      )
 
-      if (requestResult.rows.length === 0) {
+      if (requestRows.length === 0) {
         return { request: null, request_body: null, response_body: null, chunks: [] }
       }
 
-      const row = requestResult.rows[0]
+      const row = requestRows[0]
       const request: ApiRequest = {
         request_id: row.request_id,
         domain: row.domain,
@@ -160,16 +220,23 @@ export class StorageReader {
         WHERE request_id = $1 
         ORDER BY chunk_index
       `
-      const chunksResult = await this.pool.query(chunksQuery, [requestId])
+      const chunksRows = await this.executeQuery<any>(
+        chunksQuery,
+        [requestId],
+        'getRequestDetails-chunks'
+      )
 
       const details: RequestDetails = {
         request,
         request_body: row.body,
         response_body: row.response_body,
-        chunks: chunksResult.rows,
+        chunks: chunksRows,
       }
 
-      this.cache.set(cacheKey, details)
+      // Only cache if TTL > 0
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, details)
+      }
       return details
     } catch (error) {
       logger.error('Failed to get request details', {
@@ -185,9 +252,14 @@ export class StorageReader {
    */
   async getStats(domain?: string, since?: Date): Promise<StorageStats> {
     const cacheKey = `stats:${domain || 'all'}:${since?.toISOString() || 'all'}`
-    const cached = this.cache.get<StorageStats>(cacheKey)
-    if (cached) {
-      return cached
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+
+    // Only use cache if TTL > 0
+    if (cacheTTL > 0) {
+      const cached = this.cache.get<StorageStats>(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
 
     try {
@@ -221,8 +293,8 @@ export class StorageReader {
         ${whereClause}
       `
 
-      const statsResult = await this.pool.query(query, values)
-      const baseStats = statsResult.rows[0]
+      const statsRows = await this.executeQuery<any>(query, values, 'getStats-base')
+      const baseStats = statsRows[0]
 
       // Get model breakdown
       const modelQuery = `
@@ -231,9 +303,9 @@ export class StorageReader {
         ${whereClause}
         GROUP BY model
       `
-      const modelResult = await this.pool.query(modelQuery, values)
+      const modelRows = await this.executeQuery<any>(modelQuery, values, 'getStats-models')
       const requestsByModel = Object.fromEntries(
-        modelResult.rows.map(row => [row.model, parseInt(row.count)])
+        modelRows.map(row => [row.model, parseInt(row.count)])
       )
 
       // Get request type breakdown
@@ -244,9 +316,9 @@ export class StorageReader {
         AND request_type IS NOT NULL
         GROUP BY request_type
       `
-      const typeResult = await this.pool.query(typeQuery, values)
+      const typeRows = await this.executeQuery<any>(typeQuery, values, 'getStats-types')
       const requestsByType = Object.fromEntries(
-        typeResult.rows.map(row => [row.request_type, parseInt(row.count)])
+        typeRows.map(row => [row.request_type, parseInt(row.count)])
       )
 
       const stats: StorageStats = {
@@ -262,7 +334,10 @@ export class StorageReader {
         requests_by_type: requestsByType,
       }
 
-      this.cache.set(cacheKey, stats)
+      // Only cache if TTL > 0
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, stats)
+      }
       return stats
     } catch (error) {
       logger.error('Failed to get storage stats', {
@@ -291,9 +366,14 @@ export class StorageReader {
     }[]
   > {
     const cacheKey = `conversations:${domain || 'all'}:${limit}`
-    const cached = this.cache.get<any[]>(cacheKey)
-    if (cached) {
-      return cached
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+
+    // Only use cache if TTL > 0
+    if (cacheTTL > 0) {
+      const cached = this.cache.get<any[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
 
     try {
@@ -301,7 +381,8 @@ export class StorageReader {
       const conversationQuery = domain
         ? `SELECT 
              conversation_id,
-             COUNT(*) as message_count,
+             COUNT(*) as request_count,
+             MAX(message_count) as message_count,
              MIN(timestamp) as first_message,
              MAX(timestamp) as last_message,
              SUM(total_tokens) as total_tokens,
@@ -313,7 +394,8 @@ export class StorageReader {
            LIMIT $2`
         : `SELECT 
              conversation_id,
-             COUNT(*) as message_count,
+             COUNT(*) as request_count,
+             MAX(message_count) as message_count,
              MIN(timestamp) as first_message,
              MAX(timestamp) as last_message,
              SUM(total_tokens) as total_tokens,
@@ -325,28 +407,46 @@ export class StorageReader {
            LIMIT $1`
 
       const conversationValues = domain ? [domain, limit] : [limit]
-      const conversationResult = await this.pool.query(conversationQuery, conversationValues)
+      const conversationRows = await this.executeQuery<any>(
+        conversationQuery,
+        conversationValues,
+        'getConversations-conversations'
+      )
 
       // Now get all requests for these conversations
-      const conversationIds = conversationResult.rows.map(row => row.conversation_id)
+      const conversationIds = conversationRows.map(row => row.conversation_id)
       if (conversationIds.length === 0) {
         return []
       }
 
       const requestsQuery = domain
-        ? `SELECT * FROM api_requests 
+        ? `SELECT 
+             request_id, domain, timestamp, model, 
+             input_tokens, output_tokens, total_tokens, duration_ms,
+             error, request_type, tool_call_count, conversation_id,
+             current_message_hash, parent_message_hash, branch_id, message_count
+           FROM api_requests 
            WHERE domain = $1 AND conversation_id = ANY($2::uuid[])
            ORDER BY conversation_id, timestamp ASC`
-        : `SELECT * FROM api_requests 
+        : `SELECT 
+             request_id, domain, timestamp, model, 
+             input_tokens, output_tokens, total_tokens, duration_ms,
+             error, request_type, tool_call_count, conversation_id,
+             current_message_hash, parent_message_hash, branch_id, message_count
+           FROM api_requests 
            WHERE conversation_id = ANY($1::uuid[])
            ORDER BY conversation_id, timestamp ASC`
 
       const requestsValues = domain ? [domain, conversationIds] : [conversationIds]
-      const requestsResult = await this.pool.query(requestsQuery, requestsValues)
+      const requestsRows = await this.executeQuery<any>(
+        requestsQuery,
+        requestsValues,
+        'getConversations-requests'
+      )
 
       // Group requests by conversation
       const requestsByConversation: Record<string, ApiRequest[]> = {}
-      requestsResult.rows.forEach(row => {
+      requestsRows.forEach(row => {
         const request: ApiRequest = {
           request_id: row.request_id,
           domain: row.domain,
@@ -363,6 +463,7 @@ export class StorageReader {
           current_message_hash: row.current_message_hash,
           parent_message_hash: row.parent_message_hash,
           branch_id: row.branch_id,
+          message_count: row.message_count || 0,
         }
 
         if (!requestsByConversation[row.conversation_id]) {
@@ -372,7 +473,7 @@ export class StorageReader {
       })
 
       // Combine conversation metadata with requests
-      const conversations = conversationResult.rows.map(row => ({
+      const conversations = conversationRows.map(row => ({
         conversation_id: row.conversation_id,
         message_count: parseInt(row.message_count),
         first_message: new Date(row.first_message),
@@ -382,10 +483,156 @@ export class StorageReader {
         requests: requestsByConversation[row.conversation_id] || [],
       }))
 
-      this.cache.set(cacheKey, conversations)
+      // Only cache if TTL > 0
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, conversations)
+      }
       return conversations
     } catch (error) {
       logger.error('Failed to get conversations', {
+        domain,
+        error: getErrorMessage(error),
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Get conversation summaries without fetching all requests
+   * More efficient for displaying conversation lists
+   */
+  async getConversationSummaries(domain?: string, limit: number = 100): Promise<any[]> {
+    const cacheKey = `conversation-summaries:${domain || 'all'}:${limit}`
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+
+    // Only use cache if TTL > 0
+    if (cacheTTL > 0) {
+      const cached = this.cache.get<any[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
+    }
+
+    try {
+      // Get conversation summaries with branch information
+      const query = domain
+        ? `WITH conversation_summary AS (
+             SELECT 
+               conversation_id,
+               domain,
+               MIN(timestamp) as started_at,
+               MAX(timestamp) as last_message_at,
+               COUNT(*) as request_count,
+               MAX(message_count) as total_messages,
+               SUM(total_tokens) as total_tokens,
+               COUNT(DISTINCT branch_id) as branch_count,
+               array_agg(DISTINCT model) as models_used
+             FROM api_requests
+             WHERE domain = $1 AND conversation_id IS NOT NULL
+             GROUP BY conversation_id, domain
+           ),
+           conversation_branches AS (
+             SELECT 
+               conversation_id,
+               jsonb_agg(
+                 jsonb_build_object(
+                   'branch_id', branch_id,
+                   'message_count', message_count,
+                   'branch_tokens', branch_tokens,
+                   'branch_start', branch_start,
+                   'branch_end', branch_end,
+                   'latest_request_id', latest_request_id
+                 ) ORDER BY branch_start
+               ) as branches
+             FROM (
+               SELECT 
+                 conversation_id,
+                 branch_id,
+                 MIN(timestamp) as branch_start,
+                 MAX(timestamp) as branch_end,
+                 MAX(message_count) as message_count,
+                 SUM(total_tokens) as branch_tokens,
+                 (SELECT request_id FROM api_requests r2 
+                  WHERE r2.conversation_id = api_requests.conversation_id 
+                  AND r2.branch_id = api_requests.branch_id 
+                  ORDER BY r2.timestamp DESC LIMIT 1) as latest_request_id
+               FROM api_requests
+               WHERE domain = $1 AND conversation_id IS NOT NULL
+               GROUP BY conversation_id, branch_id
+             ) b
+             GROUP BY conversation_id
+           )
+           SELECT 
+             cs.*,
+             cb.branches
+           FROM conversation_summary cs
+           LEFT JOIN conversation_branches cb ON cs.conversation_id = cb.conversation_id
+           ORDER BY cs.last_message_at DESC
+           LIMIT $2`
+        : `WITH conversation_summary AS (
+             SELECT 
+               conversation_id,
+               domain,
+               MIN(timestamp) as started_at,
+               MAX(timestamp) as last_message_at,
+               COUNT(*) as request_count,
+               MAX(message_count) as total_messages,
+               SUM(total_tokens) as total_tokens,
+               COUNT(DISTINCT branch_id) as branch_count,
+               array_agg(DISTINCT model) as models_used
+             FROM api_requests
+             WHERE conversation_id IS NOT NULL
+             GROUP BY conversation_id, domain
+           ),
+           conversation_branches AS (
+             SELECT 
+               conversation_id,
+               jsonb_agg(
+                 jsonb_build_object(
+                   'branch_id', branch_id,
+                   'message_count', message_count,
+                   'branch_tokens', branch_tokens,
+                   'branch_start', branch_start,
+                   'branch_end', branch_end,
+                   'latest_request_id', latest_request_id
+                 ) ORDER BY branch_start
+               ) as branches
+             FROM (
+               SELECT 
+                 conversation_id,
+                 branch_id,
+                 MIN(timestamp) as branch_start,
+                 MAX(timestamp) as branch_end,
+                 MAX(message_count) as message_count,
+                 SUM(total_tokens) as branch_tokens,
+                 (SELECT request_id FROM api_requests r2 
+                  WHERE r2.conversation_id = api_requests.conversation_id 
+                  AND r2.branch_id = api_requests.branch_id 
+                  ORDER BY r2.timestamp DESC LIMIT 1) as latest_request_id
+               FROM api_requests
+               WHERE conversation_id IS NOT NULL
+               GROUP BY conversation_id, branch_id
+             ) b
+             GROUP BY conversation_id
+           )
+           SELECT 
+             cs.*,
+             cb.branches
+           FROM conversation_summary cs
+           LEFT JOIN conversation_branches cb ON cs.conversation_id = cb.conversation_id
+           ORDER BY cs.last_message_at DESC
+           LIMIT $1`
+
+      const values = domain ? [domain, limit] : [limit]
+      const rows = await this.executeQuery<any>(query, values, 'getConversationSummaries')
+
+      // Only cache if TTL > 0
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, rows)
+      }
+      return rows
+    } catch (error) {
+      logger.error('Failed to get conversation summaries', {
         domain,
         error: getErrorMessage(error),
       })

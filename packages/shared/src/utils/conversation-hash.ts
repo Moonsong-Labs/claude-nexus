@@ -76,6 +76,36 @@ export function hashConversationState(messages: ClaudeMessage[]): string {
 }
 
 /**
+ * Generates a hash for conversation state including system prompt
+ * @param messages - Array of messages
+ * @param system - Optional system prompt (string or array of content blocks)
+ * @returns A hash representing the full conversation state including system
+ */
+export function hashConversationStateWithSystem(
+  messages: ClaudeMessage[],
+  system?: string | any[]
+): string {
+  if (!messages || messages.length === 0) {
+    return ''
+  }
+
+  let conversationString = ''
+
+  // Include system prompt in the hash if present
+  if (system) {
+    const systemContent = typeof system === 'string' ? system : normalizeMessageContent(system)
+    conversationString = `[SYSTEM]${systemContent}||`
+  }
+
+  // Add all messages
+  conversationString += messages
+    .map((msg, index) => `[${index}]${msg.role}:${normalizeMessageContent(msg.content)}`)
+    .join('||')
+
+  return createHash('sha256').update(conversationString, 'utf8').digest('hex')
+}
+
+/**
  * Extracts the current and parent conversation state hashes
  *
  * For Claude conversations, we need to handle the pattern where:
@@ -87,9 +117,13 @@ export function hashConversationState(messages: ClaudeMessage[]): string {
  * a prefix of our current messages (excluding the last 2 messages - the latest exchange)
  *
  * @param messages - Array of messages from the request
+ * @param system - Optional system prompt (string or array of content blocks)
  * @returns Object containing current state hash and parent state hash
  */
-export function extractMessageHashes(messages: ClaudeMessage[]): {
+export function extractMessageHashes(
+  messages: ClaudeMessage[],
+  system?: string | any[]
+): {
   currentMessageHash: string
   parentMessageHash: string | null
 } {
@@ -97,8 +131,8 @@ export function extractMessageHashes(messages: ClaudeMessage[]): {
     throw new Error('Cannot extract hashes from empty messages array')
   }
 
-  // Current hash is the hash of the entire conversation state
-  const currentMessageHash = hashConversationState(messages)
+  // Current hash is the hash of the entire conversation state including system
+  const currentMessageHash = hashConversationStateWithSystem(messages, system)
 
   // For parent hash, we need to find the previous request state
   // If we have 3+ messages, the parent likely had all messages except the last 2 (user + assistant)
@@ -111,12 +145,12 @@ export function extractMessageHashes(messages: ClaudeMessage[]): {
   } else if (messages.length === 2) {
     // This shouldn't happen in normal Claude conversations (should be user -> assistant -> user)
     // But handle it anyway - parent would be first message only
-    parentMessageHash = hashConversationState(messages.slice(0, 1))
+    parentMessageHash = hashConversationStateWithSystem(messages.slice(0, 1), system)
   } else {
     // Normal case: we have at least 3 messages
     // The parent request would have had all messages except the last 2
     // (removing the most recent user message and the assistant response before it)
-    parentMessageHash = hashConversationState(messages.slice(0, -2))
+    parentMessageHash = hashConversationStateWithSystem(messages.slice(0, -2), system)
   }
 
   return { currentMessageHash, parentMessageHash }

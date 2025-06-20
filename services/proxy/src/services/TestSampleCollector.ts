@@ -19,25 +19,38 @@ interface TestSample {
     modelUsed: string
     messageCount: number
   }
+  response?: {
+    status: number
+    headers: Record<string, string>
+    body: any
+    metadata?: {
+      inputTokens?: number
+      outputTokens?: number
+      toolCalls?: number
+      streamingChunks?: any[]
+    }
+  }
 }
 
 export class TestSampleCollector {
   private readonly samplesDir: string
   private readonly enabled: boolean
+  private readonly pendingSamples: Map<string, { sample: TestSample; filename: string }>
 
   constructor() {
     // Use a dedicated directory for test samples
     this.samplesDir = path.join(process.cwd(), config.features.testSamplesDir || 'test-samples')
     this.enabled = config.features.collectTestSamples || false
+    this.pendingSamples = new Map()
   }
 
   async collectSample(
     context: Context,
     validatedBody: ClaudeMessagesRequest,
     requestType: 'query_evaluation' | 'inference' | 'quota'
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     if (!this.enabled) {
-      return
+      return undefined
     }
 
     const logger = getRequestLogger(context)
@@ -58,7 +71,7 @@ export class TestSampleCollector {
         method: context.req.method,
         path: context.req.path,
         headers,
-        body: this.sanitizeBody(validatedBody),
+        body: JSON.parse(JSON.stringify(validatedBody)),
         queryParams: this.extractQueryParams(context),
         metadata: {
           requestType,
@@ -69,16 +82,93 @@ export class TestSampleCollector {
         },
       }
 
-      // Save to file
-      const filename = `${sampleType}.json`
-      const filepath = path.join(this.samplesDir, filename)
+      // Generate a unique sample ID
+      const sampleId = `${sampleType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const filename = `${sampleId}.json`
 
-      await fs.writeFile(filepath, JSON.stringify(sample, null, 2), 'utf-8')
+      // Store the sample temporarily
+      this.pendingSamples.set(sampleId, { sample, filename })
 
-      logger.debug(`Test sample collected: ${filename}`)
+      logger.debug(`Test sample prepared: ${filename}`)
+      
+      return sampleId
     } catch (error) {
       logger.error('Failed to collect test sample', error instanceof Error ? error : undefined)
+      return undefined
     }
+  }
+
+  async updateSampleWithResponse(
+    sampleId: string,
+    response: Response,
+    responseBody: any,
+    metadata?: {
+      inputTokens?: number
+      outputTokens?: number
+      toolCalls?: number
+      streamingChunks?: any[]
+    }
+  ): Promise<void> {
+    if (!this.enabled || !sampleId) {
+      return
+    }
+
+    const pendingSample = this.pendingSamples.get(sampleId)
+    if (!pendingSample) {
+      return
+    }
+
+    try {
+      // Extract response headers
+      const responseHeaders: Record<string, string> = {}
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value
+      })
+
+      // Add response data to the sample
+      pendingSample.sample.response = {
+        status: response.status,
+        headers: this.sanitizeHeaders(response.headers),
+        body: this.sanitizeResponseBody(responseBody),
+        metadata,
+      }
+
+      // Write the complete sample to file
+      const filepath = path.join(this.samplesDir, pendingSample.filename)
+      await fs.writeFile(filepath, JSON.stringify(pendingSample.sample, null, 2), 'utf-8')
+
+      // Clean up from pending samples
+      this.pendingSamples.delete(sampleId)
+
+      const logger = {
+        debug: (message: string) => console.log(`[DEBUG] ${message}`),
+      }
+      logger.debug(`Test sample completed with response: ${pendingSample.filename}`)
+    } catch (error) {
+      console.error('Failed to update test sample with response', error)
+    }
+  }
+
+  private sanitizeResponseBody(body: any): any {
+    if (!body) return body
+
+    // Create a deep copy
+    const sanitized = JSON.parse(JSON.stringify(body))
+
+    // Sanitize content in the response
+    if (sanitized.content && Array.isArray(sanitized.content)) {
+      sanitized.content = sanitized.content.map((block: any) => {
+        if (block.type === 'text' && typeof block.text === 'string') {
+          return {
+            ...block,
+            text: this.removeSensitiveContent(block.text),
+          }
+        }
+        return block
+      })
+    }
+
+    return sanitized
   }
 
   private determineSampleType(body: ClaudeMessagesRequest, requestType: string): string {
@@ -148,6 +238,8 @@ export class TestSampleCollector {
         // Mask sensitive headers
         sanitized[key] = this.maskSensitiveValue(value)
       }
+      // TODO: remove this line
+      sanitized[key] = value
     })
 
     return sanitized

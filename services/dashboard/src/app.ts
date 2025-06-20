@@ -5,6 +5,7 @@ import { container } from './container.js'
 import { loggingMiddleware, logger } from './middleware/logger.js'
 // Use the new API-based dashboard routes
 import { dashboardRoutes } from './routes/dashboard-api.js'
+import { conversationDetailRoutes } from './routes/conversation-detail.js'
 import { dashboardAuth } from './middleware/auth.js'
 import { getErrorMessage, hasStatusCode } from '@claude-nexus/shared'
 
@@ -154,6 +155,7 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
 
   // Mount dashboard routes at /dashboard
   app.route('/dashboard', dashboardRoutes)
+  app.route('/dashboard', conversationDetailRoutes)
 
   // Root redirect to dashboard
   app.get('/', c => {

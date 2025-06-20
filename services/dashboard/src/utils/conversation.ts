@@ -1,5 +1,6 @@
 import { marked } from 'marked'
 import sanitizeHtml from 'sanitize-html'
+import { formatDuration as formatDurationUtil } from './formatters.js'
 
 export interface ParsedMessage {
   role: 'user' | 'assistant' | 'system'
@@ -76,9 +77,11 @@ export async function parseConversation(requestData: any): Promise<ConversationD
   }
 
   // Parse assistant response
-  if (response.content && Array.isArray(response.content)) {
-    // Process tool usage for assistant response
-    processMessageContentForTools(response.content)
+  if (response.content) {
+    // Process tool usage for assistant response if content is an array
+    if (Array.isArray(response.content)) {
+      processMessageContentForTools(response.content)
+    }
     // Assistant response gets the actual timestamp
     const parsedMsg = await parseMessage(
       {
@@ -87,6 +90,10 @@ export async function parseConversation(requestData: any): Promise<ConversationD
       },
       timestamp
     )
+    messages.push(parsedMsg)
+  } else if (response.type === 'message' && response.role === 'assistant') {
+    // Handle case where response is already in message format
+    const parsedMsg = await parseMessage(response, timestamp)
     messages.push(parsedMsg)
   }
 
@@ -282,22 +289,8 @@ export function calculateCost(
   }
 }
 
-// Format duration for display
-export function formatDuration(ms?: number): string {
-  if (!ms) {
-    return 'N/A'
-  }
-
-  if (ms < 1000) {
-    return `${ms}ms`
-  } else if (ms < 60000) {
-    return `${(ms / 1000).toFixed(2)}s`
-  } else {
-    const minutes = Math.floor(ms / 60000)
-    const seconds = ((ms % 60000) / 1000).toFixed(0)
-    return `${minutes}m ${seconds}s`
-  }
-}
+// Re-export formatDuration from formatters for backward compatibility
+export const formatDuration = formatDurationUtil
 
 // Format timestamp for display
 export function formatMessageTime(date?: Date): string {
