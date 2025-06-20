@@ -6,7 +6,6 @@ import { getErrorMessage } from '@claude-nexus/shared'
 import { parseConversation, calculateCost, formatMessageTime } from '../utils/conversation.js'
 import { getBranchColor } from '../utils/conversation-graph.js'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
-import type { ConversationRequest, ConversationSummary } from '../types/conversation.js'
 
 export const dashboardRoutes = new Hono<{
   Variables: {

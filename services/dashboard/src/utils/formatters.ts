@@ -64,7 +64,9 @@ export function formatTimestamp(date: Date | string): string {
  * Escape HTML to prevent XSS
  */
 export function escapeHtml(text: string): string {
-  if (!text) return ''
+  if (!text) {
+    return ''
+  }
 
   return text
     .replace(/&/g, '&amp;')

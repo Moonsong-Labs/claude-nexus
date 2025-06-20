@@ -8,7 +8,7 @@ import {
   getBranchColor,
 } from '../utils/conversation-graph.js'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
-import type { ConversationRequest, ConversationSummary } from '../types/conversation.js'
+import type { ConversationRequest } from '../types/conversation.js'
 
 export const conversationDetailRoutes = new Hono()
 
@@ -83,7 +83,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     }
 
     // Build edges from parent relationships with branch awareness
-    conversation.requests.forEach((req, index) => {
+    conversation.requests.forEach(req => {
       if (req.parent_message_hash) {
         // Find the parent request
         // When multiple requests have the same message hash, prefer:
