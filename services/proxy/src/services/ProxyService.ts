@@ -63,8 +63,9 @@ export class ProxyService {
     const response = new ProxyResponse(context.requestId, request.isStreaming)
 
     // Collect test sample if enabled
+    let sampleId: string | undefined
     if (context.honoContext) {
-      await testSampleCollector.collectSample(context.honoContext, rawRequest, request.requestType)
+      sampleId = await testSampleCollector.collectSample(context.honoContext, rawRequest, request.requestType)
     }
 
     // Extract conversation data if storage is enabled
@@ -132,7 +133,8 @@ export class ProxyService {
           response,
           context,
           auth,
-          conversationData
+          conversationData,
+          sampleId
         )
       } else {
         finalResponse = await this.handleNonStreamingResponse(
@@ -140,7 +142,8 @@ export class ProxyService {
           request,
           response,
           context,
-          auth
+          auth,
+          sampleId
         )
       }
 
@@ -190,7 +193,8 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    _auth: any
+    _auth: any,
+    sampleId?: string
   ): Promise<Response> {
     const log = {
       debug: (message: string, metadata?: Record<string, any>) => {
@@ -227,6 +231,20 @@ export class ProxyService {
       toolCalls: response.toolCallCount,
     })
 
+    // Update test sample with response if enabled
+    if (sampleId) {
+      await testSampleCollector.updateSampleWithResponse(
+        sampleId,
+        claudeResponse,
+        jsonResponse,
+        {
+          inputTokens: response.inputTokens,
+          outputTokens: response.outputTokens,
+          toolCalls: response.toolCallCount,
+        }
+      )
+    }
+
     // Return the response
     return new Response(JSON.stringify(jsonResponse), {
       status: claudeResponse.status,
@@ -250,7 +268,8 @@ export class ProxyService {
       currentMessageHash: string
       parentMessageHash: string | null
       conversationId: string
-    }
+    },
+    sampleId?: string
   ): Promise<Response> {
     const log = {
       debug: (message: string, metadata?: Record<string, any>) => {
@@ -290,7 +309,8 @@ export class ProxyService {
       context,
       request,
       auth,
-      conversationData
+      conversationData,
+      sampleId
     ).catch(async error => {
       log.error(
         'Stream processing error',
@@ -342,7 +362,8 @@ export class ProxyService {
       currentMessageHash: string
       parentMessageHash: string | null
       conversationId: string
-    }
+    },
+    sampleId?: string
   ): Promise<void> {
     const log = {
       debug: (message: string, metadata?: Record<string, any>) => {
@@ -372,10 +393,29 @@ export class ProxyService {
 
     try {
       const encoder = new TextEncoder()
+      const streamingChunks: any[] = []
 
       // Process each chunk
       for await (const chunk of this.apiClient.processStreamingResponse(claudeResponse, response)) {
         await writer.write(encoder.encode(chunk))
+        
+        // Collect chunks for test sample if enabled
+        if (sampleId) {
+          try {
+            // Parse SSE data
+            const lines = chunk.split('\n')
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.substring(6)
+                if (data !== '[DONE]' && data.trim()) {
+                  streamingChunks.push(JSON.parse(data))
+                }
+              }
+            }
+          } catch (parseError) {
+            // Ignore parsing errors for test collection
+          }
+        }
       }
 
       // Stream completed - now track metrics and send notifications
@@ -384,6 +424,24 @@ export class ProxyService {
         outputTokens: response.outputTokens,
         toolCalls: response.toolCallCount,
       })
+
+      // Update test sample with streaming response if enabled
+      if (sampleId) {
+        // Reconstruct the full response from chunks
+        const fullResponse = this.reconstructResponseFromChunks(streamingChunks)
+        
+        await testSampleCollector.updateSampleWithResponse(
+          sampleId,
+          claudeResponse,
+          fullResponse,
+          {
+            inputTokens: response.inputTokens,
+            outputTokens: response.outputTokens,
+            toolCalls: response.toolCallCount,
+            streamingChunks: streamingChunks,
+          }
+        )
+      }
 
       // Track metrics after streaming completes
       await this.metricsService.trackRequest(
@@ -426,5 +484,101 @@ export class ProxyService {
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key',
     }
+  }
+
+  /**
+   * Reconstruct a full response object from streaming chunks
+   */
+  private reconstructResponseFromChunks(chunks: any[]): any {
+    const response: any = {
+      id: '',
+      type: 'message',
+      role: 'assistant',
+      content: [],
+      model: '',
+      stop_reason: null,
+      stop_sequence: null,
+      usage: {},
+    }
+
+    let currentTextContent = ''
+    let currentToolUse: any = null
+
+    for (const chunk of chunks) {
+      if (chunk.type === 'message_start' && chunk.message) {
+        response.id = chunk.message.id
+        response.model = chunk.message.model
+        response.role = chunk.message.role
+        response.usage = chunk.message.usage || {}
+      }
+
+      if (chunk.type === 'content_block_start') {
+        if (chunk.content_block.type === 'text') {
+          // Start collecting text
+          currentTextContent = chunk.content_block.text || ''
+        } else if (chunk.content_block.type === 'tool_use') {
+          currentToolUse = {
+            type: 'tool_use',
+            id: chunk.content_block.id,
+            name: chunk.content_block.name,
+            input: {},
+          }
+        }
+      }
+
+      if (chunk.type === 'content_block_delta') {
+        if (chunk.delta.type === 'text_delta') {
+          currentTextContent += chunk.delta.text
+        } else if (chunk.delta.type === 'input_json_delta' && currentToolUse) {
+          // Accumulate tool input (simplified - real implementation would need proper JSON parsing)
+          if (!currentToolUse.input._raw) {
+            currentToolUse.input._raw = ''
+          }
+          currentToolUse.input._raw += chunk.delta.partial_json
+        }
+      }
+
+      if (chunk.type === 'content_block_stop') {
+        if (currentTextContent) {
+          response.content.push({
+            type: 'text',
+            text: currentTextContent,
+          })
+          currentTextContent = ''
+        } else if (currentToolUse) {
+          // Try to parse the accumulated JSON
+          try {
+            if (currentToolUse.input._raw) {
+              currentToolUse.input = JSON.parse(currentToolUse.input._raw)
+            }
+          } catch {
+            // Keep the raw input if parsing fails
+          }
+          response.content.push(currentToolUse)
+          currentToolUse = null
+        }
+      }
+
+      if (chunk.type === 'message_delta') {
+        if (chunk.delta.stop_reason) {
+          response.stop_reason = chunk.delta.stop_reason
+        }
+        if (chunk.delta.stop_sequence) {
+          response.stop_sequence = chunk.delta.stop_sequence
+        }
+        if (chunk.usage) {
+          response.usage = { ...response.usage, ...chunk.usage }
+        }
+      }
+
+      if (chunk.type === 'message_stop') {
+        // Final usage update
+        if (chunk.amazon_bedrock_invocationMetrics) {
+          response.amazon_bedrock_invocationMetrics = chunk.amazon_bedrock_invocationMetrics
+        }
+      }
+    }
+
+    return response
   }
 }
