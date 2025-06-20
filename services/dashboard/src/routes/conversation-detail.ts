@@ -105,6 +105,11 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         const hasSubtasks = enrichedInvocations && enrichedInvocations.length > 0
         const subtaskCount = enrichedInvocations?.length || 0
         
+        // Also check raw task_tool_invocation if not in subtasksMap
+        const hasTaskInvocation = req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0
+        const finalHasSubtasks = hasSubtasks || hasTaskInvocation
+        const finalSubtaskCount = subtaskCount || (hasTaskInvocation ? req.task_tool_invocation.length : 0)
+        
         return {
           id: req.request_id,
           label: `${req.model}`,
@@ -121,8 +126,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           messageCount: details.messageCount,
           messageTypes: details.messageTypes,
           isSubtask: req.is_subtask,
-          hasSubtasks: hasSubtasks,
-          subtaskCount: subtaskCount,
+          hasSubtasks: finalHasSubtasks,
+          subtaskCount: finalSubtaskCount,
         }
       }),
       edges: [],
