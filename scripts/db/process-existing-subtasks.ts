@@ -79,11 +79,16 @@ async function processExistingSubtasks() {
             parent_task_request_id = $1,
             is_subtask = true
           WHERE conversation_id IN (
-            SELECT DISTINCT conversation_id
-            FROM api_requests
-            WHERE body->'messages'->0->>'content' = $2
-              OR body->'messages'->0->'content'->0->>'text' = $2
-              OR body->'messages'->0->'content'->1->>'text' = $2
+            SELECT DISTINCT ar.conversation_id
+            FROM api_requests ar
+            WHERE ar.timestamp = (
+              SELECT MIN(timestamp) FROM api_requests WHERE conversation_id = ar.conversation_id
+            )
+            AND (
+              ar.body->'messages'->0->>'content' = $2
+              OR ar.body->'messages'->0->'content'->0->>'text' = $2
+              OR ar.body->'messages'->0->'content'->1->>'text' = $2
+            )
           )
           AND parent_task_request_id IS NULL
           RETURNING conversation_id
