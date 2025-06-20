@@ -48,21 +48,23 @@ async function processExistingSubtasks() {
 
       if (taskInvocations.length === 0) continue
 
-      console.log(`\n📋 Processing request ${request_id} with ${taskInvocations.length} Task invocations`)
+      console.log(
+        `\n📋 Processing request ${request_id} with ${taskInvocations.length} Task invocations`
+      )
 
       // Extract task details
       const taskDetails = taskInvocations.map((task: any) => ({
         id: task.id,
         name: task.name || 'Task',
         prompt: task.input?.prompt || '',
-        description: task.input?.description || ''
+        description: task.input?.description || '',
       }))
 
       // Update the request with task_tool_invocation
-      await pool.query(
-        'UPDATE api_requests SET task_tool_invocation = $1 WHERE request_id = $2',
-        [JSON.stringify(taskDetails), request_id]
-      )
+      await pool.query('UPDATE api_requests SET task_tool_invocation = $1 WHERE request_id = $2', [
+        JSON.stringify(taskDetails),
+        request_id,
+      ])
       processedCount++
 
       // Try to link sub-task conversations
@@ -94,18 +96,21 @@ async function processExistingSubtasks() {
           RETURNING conversation_id
         `
 
-        const { rows: linkedConversations } = await pool.query(linkQuery, [request_id, normalizedPrompt])
-        
+        const { rows: linkedConversations } = await pool.query(linkQuery, [
+          request_id,
+          normalizedPrompt,
+        ])
+
         if (linkedConversations.length > 0) {
           console.log(`  ✅ Linked ${linkedConversations.length} sub-task conversations`)
           linkedCount += linkedConversations.length
 
           // Update the task with linked conversation ID
           const linkedConvId = linkedConversations[0].conversation_id
-          const updatedTasks = taskDetails.map((t: any) => 
+          const updatedTasks = taskDetails.map((t: any) =>
             t.prompt === normalizedPrompt ? { ...t, linked_conversation_id: linkedConvId } : t
           )
-          
+
           await pool.query(
             'UPDATE api_requests SET task_tool_invocation = $1 WHERE request_id = $2',
             [JSON.stringify(updatedTasks), request_id]
@@ -117,7 +122,6 @@ async function processExistingSubtasks() {
     console.log('\n✨ Processing complete!')
     console.log(`   - Processed ${processedCount} requests with Task invocations`)
     console.log(`   - Linked ${linkedCount} sub-task conversations`)
-
   } catch (error) {
     console.error('Error processing sub-tasks:', getErrorMessage(error))
   } finally {

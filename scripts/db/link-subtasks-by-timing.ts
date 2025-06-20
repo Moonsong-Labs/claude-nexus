@@ -54,13 +54,15 @@ async function linkSubtasksByTiming() {
       const { rows: linkedConversations } = await pool.query(linkQuery, [
         taskRequest.request_id,
         taskRequest.timestamp,
-        taskRequest.conversation_id
+        taskRequest.conversation_id,
       ])
 
       if (linkedConversations.length > 0) {
         linkedCount += linkedConversations.length
-        console.log(`  ✅ Linked ${linkedConversations.length} sub-task conversations to ${taskRequest.request_id}`)
-        
+        console.log(
+          `  ✅ Linked ${linkedConversations.length} sub-task conversations to ${taskRequest.request_id}`
+        )
+
         // Update the parent task with the first linked conversation
         const updateParentQuery = `
           UPDATE api_requests
@@ -71,16 +73,15 @@ async function linkSubtasksByTiming() {
           )
           WHERE request_id = $1
         `
-        
+
         await pool.query(updateParentQuery, [
           taskRequest.request_id,
-          JSON.stringify(linkedConversations[0].conversation_id)
+          JSON.stringify(linkedConversations[0].conversation_id),
         ])
       }
     }
 
     console.log(`\n✨ Linked ${linkedCount} sub-task conversations total`)
-
   } catch (error) {
     console.error('Error linking sub-tasks:', getErrorMessage(error))
   } finally {

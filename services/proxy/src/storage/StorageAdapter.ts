@@ -50,11 +50,13 @@ export class StorageAdapter {
       // Generate a UUID for this request and store the mapping
       const uuid = randomUUID()
       this.requestIdMap.set(data.id, uuid)
-      
+
       logger.debug('Stored request ID mapping', {
-        claudeId: data.id,
-        uuid: uuid,
-        mapSize: this.requestIdMap.size
+        metadata: {
+          claudeId: data.id,
+          uuid: uuid,
+          mapSize: this.requestIdMap.size,
+        },
       })
 
       await this.writer.storeRequest({
@@ -195,21 +197,21 @@ export class StorageAdapter {
         requestId,
         metadata: {
           taskCount: taskInvocations.length,
-          tasks: taskInvocations.map(t => ({ id: t.id, name: t.name }))
-        }
+          tasks: taskInvocations.map(t => ({ id: t.id, name: t.name })),
+        },
       })
-      
+
       // Get the UUID for this request
       // First check if requestId is already a UUID
       const uuid = this.isValidUUID(requestId) ? requestId : this.requestIdMap.get(requestId)
-      
+
       if (!uuid) {
         logger.warn('No UUID mapping found for request when processing task invocations', {
           requestId,
           metadata: {
             mapSize: this.requestIdMap.size,
-            isUUID: this.isValidUUID(requestId)
-          }
+            isUUID: this.isValidUUID(requestId),
+          },
         })
         return
       }
@@ -217,10 +219,8 @@ export class StorageAdapter {
       // Mark the request as having task invocations
       await this.writer.markTaskToolInvocations(uuid, taskInvocations)
 
-      // Link sub-task conversations for each task invocation
-      for (const task of taskInvocations) {
-        await this.writer.linkSubtaskConversations(uuid, task.input)
-      }
+      // Task invocations are now tracked in the database
+      // Linking will happen when new conversations are stored
     }
   }
 

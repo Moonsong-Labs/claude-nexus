@@ -80,12 +80,14 @@ async function markTaskInvocations() {
 
       const { rows: linkedConversations } = await pool.query(findSubtasksQuery, [
         request.request_id,
-        request.conversation_id
+        request.conversation_id,
       ])
 
       if (linkedConversations.length > 0) {
-        console.log(`  ✅ Linked ${linkedConversations.length} sub-task conversations to request ${request.request_id}`)
-        
+        console.log(
+          `  ✅ Linked ${linkedConversations.length} sub-task conversations to request ${request.request_id}`
+        )
+
         // Update the parent task with linked conversation IDs
         const updateParentQuery = `
           UPDATE api_requests
@@ -96,16 +98,15 @@ async function markTaskInvocations() {
           )
           WHERE request_id = $1
         `
-        
+
         await pool.query(updateParentQuery, [
           request.request_id,
-          JSON.stringify(linkedConversations[0].conversation_id)
+          JSON.stringify(linkedConversations[0].conversation_id),
         ])
       }
     }
 
     console.log('\n✨ Processing complete!')
-
   } catch (error) {
     console.error('Error processing tasks:', getErrorMessage(error))
   } finally {

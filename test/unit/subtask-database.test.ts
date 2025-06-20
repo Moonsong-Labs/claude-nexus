@@ -5,15 +5,17 @@ import { Pool } from 'pg'
 // Mock pg Pool
 const mockPool = {
   query: mock(() => Promise.resolve({ rows: [] })),
-  connect: mock(() => Promise.resolve({
-    release: mock(() => {}),
-    query: mock(() => Promise.resolve({ rows: [] }))
-  }))
+  connect: mock(() =>
+    Promise.resolve({
+      release: mock(() => {}),
+      query: mock(() => Promise.resolve({ rows: [] })),
+    })
+  ),
 }
 
 describe('Sub-task Database Logic', () => {
   let writer: StorageWriter
-  
+
   beforeEach(() => {
     // Reset mocks
     mockPool.query.mockClear()
@@ -26,13 +28,13 @@ describe('Sub-task Database Logic', () => {
       const timestamp = new Date('2024-01-20T12:00:00Z')
       const expectedResult = {
         request_id: 'parent-uuid-123',
-        timestamp: new Date('2024-01-20T11:59:50Z')
+        timestamp: new Date('2024-01-20T11:59:50Z'),
       }
 
       // Mock the database response
       mockPool.query.mockResolvedValueOnce({
         rows: [expectedResult],
-        rowCount: 1
+        rowCount: 1,
       })
 
       // Call the private method using type assertion
@@ -41,12 +43,12 @@ describe('Sub-task Database Logic', () => {
       // Verify the query
       expect(mockPool.query).toHaveBeenCalledTimes(1)
       const [query, params] = mockPool.query.mock.calls[0]
-      
+
       // Check query structure
       expect(query).toContain('jsonb_path_exists')
       expect(query).toContain('task_tool_invocation')
-      expect(query).toContain('BETWEEN $1 - interval \'60 seconds\' AND $1')
-      
+      expect(query).toContain("BETWEEN $1 - interval '60 seconds' AND $1")
+
       // Check parameters
       expect(params).toHaveLength(2)
       expect(params[0]).toEqual(timestamp)
@@ -63,7 +65,7 @@ describe('Sub-task Database Logic', () => {
       // Mock empty database response
       mockPool.query.mockResolvedValueOnce({
         rows: [],
-        rowCount: 0
+        rowCount: 0,
       })
 
       const result = await (writer as any).findMatchingTaskInvocation(userContent, timestamp)
@@ -89,20 +91,22 @@ describe('Sub-task Database Logic', () => {
     it('should link sub-task when matching parent task exists', async () => {
       const parentTaskId = 'parent-task-uuid'
       const parentTimestamp = new Date('2024-01-20T11:59:50Z')
-      
+
       // First mock: findMatchingTaskInvocation query
       mockPool.query.mockResolvedValueOnce({
-        rows: [{
-          request_id: parentTaskId,
-          timestamp: parentTimestamp
-        }],
-        rowCount: 1
+        rows: [
+          {
+            request_id: parentTaskId,
+            timestamp: parentTimestamp,
+          },
+        ],
+        rowCount: 1,
       })
 
       // Second mock: INSERT query (no branch detection since parentMessageHash is null)
       mockPool.query.mockResolvedValueOnce({
         rows: [],
-        rowCount: 1
+        rowCount: 1,
       })
 
       const request = {
@@ -113,10 +117,12 @@ describe('Sub-task Database Logic', () => {
         path: '/v1/messages',
         headers: {},
         body: {
-          messages: [{
-            role: 'user',
-            content: 'Analyze this test data and provide a summary'
-          }]
+          messages: [
+            {
+              role: 'user',
+              content: 'Analyze this test data and provide a summary',
+            },
+          ],
         },
         apiKey: '',
         model: 'claude-3-opus',
@@ -139,7 +145,7 @@ describe('Sub-task Database Logic', () => {
       // Verify sub-task fields were set
       expect(insertQuery).toContain('parent_task_request_id')
       expect(insertQuery).toContain('is_subtask')
-      
+
       // Check that parent_task_request_id was set (16th value, index 15)
       expect(insertValues[15]).toEqual(parentTaskId)
       // Check that is_subtask was set to true (17th value, index 16)
@@ -150,13 +156,13 @@ describe('Sub-task Database Logic', () => {
       // Mock no matching task found
       mockPool.query.mockResolvedValueOnce({
         rows: [],
-        rowCount: 0
+        rowCount: 0,
       })
 
       // Mock INSERT query
       mockPool.query.mockResolvedValueOnce({
         rows: [],
-        rowCount: 1
+        rowCount: 1,
       })
 
       const request = {
@@ -167,10 +173,12 @@ describe('Sub-task Database Logic', () => {
         path: '/v1/messages',
         headers: {},
         body: {
-          messages: [{
-            role: 'user',
-            content: 'This is a standalone request'
-          }]
+          messages: [
+            {
+              role: 'user',
+              content: 'This is a standalone request',
+            },
+          ],
         },
         apiKey: '',
         model: 'claude-3-opus',
@@ -200,10 +208,12 @@ describe('Sub-task Database Logic', () => {
         path: '/v1/messages',
         headers: {},
         body: {
-          messages: [{
-            role: 'user',
-            content: 'This is a continuation'
-          }]
+          messages: [
+            {
+              role: 'user',
+              content: 'This is a continuation',
+            },
+          ],
         },
         apiKey: '',
         model: 'claude-3-opus',
@@ -216,29 +226,29 @@ describe('Sub-task Database Logic', () => {
       // Mock detectBranch parent query
       mockPool.query.mockResolvedValueOnce({
         rows: [{ branch_id: 'main' }],
-        rowCount: 1
+        rowCount: 1,
       })
-      
+
       // Mock detectBranch children query
       mockPool.query.mockResolvedValueOnce({
         rows: [{ count: '0', existing_branches: [] }],
-        rowCount: 1
+        rowCount: 1,
       })
-      
+
       // Then INSERT query
       mockPool.query.mockResolvedValueOnce({
         rows: [],
-        rowCount: 1
+        rowCount: 1,
       })
 
       await writer.storeRequest(request)
 
       // Three queries: two for detectBranch and one INSERT
       expect(mockPool.query).toHaveBeenCalledTimes(3)
-      
+
       const insertCall = mockPool.query.mock.calls[2]
       const insertValues = insertCall[1]
-      
+
       // Verify defaults were used (indices 15 and 16)
       expect(insertValues[15]).toBeNull() // parent_task_request_id
       expect(insertValues[16]).toBe(false) // is_subtask
@@ -247,11 +257,13 @@ describe('Sub-task Database Logic', () => {
     it('should handle array message content with system reminders', async () => {
       // Mock matching task found
       mockPool.query.mockResolvedValueOnce({
-        rows: [{
-          request_id: 'parent-with-reminder',
-          timestamp: new Date()
-        }],
-        rowCount: 1
+        rows: [
+          {
+            request_id: 'parent-with-reminder',
+            timestamp: new Date(),
+          },
+        ],
+        rowCount: 1,
       })
 
       // No branch detection needed since parentMessageHash is null
@@ -259,7 +271,7 @@ describe('Sub-task Database Logic', () => {
       // Mock INSERT
       mockPool.query.mockResolvedValueOnce({
         rows: [],
-        rowCount: 1
+        rowCount: 1,
       })
 
       const request = {
@@ -270,13 +282,18 @@ describe('Sub-task Database Logic', () => {
         path: '/v1/messages',
         headers: {},
         body: {
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: '<system-reminder>This is a system reminder</system-reminder>' },
-              { type: 'text', text: 'Analyze this test data and provide a summary' }
-            ]
-          }]
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: '<system-reminder>This is a system reminder</system-reminder>',
+                },
+                { type: 'text', text: 'Analyze this test data and provide a summary' },
+              ],
+            },
+          ],
         },
         apiKey: '',
         model: 'claude-3-opus',
@@ -298,24 +315,26 @@ describe('Sub-task Database Logic', () => {
   describe('markTaskToolInvocations', () => {
     it('should update task_tool_invocation field', async () => {
       const requestId = 'request-with-task'
-      const taskInvocations = [{
-        id: 'task-123',
-        name: 'Task',
-        input: {
-          prompt: 'Do something',
-          description: 'Task description'
-        }
-      }]
+      const taskInvocations = [
+        {
+          id: 'task-123',
+          name: 'Task',
+          input: {
+            prompt: 'Do something',
+            description: 'Task description',
+          },
+        },
+      ]
 
       mockPool.query.mockResolvedValueOnce({
         rows: [],
-        rowCount: 1
+        rowCount: 1,
       })
 
       await writer.markTaskToolInvocations(requestId, taskInvocations)
 
       expect(mockPool.query).toHaveBeenCalledTimes(1)
-      
+
       const [query, values] = mockPool.query.mock.calls[0]
       expect(query).toContain('UPDATE api_requests')
       expect(query).toContain('SET task_tool_invocation = $2')

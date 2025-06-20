@@ -41,6 +41,12 @@ async function migrateSubtaskSchema() {
       ON api_requests(is_subtask)
     `)
 
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_requests_task_tool_invocation_gin
+      ON api_requests USING GIN(task_tool_invocation)
+      WHERE task_tool_invocation IS NOT NULL
+    `)
+
     // Add column comments
     console.log('Adding column comments...')
     await pool.query(`

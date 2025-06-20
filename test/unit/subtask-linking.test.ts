@@ -17,21 +17,27 @@ describe('Sub-task Linking', () => {
     if (!DATABASE_URL) {
       throw new Error('DATABASE_URL is required for tests')
     }
-    
+
     pool = new Pool({ connectionString: DATABASE_URL })
     writer = new StorageWriter(pool)
-    
+
     // Generate test IDs
     testRequestId = randomUUID()
     testSubtaskRequestId = randomUUID()
-    
+
     // Clean up any existing test data
-    await pool.query('DELETE FROM api_requests WHERE request_id IN ($1, $2)', [testRequestId, testSubtaskRequestId])
+    await pool.query('DELETE FROM api_requests WHERE request_id IN ($1, $2)', [
+      testRequestId,
+      testSubtaskRequestId,
+    ])
   })
 
   afterEach(async () => {
     // Clean up test data
-    await pool.query('DELETE FROM api_requests WHERE request_id IN ($1, $2)', [testRequestId, testSubtaskRequestId])
+    await pool.query('DELETE FROM api_requests WHERE request_id IN ($1, $2)', [
+      testRequestId,
+      testSubtaskRequestId,
+    ])
     await pool.end()
   })
 
@@ -71,7 +77,7 @@ describe('Sub-task Linking', () => {
       'SELECT task_tool_invocation FROM api_requests WHERE request_id = $1',
       [testRequestId]
     )
-    
+
     expect(rows[0].task_tool_invocation).toBeTruthy()
     expect(rows[0].task_tool_invocation).toHaveLength(1)
     expect(rows[0].task_tool_invocation[0].name).toBe('Task')
@@ -150,7 +156,7 @@ describe('Sub-task Linking', () => {
     const { rows: linkedConversations } = await pool.query(linkQuery, [
       testRequestId,
       mainRequest.rows[0].timestamp,
-      mainRequest.rows[0].conversation_id
+      mainRequest.rows[0].conversation_id,
     ])
 
     // Verify the sub-task was linked
@@ -162,7 +168,7 @@ describe('Sub-task Linking', () => {
       'SELECT parent_task_request_id, is_subtask FROM api_requests WHERE request_id = $1',
       [testSubtaskRequestId]
     )
-    
+
     expect(subtask.rows[0].parent_task_request_id).toBe(testRequestId)
     expect(subtask.rows[0].is_subtask).toBe(true)
   })
@@ -172,7 +178,7 @@ describe('Sub-task Linking', () => {
     const taskInvocation = mainRequestSample.response.body.content.find(
       (c: any) => c.type === 'tool_use' && c.name === 'Task'
     )
-    
+
     expect(taskInvocation).toBeTruthy()
     expect(taskInvocation.input.prompt).toBeTruthy()
 
