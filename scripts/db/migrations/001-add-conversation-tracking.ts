@@ -82,7 +82,13 @@ async function migrateConversationSchema() {
     `)
 
     const foundColumns = columnCheck.rows.map(row => row.column_name)
-    const expectedColumns = ['current_message_hash', 'parent_message_hash', 'conversation_id', 'branch_id', 'message_count']
+    const expectedColumns = [
+      'current_message_hash',
+      'parent_message_hash',
+      'conversation_id',
+      'branch_id',
+      'message_count',
+    ]
     const missingColumns = expectedColumns.filter(col => !foundColumns.includes(col))
 
     if (missingColumns.length > 0) {

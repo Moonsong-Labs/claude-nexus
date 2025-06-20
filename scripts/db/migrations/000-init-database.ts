@@ -54,9 +54,13 @@ async function initDatabase() {
     // Create indexes for api_requests
     console.log('Creating indexes for api_requests...')
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_api_requests_domain ON api_requests(domain)`)
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_api_requests_timestamp ON api_requests(timestamp)`)
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_api_requests_timestamp ON api_requests(timestamp)`
+    )
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_api_requests_model ON api_requests(model)`)
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_api_requests_request_type ON api_requests(request_type)`)
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_api_requests_request_type ON api_requests(request_type)`
+    )
 
     // Create streaming_chunks table
     console.log('Creating streaming_chunks table...')
@@ -74,7 +78,9 @@ async function initDatabase() {
     `)
 
     // Create index for streaming_chunks
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_streaming_chunks_request_id ON streaming_chunks(request_id, chunk_index)`)
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_streaming_chunks_request_id ON streaming_chunks(request_id, chunk_index)`
+    )
 
     // Create materialized view for dashboard stats
     console.log('Creating hourly_stats materialized view...')
@@ -97,7 +103,9 @@ async function initDatabase() {
     `)
 
     // Create index on materialized view
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_hourly_stats_hour_domain ON hourly_stats(hour DESC, domain)`)
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_hourly_stats_hour_domain ON hourly_stats(hour DESC, domain)`
+    )
 
     // Create function to refresh stats
     console.log('Creating refresh_hourly_stats function...')
@@ -112,13 +120,27 @@ async function initDatabase() {
 
     // Add table and column comments
     console.log('Adding table and column comments...')
-    await pool.query(`COMMENT ON TABLE api_requests IS 'Stores all API requests and responses for the Claude proxy'`)
-    await pool.query(`COMMENT ON TABLE streaming_chunks IS 'Stores individual chunks from streaming responses'`)
-    await pool.query(`COMMENT ON MATERIALIZED VIEW hourly_stats IS 'Pre-aggregated hourly statistics for dashboard performance'`)
-    await pool.query(`COMMENT ON COLUMN api_requests.cache_creation_input_tokens IS 'Number of tokens written to cache'`)
-    await pool.query(`COMMENT ON COLUMN api_requests.cache_read_input_tokens IS 'Number of tokens read from cache'`)
-    await pool.query(`COMMENT ON COLUMN api_requests.usage_data IS 'Complete usage object from Claude API response'`)
-    await pool.query(`COMMENT ON COLUMN api_requests.tool_call_count IS 'Number of tool calls in the response'`)
+    await pool.query(
+      `COMMENT ON TABLE api_requests IS 'Stores all API requests and responses for the Claude proxy'`
+    )
+    await pool.query(
+      `COMMENT ON TABLE streaming_chunks IS 'Stores individual chunks from streaming responses'`
+    )
+    await pool.query(
+      `COMMENT ON MATERIALIZED VIEW hourly_stats IS 'Pre-aggregated hourly statistics for dashboard performance'`
+    )
+    await pool.query(
+      `COMMENT ON COLUMN api_requests.cache_creation_input_tokens IS 'Number of tokens written to cache'`
+    )
+    await pool.query(
+      `COMMENT ON COLUMN api_requests.cache_read_input_tokens IS 'Number of tokens read from cache'`
+    )
+    await pool.query(
+      `COMMENT ON COLUMN api_requests.usage_data IS 'Complete usage object from Claude API response'`
+    )
+    await pool.query(
+      `COMMENT ON COLUMN api_requests.tool_call_count IS 'Number of tool calls in the response'`
+    )
 
     // Verify tables exist
     console.log('Verifying database setup...')
@@ -144,7 +166,10 @@ async function initDatabase() {
   } catch (error) {
     // Rollback on error
     await pool.query('ROLLBACK')
-    console.error('Database initialization failed:', error instanceof Error ? error.message : String(error))
+    console.error(
+      'Database initialization failed:',
+      error instanceof Error ? error.message : String(error)
+    )
     process.exit(1)
   } finally {
     await pool.end()

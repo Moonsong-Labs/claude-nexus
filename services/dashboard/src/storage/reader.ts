@@ -61,7 +61,7 @@ export class StorageReader {
     // Cache TTL from environment or default to 30 seconds
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
     this.cache = new NodeCache({ stdTTL: cacheTTL, checkperiod: Math.max(10, cacheTTL / 3) })
-    
+
     // Slow query threshold from environment or default to 5 seconds
     this.SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS || '5000')
   }
@@ -71,11 +71,11 @@ export class StorageReader {
    */
   private async executeQuery<T>(query: string, params: any[], queryName: string): Promise<T[]> {
     const startTime = Date.now()
-    
+
     try {
       const result = await this.pool.query(query, params)
       const duration = Date.now() - startTime
-      
+
       if (duration > this.SLOW_QUERY_THRESHOLD_MS) {
         logger.warn('Slow SQL query detected', {
           metadata: {
@@ -84,10 +84,10 @@ export class StorageReader {
             query: query.substring(0, 200) + (query.length > 200 ? '...' : ''),
             params: params.length > 0 ? `${params.length} params` : 'no params',
             rowCount: result.rowCount,
-          }
+          },
         })
       }
-      
+
       return result.rows
     } catch (error) {
       const duration = Date.now() - startTime
@@ -97,7 +97,7 @@ export class StorageReader {
           duration_ms: duration,
           error: getErrorMessage(error),
           query: query.substring(0, 200) + (query.length > 200 ? '...' : ''),
-        }
+        },
       })
       throw error
     }
@@ -109,7 +109,7 @@ export class StorageReader {
   async getRequestsByDomain(domain: string, limit: number = 100): Promise<ApiRequest[]> {
     const cacheKey = `requests:${domain}:${limit}`
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
-    
+
     // Only use cache if TTL > 0
     if (cacheTTL > 0) {
       const cached = this.cache.get<ApiRequest[]>(cacheKey)
@@ -169,7 +169,7 @@ export class StorageReader {
   async getRequestDetails(requestId: string): Promise<RequestDetails> {
     const cacheKey = `details:${requestId}`
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
-    
+
     // Only use cache if TTL > 0
     if (cacheTTL > 0) {
       const cached = this.cache.get<RequestDetails>(cacheKey)
@@ -188,7 +188,11 @@ export class StorageReader {
         FROM api_requests 
         WHERE request_id = $1
       `
-      const requestRows = await this.executeQuery<any>(requestQuery, [requestId], 'getRequestDetails-request')
+      const requestRows = await this.executeQuery<any>(
+        requestQuery,
+        [requestId],
+        'getRequestDetails-request'
+      )
 
       if (requestRows.length === 0) {
         return { request: null, request_body: null, response_body: null, chunks: [] }
@@ -216,7 +220,11 @@ export class StorageReader {
         WHERE request_id = $1 
         ORDER BY chunk_index
       `
-      const chunksRows = await this.executeQuery<any>(chunksQuery, [requestId], 'getRequestDetails-chunks')
+      const chunksRows = await this.executeQuery<any>(
+        chunksQuery,
+        [requestId],
+        'getRequestDetails-chunks'
+      )
 
       const details: RequestDetails = {
         request,
@@ -245,7 +253,7 @@ export class StorageReader {
   async getStats(domain?: string, since?: Date): Promise<StorageStats> {
     const cacheKey = `stats:${domain || 'all'}:${since?.toISOString() || 'all'}`
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
-    
+
     // Only use cache if TTL > 0
     if (cacheTTL > 0) {
       const cached = this.cache.get<StorageStats>(cacheKey)
@@ -359,7 +367,7 @@ export class StorageReader {
   > {
     const cacheKey = `conversations:${domain || 'all'}:${limit}`
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
-    
+
     // Only use cache if TTL > 0
     if (cacheTTL > 0) {
       const cached = this.cache.get<any[]>(cacheKey)
@@ -399,7 +407,11 @@ export class StorageReader {
            LIMIT $1`
 
       const conversationValues = domain ? [domain, limit] : [limit]
-      const conversationRows = await this.executeQuery<any>(conversationQuery, conversationValues, 'getConversations-conversations')
+      const conversationRows = await this.executeQuery<any>(
+        conversationQuery,
+        conversationValues,
+        'getConversations-conversations'
+      )
 
       // Now get all requests for these conversations
       const conversationIds = conversationRows.map(row => row.conversation_id)
@@ -426,7 +438,11 @@ export class StorageReader {
            ORDER BY conversation_id, timestamp ASC`
 
       const requestsValues = domain ? [domain, conversationIds] : [conversationIds]
-      const requestsRows = await this.executeQuery<any>(requestsQuery, requestsValues, 'getConversations-requests')
+      const requestsRows = await this.executeQuery<any>(
+        requestsQuery,
+        requestsValues,
+        'getConversations-requests'
+      )
 
       // Group requests by conversation
       const requestsByConversation: Record<string, ApiRequest[]> = {}
@@ -488,7 +504,7 @@ export class StorageReader {
   async getConversationSummaries(domain?: string, limit: number = 100): Promise<any[]> {
     const cacheKey = `conversation-summaries:${domain || 'all'}:${limit}`
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
-    
+
     // Only use cache if TTL > 0
     if (cacheTTL > 0) {
       const cached = this.cache.get<any[]>(cacheKey)

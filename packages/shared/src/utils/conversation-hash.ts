@@ -90,12 +90,10 @@ export function hashConversationStateWithSystem(
   }
 
   let conversationString = ''
-  
+
   // Include system prompt in the hash if present
   if (system) {
-    const systemContent = typeof system === 'string' 
-      ? system 
-      : normalizeMessageContent(system)
+    const systemContent = typeof system === 'string' ? system : normalizeMessageContent(system)
     conversationString = `[SYSTEM]${systemContent}||`
   }
 

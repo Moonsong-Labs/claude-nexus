@@ -19,6 +19,7 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 See [Development Guide](docs/DEVELOPMENT.md) for detailed setup instructions.
 
 Quick start:
+
 ```bash
 bun install
 bun run dev
@@ -29,16 +30,19 @@ bun run dev
 ### Before Submitting
 
 1. **Type Check**: Ensure all TypeScript types are correct
+
    ```bash
    bun run typecheck
    ```
 
 2. **Format Code**: Use Prettier for consistent formatting
+
    ```bash
    bun run format
    ```
 
 3. **Test**: Run the test suite
+
    ```bash
    bun test
    ```
@@ -65,6 +69,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `chore:` Maintenance tasks
 
 Examples:
+
 ```
 feat: add conversation branching support
 fix: resolve memory leak in streaming responses
@@ -160,6 +165,7 @@ describe('Component/Feature', () => {
 ### Bug Reports
 
 Include:
+
 - Clear description of the issue
 - Steps to reproduce
 - Expected vs actual behavior
@@ -169,6 +175,7 @@ Include:
 ### Feature Requests
 
 Include:
+
 - Use case description
 - Proposed solution (if any)
 - Alternative approaches considered
@@ -212,6 +219,7 @@ Include:
 ## Recognition
 
 Contributors will be:
+
 - Listed in release notes
 - Added to contributors list
 - Thanked in project documentation

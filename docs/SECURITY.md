@@ -26,6 +26,7 @@ bun run auth:generate-key
 ```
 
 Clients must include this key in requests:
+
 ```bash
 curl -H "Authorization: Bearer cnp_live_..." http://proxy/v1/messages
 ```
@@ -50,6 +51,7 @@ OAuth tokens are automatically refreshed before expiry:
 ```
 
 The proxy adds required headers:
+
 ```
 anthropic-beta: oauth-2025-04-20
 ```
@@ -59,12 +61,14 @@ anthropic-beta: oauth-2025-04-20
 ### Storage Security
 
 1. **File Permissions** - Credential files should be readable only by the proxy user:
+
 ```bash
 chmod 600 credentials/*.json
 chown proxy-user:proxy-user credentials/*.json
 ```
 
 2. **Directory Security**:
+
 ```bash
 chmod 700 credentials/
 ```
@@ -77,6 +81,7 @@ Best practices for key rotation:
 
 1. Generate new keys regularly
 2. Update credentials without downtime:
+
 ```bash
 # Update credential file - proxy reloads automatically
 echo '{"client_api_key": "new_key"}' > credentials/domain.json
@@ -89,6 +94,7 @@ echo '{"client_api_key": "new_key"}' > credentials/domain.json
 ### Sensitive Data Masking
 
 Debug logs automatically mask:
+
 - API keys: `sk-ant-****`
 - Bearer tokens: `Bearer ****`
 - OAuth tokens: `token-****`
@@ -96,6 +102,7 @@ Debug logs automatically mask:
 ### Request/Response Storage
 
 When `STORAGE_ENABLED=true`:
+
 - Request bodies are stored in PostgreSQL
 - Consider encrypting sensitive fields
 - Implement data retention policies
@@ -117,6 +124,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
 ### TLS/SSL Configuration
 
 1. **Proxy Behind Load Balancer**:
+
 ```nginx
 upstream proxy {
     server localhost:3000;
@@ -126,7 +134,7 @@ server {
     listen 443 ssl;
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
-    
+
     location / {
         proxy_pass http://proxy;
         proxy_set_header X-Real-IP $remote_addr;
@@ -135,6 +143,7 @@ server {
 ```
 
 2. **Direct TLS** (using a reverse proxy):
+
 - Terminate TLS at nginx/caddy
 - Keep proxy on localhost only
 
@@ -156,6 +165,7 @@ location / {
 ### Access Logging
 
 The proxy logs all requests with:
+
 - Timestamp
 - Domain
 - Request ID
@@ -165,6 +175,7 @@ The proxy logs all requests with:
 ### Security Monitoring
 
 1. **Failed Authentication Attempts**:
+
 ```sql
 SELECT COUNT(*), ip_address, domain
 FROM api_requests
@@ -174,6 +185,7 @@ HAVING COUNT(*) > 10;
 ```
 
 2. **Unusual Usage Patterns**:
+
 ```sql
 -- Detect token usage spikes
 SELECT domain, DATE(timestamp), SUM(total_tokens)
@@ -183,6 +195,7 @@ HAVING SUM(total_tokens) > average_daily_usage * 2;
 ```
 
 3. **Slack Alerts**:
+
 ```bash
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ```
@@ -214,6 +227,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 **Risk**: Dashboard accessible without authentication
 
 **Mitigation**:
+
 - Always set `DASHBOARD_API_KEY`
 - Use strong, unique keys
 - Restrict dashboard to internal network
@@ -223,6 +237,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 **Risk**: Credentials in logs or error messages
 
 **Mitigation**:
+
 - Enable log masking
 - Review error handling
 - Avoid logging request bodies
@@ -232,6 +247,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 **Risk**: SQL injection through user input
 
 **Mitigation**:
+
 - Proxy uses parameterized queries
 - No user input in SQL construction
 - Regular dependency updates
@@ -241,6 +257,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ### Suspected Breach
 
 1. **Immediate Actions**:
+
 ```bash
 # Rotate all keys
 bun run auth:generate-key
@@ -252,11 +269,13 @@ ORDER BY timestamp;
 ```
 
 2. **Investigation**:
+
 - Review authentication logs
 - Check for unusual patterns
 - Analyze token usage
 
 3. **Recovery**:
+
 - Rotate all credentials
 - Update client configurations
 - Monitor for continued activity
@@ -267,6 +286,7 @@ Stay informed about security updates:
 
 1. Watch the repository for security advisories
 2. Update dependencies regularly:
+
 ```bash
 bun update
 ```

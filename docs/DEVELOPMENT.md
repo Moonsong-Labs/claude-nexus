@@ -103,6 +103,7 @@ bun run format:check  # Check formatting
 3. **Dashboard UI** - Edit in `services/dashboard/src/`
 
 After changing shared types:
+
 ```bash
 bun run build:shared
 ```
@@ -110,11 +111,13 @@ bun run build:shared
 ### Testing
 
 Run tests:
+
 ```bash
 bun test
 ```
 
 Test specific functionality:
+
 ```bash
 # Test any model
 ./scripts/test/test-any-model.sh
@@ -128,6 +131,7 @@ Test specific functionality:
 ### Adding a New API Endpoint
 
 1. **Define Types** in `packages/shared/src/types/`:
+
 ```typescript
 export interface MyNewEndpoint {
   request: { ... }
@@ -136,8 +140,9 @@ export interface MyNewEndpoint {
 ```
 
 2. **Implement in Proxy** `services/proxy/src/routes/`:
+
 ```typescript
-app.post('/my-endpoint', async (c) => {
+app.post('/my-endpoint', async c => {
   // Implementation
 })
 ```
@@ -176,6 +181,7 @@ DEBUG=true bun run dev:proxy
 ```
 
 This shows:
+
 - Full request/response bodies (masked)
 - Streaming chunks
 - Authentication flow
@@ -184,17 +190,20 @@ This shows:
 ### Common Issues
 
 1. **Port Already in Use**
+
 ```bash
 lsof -i :3000  # Find process using port
 kill -9 <PID>  # Kill process
 ```
 
 2. **Database Connection Failed**
+
 - Check PostgreSQL is running
 - Verify DATABASE_URL
 - Check database exists
 
 3. **Type Errors**
+
 ```bash
 bun run build:shared  # Rebuild shared types
 bun run typecheck     # See all errors
@@ -244,6 +253,7 @@ curl -X POST http://localhost:3000/v1/messages \
 ### Database Queries
 
 Monitor slow queries:
+
 ```bash
 SLOW_QUERY_THRESHOLD_MS=100 bun run dev:dashboard
 ```
@@ -251,6 +261,7 @@ SLOW_QUERY_THRESHOLD_MS=100 bun run dev:dashboard
 ### Caching
 
 Disable dashboard cache during development:
+
 ```bash
 DASHBOARD_CACHE_TTL=0 bun run dev:dashboard
 ```
@@ -267,6 +278,7 @@ DASHBOARD_CACHE_TTL=0 bun run dev:dashboard
 ### Commit Messages
 
 Follow conventional commits:
+
 - `feat:` New features
 - `fix:` Bug fixes
 - `docs:` Documentation

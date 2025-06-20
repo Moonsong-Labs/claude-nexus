@@ -236,7 +236,8 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     // Find the source and target nodes to check if this is a branch divergence
     const sourceNode = layout.nodes.find(n => n.id === edge.source)
     const targetNode = layout.nodes.find(n => n.id === edge.target)
-    const isBranchDiverging = sourceNode && targetNode && sourceNode.branchId !== targetNode.branchId
+    const isBranchDiverging =
+      sourceNode && targetNode && sourceNode.branchId !== targetNode.branchId
 
     for (const section of edge.sections) {
       let path = ''
@@ -252,13 +253,13 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       } else {
         // For regular edges, use straight line or bend points if available
         path = `M${startX},${startY}`
-        
+
         if (section.bendPoints && section.bendPoints.length > 0) {
           for (const bend of section.bendPoints) {
             path += ` L${bend.x + padding},${bend.y + padding}`
           }
         }
-        
+
         path += ` L${endX},${endY}`
       }
 
@@ -296,7 +297,6 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     // Add timestamp
     const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
-
 
     // Add connection point at the bottom
     svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`

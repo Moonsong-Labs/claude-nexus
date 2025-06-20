@@ -14,7 +14,9 @@ Migrations are named with a 3-digit numeric prefix to ensure they run in the cor
 ## Migration Files
 
 ### 000-init-database.ts
+
 Initial database schema creation with core tables:
+
 - `api_requests` - Main table for storing API requests and responses
 - `streaming_chunks` - Table for SSE response chunks
 - `hourly_stats` - Materialized view for dashboard performance
@@ -22,7 +24,9 @@ Initial database schema creation with core tables:
 - Table comments and documentation
 
 ### 001-add-conversation-tracking.ts
+
 Adds conversation tracking columns to support message threading:
+
 - `current_message_hash` - SHA-256 hash of the current message
 - `parent_message_hash` - Hash of the parent message
 - `conversation_id` - UUID grouping related messages
@@ -31,7 +35,9 @@ Adds conversation tracking columns to support message threading:
 - Related indexes for efficient querying
 
 ### 002-optimize-conversation-indexes.ts
+
 Performance optimizations for conversation queries:
+
 - Composite index on `conversation_id` and `timestamp`
 - Covering index with commonly needed fields
 - Table statistics update with ANALYZE
@@ -63,6 +69,7 @@ done
 ## Future Migrations
 
 When adding new migrations:
+
 1. Use the next sequential number (e.g., 004-)
 2. Use descriptive names after the number
 3. Include comments explaining what the migration does

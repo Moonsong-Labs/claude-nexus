@@ -106,6 +106,7 @@ curl -X POST http://localhost:3000/v1/messages \
 Access the dashboard at `http://localhost:3001` with your `DASHBOARD_API_KEY`.
 
 Features:
+
 - Real-time request monitoring
 - Conversation visualization with branching
 - Token usage analytics

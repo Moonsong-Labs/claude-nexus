@@ -29,19 +29,23 @@ bun test --coverage
 ## Unit Tests
 
 ### Message Formatting
+
 - Tests message content normalization
 - Validates content array handling
 - Ensures consistent hashing
 
 ### Request Type Identification
+
 - Tests classification of requests (inference vs query evaluation)
 - Validates request type detection logic
 
 ### Streaming Tool Input
+
 - Tests streaming response parsing
 - Validates tool call handling in streams
 
 ### Notification Formatting
+
 - Tests Slack notification formatting
 - Validates error message formatting
 - Tests tool call notifications
@@ -49,6 +53,7 @@ bun test --coverage
 ## Test Fixtures
 
 Sample requests are stored in `fixtures/requests/`:
+
 - `inference_streaming_with_tools_with_system_opus.json` - Complex streaming request
 - `query_evaluation_streaming_with_system_haiku.json` - Query evaluation example
 - `quota_haiku.json` - Quota check request
@@ -64,10 +69,10 @@ describe('Feature Name', () => {
   it('should do something', () => {
     // Arrange
     const input = { ... }
-    
+
     // Act
     const result = functionUnderTest(input)
-    
+
     // Assert
     expect(result).toBe(expected)
   })
@@ -81,13 +86,14 @@ import { createTestRequest } from '../helpers/test-factories'
 
 const request = createTestRequest({
   domain: 'test.com',
-  model: 'claude-3-opus-20240229'
+  model: 'claude-3-opus-20240229',
 })
 ```
 
 ## Test Coverage
 
 Current coverage areas:
+
 - ✅ Message formatting and normalization
 - ✅ Request type identification
 - ✅ Streaming response parsing
@@ -107,6 +113,7 @@ Current coverage areas:
 ## Test Data
 
 When adding test fixtures:
+
 1. Mask sensitive data (API keys, tokens)
 2. Use realistic data structures
 3. Document what each fixture tests
@@ -115,6 +122,7 @@ When adding test fixtures:
 ## Continuous Integration
 
 Tests are run automatically on:
+
 - Pull requests
 - Main branch commits
 - Release tags

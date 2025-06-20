@@ -356,15 +356,15 @@ data: {"total_requests":1000,"active_domains":5}
 
 ### Common Error Codes
 
-| Status Code | Type | Description |
-|-------------|------|-------------|
-| 400 | `invalid_request_error` | Invalid request parameters |
-| 401 | `authentication_error` | Invalid or missing API key |
-| 403 | `permission_error` | Valid key but insufficient permissions |
-| 404 | `not_found_error` | Resource not found |
-| 429 | `rate_limit_error` | Rate limit exceeded |
-| 500 | `internal_server_error` | Server error |
-| 502 | `api_error` | Claude API error |
+| Status Code | Type                    | Description                            |
+| ----------- | ----------------------- | -------------------------------------- |
+| 400         | `invalid_request_error` | Invalid request parameters             |
+| 401         | `authentication_error`  | Invalid or missing API key             |
+| 403         | `permission_error`      | Valid key but insufficient permissions |
+| 404         | `not_found_error`       | Resource not found                     |
+| 429         | `rate_limit_error`      | Rate limit exceeded                    |
+| 500         | `internal_server_error` | Server error                           |
+| 502         | `api_error`             | Claude API error                       |
 
 ## Rate Limiting
 
@@ -388,6 +388,7 @@ The proxy automatically tracks conversations using message content hashing:
 ### Branch Naming
 
 Branches are named using timestamps:
+
 - Main branch: `main`
 - Other branches: `branch-YYYY-MM-DD-HH-MM-SS`
 
@@ -432,9 +433,9 @@ Maintain conversation context by including message history:
 ```json
 {
   "messages": [
-    {"role": "user", "content": "Hello"},
-    {"role": "assistant", "content": "Hi there!"},
-    {"role": "user", "content": "How are you?"}
+    { "role": "user", "content": "Hello" },
+    { "role": "assistant", "content": "Hi there!" },
+    { "role": "user", "content": "How are you?" }
   ]
 }
 ```

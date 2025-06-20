@@ -16,9 +16,11 @@ scripts/
 ## Database Scripts (`db/`)
 
 ### Database Migrations (`db/migrations/`)
+
 Numbered migration scripts for database schema evolution. See `db/migrations/README.md` for details.
 
 ### analyze-conversations.ts
+
 Analyzes existing requests to preview conversation structure without modifying data.
 
 ```bash
@@ -26,6 +28,7 @@ bun run scripts/db/analyze-conversations.ts
 ```
 
 ### rebuild-conversations.ts
+
 Retroactively computes conversation IDs and branches from existing requests.
 
 ```bash
@@ -35,6 +38,7 @@ bun run scripts/db/rebuild-conversations.ts
 ```
 
 ### recalculate-message-counts.ts
+
 Updates the message_count field for all requests in the database.
 
 ```bash
@@ -42,6 +46,7 @@ bun run scripts/db/recalculate-message-counts.ts
 ```
 
 ### backup-database.ts
+
 Creates database backups with automatic timestamping.
 
 ```bash
@@ -58,6 +63,7 @@ bun run scripts/db/backup-database.ts --file=backup.sql
 ## Authentication Scripts (`auth/`)
 
 ### generate-api-key.ts
+
 Generates secure API keys for client authentication.
 
 ```bash
@@ -65,6 +71,7 @@ bun run scripts/auth/generate-api-key.ts
 ```
 
 ### oauth-login.ts
+
 Initiates OAuth login flow for a domain.
 
 ```bash
@@ -72,6 +79,7 @@ bun run scripts/auth/oauth-login.ts example.com
 ```
 
 ### oauth-refresh.ts
+
 Manually refreshes OAuth token for a specific domain.
 
 ```bash
@@ -79,6 +87,7 @@ bun run scripts/auth/oauth-refresh.ts example.com
 ```
 
 ### oauth-refresh-all.ts
+
 Refreshes all OAuth tokens across all configured domains.
 
 ```bash
@@ -86,6 +95,7 @@ bun run scripts/auth/oauth-refresh-all.ts
 ```
 
 ### check-oauth-status.ts
+
 Displays OAuth status and token information for all domains.
 
 ```bash
@@ -95,6 +105,7 @@ bun run scripts/auth/check-oauth-status.ts
 ## Development Scripts (`dev/`)
 
 ### dev-proxy.sh
+
 Starts the proxy service in development mode.
 
 ```bash
@@ -102,6 +113,7 @@ Starts the proxy service in development mode.
 ```
 
 ### dev-dashboard.sh
+
 Starts the dashboard service in development mode.
 
 ```bash
@@ -109,6 +121,7 @@ Starts the dashboard service in development mode.
 ```
 
 ### test-client-setup.sh
+
 Sets up test client configuration.
 
 ```bash
@@ -118,6 +131,7 @@ Sets up test client configuration.
 ## Operations Scripts (`ops/`)
 
 ### manage-nexus-proxies.sh
+
 Manages multiple proxy instances.
 
 ```bash
@@ -125,6 +139,7 @@ Manages multiple proxy instances.
 ```
 
 ### update-proxy.sh
+
 Updates proxy deployment.
 
 ```bash
@@ -136,12 +151,15 @@ Updates proxy deployment.
 Testing utilities and scripts for validating proxy functionality.
 
 ### test-any-model.sh
+
 Tests proxy with various model configurations.
 
 ### test-dashboard-api.sh
+
 Tests dashboard API endpoints.
 
 ### test-storage-behavior.sh
+
 Validates storage functionality.
 
 ## Environment Variables

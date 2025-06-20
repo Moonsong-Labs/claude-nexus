@@ -141,6 +141,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ### Database Setup
 
 1. **Create Production Database**:
+
 ```sql
 CREATE DATABASE claude_nexus;
 CREATE USER claude_proxy WITH PASSWORD 'secure-password';
@@ -148,11 +149,13 @@ GRANT CONNECT ON DATABASE claude_nexus TO claude_proxy;
 ```
 
 2. **Run Migrations**:
+
 ```bash
 DATABASE_URL=postgresql://... bun run db:migrate
 ```
 
 3. **Optimize for Performance**:
+
 ```sql
 -- Increase shared buffers
 ALTER SYSTEM SET shared_buffers = '256MB';
@@ -194,7 +197,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        
+
         # For streaming responses
         proxy_buffering off;
         proxy_cache off;
@@ -215,7 +218,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
-    
+
     # SSE endpoint
     location /sse {
         proxy_pass http://dashboard_backend/sse;
@@ -246,6 +249,7 @@ dashboard.yourdomain.com {
 ### Horizontal Scaling
 
 1. **Proxy Service** - Stateless, scale freely:
+
 ```bash
 # Docker Swarm
 docker service scale proxy=5
@@ -255,11 +259,13 @@ kubectl scale deployment proxy --replicas=5
 ```
 
 2. **Dashboard Service** - Also stateless:
+
 ```bash
 docker service scale dashboard=3
 ```
 
 3. **Database** - Use read replicas for dashboard:
+
 ```bash
 # Primary for writes (proxy)
 DATABASE_URL=postgresql://primary:5432/claude_nexus
@@ -271,11 +277,13 @@ DATABASE_URL=postgresql://replica:5432/claude_nexus
 ### Performance Tuning
 
 1. **Connection Pooling**:
+
 ```bash
 DATABASE_URL=postgresql://...?pool_max=50&pool_idle_timeout=10000
 ```
 
 2. **Disable Non-Essential Features**:
+
 ```bash
 STORAGE_ENABLED=false  # If not needed
 DEBUG=false
@@ -283,6 +291,7 @@ COLLECT_TEST_SAMPLES=false
 ```
 
 3. **Optimize Dashboard**:
+
 ```bash
 DASHBOARD_CACHE_TTL=600  # 10-minute cache
 ```
@@ -304,11 +313,13 @@ curl http://localhost:3001/health
 ### Metrics Collection
 
 1. **Application Metrics**:
+
    - Token usage: `/token-stats`
    - Request counts by domain
    - Response times
 
 2. **System Metrics**:
+
 ```bash
 # Docker stats
 docker stats
@@ -320,18 +331,20 @@ pm2 monit
 ### Logging
 
 1. **Centralized Logging**:
+
 ```yaml
 # docker-compose.yml
 services:
   proxy:
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 ```
 
 2. **Log Aggregation**:
+
 ```bash
 # Ship to ELK/Loki/etc
 docker logs proxy | logstash -f logstash.conf
@@ -342,6 +355,7 @@ docker logs proxy | logstash -f logstash.conf
 ### Network Security
 
 1. **Firewall Rules**:
+
 ```bash
 # Only allow HTTPS
 ufw allow 443/tcp
@@ -350,6 +364,7 @@ ufw deny 3001/tcp
 ```
 
 2. **Internal Network**:
+
 ```yaml
 # docker-compose.yml
 networks:
@@ -394,11 +409,13 @@ find $BACKUP_DIR -name "*.gz" -mtime +7 -delete
 ### Disaster Recovery
 
 1. **Database Recovery**:
+
 ```bash
 gunzip < backup.sql.gz | psql $DATABASE_URL
 ```
 
 2. **Service Recovery**:
+
 ```bash
 # Restore credentials
 tar xzf credentials_backup.tar.gz -C /

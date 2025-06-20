@@ -111,7 +111,7 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
       const startY = sourceNode.y + sourceNode.height
       const endX = targetNode.x + targetNode.width / 2
       const endY = targetNode.y
-      
+
       layoutEdges.push({
         id: `e${idx}`,
         source: edge.source,

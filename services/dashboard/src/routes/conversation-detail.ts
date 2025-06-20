@@ -36,11 +36,11 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
     // Use the actual message count from the database
     const requestDetailsMap = new Map<string, { messageCount: number; messageTypes: string[] }>()
-    
+
     conversation.requests.forEach((req, index) => {
       // Use the actual message count from the request
       const messageCount = req.message_count || 0
-      
+
       // Simple type assignment based on position
       const messageTypes: string[] = []
       const isFirst = index === 0
@@ -48,17 +48,20 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         messageTypes.push('user') // Previous user message
       }
       messageTypes.push('assistant') // Current assistant response
-      
-      requestDetailsMap.set(req.request_id, { 
+
+      requestDetailsMap.set(req.request_id, {
         messageCount: messageCount,
-        messageTypes: messageTypes.slice(-2)
+        messageTypes: messageTypes.slice(-2),
       })
     })
 
     // Build the graph structure - keep original relationships but display in reverse order
     const graph: ConversationGraph = {
       nodes: conversation.requests.map((req, index) => {
-        const details = requestDetailsMap.get(req.request_id) || { messageCount: 0, messageTypes: [] }
+        const details = requestDetailsMap.get(req.request_id) || {
+          messageCount: 0,
+          messageTypes: [],
+        }
         return {
           id: req.request_id,
           label: `${req.model}`,
@@ -86,22 +89,24 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         // When multiple requests have the same message hash, prefer:
         // 1. Same branch
         // 2. Most recent before this request
-        const potentialParents = conversation.requests.filter(r => 
-          r.current_message_hash === req.parent_message_hash &&
-          new Date(r.timestamp) < new Date(req.timestamp)
+        const potentialParents = conversation.requests.filter(
+          r =>
+            r.current_message_hash === req.parent_message_hash &&
+            new Date(r.timestamp) < new Date(req.timestamp)
         )
-        
+
         let parentReq
         if (potentialParents.length === 1) {
           parentReq = potentialParents[0]
         } else if (potentialParents.length > 1) {
           // Multiple parents with same hash - prefer same branch
-          parentReq = potentialParents.find(p => p.branch_id === req.branch_id) || 
-                     potentialParents.sort((a, b) => 
-                       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-                     )[0]
+          parentReq =
+            potentialParents.find(p => p.branch_id === req.branch_id) ||
+            potentialParents.sort(
+              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            )[0]
         }
-        
+
         if (parentReq) {
           graph.edges.push({
             source: parentReq.request_id,
@@ -122,15 +127,18 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const branchRequests = conversation.requests.filter(r => r.branch_id === selectedBranch)
       if (branchRequests.length > 0) {
         // Sort by timestamp to get the first request in the branch
-        branchRequests.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        const firstBranchRequest = branchRequests[0]
-        
-        // Get all requests from main branch that happened before the branch diverged
-        const mainRequestsBeforeBranch = conversation.requests.filter(r => 
-          (r.branch_id === 'main' || !r.branch_id) && 
-          new Date(r.timestamp) < new Date(firstBranchRequest.timestamp)
+        branchRequests.sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         )
-        
+        const firstBranchRequest = branchRequests[0]
+
+        // Get all requests from main branch that happened before the branch diverged
+        const mainRequestsBeforeBranch = conversation.requests.filter(
+          r =>
+            (r.branch_id === 'main' || !r.branch_id) &&
+            new Date(r.timestamp) < new Date(firstBranchRequest.timestamp)
+        )
+
         // Combine main requests before branch + all branch requests
         filteredRequests = [...mainRequestsBeforeBranch, ...branchRequests]
       } else {
@@ -153,12 +161,27 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           count: maxMessageCount,
           tokens: branchRequests.reduce((sum, r) => sum + r.total_tokens, 0),
           requests: branchRequests.length,
-          firstMessage: branchRequests.length > 0 ? Math.min(...branchRequests.map(r => new Date(r.timestamp).getTime())) : 0,
-          lastMessage: branchRequests.length > 0 ? Math.max(...branchRequests.map(r => new Date(r.timestamp).getTime())) : 0,
+          firstMessage:
+            branchRequests.length > 0
+              ? Math.min(...branchRequests.map(r => new Date(r.timestamp).getTime()))
+              : 0,
+          lastMessage:
+            branchRequests.length > 0
+              ? Math.max(...branchRequests.map(r => new Date(r.timestamp).getTime()))
+              : 0,
         }
         return acc
       },
-      {} as Record<string, { count: number; tokens: number; requests: number; firstMessage: number; lastMessage: number }>
+      {} as Record<
+        string,
+        {
+          count: number
+          tokens: number
+          requests: number
+          firstMessage: number
+          lastMessage: number
+        }
+      >
     )
 
     // Add main branch if not present
@@ -170,8 +193,14 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         count: maxMessageCount,
         tokens: mainRequests.reduce((sum, r) => sum + r.total_tokens, 0),
         requests: mainRequests.length,
-        firstMessage: mainRequests.length > 0 ? Math.min(...mainRequests.map(r => new Date(r.timestamp).getTime())) : 0,
-        lastMessage: mainRequests.length > 0 ? Math.max(...mainRequests.map(r => new Date(r.timestamp).getTime())) : 0,
+        firstMessage:
+          mainRequests.length > 0
+            ? Math.min(...mainRequests.map(r => new Date(r.timestamp).getTime()))
+            : 0,
+        lastMessage:
+          mainRequests.length > 0
+            ? Math.max(...mainRequests.map(r => new Date(r.timestamp).getTime()))
+            : 0,
       }
     }
 
@@ -183,7 +212,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const totalTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
       const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
       const duration = timestamps.length > 0 ? Math.max(...timestamps) - Math.min(...timestamps) : 0
-      
+
       displayStats = {
         messageCount: maxMessageCount,
         totalTokens: totalTokens,
@@ -220,8 +249,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           <div class="conversation-stat-value">${displayStats.totalTokens.toLocaleString()}</div>
         </div>
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">${selectedBranch ? 'Branch Requests' : 'Branches'}</div>
-          <div class="conversation-stat-value">${selectedBranch ? displayStats.requestCount : displayStats.branchCount}</div>
+          <div class="conversation-stat-label">
+            ${selectedBranch ? 'Branch Requests' : 'Branches'}
+          </div>
+          <div class="conversation-stat-value">
+            ${selectedBranch ? displayStats.requestCount : displayStats.branchCount}
+          </div>
         </div>
         <div class="conversation-stat-card">
           <div class="conversation-stat-label">Duration</div>
@@ -235,7 +268,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <a
           href="/dashboard/conversation/${conversationId}"
           class="branch-chip ${!selectedBranch ? 'branch-chip-active' : 'branch-chip-main'}"
-          style="${!selectedBranch ? 'background: #f3f4f6; color: #1f2937; border-color: #9ca3af;' : ''}"
+          style="${!selectedBranch
+            ? 'background: #f3f4f6; color: #1f2937; border-color: #9ca3af;'
+            : ''}"
         >
           All Branches
         </a>
@@ -306,15 +341,18 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
       const branchRequests = conversation.requests.filter(r => r.branch_id === selectedBranch)
       if (branchRequests.length > 0) {
         // Sort by timestamp to get the first request in the branch
-        branchRequests.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        const firstBranchRequest = branchRequests[0]
-        
-        // Get all requests from main branch that happened before the branch diverged
-        const mainRequestsBeforeBranch = conversation.requests.filter(r => 
-          (r.branch_id === 'main' || !r.branch_id) && 
-          new Date(r.timestamp) < new Date(firstBranchRequest.timestamp)
+        branchRequests.sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         )
-        
+        const firstBranchRequest = branchRequests[0]
+
+        // Get all requests from main branch that happened before the branch diverged
+        const mainRequestsBeforeBranch = conversation.requests.filter(
+          r =>
+            (r.branch_id === 'main' || !r.branch_id) &&
+            new Date(r.timestamp) < new Date(firstBranchRequest.timestamp)
+        )
+
         // Combine main requests before branch + all branch requests
         filteredRequests = [...mainRequestsBeforeBranch, ...branchRequests]
       } else {
@@ -337,8 +375,8 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
  */
 function renderConversationMessages(requests: ConversationRequest[], _branches: string[]) {
   // Sort requests by timestamp in descending order (newest first)
-  const sortedRequests = [...requests].sort((a, b) => 
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  const sortedRequests = [...requests].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   )
 
   return html`
@@ -388,4 +426,3 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
     </div>
   `
 }
-

@@ -48,7 +48,7 @@ export function formatDuration(ms: number): string {
  */
 export function formatTimestamp(date: Date | string): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date
-  
+
   if (!dateObj || isNaN(dateObj.getTime())) {
     return ''
   }
@@ -65,7 +65,7 @@ export function formatTimestamp(date: Date | string): string {
  */
 export function escapeHtml(text: string): string {
   if (!text) return ''
-  
+
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

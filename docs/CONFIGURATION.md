@@ -6,32 +6,32 @@ This guide covers all configuration options for Claude Nexus Proxy.
 
 ### Core Configuration
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | - | PostgreSQL connection string |
-| `CLAUDE_API_KEY` | No | - | Default Claude API key (can be overridden by domain credentials) |
-| `DASHBOARD_API_KEY` | Yes | - | Authentication key for dashboard access |
+| Variable            | Required | Default | Description                                                      |
+| ------------------- | -------- | ------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`      | Yes      | -       | PostgreSQL connection string                                     |
+| `CLAUDE_API_KEY`    | No       | -       | Default Claude API key (can be overridden by domain credentials) |
+| `DASHBOARD_API_KEY` | Yes      | -       | Authentication key for dashboard access                          |
 
 ### Proxy Service
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `PORT` | No | 3000 | Proxy service port |
-| `STORAGE_ENABLED` | No | false | Enable request/response storage |
-| `DEBUG` | No | false | Enable debug logging (masks sensitive data) |
-| `ENABLE_CLIENT_AUTH` | No | true | Require client API key authentication |
-| `CREDENTIALS_DIR` | No | ./credentials | Directory for domain credential files |
-| `SLACK_WEBHOOK_URL` | No | - | Slack webhook for notifications |
-| `COLLECT_TEST_SAMPLES` | No | false | Collect request samples for testing |
-| `TEST_SAMPLES_DIR` | No | test-samples | Directory for test samples |
+| Variable               | Required | Default       | Description                                 |
+| ---------------------- | -------- | ------------- | ------------------------------------------- |
+| `PORT`                 | No       | 3000          | Proxy service port                          |
+| `STORAGE_ENABLED`      | No       | false         | Enable request/response storage             |
+| `DEBUG`                | No       | false         | Enable debug logging (masks sensitive data) |
+| `ENABLE_CLIENT_AUTH`   | No       | true          | Require client API key authentication       |
+| `CREDENTIALS_DIR`      | No       | ./credentials | Directory for domain credential files       |
+| `SLACK_WEBHOOK_URL`    | No       | -             | Slack webhook for notifications             |
+| `COLLECT_TEST_SAMPLES` | No       | false         | Collect request samples for testing         |
+| `TEST_SAMPLES_DIR`     | No       | test-samples  | Directory for test samples                  |
 
 ### Dashboard Service
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DASHBOARD_PORT` | No | 3001 | Dashboard service port |
-| `DASHBOARD_CACHE_TTL` | No | 30 | Cache TTL in seconds (0 to disable) |
-| `SLOW_QUERY_THRESHOLD_MS` | No | 5000 | Threshold for logging slow queries |
+| Variable                  | Required | Default | Description                         |
+| ------------------------- | -------- | ------- | ----------------------------------- |
+| `DASHBOARD_PORT`          | No       | 3001    | Dashboard service port              |
+| `DASHBOARD_CACHE_TTL`     | No       | 30      | Cache TTL in seconds (0 to disable) |
+| `SLOW_QUERY_THRESHOLD_MS` | No       | 5000    | Threshold for logging slow queries  |
 
 ## Domain Credentials
 
@@ -100,10 +100,12 @@ bun run db:migrate:optimize
 ### Client Authentication
 
 When `ENABLE_CLIENT_AUTH=true` (default):
+
 - Clients must provide a Bearer token matching the domain's `client_api_key`
 - Generate secure keys: `bun run auth:generate-key`
 
 To disable client authentication (not recommended for production):
+
 ```bash
 ENABLE_CLIENT_AUTH=false
 ```
@@ -149,6 +151,7 @@ STORAGE_BATCH_INTERVAL=5000 # Process every 5 seconds
 ### Debug Logging
 
 When `DEBUG=true`:
+
 - Logs full request/response bodies (with masking)
 - Shows streaming chunks
 - Displays authentication flow
@@ -164,6 +167,7 @@ TEST_SAMPLES_DIR=./test-samples
 ```
 
 Samples are organized by request type:
+
 - `inference_streaming_opus.json`
 - `quota_evaluation_non_streaming.json`
 - etc.
@@ -218,6 +222,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 ```
 
 Notifications are sent for:
+
 - Proxy startup/shutdown
 - Critical errors
 - OAuth token refresh failures
@@ -225,6 +230,7 @@ Notifications are sent for:
 ### Metrics Collection
 
 Token usage metrics are automatically collected and available at:
+
 - `/token-stats` - Raw statistics endpoint
 - Dashboard analytics view
 

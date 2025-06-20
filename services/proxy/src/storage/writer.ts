@@ -269,7 +269,7 @@ export class StorageWriter {
       `
 
       const result = await this.pool.query(query, [parentHash])
-      
+
       // Log if we're choosing between multiple conversations
       if (result.rows.length > 0) {
         // Check how many conversations actually have this parent hash
@@ -280,18 +280,21 @@ export class StorageWriter {
            AND conversation_id IS NOT NULL`,
           [parentHash]
         )
-        
+
         if (countResult.rows[0].count > 1) {
-          logger.info('Multiple conversations found with same parent hash, selecting the one with fewer requests', {
-            metadata: {
-              parentHash,
-              conversationCount: countResult.rows[0].count,
-              selectedConversation: result.rows[0].conversation_id,
-            },
-          })
+          logger.info(
+            'Multiple conversations found with same parent hash, selecting the one with fewer requests',
+            {
+              metadata: {
+                parentHash,
+                conversationCount: countResult.rows[0].count,
+                selectedConversation: result.rows[0].conversation_id,
+              },
+            }
+          )
         }
       }
-      
+
       return result.rows[0]?.conversation_id || null
     } catch (error) {
       logger.error('Failed to find conversation by parent hash', {

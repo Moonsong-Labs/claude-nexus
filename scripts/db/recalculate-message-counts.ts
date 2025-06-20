@@ -35,24 +35,24 @@ async function recalculateMessageCounts() {
     const batchSize = 100
     for (let i = 0; i < records.rows.length; i += batchSize) {
       const batch = records.rows.slice(i, i + batchSize)
-      
+
       await Promise.all(
-        batch.map(async (row) => {
+        batch.map(async row => {
           try {
             // Calculate message count from request body
             const body = row.body
             let messageCount = 0
-            
+
             if (body && body.messages && Array.isArray(body.messages)) {
               messageCount = body.messages.length
             }
 
             // Update the record
-            await pool.query(
-              'UPDATE api_requests SET message_count = $1 WHERE request_id = $2',
-              [messageCount, row.request_id]
-            )
-            
+            await pool.query('UPDATE api_requests SET message_count = $1 WHERE request_id = $2', [
+              messageCount,
+              row.request_id,
+            ])
+
             updated++
           } catch (error) {
             console.error(`Error processing request ${row.request_id}:`, error)
@@ -60,14 +60,15 @@ async function recalculateMessageCounts() {
           }
         })
       )
-      
-      console.log(`Processed ${Math.min(i + batchSize, records.rows.length)} / ${records.rows.length} records`)
+
+      console.log(
+        `Processed ${Math.min(i + batchSize, records.rows.length)} / ${records.rows.length} records`
+      )
     }
 
     console.log(`\nRecalculation completed!`)
     console.log(`Updated: ${updated} records`)
     console.log(`Errors: ${errors} records`)
-
   } catch (error) {
     console.error('Recalculation failed:', error instanceof Error ? error.message : String(error))
     process.exit(1)

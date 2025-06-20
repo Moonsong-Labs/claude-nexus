@@ -3,11 +3,7 @@ import { html, raw } from 'hono/html'
 import { setCookie } from 'hono/cookie'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
-import {
-  parseConversation,
-  calculateCost,
-  formatMessageTime,
-} from '../utils/conversation.js'
+import { parseConversation, calculateCost, formatMessageTime } from '../utils/conversation.js'
 import { getBranchColor } from '../utils/conversation-graph.js'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
 import type { ConversationRequest, ConversationSummary } from '../types/conversation.js'
@@ -157,7 +153,7 @@ export const layout = (title: string, content: any) => html`
           font-size: 1rem;
           background: white;
         }
-        
+
         /* Pagination styles */
         .pagination-link {
           padding: 0.5rem 0.75rem;
@@ -263,7 +259,7 @@ export const layout = (title: string, content: any) => html`
         .message-assistant .message-content {
           background: #f9fafb;
         }
-        
+
         .message-assistant-response .message-content {
           background: #f0fdf4;
           border-color: #86efac;
@@ -699,14 +695,18 @@ dashboardRoutes.get('/', async c => {
     const paginatedBranches = filteredBranches.slice(startIndex, endIndex)
 
     const content = html`
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;"
+      >
         <h2 style="margin: 0;">Conversations Overview</h2>
         <div style="display: flex; gap: 1rem; align-items: center;">
           <!-- Search Bar -->
           <form action="/dashboard" method="get" style="display: flex; gap: 0.5rem;">
-            ${domain ? html`<input type="hidden" name="domain" value="${escapeHtml(domain)}">` : ''}
-            <input type="hidden" name="page" value="1">
-            <input type="hidden" name="per_page" value="${itemsPerPage}">
+            ${domain
+              ? html`<input type="hidden" name="domain" value="${escapeHtml(domain)}" />`
+              : ''}
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="per_page" value="${itemsPerPage}" />
             <input
               type="search"
               name="search"
@@ -714,11 +714,23 @@ dashboardRoutes.get('/', async c => {
               value="${escapeHtml(c.req.query('search') || '')}"
               style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 250px; font-size: 0.875rem;"
             />
-            <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+            <button
+              type="submit"
+              class="btn btn-secondary"
+              style="padding: 0.5rem 1rem; font-size: 0.875rem;"
+            >
               Search
             </button>
           </form>
-          <a href="/dashboard?refresh=true&page=${currentPage}&per_page=${itemsPerPage}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}" class="btn btn-secondary" style="font-size: 0.875rem;">
+          <a
+            href="/dashboard?refresh=true&page=${currentPage}&per_page=${itemsPerPage}${domain
+              ? `&domain=${encodeURIComponent(domain)}`
+              : ''}${searchQuery
+              ? `&search=${encodeURIComponent(c.req.query('search') || '')}`
+              : ''}"
+            class="btn btn-secondary"
+            style="font-size: 0.875rem;"
+          >
             Refresh
           </a>
         </div>
@@ -728,13 +740,18 @@ dashboardRoutes.get('/', async c => {
       <div style="margin-bottom: 1.5rem;">
         <label class="text-sm text-gray-600">Filter by Domain:</label>
         <select
-          onchange="window.location.href = '/dashboard' + (this.value ? '?domain=' + this.value : '?') + '&page=1&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}'"
+          onchange="window.location.href = '/dashboard' + (this.value ? '?domain=' + this.value : '?') + '&page=1&per_page=${itemsPerPage}${searchQuery
+            ? `&search=${encodeURIComponent(c.req.query('search') || '')}`
+            : ''}'"
           style="margin-left: 0.5rem; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;"
         >
           <option value="">All Domains</option>
           ${raw(
             uniqueDomains
-              .map(d => `<option value="${escapeHtml(d)}" ${domain === d ? 'selected' : ''}>${escapeHtml(d)}</option>`)
+              .map(
+                d =>
+                  `<option value="${escapeHtml(d)}" ${domain === d ? 'selected' : ''}>${escapeHtml(d)}</option>`
+              )
               .join('')
           )}
         </select>
@@ -754,16 +771,12 @@ dashboardRoutes.get('/', async c => {
         </div>
         <div class="stat-card">
           <div class="stat-label">Total Messages</div>
-          <div class="stat-value">
-            ${totalMessages}
-          </div>
+          <div class="stat-value">${totalMessages}</div>
           <div class="stat-meta">Across all conversations</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Total Tokens</div>
-          <div class="stat-value">
-            ${formatNumber(totalTokens)}
-          </div>
+          <div class="stat-value">${formatNumber(totalTokens)}</div>
           <div class="stat-meta">Combined usage</div>
         </div>
       </div>
@@ -773,7 +786,8 @@ dashboardRoutes.get('/', async c => {
         <div class="section-header">
           Conversation Branches
           <span class="text-sm text-gray-500" style="float: right;">
-            Showing ${paginatedBranches.length} of ${totalItems} ${searchQuery ? 'filtered ' : ''}branches (Page ${currentPage} of ${totalPages})
+            Showing ${paginatedBranches.length} of ${totalItems}
+            ${searchQuery ? 'filtered ' : ''}branches (Page ${currentPage} of ${totalPages})
           </span>
         </div>
         <div class="section-content">
@@ -823,9 +837,10 @@ dashboardRoutes.get('/', async c => {
                               <td class="text-sm">${formatDuration(duration)}</td>
                               <td class="text-sm">${formatTimestamp(branch.lastMessage)}</td>
                               <td class="text-sm">
-                                ${branch.latestRequestId 
-                                  ? `<a href="/dashboard/request/${branch.latestRequestId}" class="text-blue-600" title="View latest request">Latest →</a>`
-                                  : '<span class="text-gray-400">N/A</span>'
+                                ${
+                                  branch.latestRequestId
+                                    ? `<a href="/dashboard/request/${branch.latestRequestId}" class="text-blue-600" title="View latest request">Latest →</a>`
+                                    : '<span class="text-gray-400">N/A</span>'
                                 }
                               </td>
                             </tr>
@@ -835,54 +850,84 @@ dashboardRoutes.get('/', async c => {
                     )}
                   </tbody>
                 </table>
-                
-                ${totalPages > 1 ? html`
-                  <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 2rem; padding: 1rem 0;">
-                    ${currentPage > 1 ? html`
-                      <a href="?page=${currentPage - 1}${domain ? `&domain=${domain}` : ''}&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}" 
-                         class="pagination-link">
-                        ← Previous
-                      </a>
-                    ` : html`
-                      <span class="pagination-disabled">← Previous</span>
-                    `}
-                    
-                    <div style="display: flex; gap: 0.5rem;">
-                      ${generatePageNumbers(currentPage, totalPages).map(pageNum => 
-                        pageNum === '...' 
-                          ? html`<span style="padding: 0.5rem;">...</span>`
-                          : pageNum === currentPage 
-                            ? html`<span class="pagination-current">${pageNum}</span>`
-                            : html`
-                                <a href="?page=${pageNum}${domain ? `&domain=${domain}` : ''}&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}"
-                                   class="pagination-link">
-                                  ${pageNum}
-                                </a>
-                              `
-                      )}
-                    </div>
-                    
-                    ${currentPage < totalPages ? html`
-                      <a href="?page=${currentPage + 1}${domain ? `&domain=${domain}` : ''}&per_page=${itemsPerPage}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}"
-                         class="pagination-link">
-                        Next →
-                      </a>
-                    ` : html`
-                      <span class="pagination-disabled">Next →</span>
-                    `}
-                    
-                    <div style="margin-left: 2rem; color: #6b7280; font-size: 0.875rem;">
-                      Items per page:
-                      <select onchange="window.location.href='?page=1${domain ? `&domain=${domain}` : ''}&per_page=' + this.value + '${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}'"
-                              style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;">
-                        <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
-                        <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
-                        <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
-                        <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>100</option>
-                      </select>
-                    </div>
-                  </div>
-                ` : ''}
+
+                ${totalPages > 1
+                  ? html`
+                      <div
+                        style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 2rem; padding: 1rem 0;"
+                      >
+                        ${currentPage > 1
+                          ? html`
+                              <a
+                                href="?page=${currentPage - 1}${domain
+                                  ? `&domain=${domain}`
+                                  : ''}&per_page=${itemsPerPage}${searchQuery
+                                  ? `&search=${encodeURIComponent(c.req.query('search') || '')}`
+                                  : ''}"
+                                class="pagination-link"
+                              >
+                                ← Previous
+                              </a>
+                            `
+                          : html` <span class="pagination-disabled">← Previous</span> `}
+
+                        <div style="display: flex; gap: 0.5rem;">
+                          ${generatePageNumbers(currentPage, totalPages).map(pageNum =>
+                            pageNum === '...'
+                              ? html`<span style="padding: 0.5rem;">...</span>`
+                              : pageNum === currentPage
+                                ? html`<span class="pagination-current">${pageNum}</span>`
+                                : html`
+                                    <a
+                                      href="?page=${pageNum}${domain
+                                        ? `&domain=${domain}`
+                                        : ''}&per_page=${itemsPerPage}${searchQuery
+                                        ? `&search=${encodeURIComponent(c.req.query('search') || '')}`
+                                        : ''}"
+                                      class="pagination-link"
+                                    >
+                                      ${pageNum}
+                                    </a>
+                                  `
+                          )}
+                        </div>
+
+                        ${currentPage < totalPages
+                          ? html`
+                              <a
+                                href="?page=${currentPage + 1}${domain
+                                  ? `&domain=${domain}`
+                                  : ''}&per_page=${itemsPerPage}${searchQuery
+                                  ? `&search=${encodeURIComponent(c.req.query('search') || '')}`
+                                  : ''}"
+                                class="pagination-link"
+                              >
+                                Next →
+                              </a>
+                            `
+                          : html` <span class="pagination-disabled">Next →</span> `}
+
+                        <div style="margin-left: 2rem; color: #6b7280; font-size: 0.875rem;">
+                          Items per page:
+                          <select
+                            onchange="window.location.href='?page=1${domain
+                              ? `&domain=${domain}`
+                              : ''}&per_page=' + this.value + '${searchQuery
+                              ? `&search=${encodeURIComponent(c.req.query('search') || '')}`
+                              : ''}'"
+                            style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;"
+                          >
+                            <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                            <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
+                            <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                            <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>
+                              100
+                            </option>
+                          </select>
+                        </div>
+                      </div>
+                    `
+                  : ''}
               `}
         </div>
       </div>
@@ -903,11 +948,10 @@ dashboardRoutes.get('/', async c => {
   }
 })
 
-
 function generatePageNumbers(current: number, total: number): (number | string)[] {
   const pages: (number | string)[] = []
   const maxVisible = 7 // Maximum number of page buttons to show
-  
+
   if (total <= maxVisible) {
     // Show all pages if total is small
     for (let i = 1; i <= total; i++) {
@@ -916,32 +960,31 @@ function generatePageNumbers(current: number, total: number): (number | string)[
   } else {
     // Always show first page
     pages.push(1)
-    
+
     if (current > 3) {
       pages.push('...')
     }
-    
+
     // Show pages around current
     const start = Math.max(2, current - 1)
     const end = Math.min(total - 1, current + 1)
-    
+
     for (let i = start; i <= end; i++) {
       pages.push(i)
     }
-    
+
     if (current < total - 2) {
       pages.push('...')
     }
-    
+
     // Always show last page
     if (total > 1) {
       pages.push(total)
     }
   }
-  
+
   return pages
 }
-
 
 function formatTimestamp(timestamp: string | Date): string {
   const date = new Date(timestamp)
@@ -1187,7 +1230,7 @@ dashboardRoutes.get('/request/:id', async c => {
         } else if (msg.isToolResult) {
           messageClass += ' message-tool-result'
         }
-        
+
         // Add special styling for assistant messages
         if (msg.role === 'assistant') {
           messageClass += ' message-assistant-response'
@@ -1409,9 +1452,7 @@ dashboardRoutes.get('/request/:id', async c => {
       </div>
 
       <!-- Conversation View -->
-      <div id="conversation-view" class="conversation-container">
-        ${raw(messagesHtml)}
-      </div>
+      <div id="conversation-view" class="conversation-container">${raw(messagesHtml)}</div>
 
       <!-- Raw JSON View (hidden by default) -->
       <div id="raw-view" class="hidden">
@@ -1765,7 +1806,6 @@ dashboardRoutes.get('/request/:id', async c => {
               })
           }
         }
-
 
         // Initialize syntax highlighting
         document.addEventListener('DOMContentLoaded', function () {

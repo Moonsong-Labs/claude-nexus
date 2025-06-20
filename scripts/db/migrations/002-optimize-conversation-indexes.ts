@@ -51,15 +51,16 @@ async function optimizeConversationIndexes() {
       WHERE tablename = 'api_requests'
       ORDER BY indexname
     `)
-    
+
     console.log(`Found ${indexesResult.rowCount} indexes on api_requests table`)
-    
+
     // Check for the specific indexes we created
-    const createdIndexes = indexesResult.rows.filter(row => 
-      row.indexname === 'idx_requests_conversation_timestamp' || 
-      row.indexname === 'idx_requests_conversation_detail'
+    const createdIndexes = indexesResult.rows.filter(
+      row =>
+        row.indexname === 'idx_requests_conversation_timestamp' ||
+        row.indexname === 'idx_requests_conversation_detail'
     )
-    
+
     if (createdIndexes.length < 2) {
       throw new Error('Not all expected indexes were created')
     }
@@ -95,7 +96,10 @@ async function optimizeConversationIndexes() {
   } catch (error) {
     // Rollback on error
     await pool.query('ROLLBACK')
-    console.error('Index optimization failed:', error instanceof Error ? error.message : String(error))
+    console.error(
+      'Index optimization failed:',
+      error instanceof Error ? error.message : String(error)
+    )
     process.exit(1)
   } finally {
     await pool.end()

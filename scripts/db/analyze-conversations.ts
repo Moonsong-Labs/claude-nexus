@@ -48,7 +48,7 @@ class ConversationAnalyzer {
 
   async analyze() {
     console.log('Starting conversation analysis...')
-    
+
     try {
       // Load all requests
       console.log('\n1. Loading requests from database...')
@@ -64,8 +64,8 @@ class ConversationAnalyzer {
 
       // Show results
       console.log('\n3. Analysis Results:')
-      console.log('=' .repeat(80))
-      
+      console.log('='.repeat(80))
+
       for (const [domain, analysis] of Array.from(domainAnalyses.entries())) {
         console.log(`\nDomain: ${domain}`)
         console.log('-'.repeat(40))
@@ -73,12 +73,12 @@ class ConversationAnalyzer {
         console.log(`Root requests (no parent): ${analysis.rootRequests}`)
         console.log(`Orphaned requests (parent not found): ${analysis.orphanedRequests}`)
         console.log(`Conversation chains: ${analysis.conversationChains.length}`)
-        
+
         // Show duplicate parent hashes
         const duplicates = Array.from(analysis.duplicateParentHashes.entries())
           .filter(([_, count]) => count > 1)
           .sort((a, b) => b[1] - a[1]) as Array<[string, number]>
-        
+
         if (duplicates.length > 0) {
           console.log(`\nParent hashes with multiple children (branch points):`)
           for (const [hash, count] of duplicates.slice(0, 5)) {
@@ -93,11 +93,13 @@ class ConversationAnalyzer {
         const topChains = analysis.conversationChains
           .sort((a, b) => b.chainLength - a.chainLength)
           .slice(0, 5)
-        
+
         if (topChains.length > 0) {
           console.log(`\nTop conversation chains by length:`)
           for (const chain of topChains) {
-            console.log(`  ${chain.rootRequestId.substring(0, 8)}... → ${chain.chainLength} messages, ${chain.branches} branches, ${chain.totalTokens.toLocaleString()} tokens`)
+            console.log(
+              `  ${chain.rootRequestId.substring(0, 8)}... → ${chain.chainLength} messages, ${chain.branches} branches, ${chain.totalTokens.toLocaleString()} tokens`
+            )
             console.log(`    Started: ${chain.rootTimestamp.toLocaleString()}`)
           }
         }
@@ -107,14 +109,13 @@ class ConversationAnalyzer {
       console.log('\n' + '='.repeat(80))
       console.log('OVERALL STATISTICS:')
       console.log('='.repeat(80))
-      
+
       const totalStats = await this.getOverallStats()
       console.log(`Total requests with message hashes: ${totalStats.totalWithHashes}`)
       console.log(`Requests already in conversations: ${totalStats.alreadyInConversations}`)
       console.log(`Requests needing conversation assignment: ${totalStats.needingAssignment}`)
       console.log(`Unique conversation chains that would be created: ${totalStats.uniqueChains}`)
       console.log(`Total branch points detected: ${totalStats.totalBranchPoints}`)
-
     } catch (error) {
       console.error('Error during analysis:', error)
       throw error
@@ -147,7 +148,7 @@ class ConversationAnalyzer {
     for (const request of requests) {
       // Build ID index
       this.requestsById.set(request.request_id, request)
-      
+
       // Build hash index
       if (request.current_message_hash) {
         if (!this.requestsByHash.has(request.current_message_hash)) {
@@ -160,7 +161,7 @@ class ConversationAnalyzer {
 
   private analyzeByDomain(requests: Request[]): Map<string, ConversationAnalysis> {
     const domainMap = new Map<string, Request[]>()
-    
+
     // Group by domain
     for (const request of requests) {
       if (!domainMap.has(request.domain)) {
@@ -171,11 +172,11 @@ class ConversationAnalyzer {
 
     // Analyze each domain
     const analyses = new Map<string, ConversationAnalysis>()
-    
+
     for (const [domain, domainRequests] of Array.from(domainMap.entries())) {
       analyses.set(domain, this.analyzeDomain(domain, domainRequests))
     }
-    
+
     return analyses
   }
 
@@ -186,7 +187,7 @@ class ConversationAnalyzer {
       totalRequests: requests.length,
       conversationChains: [],
       orphanedRequests: 0,
-      duplicateParentHashes: new Map()
+      duplicateParentHashes: new Map(),
     }
 
     const processed = new Set<string>()
@@ -203,7 +204,7 @@ class ConversationAnalyzer {
         // Count how many requests have this as parent
         const parentRequests = this.requestsByHash.get(request.parent_message_hash) || []
         const samedomainParents = parentRequests.filter(p => p.domain === domain)
-        
+
         if (samedomainParents.length === 0) {
           analysis.orphanedRequests++
         }
@@ -227,7 +228,7 @@ class ConversationAnalyzer {
     // Find any orphaned chains (cycles or mid-conversation entries)
     for (const request of requests) {
       if (!request.current_message_hash || processed.has(request.request_id)) continue
-      
+
       // This is an orphaned chain
       const chain = this.analyzeChain(request, requests, processed)
       analysis.conversationChains.push(chain)
@@ -237,8 +238,8 @@ class ConversationAnalyzer {
   }
 
   private analyzeChain(
-    root: Request, 
-    domainRequests: Request[], 
+    root: Request,
+    domainRequests: Request[],
     processed: Set<string>
   ): {
     rootRequestId: string
@@ -255,18 +256,17 @@ class ConversationAnalyzer {
 
     while (queue.length > 0) {
       const current = queue.shift()!
-      
+
       if (seen.has(current.request_id)) continue
-      
+
       seen.add(current.request_id)
       processed.add(current.request_id)
       chainLength++
       totalTokens += current.total_tokens || 0
 
       // Find children
-      const children = domainRequests.filter(r => 
-        r.parent_message_hash === current.current_message_hash &&
-        !seen.has(r.request_id)
+      const children = domainRequests.filter(
+        r => r.parent_message_hash === current.current_message_hash && !seen.has(r.request_id)
       )
 
       if (children.length > 1) {
@@ -281,7 +281,7 @@ class ConversationAnalyzer {
       rootTimestamp: root.timestamp,
       chainLength,
       branches,
-      totalTokens
+      totalTokens,
     }
   }
 
@@ -297,17 +297,17 @@ class ConversationAnalyzer {
     // Count unique chains and branch points
     let uniqueChains = 0
     let totalBranchPoints = 0
-    
+
     const allRequests = await this.loadRequests()
     const processed = new Set<string>()
-    
+
     for (const request of allRequests) {
       if (!request.current_message_hash || processed.has(request.request_id)) continue
-      
+
       // Check if this is a root
       if (!request.parent_message_hash || !this.requestsByHash.has(request.parent_message_hash)) {
         uniqueChains++
-        
+
         // Count branch points in this chain
         const branchPoints = this.countBranchPoints(request, allRequests, new Set())
         totalBranchPoints += branchPoints
@@ -319,7 +319,7 @@ class ConversationAnalyzer {
       alreadyInConversations: parseInt(stats.rows[0].already_in_conversations),
       needingAssignment: parseInt(stats.rows[0].needing_assignment),
       uniqueChains,
-      totalBranchPoints
+      totalBranchPoints,
     }
   }
 
@@ -328,11 +328,9 @@ class ConversationAnalyzer {
     visited.add(root.request_id)
 
     let branchPoints = 0
-    
+
     // Find children
-    const children = allRequests.filter(r => 
-      r.parent_message_hash === root.current_message_hash
-    )
+    const children = allRequests.filter(r => r.parent_message_hash === root.current_message_hash)
 
     if (children.length > 1) {
       branchPoints++
@@ -350,7 +348,7 @@ class ConversationAnalyzer {
 // Main execution
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  
+
   if (!databaseUrl) {
     console.error('ERROR: DATABASE_URL environment variable is required')
     process.exit(1)
@@ -365,7 +363,7 @@ async function main() {
   console.log('')
 
   const analyzer = new ConversationAnalyzer(databaseUrl)
-  
+
   try {
     await analyzer.analyze()
   } catch (error) {
