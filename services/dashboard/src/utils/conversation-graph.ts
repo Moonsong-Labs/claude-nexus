@@ -13,6 +13,9 @@ export interface ConversationNode {
   messageCount?: number
   toolCallCount?: number
   messageTypes?: string[]
+  isSubtask?: boolean
+  hasSubtasks?: boolean
+  subtaskCount?: number
 }
 
 export interface ConversationGraph {
@@ -36,6 +39,9 @@ export interface LayoutNode {
   messageCount?: number
   toolCallCount?: number
   messageTypes?: string[]
+  isSubtask?: boolean
+  hasSubtasks?: boolean
+  subtaskCount?: number
 }
 
 export interface LayoutEdge {
@@ -131,6 +137,9 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       messageCount: node.messageCount,
       toolCallCount: node.toolCallCount,
       messageTypes: node.messageTypes,
+      isSubtask: node.isSubtask,
+      hasSubtasks: node.hasSubtasks,
+      subtaskCount: node.subtaskCount,
     }
   })
 
@@ -297,6 +306,14 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     // Add timestamp
     const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
+
+    // Add sub-task indicators
+    if (node.isSubtask) {
+      svg += `    <text x="${x + node.width - 12}" y="${y + 12}" text-anchor="middle" class="graph-node-label" style="font-size: 10px;" title="Sub-task">🔗</text>\n`
+    }
+    if (node.hasSubtasks && node.subtaskCount) {
+      svg += `    <text x="${x + node.width - 12}" y="${y + node.height - 6}" text-anchor="middle" class="graph-node-label" style="font-size: 10px;" title="${node.subtaskCount} sub-tasks">📋</text>\n`
+    }
 
     // Add connection point at the bottom
     svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`

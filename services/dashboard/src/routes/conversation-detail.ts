@@ -99,6 +99,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           messageCount: 0,
           messageTypes: [],
         }
+        
+        // Get sub-task info
+        const enrichedInvocations = subtasksMap.get(req.request_id)
+        const hasSubtasks = enrichedInvocations && enrichedInvocations.length > 0
+        const subtaskCount = enrichedInvocations?.length || 0
+        
         return {
           id: req.request_id,
           label: `${req.model}`,
@@ -114,6 +120,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           messageIndex: index + 1,
           messageCount: details.messageCount,
           messageTypes: details.messageTypes,
+          isSubtask: req.is_subtask,
+          hasSubtasks: hasSubtasks,
+          subtaskCount: subtaskCount,
         }
       }),
       edges: [],
