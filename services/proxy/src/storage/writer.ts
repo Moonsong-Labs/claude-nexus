@@ -16,6 +16,7 @@ interface StorageRequest {
   parentMessageHash?: string | null
   conversationId?: string
   branchId?: string
+  messageCount?: number
 }
 
 interface StorageResponse {
@@ -84,8 +85,8 @@ export class StorageWriter {
         INSERT INTO api_requests (
           request_id, domain, timestamp, method, path, headers, body, 
           api_key_hash, model, request_type, current_message_hash, 
-          parent_message_hash, conversation_id, branch_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          parent_message_hash, conversation_id, branch_id, message_count
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -104,6 +105,7 @@ export class StorageWriter {
         request.parentMessageHash || null,
         request.conversationId || null,
         branchId,
+        request.messageCount || 0,
       ]
 
       await this.pool.query(query, values)

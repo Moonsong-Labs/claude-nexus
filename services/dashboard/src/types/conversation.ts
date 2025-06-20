@@ -17,6 +17,7 @@ export interface ConversationRequest {
   hasToolUse?: boolean
   hasToolResult?: boolean
   messageTypeSummary?: string[]
+  message_count?: number
 }
 
 export interface ConversationSummary {

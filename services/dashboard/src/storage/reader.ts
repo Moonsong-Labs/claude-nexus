@@ -19,6 +19,7 @@ interface ApiRequest {
   current_message_hash?: string
   parent_message_hash?: string
   branch_id?: string
+  message_count?: number
 }
 
 interface RequestDetails {
@@ -372,7 +373,8 @@ export class StorageReader {
       const conversationQuery = domain
         ? `SELECT 
              conversation_id,
-             COUNT(*) as message_count,
+             COUNT(*) as request_count,
+             MAX(message_count) as message_count,
              MIN(timestamp) as first_message,
              MAX(timestamp) as last_message,
              SUM(total_tokens) as total_tokens,
@@ -384,7 +386,8 @@ export class StorageReader {
            LIMIT $2`
         : `SELECT 
              conversation_id,
-             COUNT(*) as message_count,
+             COUNT(*) as request_count,
+             MAX(message_count) as message_count,
              MIN(timestamp) as first_message,
              MAX(timestamp) as last_message,
              SUM(total_tokens) as total_tokens,
@@ -409,7 +412,7 @@ export class StorageReader {
              request_id, domain, timestamp, model, 
              input_tokens, output_tokens, total_tokens, duration_ms,
              error, request_type, tool_call_count, conversation_id,
-             current_message_hash, parent_message_hash, branch_id
+             current_message_hash, parent_message_hash, branch_id, message_count
            FROM api_requests 
            WHERE domain = $1 AND conversation_id = ANY($2::uuid[])
            ORDER BY conversation_id, timestamp ASC`
@@ -417,7 +420,7 @@ export class StorageReader {
              request_id, domain, timestamp, model, 
              input_tokens, output_tokens, total_tokens, duration_ms,
              error, request_type, tool_call_count, conversation_id,
-             current_message_hash, parent_message_hash, branch_id
+             current_message_hash, parent_message_hash, branch_id, message_count
            FROM api_requests 
            WHERE conversation_id = ANY($1::uuid[])
            ORDER BY conversation_id, timestamp ASC`
@@ -444,6 +447,7 @@ export class StorageReader {
           current_message_hash: row.current_message_hash,
           parent_message_hash: row.parent_message_hash,
           branch_id: row.branch_id,
+          message_count: row.message_count || 0,
         }
 
         if (!requestsByConversation[row.conversation_id]) {
@@ -502,7 +506,8 @@ export class StorageReader {
                domain,
                MIN(timestamp) as started_at,
                MAX(timestamp) as last_message_at,
-               COUNT(*) as total_messages,
+               COUNT(*) as request_count,
+               MAX(message_count) as total_messages,
                SUM(total_tokens) as total_tokens,
                COUNT(DISTINCT branch_id) as branch_count,
                array_agg(DISTINCT model) as models_used
@@ -554,7 +559,8 @@ export class StorageReader {
                domain,
                MIN(timestamp) as started_at,
                MAX(timestamp) as last_message_at,
-               COUNT(*) as total_messages,
+               COUNT(*) as request_count,
+               MAX(message_count) as total_messages,
                SUM(total_tokens) as total_tokens,
                COUNT(DISTINCT branch_id) as branch_count,
                array_agg(DISTINCT model) as models_used

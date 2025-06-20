@@ -34,27 +34,23 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       `)
     }
 
-    // For performance, we'll use the message_count from the conversation object
-    // and just show simple icons based on position in conversation
+    // Use the actual message count from the database
     const requestDetailsMap = new Map<string, { messageCount: number; messageTypes: string[] }>()
     
-    // Calculate message counts based on position without fetching details
-    let cumulativeMessageCount = 0
     conversation.requests.forEach((req, index) => {
-      // Estimate messages per request (usually 1-2 new messages per request)
-      const isFirst = index === 0
-      const estimatedNewMessages = isFirst ? 1 : 2 // First request has 1 message, others add user + assistant
-      cumulativeMessageCount += estimatedNewMessages
+      // Use the actual message count from the request
+      const messageCount = req.message_count || 0
       
       // Simple type assignment based on position
       const messageTypes: string[] = []
+      const isFirst = index === 0
       if (!isFirst) {
         messageTypes.push('user') // Previous user message
       }
       messageTypes.push('assistant') // Current assistant response
       
       requestDetailsMap.set(req.request_id, { 
-        messageCount: cumulativeMessageCount,
+        messageCount: messageCount,
         messageTypes: messageTypes.slice(-2)
       })
     })

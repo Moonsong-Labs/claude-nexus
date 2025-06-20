@@ -233,6 +233,12 @@ export class MetricsService {
     try {
       const metrics = response.getMetrics()
 
+      // Calculate message count from request body
+      let messageCount = 0
+      if (request.raw.messages && Array.isArray(request.raw.messages)) {
+        messageCount = request.raw.messages.length
+      }
+
       await this.storageService.storeRequest({
         id: context.requestId,
         domain: context.host,
@@ -255,6 +261,7 @@ export class MetricsService {
         currentMessageHash: conversationData?.currentMessageHash,
         parentMessageHash: conversationData?.parentMessageHash,
         conversationId: conversationData?.conversationId,
+        messageCount: messageCount,
       })
 
       // Store response
