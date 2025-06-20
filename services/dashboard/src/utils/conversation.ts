@@ -1,5 +1,6 @@
 import { marked } from 'marked'
 import sanitizeHtml from 'sanitize-html'
+import { formatDuration as formatDurationUtil } from './formatters.js'
 
 export interface ParsedMessage {
   role: 'user' | 'assistant' | 'system'
@@ -288,22 +289,8 @@ export function calculateCost(
   }
 }
 
-// Format duration for display
-export function formatDuration(ms?: number): string {
-  if (!ms) {
-    return 'N/A'
-  }
-
-  if (ms < 1000) {
-    return `${ms}ms`
-  } else if (ms < 60000) {
-    return `${(ms / 1000).toFixed(2)}s`
-  } else {
-    const minutes = Math.floor(ms / 60000)
-    const seconds = ((ms % 60000) / 1000).toFixed(0)
-    return `${minutes}m ${seconds}s`
-  }
-}
+// Re-export formatDuration from formatters for backward compatibility
+export const formatDuration = formatDurationUtil
 
 // Format timestamp for display
 export function formatMessageTime(date?: Date): string {

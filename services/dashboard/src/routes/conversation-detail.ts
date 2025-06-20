@@ -7,6 +7,8 @@ import {
   renderGraphSVG,
   getBranchColor,
 } from '../utils/conversation-graph.js'
+import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
+import type { ConversationRequest, ConversationSummary } from '../types/conversation.js'
 
 export const conversationDetailRoutes = new Hono()
 
@@ -193,10 +195,11 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Use the shared layout from dashboard-api
     const { layout: dashboardLayout } = await import('./dashboard-api.js')
     return c.html(dashboardLayout('Conversation Detail', content))
-  } catch (_error) {
+  } catch (error) {
+    console.error('Error loading conversation detail:', error)
     return c.html(html`
       <div class="error-banner">
-        <strong>Error:</strong> ${getErrorMessage(_error) || 'Failed to load conversation'}
+        <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversation'}
       </div>
     `)
   }
@@ -226,7 +229,8 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
       : conversation.requests
 
     return c.html(renderConversationMessages(filteredRequests, conversation.branches))
-  } catch (_error) {
+  } catch (error) {
+    console.error('Error loading conversation messages:', error)
     return c.html(html`<div class="error-banner">Failed to load messages</div>`)
   }
 })
@@ -234,7 +238,7 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 /**
  * Helper to render conversation messages
  */
-function renderConversationMessages(requests: any[], _branches: string[]) {
+function renderConversationMessages(requests: ConversationRequest[], _branches: string[]) {
   // Sort requests by timestamp in descending order (newest first)
   const sortedRequests = [...requests].sort((a, b) => 
     new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -244,9 +248,7 @@ function renderConversationMessages(requests: any[], _branches: string[]) {
     <div style="display: grid; gap: 1rem;">
       ${raw(
         sortedRequests
-          .map((req, idx) => {
-            const _isFirst = idx === 0
-            const _isLast = idx === sortedRequests.length - 1
+          .map(req => {
             const branch = req.branch_id || 'main'
             const branchColor = getBranchColor(branch)
 
@@ -291,40 +293,3 @@ function renderConversationMessages(requests: any[], _branches: string[]) {
   `
 }
 
-// Helper functions
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
-}
-
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-
-  if (days > 0) {
-    return `${days}d ${hours % 24}h`
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`
-  }
-  if (minutes > 0) {
-    return `${minutes}m`
-  }
-  return `${seconds}s`
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}

@@ -6,10 +6,11 @@ import { getErrorMessage } from '@claude-nexus/shared'
 import {
   parseConversation,
   calculateCost,
-  formatDuration,
   formatMessageTime,
 } from '../utils/conversation.js'
 import { getBranchColor } from '../utils/conversation-graph.js'
+import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
+import type { ConversationRequest, ConversationSummary } from '../types/conversation.js'
 
 export const dashboardRoutes = new Hono<{
   Variables: {
@@ -703,21 +704,21 @@ dashboardRoutes.get('/', async c => {
         <div style="display: flex; gap: 1rem; align-items: center;">
           <!-- Search Bar -->
           <form action="/dashboard" method="get" style="display: flex; gap: 0.5rem;">
-            ${domain ? raw(`<input type="hidden" name="domain" value="${domain}">`) : ''}
+            ${domain ? html`<input type="hidden" name="domain" value="${escapeHtml(domain)}">` : ''}
             <input type="hidden" name="page" value="1">
             <input type="hidden" name="per_page" value="${itemsPerPage}">
             <input
               type="search"
               name="search"
               placeholder="Search conversations..."
-              value="${c.req.query('search') || ''}"
+              value="${escapeHtml(c.req.query('search') || '')}"
               style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 250px; font-size: 0.875rem;"
             />
             <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
               Search
             </button>
           </form>
-          <a href="/dashboard?refresh=true&page=${currentPage}&per_page=${itemsPerPage}${domain ? `&domain=${domain}` : ''}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}" class="btn btn-secondary" style="font-size: 0.875rem;">
+          <a href="/dashboard?refresh=true&page=${currentPage}&per_page=${itemsPerPage}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}${searchQuery ? `&search=${encodeURIComponent(c.req.query('search') || '')}` : ''}" class="btn btn-secondary" style="font-size: 0.875rem;">
             Refresh
           </a>
         </div>
@@ -733,7 +734,7 @@ dashboardRoutes.get('/', async c => {
           <option value="">All Domains</option>
           ${raw(
             uniqueDomains
-              .map(d => `<option value="${d}" ${domain === d ? 'selected' : ''}>${d}</option>`)
+              .map(d => `<option value="${escapeHtml(d)}" ${domain === d ? 'selected' : ''}>${escapeHtml(d)}</option>`)
               .join('')
           )}
         </select>
@@ -902,18 +903,6 @@ dashboardRoutes.get('/', async c => {
   }
 })
 
-/**
- * Helper functions
- */
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
-}
 
 function generatePageNumbers(current: number, total: number): (number | string)[] {
   const pages: (number | string)[] = []
@@ -953,14 +942,6 @@ function generatePageNumbers(current: number, total: number): (number | string)[
   return pages
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
 
 function formatTimestamp(timestamp: string | Date): string {
   const date = new Date(timestamp)
@@ -1304,7 +1285,7 @@ dashboardRoutes.get('/request/:id', async c => {
               <dd>${cost.formattedTotal}</dd>
 
               <dt class="text-gray-600">Duration:</dt>
-              <dd>${formatDuration(conversation.duration)}</dd>
+              <dd>${conversation.duration ? formatDuration(conversation.duration) : 'N/A'}</dd>
 
               <dt class="text-gray-600">Status:</dt>
               <dd>${details.responseStatus}</dd>
