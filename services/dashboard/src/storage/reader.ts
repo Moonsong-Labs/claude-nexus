@@ -780,6 +780,39 @@ export class StorageReader {
   }
 
   /**
+   * Count sub-tasks for given parent request IDs
+   */
+  async countSubtasksForRequests(parentRequestIds: string[]): Promise<number> {
+    if (parentRequestIds.length === 0) {
+      return 0
+    }
+
+    try {
+      const query = `
+        SELECT COUNT(*) as count 
+        FROM api_requests 
+        WHERE parent_task_request_id = ANY($1::uuid[])
+      `
+      
+      const result = await this.executeQuery<{ count: string }>(
+        query,
+        [parentRequestIds],
+        'countSubtasksForRequests'
+      )
+      
+      return parseInt(result[0]?.count || '0')
+    } catch (error) {
+      logger.error('Failed to count sub-tasks', {
+        metadata: {
+          parentRequestIds: parentRequestIds.length,
+          error: getErrorMessage(error),
+        },
+      })
+      return 0
+    }
+  }
+
+  /**
    * Clear cache
    */
   clearCache(): void {

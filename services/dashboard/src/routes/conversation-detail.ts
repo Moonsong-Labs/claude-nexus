@@ -256,15 +256,19 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     }
 
     // Calculate total sub-tasks spawned by this conversation
+    // First, get the actual count of sub-task requests linked to this conversation
     let totalSubtasksSpawned = 0
     let requestsWithSubtasks = 0
-    for (const req of conversation.requests) {
-      const enrichedInvocations = subtasksMap.get(req.request_id)
-      const taskInvocations = enrichedInvocations || req.task_tool_invocation
-      if (taskInvocations && Array.isArray(taskInvocations) && taskInvocations.length > 0) {
-        totalSubtasksSpawned += taskInvocations.length
-        requestsWithSubtasks++
-      }
+    
+    // Get request IDs that have task invocations
+    const requestIdsWithTasks = conversation.requests
+      .filter(req => req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0)
+      .map(req => req.request_id)
+    
+    if (requestIdsWithTasks.length > 0) {
+      // Count actual sub-tasks linked to these requests
+      totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsWithTasks)
+      requestsWithSubtasks = requestIdsWithTasks.length
     }
 
     // Calculate stats for selected branch or total
@@ -278,12 +282,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       
       // Calculate sub-tasks for filtered branch
       let branchSubtasks = 0
-      for (const req of filteredRequests) {
-        const enrichedInvocations = subtasksMap.get(req.request_id)
-        const taskInvocations = enrichedInvocations || req.task_tool_invocation
-        if (taskInvocations && Array.isArray(taskInvocations) && taskInvocations.length > 0) {
-          branchSubtasks += taskInvocations.length
-        }
+      const branchRequestIdsWithTasks = filteredRequests
+        .filter(req => req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0)
+        .map(req => req.request_id)
+      
+      if (branchRequestIdsWithTasks.length > 0) {
+        branchSubtasks = await storageService.countSubtasksForRequests(branchRequestIdsWithTasks)
       }
 
       displayStats = {
