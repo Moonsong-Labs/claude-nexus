@@ -75,11 +75,37 @@ export class StorageWriter {
       let parentTaskRequestId = request.parentTaskRequestId
       let isSubtask = request.isSubtask || false
 
-      // Only check for sub-task matching if this is the first message in a conversation
-      if (!request.parentMessageHash && request.body?.messages?.length > 0) {
+      // Check if this conversation is already marked as a sub-task
+      if (request.conversationId && request.parentMessageHash) {
+        // This is a continuation of an existing conversation
+        const existingConv = await this.pool.query(
+          'SELECT parent_task_request_id, is_subtask FROM api_requests WHERE conversation_id = $1 AND is_subtask = true LIMIT 1',
+          [request.conversationId]
+        )
+        if (existingConv.rows.length > 0 && existingConv.rows[0].is_subtask) {
+          parentTaskRequestId = existingConv.rows[0].parent_task_request_id
+          isSubtask = true
+          logger.debug('Continuing sub-task conversation', {
+            metadata: {
+              requestId: request.requestId,
+              conversationId: request.conversationId,
+              parentTaskRequestId,
+            },
+          })
+        }
+      } else if (!request.parentMessageHash && request.body?.messages?.length > 0) {
+        // Only check for sub-task matching if this is the first message in a conversation
         const firstMessage = request.body.messages[0]
         if (firstMessage?.role === 'user') {
           const userContent = this.extractUserMessageContent(firstMessage)
+          logger.debug('Extracted user content for sub-task matching', {
+            metadata: {
+              requestId: request.requestId,
+              hasContent: !!userContent,
+              contentLength: userContent?.length || 0,
+              contentPreview: userContent?.substring(0, 100),
+            },
+          })
           if (userContent) {
             const match = await this.findMatchingTaskInvocation(userContent, request.timestamp)
             if (match) {
@@ -549,32 +575,57 @@ export class StorageWriter {
     timestamp: Date
   ): Promise<{ request_id: string; timestamp: Date } | null> {
     try {
+      logger.debug('Looking for matching Task invocation', {
+        metadata: {
+          contentLength: userContent.length,
+          contentPreview: userContent.substring(0, 100),
+          timestamp: timestamp.toISOString(),
+        },
+      })
+
       // Look for Task invocations in the last 60 seconds
       const query = `
         SELECT request_id, timestamp
         FROM api_requests
         WHERE task_tool_invocation IS NOT NULL
-        AND timestamp BETWEEN $1 - interval '60 seconds' AND $1
+        AND timestamp >= $1::timestamp - interval '60 seconds'
+        AND timestamp <= $1::timestamp
         AND jsonb_path_exists(
           task_tool_invocation,
           '$[*] ? (@.input.prompt == $prompt || @.input.description == $prompt)',
-          jsonb_build_object('prompt', $2)
+          jsonb_build_object('prompt', $2::text)
         )
         ORDER BY timestamp DESC
         LIMIT 1
       `
 
-      const result = await this.pool.query(query, [timestamp, userContent])
+      const result = await this.pool.query(query, [timestamp.toISOString(), userContent])
 
       if (result.rows.length > 0) {
+        logger.debug('Found matching Task invocation', {
+          metadata: {
+            parentRequestId: result.rows[0].request_id,
+            parentTimestamp: result.rows[0].timestamp,
+            timeDiffSeconds: Math.round(
+              (timestamp.getTime() - new Date(result.rows[0].timestamp).getTime()) / 1000
+            ),
+          },
+        })
         return result.rows[0]
       }
+
+      logger.debug('No matching Task invocation found', {
+        metadata: {
+          searchWindow: '60 seconds',
+        },
+      })
 
       return null
     } catch (error) {
       logger.error('Failed to find matching task invocation', {
         metadata: {
           error: error instanceof Error ? error.message : String(error),
+          query: error instanceof Error && 'message' in error ? error.message : undefined,
         },
       })
       return null
