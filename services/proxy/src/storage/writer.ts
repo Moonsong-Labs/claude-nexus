@@ -64,10 +64,8 @@ export class StorageWriter {
    */
   async storeRequest(request: StorageRequest): Promise<void> {
     try {
-      // Remove sensitive headers
-      const sanitizedHeaders = { ...request.headers }
-      delete sanitizedHeaders['authorization']
-      delete sanitizedHeaders['x-api-key']
+      // Mask sensitive headers instead of removing them
+      const sanitizedHeaders = this.maskSensitiveHeaders(request.headers)
 
       // Detect if this is a branch in the conversation
       let branchId = request.branchId || 'main'
@@ -381,6 +379,29 @@ export class StorageWriter {
   private hashApiKey(apiKey: string): string {
     // Simple hash for privacy (in production, use proper crypto)
     return apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4)
+  }
+
+  /**
+   * Mask sensitive headers
+   */
+  private maskSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
+    const masked = { ...headers }
+    const sensitiveHeaders = ['authorization', 'x-api-key']
+    
+    for (const [key, value] of Object.entries(headers)) {
+      const lowerKey = key.toLowerCase()
+      if (sensitiveHeaders.includes(lowerKey) && typeof value === 'string') {
+        if (value.length > 6) {
+          // Show only last 6 characters
+          masked[key] = '*'.repeat(Math.max(0, value.length - 6)) + value.slice(-6)
+        } else {
+          // For short values, mask entirely
+          masked[key] = '***'
+        }
+      }
+    }
+    
+    return masked
   }
 
   /**
