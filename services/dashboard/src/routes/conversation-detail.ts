@@ -34,6 +34,43 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       `)
     }
 
+    // Fetch sub-tasks for requests that have task invocations
+    const subtasksMap = new Map<string, any[]>()
+    for (const req of conversation.requests) {
+      if (req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0) {
+        const subtasks = await storageService.getSubtasksForRequest(req.request_id)
+        if (subtasks.length > 0) {
+          // Group sub-tasks by their conversation ID
+          const subtasksByConversation = subtasks.reduce((acc, subtask) => {
+            const convId = subtask.conversation_id || 'unknown'
+            if (!acc[convId]) {
+              acc[convId] = []
+            }
+            acc[convId].push(subtask)
+            return acc
+          }, {} as Record<string, any[]>)
+          
+          // Link sub-task conversations to task invocations
+          const enrichedInvocations = req.task_tool_invocation.map((invocation: any) => {
+            // Find matching sub-task conversation by checking first message content
+            for (const [convId, convSubtasks] of Object.entries(subtasksByConversation)) {
+              // Check if any subtask in this conversation matches the invocation prompt
+              const matches = convSubtasks.some(st => {
+                // This is a simplified check - you might need more sophisticated matching
+                return st.is_subtask && st.parent_task_request_id === req.request_id
+              })
+              if (matches) {
+                return { ...invocation, linked_conversation_id: convId }
+              }
+            }
+            return invocation
+          })
+          
+          subtasksMap.set(req.request_id, enrichedInvocations)
+        }
+      }
+    }
+
     // Use the actual message count from the database
     const requestDetailsMap = new Map<string, { messageCount: number; messageTypes: string[] }>()
 
@@ -298,7 +335,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
         <!-- Timeline -->
         <div class="conversation-timeline" id="conversation-messages">
-          ${raw(renderConversationMessages(filteredRequests, conversation.branches))}
+          ${raw(renderConversationMessages(filteredRequests, conversation.branches, subtasksMap))}
         </div>
       </div>
     `
@@ -373,7 +410,7 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 /**
  * Helper to render conversation messages
  */
-function renderConversationMessages(requests: ConversationRequest[], _branches: string[]) {
+function renderConversationMessages(requests: ConversationRequest[], _branches: string[], subtasksMap?: Map<string, any[]>) {
   // Sort requests by timestamp in descending order (newest first)
   const sortedRequests = [...requests].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -388,10 +425,11 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
             const branchColor = getBranchColor(branch)
 
             // Check if this request has sub-tasks based on task_tool_invocation
+            const taskInvocations = subtasksMap?.get(req.request_id) || req.task_tool_invocation
             const hasTaskInvocation =
-              req.task_tool_invocation &&
-              Array.isArray(req.task_tool_invocation) &&
-              req.task_tool_invocation.length > 0
+              taskInvocations &&
+              Array.isArray(taskInvocations) &&
+              taskInvocations.length > 0
 
             return `
           <div class="section" id="message-${req.request_id}">
@@ -416,7 +454,7 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
                 }
                 ${
                   hasTaskInvocation
-                    ? `<span style="margin-left: 0.5rem; font-size: 0.875rem;" title="Has sub-tasks">📋 (${req.task_tool_invocation.length})</span>`
+                    ? `<span style="margin-left: 0.5rem; font-size: 0.875rem;" title="Has sub-tasks">📋 (${taskInvocations.length})</span>`
                     : ''
                 }
               </div>
@@ -455,14 +493,15 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
                 hasTaskInvocation
                   ? `<div id="subtasks-${req.request_id}" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
                       <div class="text-sm text-gray-600" style="margin-bottom: 0.5rem;">Sub-tasks spawned by this request:</div>
-                      ${req.task_tool_invocation
+                      ${taskInvocations
                         .map(
                           (task: any) => `
                           <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #f9fafb; border-radius: 0.25rem;">
                             <div style="font-size: 0.875rem; color: #4b5563;">
                               <strong>Task:</strong> ${escapeHtml(task.name || 'Unnamed task')}
                             </div>
-                            ${task.prompt ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">${escapeHtml(task.prompt.substring(0, 200))}${task.prompt.length > 200 ? '...' : ''}</div>` : ''}
+                            ${task.input?.prompt ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">${escapeHtml(task.input.prompt.substring(0, 200))}${task.input.prompt.length > 200 ? '...' : ''}</div>` : ''}
+                            ${task.input?.description ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Description: ${escapeHtml(task.input.description)}</div>` : ''}
                             ${
                               task.linked_conversation_id
                                 ? `
@@ -472,7 +511,7 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
                                 </a>
                               </div>
                             `
-                                : ''
+                                : '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #9ca3af;">Sub-task not yet linked</div>'
                             }
                           </div>
                         `
