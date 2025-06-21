@@ -426,7 +426,9 @@ code {
   padding: 0.75rem 1.25rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
   z-index: 1000;
   animation: slideIn 0.3s ease-out;
   max-width: 320px;

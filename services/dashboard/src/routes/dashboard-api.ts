@@ -1820,7 +1820,9 @@ dashboardRoutes.get('/request/:id', async c => {
       </script>
     `
 
-    return c.html(layout('Request Details', content, '<script src="/message-selection.js" defer></script>'))
+    return c.html(
+      layout('Request Details', content, '<script src="/message-selection.js" defer></script>')
+    )
   } catch (error) {
     return c.html(
       layout(
