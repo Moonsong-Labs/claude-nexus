@@ -17,7 +17,7 @@ export const dashboardRoutes = new Hono<{
 /**
  * Dashboard HTML layout template
  */
-export const layout = (title: string, content: any) => html`
+export const layout = (title: string, content: any, additionalScripts: string = '') => html`
   <!DOCTYPE html>
   <html lang="en">
     <head>
@@ -587,6 +587,7 @@ export const layout = (title: string, content: any) => html`
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/renderjson@1.4.0/renderjson.min.js"></script>
       <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+      ${additionalScripts}
     </head>
     <body>
       <nav>
@@ -1819,7 +1820,7 @@ dashboardRoutes.get('/request/:id', async c => {
       </script>
     `
 
-    return c.html(layout('Request Details', content))
+    return c.html(layout('Request Details', content, '<script src="/message-selection.js" defer></script>'))
   } catch (error) {
     return c.html(
       layout(
