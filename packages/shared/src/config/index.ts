@@ -31,13 +31,14 @@ export const config = {
     host: env.string('HOST', '0.0.0.0'),
     env: env.string('NODE_ENV', 'development'),
     isProduction: process.env.NODE_ENV === 'production',
+    timeout: env.int('PROXY_SERVER_TIMEOUT', 660000), // 11 minutes (longer than max request + retries)
   },
 
   // API configuration
   api: {
     claudeBaseUrl: env.string('CLAUDE_API_BASE_URL', 'https://api.anthropic.com'),
     claudeApiKey: env.string('CLAUDE_API_KEY', ''),
-    claudeTimeout: env.int('CLAUDE_API_TIMEOUT', 300000), // 5 minutes
+    claudeTimeout: env.int('CLAUDE_API_TIMEOUT', 600000), // 10 minutes
     oauthClientId: env.string('CLAUDE_OAUTH_CLIENT_ID', ''),
   },
 

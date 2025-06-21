@@ -76,6 +76,15 @@ Docker configurations are in the `docker/` directory. Each service has its own o
 
 ## Key Implementation Details
 
+### Request Timeout Configuration
+
+The proxy supports long-running Claude API requests with configurable timeouts:
+
+- **Default timeout**: 10 minutes (600,000ms) for Claude API requests
+- **Server timeout**: 11 minutes (660,000ms) to prevent premature connection closure
+- **Retry timeout**: Slightly longer than request timeout to allow for retries
+- Configure via `CLAUDE_API_TIMEOUT` and `PROXY_SERVER_TIMEOUT` environment variables
+
 ### Conversation Tracking & Branching
 
 The proxy automatically tracks conversations and detects branches using message hashing:
@@ -178,6 +187,8 @@ When `DEBUG=true`:
 - `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true). Set to false to allow anyone to use the proxy without authentication
 - `DASHBOARD_CACHE_TTL` - Dashboard cache TTL in seconds (default: 30). Set to 0 to disable caching
 - `SLOW_QUERY_THRESHOLD_MS` - Threshold in milliseconds for logging slow SQL queries (default: 5000)
+- `CLAUDE_API_TIMEOUT` - Timeout for Claude API requests in milliseconds (default: 600000 / 10 minutes)
+- `PROXY_SERVER_TIMEOUT` - Server-level timeout in milliseconds (default: 660000 / 11 minutes)
 
 ## Important Notes
 

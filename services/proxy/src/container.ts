@@ -63,7 +63,10 @@ class Container {
       config.api.claudeApiKey,
       config.auth.credentialsDir
     )
-    this.claudeApiClient = new ClaudeApiClient()
+    this.claudeApiClient = new ClaudeApiClient({
+      baseUrl: config.api.claudeBaseUrl,
+      timeout: config.api.claudeTimeout,
+    })
 
     // Wire up dependencies
     this.notificationService.setAuthService(this.authenticationService)
