@@ -33,4 +33,10 @@ echo "✅ Claude CLI configured to use proxy at http://proxy:3000"
 echo "✅ Using Bearer token authentication"
 
 # Execute the command passed to the container
-exec "$@"
+# Work around the shebang issue by using node directly
+if [ "$1" = "claude" ]; then
+    shift
+    exec node /usr/local/bin/claude "$@"
+else
+    exec "$@"
+fi

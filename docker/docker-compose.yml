@@ -27,6 +27,7 @@ services:
       retries: 5
     profiles:
       - tools
+      - dev
 
   # Proxy Service
   proxy:
@@ -57,6 +58,9 @@ services:
       
       # Debug
       DEBUG: ${DEBUG:-false}
+      
+      # Client authentication (disable for testing)
+      ENABLE_CLIENT_AUTH: ${ENABLE_CLIENT_AUTH:-false}
     volumes:
       - ../credentials:/app/credentials:ro
       - ../client-setup:/app/client-setup:ro
