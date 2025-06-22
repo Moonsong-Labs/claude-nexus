@@ -14,7 +14,7 @@ if [ -z "$SUITE_ID" ]; then
     exit 1
 fi
 
-ARTIFACTS_DIR="services/claude-testing/artifacts"
+ARTIFACTS_DIR="tests/e2e-ai/artifacts"
 SUITE_FILE="$ARTIFACTS_DIR/generated-tests-$SUITE_ID.json"
 
 if [ ! -f "$SUITE_FILE" ]; then
@@ -27,7 +27,7 @@ fi
 echo "📋 Loading test suite: $SUITE_ID"
 
 # Create promoted tests directory
-PROMOTED_DIR="services/claude-testing/test/promoted"
+PROMOTED_DIR="tests/e2e-ai/test/promoted"
 mkdir -p "$PROMOTED_DIR"
 
 # Generate promoted test file

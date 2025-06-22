@@ -15,7 +15,7 @@ The AI testing system leverages Claude's capabilities to:
 
 ### Components
 
-1. **Claude Testing Service** (`services/claude-testing/`)
+1. **Claude Testing Service** (`tests/e2e-ai/`)
 
    - Dedicated Docker container for running AI-generated tests
    - Built with Bun, Vitest, and Anthropic SDK
@@ -154,7 +154,7 @@ Include test cases for:
 
 ### Test Artifacts
 
-Generated test cases are stored in `services/claude-testing/artifacts/`:
+Generated test cases are stored in `tests/e2e-ai/artifacts/`:
 
 - Filename format: `generated-tests-{suite-id}.json`
 - Contains prompt, timestamp, and test cases

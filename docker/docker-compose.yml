@@ -113,7 +113,7 @@ services:
   # Claude Testing Service for AI-driven E2E tests
   claude-testing:
     build:
-      context: ../services/claude-testing
+      context: ../tests/e2e-ai
       dockerfile: Dockerfile
     container_name: claude-testing-service
     environment:
@@ -133,7 +133,7 @@ services:
       - anthropic_api_key
       - client_api_key
     volumes:
-      - ../services/claude-testing/artifacts:/app/artifacts
+      - ../tests/e2e-ai/artifacts:/app/artifacts
       - claude_home:/root/.claude
     depends_on:
       proxy:

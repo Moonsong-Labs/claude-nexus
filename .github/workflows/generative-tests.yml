@@ -63,7 +63,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generative-test-artifacts-${{ github.run_id }}-${{ github.run_attempt }}
-          path: services/claude-testing/artifacts/
+          path: tests/e2e-ai/artifacts/
           retention-days: 30
 
       - name: Upload test results
@@ -71,16 +71,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.run_id }}-${{ github.run_attempt }}
-          path: services/claude-testing/artifacts/test-results.xml
+          path: tests/e2e-ai/artifacts/test-results.xml
           retention-days: 30
 
       - name: Parse test results
         if: always()
         run: |
-          if [ -f "services/claude-testing/artifacts/test-results.xml" ]; then
+          if [ -f "tests/e2e-ai/artifacts/test-results.xml" ]; then
             echo "📊 Test Results Summary:"
             # Basic parsing of JUnit XML results
-            grep -E "(testsuites|testsuite|testcase)" services/claude-testing/artifacts/test-results.xml || true
+            grep -E "(testsuites|testsuite|testcase)" tests/e2e-ai/artifacts/test-results.xml || true
           fi
 
       - name: Notify on failure
