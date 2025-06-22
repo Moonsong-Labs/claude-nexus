@@ -21,7 +21,7 @@ export class ClaudeApiClient {
   constructor(
     private config: ClaudeApiConfig = {
       baseUrl: 'https://api.anthropic.com',
-      timeout: 300000, // 5 minutes
+      timeout: 600000, // 10 minutes
     }
   ) {}
 
