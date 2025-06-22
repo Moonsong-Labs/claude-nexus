@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     # Don't fail the workflow if tests fail (experimental)
     continue-on-error: true
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -94,4 +94,4 @@ jobs:
               title: `🤖 Nightly AI Tests Failed - ${new Date().toISOString().split('T')[0]}`,
               body: `The nightly AI-driven tests have discovered potential issues.\n\n[View test run](${runUrl})\n\nPlease review the test artifacts to investigate any legitimate bugs found by the AI.`,
               labels: ['ai-testing', 'automated']
-            });
+            })

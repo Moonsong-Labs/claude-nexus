@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { AITestRunner } from '../lib/test-runner';
-import { ProxyClient, MessagesResponseSchema, ErrorResponseSchema } from '../lib/proxy-client';
+import { describe, it, expect, beforeAll } from 'vitest'
+import { AITestRunner } from '../lib/test-runner'
+import { ProxyClient, MessagesResponseSchema, ErrorResponseSchema } from '../lib/proxy-client'
 
 describe('Claude Proxy API - AI-Generated Tests', () => {
-  let testRunner: AITestRunner;
-  let proxyClient: ProxyClient;
-  let suiteId: string;
+  let testRunner: AITestRunner
+  let proxyClient: ProxyClient
+  let suiteId: string
 
   beforeAll(async () => {
-    testRunner = new AITestRunner();
-    await testRunner.initialize();
-    proxyClient = new ProxyClient();
-  });
+    testRunner = new AITestRunner()
+    await testRunner.initialize()
+    proxyClient = new ProxyClient()
+  })
 
   describe('Messages Endpoint', () => {
     it('should handle AI-generated test cases for /v1/messages', async () => {
@@ -31,48 +31,48 @@ Include test cases for:
 5. Invalid authentication
 6. Request with system message
 7. Request with max_tokens set
-8. Empty messages array`;
+8. Empty messages array`
 
-      const { testCases, suiteId: generatedSuiteId } = await testRunner.getTestCases(prompt);
-      suiteId = generatedSuiteId;
-      
-      console.log(`📝 Generated ${testCases.length} test cases (Suite ID: ${suiteId})`);
+      const { testCases, suiteId: generatedSuiteId } = await testRunner.getTestCases(prompt)
+      suiteId = generatedSuiteId
+
+      console.log(`📝 Generated ${testCases.length} test cases (Suite ID: ${suiteId})`)
 
       // Execute each test case
       for (const testCase of testCases) {
-        console.log(`\n🧪 Running: ${testCase.description}`);
-        
+        console.log(`\n🧪 Running: ${testCase.description}`)
+
         const response = await proxyClient.makeRequest(
           testCase.httpMethod,
           testCase.endpoint,
           testCase.payload,
           testCase.headers
-        );
+        )
 
         // Assert status code
-        expect(response.status).toBe(testCase.expectedStatusCode);
+        expect(response.status).toBe(testCase.expectedStatusCode)
 
         // Validate response schema if provided
         if (testCase.expectedResponseSchema) {
-          const validation = proxyClient.validateResponse(response, testCase.expectedResponseSchema);
-          expect(validation.isValid).toBe(true);
+          const validation = proxyClient.validateResponse(response, testCase.expectedResponseSchema)
+          expect(validation.isValid).toBe(true)
         } else {
           // Use default schemas based on status code
           if (response.status === 200) {
-            const validation = proxyClient.validateResponse(response, MessagesResponseSchema);
+            const validation = proxyClient.validateResponse(response, MessagesResponseSchema)
             if (!validation.isValid) {
-              console.log('Response validation errors:', validation.errors);
+              console.log('Response validation errors:', validation.errors)
             }
           } else if (response.status >= 400) {
-            const validation = proxyClient.validateResponse(response, ErrorResponseSchema);
+            const validation = proxyClient.validateResponse(response, ErrorResponseSchema)
             if (!validation.isValid) {
-              console.log('Error response validation errors:', validation.errors);
+              console.log('Error response validation errors:', validation.errors)
             }
           }
         }
       }
-    });
-  });
+    })
+  })
 
   describe('Token Stats Endpoint', () => {
     it('should handle AI-generated test cases for /token-stats', async () => {
@@ -86,22 +86,23 @@ Context:
 Include test cases for:
 1. Valid request to get token stats
 2. Request without authentication (if required)
-3. Request with invalid authentication`;
+3. Request with invalid authentication`
 
-      const { testCases } = await testRunner.getTestCases(prompt);
-      
+      const { testCases } = await testRunner.getTestCases(prompt)
+
       for (const testCase of testCases) {
-        console.log(`\n🧪 Running: ${testCase.description}`);
-        
+        console.log(`\n🧪 Running: ${testCase.description}`)
+
         const response = await proxyClient.makeRequest(
           testCase.httpMethod,
           testCase.endpoint,
           testCase.payload,
           testCase.headers
-        );
+        )
 
-        expect(response.status).toBe(testCase.expectedStatusCode);
+        expect(response.status).toBe(testCase.expectedStatusCode)
       }
-    });
-  });
-});
+    })
+  })
+})
+

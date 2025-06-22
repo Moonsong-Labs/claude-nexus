@@ -5,6 +5,7 @@ This document describes the AI-driven testing infrastructure for Claude Nexus Pr
 ## Overview
 
 The AI testing system leverages Claude's capabilities to:
+
 - Generate creative test cases that human testers might miss
 - Find edge cases and potential security issues
 - Validate API behavior against expected patterns
@@ -15,11 +16,13 @@ The AI testing system leverages Claude's capabilities to:
 ### Components
 
 1. **Claude Testing Service** (`services/claude-testing/`)
+
    - Dedicated Docker container for running AI-generated tests
    - Built with Bun, Vitest, and Anthropic SDK
    - Supports both test generation and replay modes
 
 2. **Test Runner** (`lib/test-runner.ts`)
+
    - Manages communication with Claude API
    - Generates test cases based on prompts
    - Stores test artifacts for replay
@@ -40,11 +43,13 @@ The AI testing system leverages Claude's capabilities to:
 ### Initial Setup
 
 1. Set your Anthropic API key:
+
    ```bash
    export ANTHROPIC_API_KEY="your-anthropic-api-key"
    ```
 
 2. Run the setup script:
+
    ```bash
    ./scripts/setup-claude-testing.sh
    ```
@@ -71,13 +76,17 @@ cd docker && docker compose --profile testing up
 ### Test Modes
 
 #### Generate Mode (Default)
+
 Generates new test cases using Claude:
+
 ```bash
 TEST_MODE=generate docker compose --profile testing up
 ```
 
 #### Replay Mode
+
 Re-runs previously generated test cases:
+
 ```bash
 TEST_MODE=replay REPLAY_SUITE_ID=abc123 docker compose --profile testing up
 ```
@@ -87,6 +96,7 @@ TEST_MODE=replay REPLAY_SUITE_ID=abc123 docker compose --profile testing up
 ### GitHub Actions Workflow
 
 The project includes a dedicated workflow for AI-driven tests:
+
 - **File**: `.github/workflows/generative-tests.yml`
 - **Schedule**: Runs nightly at 2 AM UTC
 - **Manual trigger**: Can be run on-demand via workflow dispatch
@@ -105,6 +115,7 @@ The project includes a dedicated workflow for AI-driven tests:
 The system uses a hybrid testing strategy:
 
 1. **Deterministic Tests** (`test/deterministic.test.ts`)
+
    - Traditional unit/integration tests
    - Predictable, repeatable results
    - Core functionality validation
@@ -117,12 +128,14 @@ The system uses a hybrid testing strategy:
 ### Test Case Generation
 
 Claude generates test cases based on detailed prompts that include:
+
 - API endpoint specifications
 - Expected behaviors
 - Edge cases to explore
 - Security considerations
 
 Example prompt structure:
+
 ```typescript
 const prompt = `Generate test cases for the /v1/messages endpoint.
 Context:
@@ -134,7 +147,7 @@ Include test cases for:
 1. Valid requests
 2. Missing required fields
 3. Invalid authentication
-4. Edge cases`;
+4. Edge cases`
 ```
 
 ## Managing Test Results
@@ -142,6 +155,7 @@ Include test cases for:
 ### Test Artifacts
 
 Generated test cases are stored in `services/claude-testing/artifacts/`:
+
 - Filename format: `generated-tests-{suite-id}.json`
 - Contains prompt, timestamp, and test cases
 - Used for replay and debugging
@@ -192,10 +206,12 @@ This creates a new test file in `test/promoted/` that can be committed.
 ### Common Issues
 
 1. **Authentication failures**
+
    - Verify API keys in secrets directory
    - Check credential file permissions (should be 600)
 
 2. **Service connectivity**
+
    - Ensure proxy service is healthy before tests
    - Check Docker network configuration
 
@@ -206,6 +222,7 @@ This creates a new test file in `test/promoted/` that can be committed.
 ### Debug Mode
 
 Enable detailed logging:
+
 ```bash
 DEBUG=true docker compose --profile testing up
 ```
@@ -224,3 +241,4 @@ DEBUG=true docker compose --profile testing up
 - [ ] Performance benchmarking integration
 - [ ] Multi-model test generation (Claude, GPT-4, etc.)
 - [ ] Automated fix suggestions for failed tests
+

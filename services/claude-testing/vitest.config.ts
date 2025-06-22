@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
@@ -9,7 +9,8 @@ export default defineConfig({
     setupFiles: ['./test/setup.ts'],
     reporters: ['verbose', 'junit'],
     outputFile: {
-      junit: './artifacts/test-results.xml'
-    }
-  }
-});
+      junit: './artifacts/test-results.xml',
+    },
+  },
+})
+
