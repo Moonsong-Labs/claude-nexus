@@ -33,4 +33,3 @@ async function seedDatabase() {
 
 // Run the seeding
 seedDatabase()
-

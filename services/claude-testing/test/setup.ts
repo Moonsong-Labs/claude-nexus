@@ -45,4 +45,3 @@ async function waitForServices(maxRetries = 30, delayMs = 1000) {
 
   throw new Error('Services failed to become healthy in time')
 }
-

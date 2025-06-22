@@ -241,4 +241,3 @@ DEBUG=true docker compose --profile testing up
 - [ ] Performance benchmarking integration
 - [ ] Multi-model test generation (Claude, GPT-4, etc.)
 - [ ] Automated fix suggestions for failed tests
-
