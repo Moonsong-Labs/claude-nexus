@@ -90,7 +90,7 @@ export class TestSampleCollector {
       this.pendingSamples.set(sampleId, { sample, filename })
 
       logger.debug(`Test sample prepared: ${filename}`)
-      
+
       return sampleId
     } catch (error) {
       logger.error('Failed to collect test sample', error instanceof Error ? error : undefined)
