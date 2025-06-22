@@ -42,7 +42,10 @@ async function startServer() {
   // 2. Create services with their dependencies
   const authService = new AuthenticationService(config.api.claudeApiKey, config.auth.credentialsDir)
 
-  const apiClient = new ClaudeApiClient()
+  const apiClient = new ClaudeApiClient({
+    baseUrl: config.api.claudeBaseUrl,
+    timeout: config.api.claudeTimeout,
+  })
   const notificationService = new NotificationService()
 
   // Wire up auth service to notification service
