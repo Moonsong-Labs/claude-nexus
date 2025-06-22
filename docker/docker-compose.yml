@@ -110,39 +110,25 @@ services:
     profiles:
       - tools
 
-  # Claude Testing Service for AI-driven E2E tests
-  claude-testing:
+  # Claude CLI Service - Run Claude CLI connected to the proxy
+  claude-cli:
     build:
-      context: ../tests/e2e-ai
+      context: ./claude-cli
       dockerfile: Dockerfile
-    container_name: claude-testing-service
+    container_name: claude-cli
     environment:
-      # Proxy connection
-      PROXY_API_URL: http://proxy:3000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_proxy
-      
-      # Test configuration
-      TEST_MODE: ${TEST_MODE:-generate}
-      REPLAY_SUITE_ID: ${REPLAY_SUITE_ID}
-      SEED_DATABASE: ${SEED_DATABASE:-true}
-      
-      # API Keys (using Docker secrets in production)
-      ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key
-      CLIENT_API_KEY_FILE: /run/secrets/client_api_key
-    secrets:
-      - anthropic_api_key
-      - client_api_key
+      # API Key for Bearer token authentication
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
     volumes:
-      - ../tests/e2e-ai/artifacts:/app/artifacts
-      - claude_home:/root/.claude
+      # Mount workspace for file access
+      - ../:/workspace
     depends_on:
       proxy:
         condition: service_started
-      postgres:
-        condition: service_healthy
-    command: ["bun", "test"]
+    stdin_open: true
+    tty: true
     profiles:
-      - testing
+      - claude
 
 
   # Proxy Service
@@ -190,14 +176,7 @@ services:
 
 volumes:
   postgres_data:
-  claude_home:
 
 networks:
   default:
     name: claude-nexus-network
-
-secrets:
-  anthropic_api_key:
-    file: ../secrets/anthropic_api_key.txt
-  client_api_key:
-    file: ../secrets/client_api_key.txt

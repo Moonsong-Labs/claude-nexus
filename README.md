@@ -11,7 +11,7 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 📈 **Token Tracking** - Detailed usage statistics per domain
 - 🔄 **Streaming Support** - Full SSE streaming with chunk storage
 - 🐳 **Docker Ready** - Separate optimized images for each service
-- 🤖 **AI-Driven Testing** - Automated E2E testing using Claude for quality assurance
+- 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
 
 ## Quick Start
 
@@ -43,6 +43,23 @@ bun run dev
 ```
 
 The proxy runs on `http://localhost:3000` and dashboard on `http://localhost:3001`.
+
+### Using Claude CLI with the Proxy
+
+Run Claude CLI connected to your local proxy:
+
+```bash
+# Start the proxy and Claude CLI
+docker compose --profile dev --profile claude up -d
+
+# Access Claude CLI
+docker compose exec claude-cli claude
+
+# Or run a single command
+docker compose exec claude-cli claude "What is 2+2?"
+```
+
+The Claude CLI will use Bearer token authentication with your `CLAUDE_API_KEY` to connect through the proxy.
 
 ## Configuration
 
@@ -135,10 +152,6 @@ bun run typecheck
 # Run tests
 bun test
 
-# Run AI-driven tests
-./scripts/setup-claude-testing.sh  # One-time setup
-./docker-up.sh --profile testing up
-
 # Format code
 bun run format
 
@@ -173,9 +186,9 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment guide.
 - [Configuration](docs/CONFIGURATION.md) - All configuration options
 - [Development](docs/DEVELOPMENT.md) - Development setup and guidelines
 - [API Reference](docs/API.md) - API endpoints and usage
+- [Claude CLI](docs/CLAUDE_CLI.md) - Using Claude CLI with the proxy
 - [Deployment](docs/DEPLOYMENT.md) - Production deployment guide
 - [Security](docs/SECURITY.md) - Security considerations
-- [AI Testing](docs/AI_TESTING.md) - AI-driven testing guide
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ## Contributing

@@ -214,8 +214,3 @@ Thumbs.db
 
 # Build artifacts
 *.tsbuildinfo
-
-# AI Testing artifacts
-tests/e2e-ai/artifacts/
-tests/e2e-ai/node_modules/
-secrets/
