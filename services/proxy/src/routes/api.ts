@@ -556,17 +556,12 @@ apiRoutes.post('/rate-limits', async c => {
   try {
     const body = await c.req.json()
     
-    // Validate required fields
-    if (!body.model || !body.windowSeconds) {
-      return c.json({ error: 'Model and windowSeconds are required' }, 400)
-    }
-    
-    if (!body.tokenLimit && !body.requestLimit) {
-      return c.json({ error: 'At least one of tokenLimit or requestLimit must be specified' }, 400)
-    }
-    
     // If updating existing config
     if (body.id) {
+      // For updates, we don't need model and windowSeconds
+      if (!body.tokenLimit && !body.requestLimit && !body.fallbackModel) {
+        return c.json({ error: 'At least one field to update must be specified' }, 400)
+      }
       await tokenUsageService.updateRateLimitConfig({
         id: body.id,
         tokenLimit: body.tokenLimit,
@@ -575,6 +570,15 @@ apiRoutes.post('/rate-limits', async c => {
       })
       
       return c.json({ success: true, message: 'Rate limit updated' })
+    }
+    
+    // For creating new configs, validate required fields
+    if (!body.model || !body.windowSeconds) {
+      return c.json({ error: 'Model and windowSeconds are required' }, 400)
+    }
+    
+    if (!body.tokenLimit && !body.requestLimit) {
+      return c.json({ error: 'At least one of tokenLimit or requestLimit must be specified' }, 400)
     }
     
     // Create new config - would need to add this method to TokenUsageService
