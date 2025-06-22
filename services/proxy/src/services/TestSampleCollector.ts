@@ -150,7 +150,9 @@ export class TestSampleCollector {
   }
 
   private sanitizeResponseBody(body: any): any {
-    if (!body) return body
+    if (!body) {
+      return body
+    }
 
     // Create a deep copy
     const sanitized = JSON.parse(JSON.stringify(body))

@@ -186,7 +186,7 @@ export const retryConfigs = {
     maxDelay: 60000,
     factor: 2,
     jitter: true,
-    timeout: 300000, // 5 minutes
+    timeout: 610000, // 10 minutes + 10 seconds (allows one full 10-minute attempt)
   },
 
   // Specific for Claude API rate limits

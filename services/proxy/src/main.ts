@@ -233,6 +233,25 @@ async function main() {
       fetch: app.fetch,
     })
 
+    // Set server timeout to be longer than the max request + retry time
+    // This prevents the server from closing connections prematurely
+    // Note: The Hono node server wraps the underlying Node.js server
+    const { config } = await import('@claude-nexus/shared')
+    const serverTimeout = config.server.timeout
+
+    // Access the underlying Node.js server if available
+    if (server && 'timeout' in server && typeof (server as any).timeout === 'number') {
+      ;(server as any).timeout = serverTimeout
+      if ('headersTimeout' in server) {
+        ;(server as any).headersTimeout = serverTimeout
+      }
+      console.log(
+        `\n⏱️  Server timeout: ${serverTimeout}ms (${Math.floor(serverTimeout / 60000)} minutes)`
+      )
+    } else {
+      console.log(`\n⏱️  Note: Server timeout configuration not applied (using framework defaults)`)
+    }
+
     console.log(`\n✅ Server started successfully`)
     console.log(`🌐 Listening on http://${hostname}:${port}`)
     console.log(`📊 Token stats: http://${hostname}:${port}/token-stats`)
