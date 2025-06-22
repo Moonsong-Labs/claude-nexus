@@ -11,6 +11,7 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 📈 **Token Tracking** - Detailed usage statistics per domain
 - 🔄 **Streaming Support** - Full SSE streaming with chunk storage
 - 🐳 **Docker Ready** - Separate optimized images for each service
+- 🤖 **AI-Driven Testing** - Automated E2E testing using Claude for quality assurance
 
 ## Quick Start
 
@@ -134,6 +135,10 @@ bun run typecheck
 # Run tests
 bun test
 
+# Run AI-driven tests
+./scripts/setup-claude-testing.sh  # One-time setup
+./docker-up.sh --profile testing up
+
 # Format code
 bun run format
 
@@ -170,6 +175,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment guide.
 - [API Reference](docs/API.md) - API endpoints and usage
 - [Deployment](docs/DEPLOYMENT.md) - Production deployment guide
 - [Security](docs/SECURITY.md) - Security considerations
+- [AI Testing](docs/AI_TESTING.md) - AI-driven testing guide
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ## Contributing
