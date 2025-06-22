@@ -61,6 +61,26 @@ docker compose exec claude-cli claude "What is 2+2?"
 
 The Claude CLI will use Bearer token authentication with your `CLAUDE_API_KEY` to connect through the proxy.
 
+### Viewing Proxy Logs
+
+After running Claude queries, you can view the proxy logs to debug issues:
+
+```bash
+# View recent logs
+docker compose logs proxy
+
+# Follow logs in real-time
+docker compose logs -f proxy
+
+# Use the helper script for filtered views
+./scripts/view-claude-logs.sh --help
+
+# Examples:
+./scripts/view-claude-logs.sh -f          # Follow logs
+./scripts/view-claude-logs.sh -e -n 100   # Show last 100 errors
+./scripts/view-claude-logs.sh -r          # Show API requests
+```
+
 ## Configuration
 
 ### Environment Variables

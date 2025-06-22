@@ -72,6 +72,11 @@ services:
     restart: unless-stopped
     profiles:
       - dev
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Dashboard Service
   dashboard:
@@ -133,6 +138,11 @@ services:
     tty: true
     profiles:
       - claude
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 
   # Proxy Service
