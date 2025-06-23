@@ -40,7 +40,7 @@ async function startServer() {
     : undefined
 
   // 2. Create services with their dependencies
-  const authService = new AuthenticationService(config.api.claudeApiKey, config.auth.credentialsDir)
+  const authService = new AuthenticationService(undefined, config.auth.credentialsDir)
 
   const apiClient = new ClaudeApiClient({
     baseUrl: config.api.claudeBaseUrl,
