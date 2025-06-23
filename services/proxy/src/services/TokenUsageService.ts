@@ -71,7 +71,7 @@ export class TokenUsageService {
           $1::varchar as account_id,
           COALESCE($2::varchar, 'all') as domain,
           COALESCE($3::varchar, 'all') as model,
-          NOW() - INTERVAL '${windowHours} hours' as window_start,
+          NOW() - ($4 * INTERVAL '1 hour') as window_start,
           NOW() as window_end,
           COALESCE(SUM(input_tokens), 0) as total_input_tokens,
           COALESCE(SUM(output_tokens), 0) as total_output_tokens,
@@ -81,11 +81,11 @@ export class TokenUsageService {
           COALESCE(SUM(cache_read_input_tokens), 0) as cache_read_input_tokens
         FROM api_requests
         WHERE account_id = $1
-          AND timestamp >= NOW() - INTERVAL '${windowHours} hours'
+          AND timestamp >= NOW() - ($4 * INTERVAL '1 hour')
           AND timestamp < NOW()
       `
 
-      const values: any[] = [accountId, domain || '', model || '']
+      const values: any[] = [accountId, domain || '', model || '', windowHours]
 
       if (domain) {
         query += ` AND domain = $2`
@@ -161,13 +161,13 @@ export class TokenUsageService {
           COUNT(*) as total_requests
         FROM api_requests
         WHERE account_id = $1
-          AND timestamp >= NOW() - INTERVAL '${days} days'
+          AND timestamp >= NOW() - ($2 * INTERVAL '1 day')
       `
 
-      const values: any[] = [accountId]
+      const values: any[] = [accountId, days]
 
       if (domain) {
-        query += ` AND domain = $2`
+        query += ` AND domain = $3`
         values.push(domain)
       }
 
@@ -220,13 +220,13 @@ export class TokenUsageService {
           COUNT(*) as total_requests
         FROM api_requests
         WHERE account_id = $1
-          AND timestamp >= NOW() - INTERVAL '${days} days'
+          AND timestamp >= NOW() - ($2 * INTERVAL '1 day')
       `
 
-      const values: any[] = [accountId]
+      const values: any[] = [accountId, days]
 
       if (domain) {
-        query += ` AND domain = $2`
+        query += ` AND domain = $3`
         values.push(domain)
       }
 

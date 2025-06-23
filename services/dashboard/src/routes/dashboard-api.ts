@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { setCookie } from 'hono/cookie'
+import { timingSafeEqual } from 'crypto'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import { parseConversation, calculateCost, formatMessageTime } from '../utils/conversation.js'
@@ -2473,8 +2474,18 @@ dashboardRoutes.get('/login', c => {
  */
 dashboardRoutes.post('/login', async c => {
   const { key } = await c.req.parseBody()
+  const apiKey = process.env.DASHBOARD_API_KEY
 
-  if (key === process.env.DASHBOARD_API_KEY) {
+  let isValid = false
+  if (typeof key === 'string' && apiKey) {
+    const keyBuffer = Buffer.from(key)
+    const apiKeyBuffer = Buffer.from(apiKey)
+    if (keyBuffer.length === apiKeyBuffer.length) {
+      isValid = timingSafeEqual(keyBuffer, apiKeyBuffer)
+    }
+  }
+
+  if (isValid) {
     setCookie(c, 'dashboard_auth', key as string, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

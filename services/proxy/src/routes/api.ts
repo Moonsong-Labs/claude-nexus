@@ -616,9 +616,9 @@ apiRoutes.get('/token-usage/time-series', async c => {
       WITH time_buckets AS (
         SELECT 
           generate_series(
-            NOW() - INTERVAL '${windowHours} hours',
+            NOW() - ($2 * INTERVAL '1 hour'),
             NOW(),
-            INTERVAL '${intervalMinutes} minutes'
+            $3 * INTERVAL '1 minute'
           ) AS bucket_time
       )
       SELECT 
@@ -627,14 +627,14 @@ apiRoutes.get('/token-usage/time-series', async c => {
           SELECT COALESCE(SUM(output_tokens), 0)
           FROM api_requests
           WHERE account_id = $1
-            AND timestamp > tb.bucket_time - INTERVAL '${windowHours} hours'
+            AND timestamp > tb.bucket_time - ($2 * INTERVAL '1 hour')
             AND timestamp <= tb.bucket_time
         ) AS cumulative_output_tokens
       FROM time_buckets tb
       ORDER BY tb.bucket_time ASC
     `
 
-    const result = await pool.query(timeSeriesQuery, [accountId])
+    const result = await pool.query(timeSeriesQuery, [accountId, windowHours, intervalMinutes])
 
     // Calculate tokens remaining from limit
     const tokenLimit = 140000 // 5-hour limit

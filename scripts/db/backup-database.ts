@@ -88,10 +88,7 @@ Options:
       // Use pg_dump to export database to file
       const dumpCommand = [
         'pg_dump',
-        `-h ${dbInfo.host}`,
-        `-p ${dbInfo.port}`,
-        `-U ${dbInfo.username}`,
-        `-d ${dbInfo.database}`,
+        `"${databaseUrl}"`,
         '--verbose',
         '--no-owner',
         '--no-privileges',
@@ -99,6 +96,7 @@ Options:
         '--clean',
         `-f ${filename}`,
       ].join(' ')
+      console.log(`Executing command: ${dumpCommand}`)
 
       execSync(dumpCommand, { stdio: 'inherit' })
 
