@@ -5,7 +5,8 @@ FROM node:20-alpine
 RUN apk add --no-cache \
     curl \
     jq \
-    bash
+    bash \
+    coreutils
 
 # Install Claude CLI globally
 RUN npm install -g @anthropic-ai/claude-code
