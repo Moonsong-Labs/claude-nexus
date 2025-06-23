@@ -1,10 +1,19 @@
 # ---- Builder Stage ----
-FROM node:24-alpine as builder
+FROM node:20-alpine as builder
+
+# Set proxy for build environment
+ARG PROXY_URL=http://proxy:3000
+ENV HTTP_PROXY=$PROXY_URL
+ENV HTTPS_PROXY=$PROXY_URL
+
+# Fix DNS/mirror issues - use a specific mirror
+RUN echo "http://mirror.leaseweb.com/alpine/v3.22/main" > /etc/apk/repositories && \
+    echo "http://mirror.leaseweb.com/alpine/v3.22/community" >> /etc/apk/repositories
 
 # Install required build dependencies
 RUN apk add --no-cache \
     python3 \
-    py3-tz \
+    py3-pip \
     curl \
     jq \
     bash \
@@ -14,15 +23,13 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Install Claude CLI globally
-RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g --proxy $PROXY_URL @anthropic-ai/claude-code || npm install -g @anthropic-ai/claude-code
 
 # Install ccusage globally with pinned version
-# Note: Update version as needed based on latest stable release
-RUN npm install -g ccusage@latest
+RUN npm install -g --proxy $PROXY_URL ccusage@latest || npm install -g ccusage@latest
 
 # Install Python dependencies for Claude Usage Monitor
-# Use Alpine package instead of pip to avoid PEP 668 restrictions
-RUN apk add --no-cache py3-tz
+RUN pip3 install --no-cache-dir pytz
 
 # Clone Claude Usage Monitor
 RUN apk add --no-cache git && \
@@ -30,15 +37,23 @@ RUN apk add --no-cache git && \
     apk del git
 
 # ---- Final Stage ----
-FROM node:24-alpine
+FROM node:20-alpine
 
 # Set proxy for runtime environment
+ENV PROXY_URL=http://proxy:3000
+ENV HTTP_PROXY=$PROXY_URL
+ENV HTTPS_PROXY=$PROXY_URL
 ENV ANTHROPIC_BASE_URL="http://proxy:3000"
+ENV NO_PROXY=localhost,127.0.0.1
+
+# Fix DNS/mirror issues for runtime
+RUN echo "http://mirror.leaseweb.com/alpine/v3.22/main" > /etc/apk/repositories && \
+    echo "http://mirror.leaseweb.com/alpine/v3.22/community" >> /etc/apk/repositories
 
 # Install runtime dependencies
 RUN apk add --no-cache \
     python3 \
-    py3-tz \
+    py3-pip \
     curl \
     jq \
     bash \
