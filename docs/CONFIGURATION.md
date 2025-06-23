@@ -6,10 +6,10 @@ This guide covers all configuration options for Claude Nexus Proxy.
 
 ### Core Configuration
 
-| Variable            | Required | Default | Description                                                      |
-| ------------------- | -------- | ------- | ---------------------------------------------------------------- |
-| `DATABASE_URL`      | Yes      | -       | PostgreSQL connection string                                     |
-| `DASHBOARD_API_KEY` | Yes      | -       | Authentication key for dashboard access                          |
+| Variable            | Required | Default | Description                             |
+| ------------------- | -------- | ------- | --------------------------------------- |
+| `DATABASE_URL`      | Yes      | -       | PostgreSQL connection string            |
+| `DASHBOARD_API_KEY` | Yes      | -       | Authentication key for dashboard access |
 
 ### Proxy Service
 

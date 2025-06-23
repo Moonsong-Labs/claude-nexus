@@ -33,6 +33,7 @@ bun test --watch
 ## Test Categories
 
 ### Unit Tests
+
 - Credential loading and validation
 - OAuth token refresh logic
 - Request/response processing
@@ -40,6 +41,7 @@ bun test --watch
 - Token usage tracking
 
 ### Integration Tests
+
 - Proxy to Claude API communication
 - Database storage operations
 - Credential file handling
@@ -47,6 +49,7 @@ bun test --watch
 - Conversation tracking
 
 ### End-to-End Tests
+
 - Full request flow through proxy
 - Claude CLI integration
 - Multi-domain authentication
@@ -58,22 +61,22 @@ bun test --watch
 Tests use Bun's built-in test runner with the following conventions:
 
 ```typescript
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 
-describe("FeatureName", () => {
+describe('FeatureName', () => {
   beforeEach(() => {
     // Setup
-  });
+  })
 
   afterEach(() => {
     // Cleanup
-  });
+  })
 
-  it("should do something", () => {
+  it('should do something', () => {
     // Test implementation
-    expect(result).toBe(expected);
-  });
-});
+    expect(result).toBe(expected)
+  })
+})
 ```
 
 ## Test Data Collection

@@ -5,6 +5,7 @@ This document describes how to use Claude CLI with the Claude Nexus Proxy.
 ## Overview
 
 The Claude Nexus Proxy includes a Docker service that runs Claude CLI connected to your local proxy. This allows you to:
+
 - Use Claude CLI with your proxy configuration
 - Track usage through the proxy's monitoring
 - Apply any proxy-level features (rate limiting, logging, etc.)
@@ -19,16 +20,19 @@ The Claude Nexus Proxy includes a Docker service that runs Claude CLI connected 
 ### Running Claude CLI
 
 1. Start the proxy and Claude CLI services:
+
 ```bash
 docker compose --profile dev --profile claude up -d
 ```
 
 2. Access Claude CLI interactively:
+
 ```bash
 docker compose exec claude-cli claude
 ```
 
 3. Or run a single command:
+
 ```bash
 docker compose exec claude-cli claude "Write a hello world in Python"
 ```
@@ -36,6 +40,7 @@ docker compose exec claude-cli claude "Write a hello world in Python"
 ## Configuration
 
 The Claude CLI service is configured to:
+
 - Connect to the proxy at `http://proxy:3000/v1`
 - Use Bearer token authentication with your API key
 - Mount the project directory as `/workspace` for file access
@@ -54,6 +59,7 @@ The Claude CLI service is configured to:
 ## File Access
 
 The entire project directory is mounted at `/workspace` in the container, allowing Claude to:
+
 - Read and analyze your code
 - Generate files
 - Access project documentation
@@ -61,21 +67,25 @@ The entire project directory is mounted at `/workspace` in the container, allowi
 ## Examples
 
 ### Interactive Session
+
 ```bash
 docker compose exec claude-cli claude
 ```
 
 ### Single Command
+
 ```bash
 docker compose exec claude-cli claude "Explain the proxy architecture"
 ```
 
 ### With File Context
+
 ```bash
 docker compose exec claude-cli claude "Review the code in /workspace/services/proxy/src/app.ts"
 ```
 
 ### Query with Automatic Log Display
+
 ```bash
 # Use the helper script to run a query and see logs
 ./scripts/claude-with-logs.sh "What is the purpose of this project?"
@@ -84,7 +94,9 @@ docker compose exec claude-cli claude "Review the code in /workspace/services/pr
 ## Helper Scripts
 
 ### view-claude-logs.sh
+
 View and filter proxy logs:
+
 ```bash
 # Show help
 ./scripts/view-claude-logs.sh --help
@@ -103,7 +115,9 @@ View and filter proxy logs:
 ```
 
 ### claude-with-logs.sh
+
 Run Claude queries and automatically display relevant logs:
+
 ```bash
 ./scripts/claude-with-logs.sh "Your query here"
 ```
@@ -150,6 +164,7 @@ docker compose logs -f proxy | grep -A 10 -B 10 "test query"
 ### Common Log Patterns
 
 1. **Successful Request:**
+
    ```
    [PROXY] Received request: POST /v1/messages
    [PROXY] Authentication successful
@@ -158,6 +173,7 @@ docker compose logs -f proxy | grep -A 10 -B 10 "test query"
    ```
 
 2. **Authentication Error:**
+
    ```
    [PROXY] Authentication failed: Invalid API key
    [PROXY] Response: 401 Unauthorized
@@ -170,11 +186,13 @@ docker compose logs -f proxy | grep -A 10 -B 10 "test query"
    ```
 
 ### Claude CLI not connecting
+
 - Ensure the proxy service is running: `docker compose ps`
 - Check Claude CLI logs: `docker compose logs claude-cli`
 - Verify your API key is configured correctly in the credential files
 
 ### Authentication errors
+
 - Ensure your API key is valid
 - Check proxy logs for authentication issues: `docker compose logs proxy | grep -i auth`
 - Verify the proxy is configured correctly: `docker compose exec proxy env | grep CLAUDE`

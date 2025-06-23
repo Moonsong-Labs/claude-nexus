@@ -22,9 +22,11 @@ Claude API
 ## Configuration
 
 The container expects credentials at:
+
 - `/workspace/client-setup/.credentials.json` - OAuth/API credentials
 
 Environment:
+
 - `ANTHROPIC_BASE_URL=http://proxy:3000` - Routes through proxy
 
 ## Usage
@@ -33,6 +35,6 @@ Environment:
 # From project root
 ./claude "Your question here"
 
-# From docker directory  
+# From docker directory
 docker compose exec claude-cli /usr/local/bin/claude-cli "Hello"
 ```
