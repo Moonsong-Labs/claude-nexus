@@ -8,7 +8,7 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 🔀 **Conversation Tracking** - Automatic message threading with branch support
 - 📊 **Real-time Dashboard** - Monitor usage, view conversations, and analyze patterns
 - 🔐 **Multi-Auth Support** - API keys and OAuth with auto-refresh
-- 📈 **Token Tracking** - Detailed usage statistics per domain
+- 📈 **Token Tracking** - Detailed usage statistics per domain and account
 - 🔄 **Streaming Support** - Full SSE streaming with chunk storage
 - 🐳 **Docker Ready** - Separate optimized images for each service
 - 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
@@ -36,7 +36,7 @@ cp .env.example .env
 # Edit .env with your settings
 
 # Initialize database
-bun run db:migrate:init
+bun run db:migrate:token-usage
 
 # Start development servers
 bun run dev
@@ -114,6 +114,7 @@ bun run auth:generate-key
 cat > credentials/example.com.credentials.json << EOF
 {
   "type": "api_key",
+  "accountId": "acc_unique_identifier",
   "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_..."
 }

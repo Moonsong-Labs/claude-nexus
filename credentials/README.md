@@ -13,6 +13,7 @@ Example: `example.com.credentials.json`
 ```json
 {
   "type": "api_key" | "oauth",
+  "accountId": "acc_unique_id",       // Unique account identifier
   "api_key": "sk-ant-...",           // For type: api_key
   "oauth": { ... },                  // For type: oauth
   "client_api_key": "cnp_live_...",  // Required for proxy authentication
