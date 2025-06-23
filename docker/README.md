@@ -92,7 +92,6 @@ docker-compose --project-name claude-nexus --env-file ../.env up -d
 ```bash
 # Proxy service
 docker run -p 3000:3000 \
-  -e CLAUDE_API_KEY=your-key \
   -v ./credentials:/app/credentials:ro \
   alanpurestake/claude-nexus-proxy:latest
 
@@ -107,7 +106,6 @@ docker run -p 3001:3001 \
 
 ### Proxy Service
 
-- `CLAUDE_API_KEY` - Default API key
 - `DATABASE_URL` - PostgreSQL connection
 - `STORAGE_ENABLED` - Enable storage (default: false)
 - `SLACK_WEBHOOK_URL` - Slack notifications

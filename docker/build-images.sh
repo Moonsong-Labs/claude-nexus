@@ -106,7 +106,7 @@ fi
 
 echo -e "\n${YELLOW}Using Docker Run:${NC}"
 echo -e "  ${BLUE}# Proxy service${NC}"
-echo -e "  ${BLUE}docker run -d -p 3000:3000 -e CLAUDE_API_KEY=your-key alanpurestake/claude-nexus-proxy:${TAG}${NC}"
+echo -e "  ${BLUE}docker run -d -p 3000:3000 alanpurestake/claude-nexus-proxy:${TAG}${NC}"
 echo -e "  ${BLUE}# Dashboard service${NC}"
 echo -e "  ${BLUE}docker run -d -p 3001:3001 -e DASHBOARD_API_KEY=your-key alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
 

@@ -138,7 +138,6 @@ The proxy automatically tracks conversations and detects branches using message 
 
 1. Check domain-specific credential files (`<domain>.credentials.json`)
 2. Use Authorization header from request
-3. Fall back to CLAUDE_API_KEY environment variable
 
 ### OAuth Support
 
@@ -173,7 +172,6 @@ When `DEBUG=true`:
 
 **Essential:**
 
-- `CLAUDE_API_KEY` - Default API key (optional)
 - `DATABASE_URL` - PostgreSQL connection
 - `DASHBOARD_API_KEY` - Dashboard authentication
 

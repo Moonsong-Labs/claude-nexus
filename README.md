@@ -11,6 +11,7 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 📈 **Token Tracking** - Detailed usage statistics per domain
 - 🔄 **Streaming Support** - Full SSE streaming with chunk storage
 - 🐳 **Docker Ready** - Separate optimized images for each service
+- 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
 
 ## Quick Start
 
@@ -43,6 +44,43 @@ bun run dev
 
 The proxy runs on `http://localhost:3000` and dashboard on `http://localhost:3001`.
 
+### Using Claude CLI with the Proxy
+
+Run Claude CLI connected to your local proxy:
+
+```bash
+# Start the proxy and Claude CLI
+docker compose --profile dev --profile claude up -d
+
+# Access Claude CLI
+docker compose exec claude-cli claude
+
+# Or run a single command
+docker compose exec claude-cli claude "What is 2+2?"
+```
+
+The Claude CLI will use Bearer token authentication to connect through the proxy.
+
+### Viewing Proxy Logs
+
+After running Claude queries, you can view the proxy logs to debug issues:
+
+```bash
+# View recent logs
+docker compose logs proxy
+
+# Follow logs in real-time
+docker compose logs -f proxy
+
+# Use the helper script for filtered views
+./scripts/view-claude-logs.sh --help
+
+# Examples:
+./scripts/view-claude-logs.sh -f          # Follow logs
+./scripts/view-claude-logs.sh -e -n 100   # Show last 100 errors
+./scripts/view-claude-logs.sh -r          # Show API requests
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -50,9 +88,6 @@ The proxy runs on `http://localhost:3000` and dashboard on `http://localhost:300
 Essential configuration:
 
 ```bash
-# Claude API (optional if using domain credentials)
-CLAUDE_API_KEY=sk-ant-...
-
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
 
@@ -168,6 +203,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment guide.
 - [Configuration](docs/CONFIGURATION.md) - All configuration options
 - [Development](docs/DEVELOPMENT.md) - Development setup and guidelines
 - [API Reference](docs/API.md) - API endpoints and usage
+- [Claude CLI](docs/CLAUDE_CLI.md) - Using Claude CLI with the proxy
 - [Deployment](docs/DEPLOYMENT.md) - Production deployment guide
 - [Security](docs/SECURITY.md) - Security considerations
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions

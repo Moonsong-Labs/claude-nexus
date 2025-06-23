@@ -167,7 +167,6 @@ Validates storage functionality.
 Most scripts require these environment variables:
 
 - `DATABASE_URL` - PostgreSQL connection string
-- `CLAUDE_API_KEY` - Default Claude API key (optional)
 - `DASHBOARD_API_KEY` - Dashboard authentication key
 - `CREDENTIALS_DIR` - Directory for domain credentials
 

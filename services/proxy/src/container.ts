@@ -60,7 +60,7 @@ class Container {
     )
     this.notificationService = new NotificationService()
     this.authenticationService = new AuthenticationService(
-      config.api.claudeApiKey,
+      undefined, // No default API key
       config.auth.credentialsDir
     )
     this.claudeApiClient = new ClaudeApiClient({

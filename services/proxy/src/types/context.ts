@@ -35,7 +35,6 @@ export type HonoVariables = {
  */
 export type HonoBindings = {
   // Environment variables
-  CLAUDE_API_KEY?: string
   DATABASE_URL?: string
   SLACK_WEBHOOK_URL?: string
   DEBUG?: string

@@ -37,7 +37,6 @@ export const config = {
   // API configuration
   api: {
     claudeBaseUrl: env.string('CLAUDE_API_BASE_URL', 'https://api.anthropic.com'),
-    claudeApiKey: env.string('CLAUDE_API_KEY', ''),
     claudeTimeout: env.int('CLAUDE_API_TIMEOUT', 600000), // 10 minutes
     oauthClientId: env.string('CLAUDE_OAUTH_CLIENT_ID', ''),
   },

@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { loadCredentials } from '../services/proxy/src/credentials'
+import { loadCredentials } from '../../services/proxy/src/credentials'
 import { resolve } from 'path'
 
 async function checkOAuthStatus() {

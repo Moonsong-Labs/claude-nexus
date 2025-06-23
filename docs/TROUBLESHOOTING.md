@@ -23,22 +23,22 @@ authentication_error: invalid x-api-key
    - Claude API keys should start with `sk-ant-`
    - OAuth tokens should use `Bearer` prefix
 
-2. **Verify Environment Variables**
+2. **Verify Credential Files**
 
    ```bash
-   # Check if API key is set
-   echo $CLAUDE_API_KEY
+   # Check if credential files exist
+   ls -la credentials/
 
-   # Should output something like:
-   # sk-ant-api03-...
+   # Verify the credential file for your domain
+   cat credentials/your-domain.credentials.json
    ```
 
 3. **Test API Key Directly**
 
    ```bash
-   # Test with curl
+   # Test with curl using your API key
    curl https://api.anthropic.com/v1/messages \
-     -H "x-api-key: $CLAUDE_API_KEY" \
+     -H "x-api-key: sk-ant-..." \
      -H "anthropic-version: 2023-06-01" \
      -H "content-type: application/json" \
      -d '{
