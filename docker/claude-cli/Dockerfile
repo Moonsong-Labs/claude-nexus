@@ -56,8 +56,7 @@ COPY --from=builder /usr/local/bin/claude /usr/local/bin/claude
 COPY --from=builder /usr/local/lib/node_modules/ccusage /usr/local/lib/node_modules/ccusage
 COPY --from=builder /usr/local/bin/ccusage /usr/local/bin/ccusage
 
-# Copy Python packages
-COPY --from=builder /usr/lib/python3.11/site-packages /usr/lib/python3.11/site-packages
+# Copy Python packages - Alpine's py3-tz is installed system-wide, no need to copy
 
 # Copy Claude Monitor
 COPY --from=builder --chown=claude:claude /app/claude-monitor /app/claude-monitor
