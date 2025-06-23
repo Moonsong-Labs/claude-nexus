@@ -41,7 +41,6 @@ DATABASE_URL=postgresql://localhost/claude_nexus_dev
 DASHBOARD_API_KEY=dev-dashboard-key
 
 # Optional
-CLAUDE_API_KEY=sk-ant-...
 DEBUG=true
 STORAGE_ENABLED=true
 ENABLE_CLIENT_AUTH=false  # Easier for development

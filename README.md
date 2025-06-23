@@ -59,7 +59,7 @@ docker compose exec claude-cli claude
 docker compose exec claude-cli claude "What is 2+2?"
 ```
 
-The Claude CLI will use Bearer token authentication with your `CLAUDE_API_KEY` to connect through the proxy.
+The Claude CLI will use Bearer token authentication to connect through the proxy.
 
 ### Viewing Proxy Logs
 
@@ -88,9 +88,6 @@ docker compose logs -f proxy
 Essential configuration:
 
 ```bash
-# Claude API (optional if using domain credentials)
-CLAUDE_API_KEY=sk-ant-...
-
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
 

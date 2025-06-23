@@ -41,7 +41,6 @@ See `.env.example` in the root directory for all available environment variables
 
 ### Key Environment Variables
 
-- `CLAUDE_API_KEY` - Default API key
 - `CREDENTIALS_DIR` - Directory for domain credentials
 - `DATABASE_URL` - PostgreSQL connection
 - `STORAGE_ENABLED` - Enable storage (default: false)

@@ -37,12 +37,12 @@ docker compose exec claude-cli claude "Write a hello world in Python"
 
 The Claude CLI service is configured to:
 - Connect to the proxy at `http://proxy:3000/v1`
-- Use Bearer token authentication with your `CLAUDE_API_KEY`
+- Use Bearer token authentication with your API key
 - Mount the project directory as `/workspace` for file access
 
 ### Environment Variables
 
-- `CLAUDE_API_KEY` - Your Claude API key (used as Bearer token)
+- API key is provided through domain credential files in the `credentials/` directory
 
 ## How It Works
 
@@ -172,7 +172,7 @@ docker compose logs -f proxy | grep -A 10 -B 10 "test query"
 ### Claude CLI not connecting
 - Ensure the proxy service is running: `docker compose ps`
 - Check Claude CLI logs: `docker compose logs claude-cli`
-- Verify your `CLAUDE_API_KEY` is set correctly
+- Verify your API key is configured correctly in the credential files
 
 ### Authentication errors
 - Ensure your API key is valid
