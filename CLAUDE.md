@@ -74,6 +74,21 @@ docker run -p 3001:3001 alanpurestake/claude-nexus-dashboard:latest
 
 Docker configurations are in the `docker/` directory. Each service has its own optimized image for better security, scaling, and maintainability.
 
+### Claude CLI with Usage Monitor
+
+The Claude CLI Docker image includes integrated usage monitoring:
+
+```bash
+# Run Claude CLI
+docker compose --profile claude exec claude-cli claude --help
+
+# Run usage monitor for real-time tracking
+docker compose --profile claude exec claude-cli monitor
+
+# Check daily usage stats
+docker compose --profile claude exec claude-cli ccusage daily
+```
+
 ## Key Implementation Details
 
 ### Request Timeout Configuration

@@ -130,6 +130,8 @@ services:
     volumes:
       # Mount the entire project for Claude Code functionality
       - ../:/workspace
+      # Mount Claude data directory for persistence
+      - claude_data:/home/claude/.claude
     depends_on:
       proxy:
         condition: service_started
@@ -147,6 +149,7 @@ services:
 
 volumes:
   postgres_data:
+  claude_data:
 
 networks:
   default:

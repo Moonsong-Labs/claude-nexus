@@ -1,29 +1,91 @@
-# Claude CLI Docker Image
-FROM node:20-alpine
+# ---- Builder Stage ----
+FROM node:20-alpine as builder
 
-# Install required dependencies
+# Set proxy for build environment
+ARG PROXY_URL=http://proxy:3000
+ENV HTTP_PROXY=$PROXY_URL
+ENV HTTPS_PROXY=$PROXY_URL
+
+# Install required build dependencies
 RUN apk add --no-cache \
+    python3 \
+    py3-pip \
     curl \
     jq \
     bash \
     coreutils
 
+# Set working directory
+WORKDIR /app
+
 # Install Claude CLI globally
-RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g --proxy $PROXY_URL @anthropic-ai/claude-code
 
-# Create .claude directory with correct permissions
-RUN mkdir -p /root/.claude && chmod 700 /root/.claude
+# Install ccusage globally with pinned version
+# Note: Update version as needed based on latest stable release
+RUN npm install -g --proxy $PROXY_URL ccusage@latest
 
-# Copy scripts
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY claude-wrapper.sh /usr/local/bin/claude-cli
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/claude-cli
+# Install Python dependencies for Claude Usage Monitor
+RUN pip3 install --no-cache-dir pytz
+
+# Clone Claude Usage Monitor
+RUN apk add --no-cache git && \
+    git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git /app/claude-monitor && \
+    apk del git
+
+# ---- Final Stage ----
+FROM node:20-alpine
+
+# Set proxy for runtime environment
+ENV PROXY_URL=http://proxy:3000
+ENV HTTP_PROXY=$PROXY_URL
+ENV HTTPS_PROXY=$PROXY_URL
+ENV ANTHROPIC_BASE_URL="http://proxy:3000"
+ENV NO_PROXY=localhost,127.0.0.1
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    curl \
+    jq \
+    bash \
+    coreutils
+
+# Create non-root user
+RUN addgroup -g 1001 claude && \
+    adduser -u 1001 -G claude -s /bin/bash -D claude
+
+# Copy Claude CLI from builder
+COPY --from=builder /usr/local/lib/node_modules/@anthropic-ai/claude-code /usr/local/lib/node_modules/@anthropic-ai/claude-code
+COPY --from=builder /usr/local/bin/claude /usr/local/bin/claude
+
+# Copy ccusage from builder
+COPY --from=builder /usr/local/lib/node_modules/ccusage /usr/local/lib/node_modules/ccusage
+COPY --from=builder /usr/local/bin/ccusage /usr/local/bin/ccusage
+
+# Copy Python packages
+COPY --from=builder /usr/lib/python3.11/site-packages /usr/lib/python3.11/site-packages
+
+# Copy Claude Monitor
+COPY --from=builder --chown=claude:claude /app/claude-monitor /app/claude-monitor
+
+# Create necessary directories
+RUN mkdir -p /home/claude/.claude && \
+    chown -R claude:claude /home/claude/.claude && \
+    chmod 700 /home/claude/.claude
+
+# Copy scripts with proper ownership
+COPY --chown=root:root entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chown=root:root claude-wrapper.sh /usr/local/bin/claude-cli
+COPY --chown=root:root monitor-wrapper.sh /usr/local/bin/claude-monitor
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/claude-cli /usr/local/bin/claude-monitor
 
 # Set working directory
 WORKDIR /workspace
 
-# Set environment variable for proxy
-ENV ANTHROPIC_BASE_URL="http://proxy:3000"
+# Switch to non-root user
+USER claude
 
 # Use entrypoint script
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
