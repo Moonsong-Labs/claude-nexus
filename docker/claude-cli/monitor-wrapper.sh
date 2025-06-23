@@ -12,4 +12,4 @@ export PYTHONPATH="/usr/lib/python3.12/site-packages:$PYTHONPATH"
 
 # Run the Claude Usage Monitor
 cd /app/claude-monitor
-exec python3 ccusage_monitor.py "$@"
+exec python3 claude_monitor.py "$@"
