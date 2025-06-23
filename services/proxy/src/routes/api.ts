@@ -497,8 +497,8 @@ apiRoutes.get('/rate-limits', async c => {
     const domain = query.domain
     const model = query.model
     
-    let conditions = ['is_active = true']
-    let values: any[] = []
+    const conditions = ['is_active = true']
+    const values: any[] = []
     let paramCount = 0
     
     if (domain) {

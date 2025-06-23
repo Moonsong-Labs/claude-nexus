@@ -5,7 +5,7 @@ import { tokenTracker } from './tokenTracker.js'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
 import { logger } from '../middleware/logger'
 import { broadcastConversation, broadcastMetrics } from '../dashboard/sse.js'
-import { TokenUsageService, RateLimitExceededError } from './TokenUsageService.js'
+import { TokenUsageService } from './TokenUsageService.js'
 
 export interface MetricsConfig {
   enableTokenTracking: boolean
