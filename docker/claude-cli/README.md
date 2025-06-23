@@ -1,45 +1,38 @@
-# Claude CLI Docker Service
+# Claude CLI Docker Integration
 
-This Docker service runs Claude CLI connected to the Claude Nexus Proxy.
+Minimal setup for using Claude CLI through the proxy.
 
-## How It Works
+## Architecture
 
-1. The container installs the official `@anthropic-ai/claude-code` package
-2. On startup, it configures Claude to use the proxy endpoint (`http://proxy:3000/v1`)
-3. Authentication is handled via Bearer token using the `CLAUDE_API_KEY` environment variable
-4. The project directory is mounted at `/workspace` for file access
+```
+Claude CLI Container
+    ↓ (ANTHROPIC_BASE_URL=http://proxy:3000)
+Proxy Service
+    ↓ (Bearer token auth)
+Claude API
+```
+
+## Files
+
+- `Dockerfile` - Builds Claude CLI container with Node.js
+- `entrypoint.sh` - Copies credentials on startup
+- `claude-wrapper.sh` - Sets API key from credentials file
+- `../../claude` - Helper script to run Claude from project root
 
 ## Configuration
 
-The setup script (`setup.sh`) creates two configuration files:
+The container expects credentials at:
+- `/workspace/client-setup/.credentials.json` - OAuth/API credentials
 
-### `.claude.json`
-```json
-{
-  "version": "1.0",
-  "api": {
-    "endpoint": "http://proxy:3000/v1"
-  },
-  "settings": {
-    "theme": "dark",
-    "telemetry": false
-  }
-}
-```
-
-### `.claude/.credentials.json`
-```json
-{
-  "claudeAiOauth": {
-    "accessToken": "${CLAUDE_API_KEY}",
-    "refreshToken": "",
-    "expiresAt": "2099-12-31T23:59:59Z"
-  }
-}
-```
-
-The `accessToken` field is populated with your `CLAUDE_API_KEY` environment variable, which is used as a Bearer token for authentication.
+Environment:
+- `ANTHROPIC_BASE_URL=http://proxy:3000` - Routes through proxy
 
 ## Usage
 
-See the main [Claude CLI documentation](../../docs/CLAUDE_CLI.md) for usage instructions.
+```bash
+# From project root
+./claude "Your question here"
+
+# From docker directory  
+docker compose exec claude-cli /usr/local/bin/claude-cli "Hello"
+```

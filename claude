@@ -1,0 +1,3 @@
+#!/bin/bash
+# Claude CLI helper - run from anywhere in the project
+cd "$(dirname "$0")/docker" && docker compose exec claude-cli bash -c "/usr/local/bin/claude-cli $(printf '%q ' "$@")"

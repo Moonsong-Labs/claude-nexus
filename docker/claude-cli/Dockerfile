@@ -10,18 +10,22 @@ RUN apk add --no-cache \
 # Install Claude CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
-# Create claude directory
-RUN mkdir -p /root/.claude
+# Create .claude directory with correct permissions
+RUN mkdir -p /root/.claude && chmod 700 /root/.claude
 
-# Copy setup script
-COPY setup.sh /usr/local/bin/setup-claude
-RUN chmod +x /usr/local/bin/setup-claude
+# Copy scripts
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY claude-wrapper.sh /usr/local/bin/claude-cli
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/claude-cli
 
 # Set working directory
 WORKDIR /workspace
 
-# Use setup script as entrypoint
-ENTRYPOINT ["/usr/local/bin/setup-claude"]
+# Set environment variable for proxy
+ENV ANTHROPIC_BASE_URL="http://proxy:3000"
 
-# Default command opens Claude interactive mode
-CMD ["claude"]
+# Use entrypoint script
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# Default command (empty to allow entrypoint to handle it)
+CMD []
