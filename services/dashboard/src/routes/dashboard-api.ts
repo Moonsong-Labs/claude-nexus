@@ -2029,17 +2029,13 @@ dashboardRoutes.get('/token-usage', async c => {
 
   try {
     // Fetch all data in parallel
-    const [
-      tokenUsageWindow,
-      dailyUsageResult,
-      rateLimitsResult,
-      timeSeriesResult,
-    ] = await Promise.allSettled([
-      apiClient.getTokenUsageWindow({ accountId, domain, window: 300 }), // 5 hour window
-      apiClient.getDailyTokenUsage({ accountId, domain, days: 30, aggregate: true }),
-      apiClient.getRateLimitConfigs({ accountId }),
-      apiClient.getTokenUsageTimeSeries({ accountId, window: 5, interval: 5 }), // 5-hour window, 5-minute intervals
-    ])
+    const [tokenUsageWindow, dailyUsageResult, rateLimitsResult, timeSeriesResult] =
+      await Promise.allSettled([
+        apiClient.getTokenUsageWindow({ accountId, domain, window: 300 }), // 5 hour window
+        apiClient.getDailyTokenUsage({ accountId, domain, days: 30, aggregate: true }),
+        apiClient.getRateLimitConfigs({ accountId }),
+        apiClient.getTokenUsageTimeSeries({ accountId, window: 5, interval: 5 }), // 5-hour window, 5-minute intervals
+      ])
 
     // Handle results
     const tokenUsage = tokenUsageWindow.status === 'fulfilled' ? tokenUsageWindow.value : null
