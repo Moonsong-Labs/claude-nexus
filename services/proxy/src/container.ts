@@ -49,7 +49,7 @@ class Container {
     if (this.pool && config.storage.enabled) {
       this.storageService = new StorageAdapter(this.pool)
       this.tokenUsageService = new TokenUsageService(this.pool)
-      
+
       // Ensure partitions exist
       this.tokenUsageService.ensurePartitions().catch(err => {
         logger.error('Failed to ensure token usage partitions', {

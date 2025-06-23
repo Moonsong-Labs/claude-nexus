@@ -185,13 +185,30 @@ See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.
 
 ### Docker
 
-```bash
-# Build images
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy .
-docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard .
+#### Using Pre-built Images (Default)
 
-# Run with docker-compose
-docker-compose up -d
+```bash
+# Run with docker-compose using images from registry
+./docker-up.sh up -d
+```
+
+#### Using Locally Built Images
+
+```bash
+# Build and run with locally built images
+./docker-local.sh up -d --build
+
+# Or manually:
+cd docker
+docker compose -f docker-compose.local.yml --env-file ../.env up -d --build
+```
+
+#### Building Images Separately
+
+```bash
+# Build images individually
+docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy:local .
+docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
 ```
 
 ### Production

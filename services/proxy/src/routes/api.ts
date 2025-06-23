@@ -514,7 +514,10 @@ const tokenUsageDailySchema = z.object({
   accountId: z.string(),
   domain: z.string().optional(),
   days: z.string().regex(/^\d+$/).transform(Number).default('30'),
-  aggregate: z.string().transform(v => v === 'true').default('false'),
+  aggregate: z
+    .string()
+    .transform(v => v === 'true')
+    .default('false'),
 })
 
 /**
@@ -522,7 +525,7 @@ const tokenUsageDailySchema = z.object({
  */
 apiRoutes.get('/token-usage/current', async c => {
   const tokenUsageService = container.getTokenUsageService()
-  
+
   if (!tokenUsageService) {
     return c.json({ error: 'Token usage tracking not configured' }, 503)
   }
@@ -554,7 +557,7 @@ apiRoutes.get('/token-usage/current', async c => {
  */
 apiRoutes.get('/token-usage/daily', async c => {
   const tokenUsageService = container.getTokenUsageService()
-  
+
   if (!tokenUsageService) {
     return c.json({ error: 'Token usage tracking not configured' }, 503)
   }
@@ -569,11 +572,7 @@ apiRoutes.get('/token-usage/daily', async c => {
           params.days,
           params.domain
         )
-      : await tokenUsageService.getDailyUsage(
-          params.accountId,
-          params.days,
-          params.domain
-        )
+      : await tokenUsageService.getDailyUsage(params.accountId, params.days, params.domain)
 
     return c.json({ usage })
   } catch (error) {
@@ -586,67 +585,209 @@ apiRoutes.get('/token-usage/daily', async c => {
 })
 
 /**
- * GET /api/rate-limits - Get rate limit configurations
+ * GET /api/token-usage/time-series - Get token usage time series with 5-minute granularity
  */
-apiRoutes.get('/rate-limits', async c => {
+apiRoutes.get('/token-usage/time-series', async c => {
   const tokenUsageService = container.getTokenUsageService()
-  
+
   if (!tokenUsageService) {
-    return c.json({ error: 'Rate limiting not configured' }, 503)
+    return c.json({ error: 'Token usage tracking not configured' }, 503)
   }
 
   try {
-    const { accountId, domain, model } = c.req.query()
-    const configs = await tokenUsageService.getRateLimitConfig(
-      accountId,
-      domain,
-      model
-    )
+    const query = c.req.query()
+    const accountId = query.accountId
+    const windowHours = parseInt(query.window || '5')
+    const intervalMinutes = parseInt(query.interval || '5')
 
-    return c.json({ configs })
+    if (!accountId) {
+      return c.json({ error: 'accountId is required' }, 400)
+    }
+
+    let pool = c.get('pool')
+    if (!pool) {
+      pool = container.getDbPool()
+      if (!pool) {
+        return c.json({ error: 'Database not configured' }, 503)
+      }
+    }
+
+    // Get time series data with specified interval
+    const timeSeriesQuery = `
+      WITH time_buckets AS (
+        SELECT 
+          generate_series(
+            NOW() - INTERVAL '${windowHours} hours',
+            NOW(),
+            INTERVAL '${intervalMinutes} minutes'
+          ) AS bucket_time
+      )
+      SELECT 
+        tb.bucket_time,
+        (
+          SELECT COALESCE(SUM(output_tokens), 0)
+          FROM api_requests
+          WHERE account_id = $1
+            AND timestamp > tb.bucket_time - INTERVAL '${windowHours} hours'
+            AND timestamp <= tb.bucket_time
+        ) AS cumulative_output_tokens
+      FROM time_buckets tb
+      ORDER BY tb.bucket_time ASC
+    `
+
+    const result = await pool.query(timeSeriesQuery, [accountId])
+
+    // Calculate tokens remaining from limit
+    const tokenLimit = 140000 // 5-hour limit
+
+    const timeSeries = result.rows.map(row => {
+      const cumulativeUsage = parseInt(row.cumulative_output_tokens) || 0
+      const remaining = tokenLimit - cumulativeUsage
+
+      return {
+        time: row.bucket_time,
+        outputTokens: cumulativeUsage,
+        cumulativeUsage,
+        remaining: Math.max(0, remaining),
+        percentageUsed: (cumulativeUsage / tokenLimit) * 100,
+      }
+    })
+
+    return c.json({
+      accountId,
+      windowHours,
+      intervalMinutes,
+      tokenLimit,
+      timeSeries,
+    })
   } catch (error) {
-    logger.error('Failed to get rate limit configs', { error: getErrorMessage(error) })
-    return c.json({ error: 'Failed to retrieve rate limit configurations' }, 500)
+    logger.error('Failed to get token usage time series', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve time series data' }, 500)
   }
 })
 
 /**
- * POST /api/rate-limits/:id - Update rate limit configuration
+ * GET /api/token-usage/accounts - Get all accounts with their current token usage
  */
-apiRoutes.post('/rate-limits/:id', async c => {
-  const tokenUsageService = container.getTokenUsageService()
-  
-  if (!tokenUsageService) {
-    return c.json({ error: 'Rate limiting not configured' }, 503)
+apiRoutes.get('/token-usage/accounts', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    pool = container.getDbPool()
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
   }
 
   try {
-    const id = parseInt(c.req.param('id'))
-    if (isNaN(id)) {
-      return c.json({ error: 'Invalid rate limit ID' }, 400)
-    }
+    // Get all accounts with usage in the last 5 hours
+    const accountsQuery = `
+      WITH account_usage AS (
+        SELECT 
+          account_id,
+          SUM(output_tokens) as total_output_tokens,
+          SUM(input_tokens) as total_input_tokens,
+          COUNT(*) as request_count,
+          MAX(timestamp) as last_request_time
+        FROM api_requests
+        WHERE account_id IS NOT NULL
+          AND timestamp >= NOW() - INTERVAL '5 hours'
+        GROUP BY account_id
+      ),
+      domain_usage AS (
+        SELECT 
+          account_id,
+          domain,
+          SUM(output_tokens) as domain_output_tokens,
+          COUNT(*) as domain_requests
+        FROM api_requests
+        WHERE account_id IS NOT NULL
+          AND timestamp >= NOW() - INTERVAL '5 hours'
+        GROUP BY account_id, domain
+      )
+      SELECT 
+        au.account_id,
+        au.total_output_tokens,
+        au.total_input_tokens,
+        au.request_count,
+        au.last_request_time,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'domain', du.domain,
+              'outputTokens', du.domain_output_tokens,
+              'requests', du.domain_requests
+            ) ORDER BY du.domain_output_tokens DESC
+          ) FILTER (WHERE du.domain IS NOT NULL),
+          '[]'::json
+        ) as domains
+      FROM account_usage au
+      LEFT JOIN domain_usage du ON au.account_id = du.account_id
+      GROUP BY au.account_id, au.total_output_tokens, au.total_input_tokens, 
+               au.request_count, au.last_request_time
+      ORDER BY au.total_output_tokens DESC
+    `
 
-    const body = await c.req.json()
-    const updateSchema = z.object({
-      tokenLimit: z.number().positive().optional(),
-      requestLimit: z.number().positive().optional(),
-      fallbackModel: z.string().optional(),
-      enabled: z.boolean().optional(),
+    const result = await pool.query(accountsQuery)
+
+    const tokenLimit = 140000 // 5-hour limit
+
+    const accounts = result.rows.map(row => ({
+      accountId: row.account_id,
+      outputTokens: parseInt(row.total_output_tokens) || 0,
+      inputTokens: parseInt(row.total_input_tokens) || 0,
+      requestCount: parseInt(row.request_count) || 0,
+      lastRequestTime: row.last_request_time,
+      remainingTokens: Math.max(0, tokenLimit - (parseInt(row.total_output_tokens) || 0)),
+      percentageUsed: ((parseInt(row.total_output_tokens) || 0) / tokenLimit) * 100,
+      domains: row.domains || [],
+    }))
+
+    // For each account, get mini time series (last 20 points)
+    const accountsWithSeries = await Promise.all(
+      accounts.map(async account => {
+        const miniSeriesQuery = `
+          WITH time_buckets AS (
+            SELECT 
+              generate_series(
+                NOW() - INTERVAL '5 hours',
+                NOW(),
+                INTERVAL '15 minutes'
+              ) AS bucket_time
+          )
+          SELECT 
+            tb.bucket_time,
+            (
+              SELECT COALESCE(SUM(output_tokens), 0)
+              FROM api_requests
+              WHERE account_id = $1
+                AND timestamp > tb.bucket_time - INTERVAL '5 hours'
+                AND timestamp <= tb.bucket_time
+            ) AS cumulative_output_tokens
+          FROM time_buckets tb
+          ORDER BY tb.bucket_time ASC
+        `
+
+        const seriesResult = await pool.query(miniSeriesQuery, [account.accountId])
+
+        const miniSeries = seriesResult.rows.map(row => ({
+          time: row.bucket_time,
+          remaining: Math.max(0, tokenLimit - (parseInt(row.cumulative_output_tokens) || 0)),
+        }))
+
+        return {
+          ...account,
+          miniSeries,
+        }
+      })
+    )
+
+    return c.json({
+      accounts: accountsWithSeries,
+      tokenLimit,
     })
-
-    const updates = updateSchema.parse(body)
-    const updated = await tokenUsageService.updateRateLimitConfig(id, updates)
-
-    if (!updated) {
-      return c.json({ error: 'Rate limit configuration not found' }, 404)
-    }
-
-    return c.json({ config: updated })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
-    }
-    logger.error('Failed to update rate limit config', { error: getErrorMessage(error) })
-    return c.json({ error: 'Failed to update rate limit configuration' }, 500)
+    logger.error('Failed to get accounts token usage', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve accounts data' }, 500)
   }
 })

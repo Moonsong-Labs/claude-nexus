@@ -92,7 +92,7 @@ execute_on_server_async() {
         case $cmd in
             "up")
                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-                    "cd ~/claude-nexus-proxy && ./scripts/update-proxy.sh latest proxy" 2>&1
+                    "./claude-nexus-proxy/scripts/update-proxy.sh latest proxy" 2>&1
                 ;;
             "down")
                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \

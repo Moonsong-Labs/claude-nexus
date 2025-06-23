@@ -88,6 +88,7 @@ export class MetricsService {
           accountId,
           domain: context.host,
           model: request.model,
+          requestType: request.requestType,
           inputTokens: metrics.inputTokens,
           outputTokens: metrics.outputTokens,
           totalTokens: metrics.inputTokens + metrics.outputTokens,
