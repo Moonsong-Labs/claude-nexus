@@ -1,0 +1,26 @@
+# Test configuration for Claude CLI integration
+# Usage: docker compose -f docker-compose.yml -f docker-compose.test.yml --profile dev --profile claude up
+
+services:
+  # Override proxy to use local build for testing
+  proxy:
+    build:
+      context: ../
+      dockerfile: docker/proxy/Dockerfile
+    image: claude-nexus-proxy:test
+    environment:
+      # Disable client auth for testing
+      ENABLE_CLIENT_AUTH: "false"
+      # Use test API key
+      # API keys managed via credential files
+      # Disable storage for testing
+      STORAGE_ENABLED: "false"
+      # Enable debug
+      DEBUG: "true"
+  
+  # Claude CLI configured for testing
+  claude-cli:
+    environment:
+      # Use the same test API key
+      # API keys managed via credential files
+    command: ["sleep", "infinity"]  # Keep container running for testing

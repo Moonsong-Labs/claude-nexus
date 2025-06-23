@@ -6,11 +6,10 @@ This guide covers all configuration options for Claude Nexus Proxy.
 
 ### Core Configuration
 
-| Variable            | Required | Default | Description                                                      |
-| ------------------- | -------- | ------- | ---------------------------------------------------------------- |
-| `DATABASE_URL`      | Yes      | -       | PostgreSQL connection string                                     |
-| `CLAUDE_API_KEY`    | No       | -       | Default Claude API key (can be overridden by domain credentials) |
-| `DASHBOARD_API_KEY` | Yes      | -       | Authentication key for dashboard access                          |
+| Variable            | Required | Default | Description                             |
+| ------------------- | -------- | ------- | --------------------------------------- |
+| `DATABASE_URL`      | Yes      | -       | PostgreSQL connection string            |
+| `DASHBOARD_API_KEY` | Yes      | -       | Authentication key for dashboard access |
 
 ### Proxy Service
 
@@ -183,7 +182,6 @@ Create `.env` file for Docker deployment:
 DATABASE_URL=postgresql://postgres:password@db:5432/claude_nexus
 
 # Authentication
-CLAUDE_API_KEY=sk-ant-...
 DASHBOARD_API_KEY=your-secure-key
 
 # Features
@@ -241,7 +239,6 @@ Token usage metrics are automatically collected and available at:
 ```bash
 # .env.development
 DATABASE_URL=postgresql://localhost:5432/claude_nexus_dev
-CLAUDE_API_KEY=sk-ant-dev-...
 DASHBOARD_API_KEY=dev-key
 DEBUG=true
 STORAGE_ENABLED=true

@@ -106,7 +106,6 @@ PORT=3000
 HOST=0.0.0.0
 
 # Claude API
-CLAUDE_API_KEY=sk-ant-api03-...
 CREDENTIALS_DIR=credentials
 
 # Database

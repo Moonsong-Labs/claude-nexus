@@ -109,7 +109,6 @@ Options:
 Environment Variables:
   PORT                        Server port (default: 3000)
   HOST                        Server hostname (default: 0.0.0.0)
-  CLAUDE_API_KEY              Default Claude API key (optional, can be overridden per domain)
   CREDENTIALS_DIR             Directory containing domain credential files (default: credentials)
   TELEMETRY_ENDPOINT          URL to send telemetry data (optional)
   DEBUG                       Enable debug logging (default: false)

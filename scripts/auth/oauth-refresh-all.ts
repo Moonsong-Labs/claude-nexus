@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { readdirSync, writeFileSync, mkdirSync, readFileSync } from 'fs'
 import { resolve, join, dirname } from 'path'
-import { loadCredentials, refreshToken } from '../services/proxy/src/credentials'
+import { loadCredentials, refreshToken } from '../../services/proxy/src/credentials'
 
 async function refreshAllOAuthTokens() {
   const credentialsDir = process.argv[2] || 'credentials'

@@ -7,7 +7,7 @@ echo "============================================================"
 echo -e "\n1. Testing request with 1 system message (should NOT be stored):"
 curl -X POST http://localhost:3000/v1/messages \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $CLAUDE_API_KEY" \
+  -H "Authorization: Bearer test-key" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
     "model": "claude-3-5-haiku-20241022",
@@ -24,7 +24,7 @@ sleep 2
 echo -e "\n2. Testing request with 0 system messages (should be stored):"
 curl -X POST http://localhost:3000/v1/messages \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $CLAUDE_API_KEY" \
+  -H "Authorization: Bearer test-key" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
     "model": "claude-3-5-haiku-20241022",
@@ -40,7 +40,7 @@ sleep 2
 echo -e "\n3. Testing request with 2 system messages (should be stored):"
 curl -X POST http://localhost:3000/v1/messages \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $CLAUDE_API_KEY" \
+  -H "Authorization: Bearer test-key" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
     "model": "claude-3-5-haiku-20241022",

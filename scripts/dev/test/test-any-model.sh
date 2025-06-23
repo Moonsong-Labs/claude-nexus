@@ -4,7 +4,6 @@ echo "Testing unrestricted model support..."
 
 # Start the proxy
 docker run -d --name test-proxy -p 3000:3000 \
-  -e CLAUDE_API_KEY=test-key \
   -e DEBUG=true \
   claude-nexus-proxy
 

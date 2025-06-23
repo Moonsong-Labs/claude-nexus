@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { loadCredentials, refreshToken } from '../services/proxy/src/credentials'
+import { loadCredentials, refreshToken } from '../../services/proxy/src/credentials'
 import { resolve, dirname } from 'path'
 import { writeFileSync, mkdirSync, readFileSync } from 'fs'
 
