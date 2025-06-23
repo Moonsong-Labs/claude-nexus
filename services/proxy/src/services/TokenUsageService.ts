@@ -60,6 +60,7 @@ export class TokenUsageService {
   /**
    * Track token usage for a request
    * Always writes to database, regardless of request type
+   * Note: Rate limiting is handled by the Claude API itself, not by the proxy
    */
   async trackUsage(
     request: ProxyRequest,
@@ -67,11 +68,8 @@ export class TokenUsageService {
     requestId?: string
   ): Promise<void> {
     try {
-      // NOTE: This is a fire-and-forget write to the database for performance.
-      // This means rate limiting is eventually consistent. A very high-velocity
-      // burst of requests may exceed limits before usage is persisted.
-      // For stricter enforcement, consider making this synchronous or using
-      // an atomic cache like Redis.
+      // Fire-and-forget write to the database for performance
+      // This is for analytics/monitoring only, not for rate limiting
       this.writeToDatabase(request, metrics, requestId).catch(error => {
         logger.error('Failed to write token usage to database', {
           requestId,
