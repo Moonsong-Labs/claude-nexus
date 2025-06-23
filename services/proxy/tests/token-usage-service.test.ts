@@ -251,12 +251,12 @@ describe('TokenUsageService', () => {
   })
 
   describe('getUsageInWindow', () => {
-    it('should return usage for short windows from cache after first query', async () => {
+    it('should return usage for windows from database', async () => {
       const domain = 'example.com'
       const model = 'claude-3-opus-20240229'
       const windowSeconds = 60
 
-      // First call - hits database
+      // Mock database response
       mockQuery.mockResolvedValueOnce({
         rows: [{
           input_tokens: '100',
@@ -266,24 +266,22 @@ describe('TokenUsageService', () => {
         }]
       })
 
-      const usage1 = await service.getUsageInWindow(domain, model, windowSeconds)
-      expect(usage1.totalTokens).toBe(300)
-      expect(usage1.requestCount).toBe(5)
+      const usage = await service.getUsageInWindow(domain, model, windowSeconds)
+      expect(usage.totalTokens).toBe(300)
+      expect(usage.requestCount).toBe(5)
       expect(mockQuery).toHaveBeenCalledTimes(1)
-
-      // Second call - should use cache
-      const usage2 = await service.getUsageInWindow(domain, model, windowSeconds)
-      expect(usage2.totalTokens).toBe(300)
-      expect(usage2.requestCount).toBe(5)
-      expect(mockQuery).toHaveBeenCalledTimes(1) // No additional DB call
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM get_token_usage_in_window($1, $2, $3)',
+        [domain, model, windowSeconds]
+      )
     })
 
-    it('should always query database for long windows', async () => {
+    it('should query database for all window sizes', async () => {
       const domain = 'example.com'
       const model = 'claude-3-opus-20240229'
       const windowSeconds = 18000 // 5 hours
 
-      // First call
+      // Mock database response
       mockQuery.mockResolvedValueOnce({
         rows: [{
           input_tokens: '50000',
@@ -293,22 +291,10 @@ describe('TokenUsageService', () => {
         }]
       })
 
-      const usage1 = await service.getUsageInWindow(domain, model, windowSeconds)
-      expect(usage1.totalTokens).toBe(110000)
-
-      // Second call - should hit DB again (no caching for long windows)
-      mockQuery.mockResolvedValueOnce({
-        rows: [{
-          input_tokens: '51000',
-          output_tokens: '61000',
-          total_tokens: '112000',
-          request_count: '101'
-        }]
-      })
-
-      const usage2 = await service.getUsageInWindow(domain, model, windowSeconds)
-      expect(usage2.totalTokens).toBe(112000)
-      expect(mockQuery).toHaveBeenCalledTimes(2)
+      const usage = await service.getUsageInWindow(domain, model, windowSeconds)
+      expect(usage.totalTokens).toBe(110000)
+      expect(usage.requestCount).toBe(100)
+      expect(mockQuery).toHaveBeenCalledTimes(1)
     })
 
     it('should handle database errors gracefully', async () => {

@@ -44,21 +44,12 @@ export class RateLimitExceededError extends Error {
 
 /**
  * Service for tracking token usage and enforcing rate limits
- * Uses a hybrid approach: in-memory cache for recent data, database for persistence
+ * Uses database for persistence with configuration caching
  */
 export class TokenUsageService {
-  private readonly usageCache: LRUCache<string, UsageWindow>
   private readonly configCache: LRUCache<string, RateLimitConfig[]>
-  private readonly CACHE_TTL = 60 * 1000 // 1 minute
-  private readonly SHORT_WINDOW_THRESHOLD = 300 // 5 minutes
 
   constructor(private pool: Pool) {
-    // LRU cache for recent usage windows (up to 1000 entries)
-    this.usageCache = new LRUCache<string, UsageWindow>({
-      max: 1000,
-      ttl: this.CACHE_TTL,
-    })
-
     // Cache for rate limit configurations
     this.configCache = new LRUCache<string, RateLimitConfig[]>({
       max: 100,
@@ -76,16 +67,17 @@ export class TokenUsageService {
     requestId?: string
   ): Promise<void> {
     try {
-      // Write to database (async, don't wait)
+      // NOTE: This is a fire-and-forget write to the database for performance.
+      // This means rate limiting is eventually consistent. A very high-velocity
+      // burst of requests may exceed limits before usage is persisted.
+      // For stricter enforcement, consider making this synchronous or using
+      // an atomic cache like Redis.
       this.writeToDatabase(request, metrics, requestId).catch(error => {
         logger.error('Failed to write token usage to database', {
           requestId,
           error: error instanceof Error ? error.message : String(error),
         })
       })
-
-      // Update in-memory cache for short windows
-      this.updateCache(request.host, request.model, metrics)
 
     } catch (error) {
       logger.error('Failed to track token usage', {
@@ -158,15 +150,6 @@ export class TokenUsageService {
     const now = new Date()
     const windowStart = new Date(now.getTime() - windowSeconds * 1000)
 
-    // For short windows, try cache first
-    if (windowSeconds <= this.SHORT_WINDOW_THRESHOLD) {
-      const cacheKey = `${domain}:${model}:${windowSeconds}`
-      const cached = this.usageCache.get(cacheKey)
-      if (cached) {
-        return cached
-      }
-    }
-
     try {
       // Query database using the helper function
       const result = await this.pool.query(
@@ -182,12 +165,6 @@ export class TokenUsageService {
         requestCount: parseInt(row.request_count),
         windowStart,
         windowEnd: now,
-      }
-
-      // Cache short windows
-      if (windowSeconds <= this.SHORT_WINDOW_THRESHOLD) {
-        const cacheKey = `${domain}:${model}:${windowSeconds}`
-        this.usageCache.set(cacheKey, usage)
       }
 
       return usage
@@ -387,37 +364,6 @@ export class TokenUsageService {
       metrics.outputTokens,
       request.requestType,
     ])
-  }
-
-  private updateCache(domain: string, model: string, metrics: TokenMetrics): void {
-    // Update cache for common short windows (1 min, 5 min)
-    const windows = [60, 300]
-    const now = new Date()
-
-    for (const windowSeconds of windows) {
-      const cacheKey = `${domain}:${model}:${windowSeconds}`
-      const existing = this.usageCache.get(cacheKey)
-
-      if (existing) {
-        // Update existing cache entry
-        existing.inputTokens += metrics.inputTokens
-        existing.outputTokens += metrics.outputTokens
-        existing.totalTokens += metrics.totalTokens
-        existing.requestCount += 1
-        existing.windowEnd = now
-      } else {
-        // Create new cache entry
-        const usage: UsageWindow = {
-          inputTokens: metrics.inputTokens,
-          outputTokens: metrics.outputTokens,
-          totalTokens: metrics.totalTokens,
-          requestCount: 1,
-          windowStart: new Date(now.getTime() - windowSeconds * 1000),
-          windowEnd: now,
-        }
-        this.usageCache.set(cacheKey, usage)
-      }
-    }
   }
 
   /**
