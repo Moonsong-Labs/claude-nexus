@@ -40,6 +40,7 @@ export interface SlackConfig {
 
 export interface ClaudeCredentials {
   type: 'api_key' | 'oauth'
+  accountId?: string // Unique identifier for the account (e.g., "acc_f9e1c2d3b4a5")
   api_key?: string
   oauth?: OAuthCredentials
   slack?: SlackConfig
@@ -169,6 +170,11 @@ export function loadCredentials(filePath: string): ClaudeCredentials | null {
       return null
     }
 
+    // Validate accountId (warn but don't fail for backward compatibility)
+    if (!credentials.accountId) {
+      console.warn(`Warning: Credential file missing accountId: ${fullPath}`)
+    }
+
     if (credentials.type === 'api_key' && !credentials.api_key) {
       console.error(`Invalid API key credential file: ${fullPath}`)
       return null
@@ -232,6 +238,7 @@ async function saveOAuthCredentials(filePath: string, credentials: ClaudeCredent
       ...existingData,
       ...credentials,
       // Explicitly preserve fields that might exist but aren't in ClaudeCredentials type
+      accountId: existingData.accountId || credentials.accountId,
       client_api_key: existingData.client_api_key || credentials.client_api_key,
       slack: existingData.slack || credentials.slack,
     }
@@ -499,6 +506,11 @@ export function validateCredentialMapping(mapping: DomainCredentialMapping): str
     if (!credentials) {
       errors.push(`Missing or invalid credential file for domain '${domain}': ${credPath}`)
       continue
+    }
+
+    // Check for accountId (warning only for backward compatibility)
+    if (!credentials.accountId) {
+      errors.push(`Warning: Missing accountId for domain '${domain}' in ${credPath}`)
     }
 
     if (credentials.type === 'api_key') {

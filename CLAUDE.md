@@ -161,10 +161,24 @@ The proxy automatically tracks conversations and detects branches using message 
 
 ### Token Tracking
 
+**In-Memory Tracking (Legacy)**
 - Per-domain statistics
 - Request type classification (query evaluation vs inference)
 - Tool call counting
 - Available at `/token-stats` endpoint
+
+**Comprehensive Token Usage Tracking (New)**
+- Tracks ALL request types (including query_evaluation and quota)
+- Persistent storage in partitioned `token_usage` table
+- 5-hour rolling window support for rate limiting
+- Model-specific rate limits with automatic fallback
+- Per-account AND per-domain tracking
+- API endpoints:
+  - `/api/token-usage/current` - Current window usage
+  - `/api/token-usage/daily` - Historical daily usage data
+  - `/api/rate-limits` - Configured rate limits
+  - `/api/conversations` - Conversations with account info
+- Headers added on model switch: `X-CNP-Model-Switched-To` and `X-CNP-Model-Switch-Reason`
 
 ### Storage
 
@@ -241,6 +255,27 @@ Currently no automated tests. When implementing:
 - TypeScript compilation for production builds
 - Model-agnostic (accepts any model name)
 
+## Database Migrations
+
+### Run Token Usage Migration
+```bash
+bun run db:migrate:token-usage
+```
+
+This creates:
+- Partitioned `token_usage` table (monthly partitions)
+- `rate_limit_configs` table for configurable limits
+- `rate_limit_events` table for tracking limit hits
+- Helper functions for querying usage
+- Adds `account_id` column to `api_requests` table
+
+### Partition Maintenance
+The proxy automatically creates future partitions on startup and daily.
+Manual partition creation:
+```sql
+SELECT create_monthly_partitions(3); -- Creates 3 months ahead
+```
+
 ## Common Tasks
 
 ### Add Domain Credentials
@@ -253,6 +288,7 @@ bun run scripts/generate-api-key.ts
 cat > credentials/domain.com.credentials.json << EOF
 {
   "type": "api_key",
+  "accountId": "acc_f9e1c2d3b4a5",  # Unique account identifier
   "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_..."
 }
@@ -277,4 +313,36 @@ curl http://localhost:3000/token-stats
 ```bash
 open http://localhost:3001
 # Use DASHBOARD_API_KEY for authentication
+```
+
+### Configure Rate Limits
+
+```bash
+# View current limits
+curl http://localhost:3000/api/rate-limits?accountId=acc_f9e1c2d3b4a5
+
+# Update limit (requires dashboard API key)
+curl -X POST http://localhost:3000/api/rate-limits/1 \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tokenLimit": 200000,
+    "fallbackModel": "claude-3-haiku-20240307"
+  }'
+```
+
+### Check Token Usage
+
+```bash
+# Current 5-hour window usage
+curl "http://localhost:3000/api/token-usage/current?accountId=acc_f9e1c2d3b4a5&window=300" \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY"
+
+# Daily usage (last 30 days)
+curl "http://localhost:3000/api/token-usage/daily?accountId=acc_f9e1c2d3b4a5&aggregate=true" \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY"
+
+# View conversations
+curl "http://localhost:3000/api/conversations?accountId=acc_f9e1c2d3b4a5" \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY"
 ```

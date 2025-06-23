@@ -159,7 +159,8 @@ export class ProxyService {
           response,
           context,
           claudeResponse.status,
-          conversationData
+          conversationData,
+          auth.accountId
         )
       }
 
@@ -443,7 +444,8 @@ export class ProxyService {
         response,
         context,
         claudeResponse.status,
-        conversationData
+        conversationData,
+        auth.accountId
       )
 
       // Send notifications after streaming completes

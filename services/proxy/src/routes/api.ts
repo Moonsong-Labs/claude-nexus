@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { Pool } from 'pg'
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage, getErrorStack } from '@claude-nexus/shared'
+import { TokenUsageService } from '../services/TokenUsageService.js'
+import { container } from '../container.js'
 
 // Query parameter schemas
 const statsQuerySchema = z.object({
@@ -14,6 +16,12 @@ const requestsQuerySchema = z.object({
   domain: z.string().optional(),
   limit: z.string().regex(/^\d+$/).transform(Number).default('100'),
   offset: z.string().regex(/^\d+$/).transform(Number).default('0'),
+})
+
+const conversationsQuerySchema = z.object({
+  domain: z.string().optional(),
+  accountId: z.string().optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).default('20'),
 })
 
 // Response types
@@ -407,5 +415,238 @@ apiRoutes.get('/domains', async c => {
   } catch (error) {
     logger.error('Failed to get domains', { error: getErrorMessage(error) })
     return c.json({ error: 'Failed to retrieve domains' }, 500)
+  }
+})
+
+/**
+ * GET /api/conversations - Get conversations with account information
+ */
+apiRoutes.get('/conversations', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    const { container } = await import('../container.js')
+    pool = container.getDbPool()
+
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    const query = c.req.query()
+    const params = conversationsQuerySchema.parse(query)
+
+    const conditions: string[] = []
+    const values: any[] = []
+    let paramCount = 0
+
+    if (params.domain) {
+      conditions.push(`domain = $${++paramCount}`)
+      values.push(params.domain)
+    }
+
+    if (params.accountId) {
+      conditions.push(`account_id = $${++paramCount}`)
+      values.push(params.accountId)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    // Get conversations grouped by conversation_id with account info
+    const conversationsQuery = `
+      WITH conversation_summary AS (
+        SELECT 
+          conversation_id,
+          domain,
+          account_id,
+          MIN(timestamp) as first_message_time,
+          MAX(timestamp) as last_message_time,
+          COUNT(*) as message_count,
+          SUM(input_tokens + output_tokens) as total_tokens,
+          COUNT(DISTINCT branch_id) as branch_count,
+          ARRAY_AGG(DISTINCT model) as models_used
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+        GROUP BY conversation_id, domain, account_id
+      )
+      SELECT * FROM conversation_summary
+      ORDER BY last_message_time DESC
+      LIMIT $${++paramCount}
+    `
+
+    values.push(params.limit)
+
+    const result = await pool.query(conversationsQuery, values)
+
+    const conversations = result.rows.map(row => ({
+      conversationId: row.conversation_id,
+      domain: row.domain,
+      accountId: row.account_id,
+      firstMessageTime: row.first_message_time,
+      lastMessageTime: row.last_message_time,
+      messageCount: parseInt(row.message_count),
+      totalTokens: parseInt(row.total_tokens),
+      branchCount: parseInt(row.branch_count),
+      modelsUsed: row.models_used,
+    }))
+
+    return c.json({ conversations })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
+    }
+    logger.error('Failed to get conversations', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve conversations' }, 500)
+  }
+})
+
+// Token usage query schemas
+const tokenUsageWindowSchema = z.object({
+  accountId: z.string(),
+  domain: z.string().optional(),
+  model: z.string().optional(),
+  window: z.string().regex(/^\d+$/).transform(Number).default('300'), // Default 5 hours (300 minutes)
+})
+
+const tokenUsageDailySchema = z.object({
+  accountId: z.string(),
+  domain: z.string().optional(),
+  days: z.string().regex(/^\d+$/).transform(Number).default('30'),
+  aggregate: z.string().transform(v => v === 'true').default('false'),
+})
+
+/**
+ * GET /api/token-usage/current - Get current window token usage
+ */
+apiRoutes.get('/token-usage/current', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+  
+  if (!tokenUsageService) {
+    return c.json({ error: 'Token usage tracking not configured' }, 503)
+  }
+
+  try {
+    const query = c.req.query()
+    const params = tokenUsageWindowSchema.parse(query)
+
+    const windowHours = params.window / 60 // Convert minutes to hours
+    const usage = await tokenUsageService.getUsageWindow(
+      params.accountId,
+      windowHours,
+      params.domain,
+      params.model
+    )
+
+    return c.json(usage)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
+    }
+    logger.error('Failed to get token usage window', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve token usage' }, 500)
+  }
+})
+
+/**
+ * GET /api/token-usage/daily - Get daily token usage
+ */
+apiRoutes.get('/token-usage/daily', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+  
+  if (!tokenUsageService) {
+    return c.json({ error: 'Token usage tracking not configured' }, 503)
+  }
+
+  try {
+    const query = c.req.query()
+    const params = tokenUsageDailySchema.parse(query)
+
+    const usage = params.aggregate
+      ? await tokenUsageService.getAggregatedDailyUsage(
+          params.accountId,
+          params.days,
+          params.domain
+        )
+      : await tokenUsageService.getDailyUsage(
+          params.accountId,
+          params.days,
+          params.domain
+        )
+
+    return c.json({ usage })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
+    }
+    logger.error('Failed to get daily token usage', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve daily usage' }, 500)
+  }
+})
+
+/**
+ * GET /api/rate-limits - Get rate limit configurations
+ */
+apiRoutes.get('/rate-limits', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+  
+  if (!tokenUsageService) {
+    return c.json({ error: 'Rate limiting not configured' }, 503)
+  }
+
+  try {
+    const { accountId, domain, model } = c.req.query()
+    const configs = await tokenUsageService.getRateLimitConfig(
+      accountId,
+      domain,
+      model
+    )
+
+    return c.json({ configs })
+  } catch (error) {
+    logger.error('Failed to get rate limit configs', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve rate limit configurations' }, 500)
+  }
+})
+
+/**
+ * POST /api/rate-limits/:id - Update rate limit configuration
+ */
+apiRoutes.post('/rate-limits/:id', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+  
+  if (!tokenUsageService) {
+    return c.json({ error: 'Rate limiting not configured' }, 503)
+  }
+
+  try {
+    const id = parseInt(c.req.param('id'))
+    if (isNaN(id)) {
+      return c.json({ error: 'Invalid rate limit ID' }, 400)
+    }
+
+    const body = await c.req.json()
+    const updateSchema = z.object({
+      tokenLimit: z.number().positive().optional(),
+      requestLimit: z.number().positive().optional(),
+      fallbackModel: z.string().optional(),
+      enabled: z.boolean().optional(),
+    })
+
+    const updates = updateSchema.parse(body)
+    const updated = await tokenUsageService.updateRateLimitConfig(id, updates)
+
+    if (!updated) {
+      return c.json({ error: 'Rate limit configuration not found' }, 404)
+    }
+
+    return c.json({ config: updated })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
+    }
+    logger.error('Failed to update rate limit config', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to update rate limit configuration' }, 500)
   }
 })
