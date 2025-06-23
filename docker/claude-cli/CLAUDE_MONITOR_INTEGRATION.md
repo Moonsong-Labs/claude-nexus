@@ -43,6 +43,22 @@ docker run -it claude-cli ccusage daily
 docker run -it claude-cli ccusage blocks --live
 ```
 
+### Direct Execution (with docker compose exec)
+
+When using `docker compose exec`, the commands are available directly:
+
+```bash
+# Run monitor directly
+docker compose exec claude-cli monitor
+
+# Or use the full path
+docker compose exec claude-cli /usr/local/bin/claude-monitor
+
+# Run ccusage directly
+docker compose exec claude-cli ccusage daily
+docker compose exec claude-cli usage daily  # alias
+```
+
 ### With Docker Compose
 
 ```bash

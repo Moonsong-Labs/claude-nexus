@@ -79,7 +79,9 @@ RUN mkdir -p /home/claude/.claude && \
 COPY --chown=root:root entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chown=root:root claude-wrapper.sh /usr/local/bin/claude-cli
 COPY --chown=root:root monitor-wrapper.sh /usr/local/bin/claude-monitor
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/claude-cli /usr/local/bin/claude-monitor
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/claude-cli /usr/local/bin/claude-monitor && \
+    ln -s /usr/local/bin/claude-monitor /usr/local/bin/monitor && \
+    ln -s /usr/local/bin/ccusage /usr/local/bin/usage
 
 # Set working directory
 WORKDIR /workspace
