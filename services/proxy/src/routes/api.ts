@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { Pool } from 'pg'
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage, getErrorStack } from '@claude-nexus/shared'
-import { TokenUsageService } from '../services/TokenUsageService.js'
 import { container } from '../container.js'
 
 // Query parameter schemas

@@ -51,7 +51,7 @@ export class TokenUsageService {
    * Note: Token usage is now tracked directly in api_requests table
    * This method is kept for backward compatibility but does nothing
    */
-  async recordUsage(data: TokenUsageData): Promise<void> {
+  async recordUsage(_data: TokenUsageData): Promise<void> {
     // Token usage is now tracked directly in api_requests table
     // No separate recording needed
   }

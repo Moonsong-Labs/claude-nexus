@@ -4,7 +4,6 @@ import { setCookie } from 'hono/cookie'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import { parseConversation, calculateCost, formatMessageTime } from '../utils/conversation.js'
-import { getBranchColor } from '../utils/conversation-graph.js'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
 
 export const dashboardRoutes = new Hono<{
@@ -612,7 +611,6 @@ export const layout = (title: string, content: any, additionalScripts: string = 
  */
 dashboardRoutes.get('/', async c => {
   const domain = c.req.query('domain')
-  const refresh = c.req.query('refresh')
   const page = parseInt(c.req.query('page') || '1')
   const perPage = parseInt(c.req.query('per_page') || '50')
   const searchQuery = c.req.query('search')?.toLowerCase()
@@ -819,7 +817,6 @@ dashboardRoutes.get('/', async c => {
                         .map(branch => {
                           const duration =
                             branch.lastMessage.getTime() - branch.firstMessage.getTime()
-                          const branchColor = getBranchColor(branch.branch)
 
                           return `
                             <tr>
@@ -2036,13 +2033,11 @@ dashboardRoutes.get('/token-usage', async c => {
       tokenUsageWindow,
       dailyUsageResult,
       rateLimitsResult,
-      conversationsResult,
       timeSeriesResult,
     ] = await Promise.allSettled([
       apiClient.getTokenUsageWindow({ accountId, domain, window: 300 }), // 5 hour window
       apiClient.getDailyTokenUsage({ accountId, domain, days: 30, aggregate: true }),
       apiClient.getRateLimitConfigs({ accountId }),
-      apiClient.getConversations({ accountId, limit: 1 }), // Just to get account info
       apiClient.getTokenUsageTimeSeries({ accountId, window: 5, interval: 5 }), // 5-hour window, 5-minute intervals
     ])
 
@@ -2050,8 +2045,6 @@ dashboardRoutes.get('/token-usage', async c => {
     const tokenUsage = tokenUsageWindow.status === 'fulfilled' ? tokenUsageWindow.value : null
     const dailyUsage = dailyUsageResult.status === 'fulfilled' ? dailyUsageResult.value.usage : []
     const rateLimits = rateLimitsResult.status === 'fulfilled' ? rateLimitsResult.value.configs : []
-    const conversations =
-      conversationsResult.status === 'fulfilled' ? conversationsResult.value.conversations : []
     const timeSeries = timeSeriesResult.status === 'fulfilled' ? timeSeriesResult.value : null
 
     // Find the primary rate limit for this account
