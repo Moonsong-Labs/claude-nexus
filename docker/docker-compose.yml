@@ -59,7 +59,7 @@ services:
       DEBUG: ${DEBUG:-false}
       
       # Client authentication
-      ENABLE_CLIENT_AUTH: ${ENABLE_CLIENT_AUTH:-true}
+      ENABLE_CLIENT_AUTH: ${ENABLE_CLIENT_AUTH:-false}
     volumes:
       - ../credentials:/app/credentials
       - ../client-setup:/app/client-setup:ro
