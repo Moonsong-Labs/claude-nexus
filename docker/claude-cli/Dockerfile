@@ -8,26 +8,14 @@ RUN apk add --no-cache \
     curl \
     jq \
     bash \
-    coreutils
+    coreutils \
+    git
 
 # Set working directory
 WORKDIR /app
 
-# Install Claude CLI globally
-RUN npm install -g @anthropic-ai/claude-code
-
-# Install ccusage globally with pinned version
-# Note: Update version as needed based on latest stable release
-RUN npm install -g ccusage@latest
-
-# Install Python dependencies for Claude Usage Monitor
-# Use Alpine package instead of pip to avoid PEP 668 restrictions
-RUN apk add --no-cache py3-tz
-
 # Clone Claude Usage Monitor
-RUN apk add --no-cache git && \
-    git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git /app/claude-monitor && \
-    apk del git
+RUN git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git /app/claude-monitor
 
 # ---- Final Stage ----
 FROM node:24-alpine
@@ -48,13 +36,8 @@ RUN apk add --no-cache \
 RUN addgroup -g 1001 claude && \
     adduser -u 1001 -G claude -s /bin/bash -D claude
 
-# Copy Claude CLI from builder
-COPY --from=builder /usr/local/lib/node_modules/@anthropic-ai/claude-code /usr/local/lib/node_modules/@anthropic-ai/claude-code
-COPY --from=builder /usr/local/bin/claude /usr/local/bin/claude
-
-# Copy ccusage from builder
-COPY --from=builder /usr/local/lib/node_modules/ccusage /usr/local/lib/node_modules/ccusage
-COPY --from=builder /usr/local/bin/ccusage /usr/local/bin/ccusage
+# Install Node.js tools directly in final stage to avoid copy issues
+RUN npm install -g @anthropic-ai/claude-code ccusage@latest
 
 # Copy Python packages - Alpine's py3-tz is installed system-wide, no need to copy
 
