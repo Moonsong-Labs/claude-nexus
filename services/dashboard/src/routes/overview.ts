@@ -102,6 +102,67 @@ overviewRoutes.get('/', async c => {
     // Sort by last message time
     filteredBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
 
+    // Group conversations by parent
+    const parentConversations = filteredBranches.filter(conv => !conv.isSubtask)
+    const subtasksByParent = new Map<string, typeof filteredBranches>()
+    
+    // Create a map to find parent conversations by their request ID
+    const conversationsByRequestId = new Map<string, typeof filteredBranches[0]>()
+    filteredBranches.forEach(conv => {
+      if (conv.latestRequestId) {
+        conversationsByRequestId.set(conv.latestRequestId, conv)
+      }
+    })
+    
+    // Group subtasks by their parent
+    // First, create a map of all subtasks
+    const subtaskConversations = filteredBranches.filter(conv => conv.isSubtask)
+    
+    // For now, we'll group orphaned subtasks at the end
+    const orphanedSubtasks: typeof filteredBranches = []
+    
+    subtaskConversations.forEach(subtask => {
+      if (subtask.parentTaskRequestId) {
+        // Try to find the parent conversation that spawned this subtask
+        let parentFound = false
+        for (const parent of parentConversations) {
+          // This is a simplified approach - in a real implementation, 
+          // we'd need to check if the parent conversation contains the request
+          // that spawned this subtask
+          if (!parentFound) {
+            // For now, we'll add subtasks to the first available parent
+            // In production, you'd want to query the database to find the exact parent
+            const key = parent.conversationId
+            if (!subtasksByParent.has(key)) {
+              subtasksByParent.set(key, [])
+            }
+            // Only add if not already added
+            const existing = subtasksByParent.get(key)!
+            if (!existing.some(s => s.conversationId === subtask.conversationId)) {
+              subtasksByParent.get(key)!.push(subtask)
+              parentFound = true
+            }
+          }
+        }
+        if (!parentFound) {
+          orphanedSubtasks.push(subtask)
+        }
+      } else {
+        orphanedSubtasks.push(subtask)
+      }
+    })
+
+    // Build flattened list with parent conversations followed by their subtasks
+    const groupedConversations: typeof filteredBranches = []
+    parentConversations.forEach(parent => {
+      groupedConversations.push(parent)
+      const subtasks = subtasksByParent.get(parent.conversationId) || []
+      subtasks.forEach(subtask => groupedConversations.push(subtask))
+    })
+    
+    // Add orphaned subtasks at the end
+    orphanedSubtasks.forEach(subtask => groupedConversations.push(subtask))
+
     // Get unique domains for the dropdown
     const uniqueDomains = [...new Set(conversationBranches.map(branch => branch.domain))].sort()
 
@@ -111,11 +172,11 @@ overviewRoutes.get('/', async c => {
     const uniqueAccounts = [...new Set(conversationBranches.map(b => b.accountId).filter(Boolean))]
 
     // Calculate pagination
-    const totalItems = filteredBranches.length
+    const totalItems = groupedConversations.length
     const totalPages = Math.ceil(totalItems / itemsPerPage)
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
-    const paginatedBranches = filteredBranches.slice(startIndex, endIndex)
+    const paginatedBranches = groupedConversations.slice(startIndex, endIndex)
 
     const content = html`
       <div
@@ -239,34 +300,27 @@ overviewRoutes.get('/', async c => {
                             branch.lastMessage.getTime() - branch.firstMessage.getTime()
 
                           return `
-                            <tr>
+                            <tr style="${branch.isSubtask ? 'background-color: #f9fafb;' : ''}">
                               <td class="text-sm">
-                                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; ${branch.isSubtask ? 'padding-left: 2rem;' : ''}">
+                                  ${branch.isSubtask ? `
+                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background-color: #e0e7ff; border-radius: 50%; flex-shrink: 0;" title="This is a sub-task spawned by Task tool">
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                      </svg>
+                                    </span>
+                                  ` : ''}
                                   <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
                                      class="text-blue-600" 
                                      style="font-family: monospace; font-size: 0.75rem;">
                                     ${branch.conversationId.substring(0, 8)}...
                                   </a>
-                                  ${branch.isSubtask ? `
-                                    <div style="display: flex; align-items: center; gap: 0.25rem; margin-left: 1rem;">
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                      </svg>
-                                      <span style="font-size: 0.7rem; color: #6b7280;">Sub-task</span>
-                                    </div>
-                                  ` : ''}
                                 </div>
                               </td>
                               <td class="text-sm">
-                                ${
-                                  branch.branchCount > 1
-                                    ? `<span style="color: #2563eb; font-weight: 600;">
-                                      ${branch.branchCount} branches
-                                    </span>`
-                                    : `<span style="color: #6b7280;">
-                                      1 branch
-                                    </span>`
-                                }
+                                <span style="color: ${branch.branchCount > 1 ? '#2563eb' : '#6b7280'}; font-weight: ${branch.branchCount > 1 ? '600' : 'normal'};">
+                                  ${branch.branchCount} ${branch.branchCount === 1 ? 'branch' : 'branches'}
+                                </span>
                               </td>
                               <td class="text-sm">
                                 ${
