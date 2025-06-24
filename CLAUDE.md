@@ -262,28 +262,24 @@ Currently no automated tests. When implementing:
 - TypeScript compilation for production builds
 - Model-agnostic (accepts any model name)
 
-## Database Migrations
+## Database Schema
 
-### Run Token Usage Migration
+### Main Tables
 
-```bash
-bun run db:migrate:token-usage
-```
+**api_requests** - Stores all API requests and responses with token tracking:
+- `account_id` - Account identifier from credential files for per-account tracking
+- `input_tokens`, `output_tokens`, `total_tokens` - Token usage metrics
+- `conversation_id`, `branch_id` - Conversation tracking
+- `current_message_hash`, `parent_message_hash` - Message linking
 
-This creates:
+**streaming_chunks** - Stores streaming response chunks
 
-- Partitioned `token_usage` table (monthly partitions)
-- Helper functions for querying usage
-- Adds `account_id` column to `api_requests` table
+### Account-Based Token Tracking
 
-### Partition Maintenance
-
-The proxy automatically creates future partitions on startup and daily.
-Manual partition creation:
-
-```sql
-SELECT create_monthly_partitions(3); -- Creates 3 months ahead
-```
+Token usage is tracked directly in the `api_requests` table:
+- Each request is associated with an `account_id` from the credential file
+- Token counts are stored per request for accurate tracking
+- Queries aggregate usage by account and time window
 
 ## Common Tasks
 

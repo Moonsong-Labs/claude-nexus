@@ -443,6 +443,9 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           current_message_hash CHAR(64),
           parent_message_hash CHAR(64),
           conversation_id UUID,
+          branch_id VARCHAR(255) DEFAULT 'main',
+          message_count INTEGER DEFAULT 0,
+          account_id VARCHAR(255),
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `)
@@ -490,6 +493,16 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_requests_conversation_id 
         ON api_requests(conversation_id)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_branch_id 
+        ON api_requests(branch_id)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_account_id 
+        ON api_requests(account_id)
       `)
 
       logger.info('Database schema created successfully')
