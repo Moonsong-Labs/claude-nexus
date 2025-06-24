@@ -87,7 +87,6 @@ Options:
         '--clean',
         `-f ${filename}`,
       ].join(' ')
-      console.log(`Executing command: ${dumpCommand}`)
 
       execSync(dumpCommand, { stdio: 'inherit' })
 
