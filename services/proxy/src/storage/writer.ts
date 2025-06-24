@@ -461,21 +461,6 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
         )
       `)
 
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS domain_telemetry (
-          id SERIAL PRIMARY KEY,
-          domain VARCHAR(255) NOT NULL,
-          timestamp TIMESTAMPTZ NOT NULL,
-          input_tokens INTEGER DEFAULT 0,
-          output_tokens INTEGER DEFAULT 0,
-          total_tokens INTEGER DEFAULT 0,
-          model VARCHAR(100),
-          request_type VARCHAR(50),
-          cache_creation_input_tokens INTEGER DEFAULT 0,
-          cache_read_input_tokens INTEGER DEFAULT 0,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `)
 
       // Create indexes for api_requests
       await pool.query(`
@@ -534,17 +519,6 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
         ON streaming_chunks(request_id)
       `)
 
-      // Create indexes for domain_telemetry
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_telemetry_domain 
-        ON domain_telemetry(domain)
-      `)
-
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp 
-        ON domain_telemetry(timestamp)
-      `)
-
       // Add column comments
       await pool.query(`
         COMMENT ON COLUMN api_requests.current_message_hash IS 'SHA-256 hash of the last message in this request'
@@ -569,7 +543,7 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       logger.info('Database schema created successfully')
     } else {
       // Verify all required tables exist
-      const requiredTables = ['api_requests', 'streaming_chunks', 'domain_telemetry']
+      const requiredTables = ['api_requests', 'streaming_chunks']
       const tableCheck = await pool.query(
         `
         SELECT table_name 
