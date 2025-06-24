@@ -107,10 +107,10 @@ overviewRoutes.get('/', async c => {
     // Separate conversations into parents and subtasks
     const nonSubtaskConversations = filteredBranches.filter(conv => !conv.isSubtask)
     const subtaskConversations = filteredBranches.filter(conv => conv.isSubtask)
-    
+
     // Create a map to group subtasks by their parent conversation ID
     const subtasksByParentId = new Map<string, typeof filteredBranches>()
-    
+
     // Group subtasks by their parent conversation ID
     subtaskConversations.forEach(subtask => {
       if (subtask.parentConversationId) {
@@ -120,23 +120,24 @@ overviewRoutes.get('/', async c => {
         subtasksByParentId.get(subtask.parentConversationId)!.push(subtask)
       }
     })
-    
+
     // Build the final list with conversations and their subtasks
     const groupedConversations: typeof filteredBranches = []
-    
+
     // Add each non-subtask conversation followed by its subtasks
     nonSubtaskConversations.forEach(parent => {
       groupedConversations.push(parent)
       const subtasks = subtasksByParentId.get(parent.conversationId) || []
       subtasks.forEach(subtask => groupedConversations.push(subtask))
     })
-    
+
     // Add orphaned subtasks (those without a parent in the current page)
     subtaskConversations.forEach(subtask => {
       // Check if this subtask has already been added (it has a parent in the current page)
-      const hasParentInCurrentPage = subtask.parentConversationId && 
+      const hasParentInCurrentPage =
+        subtask.parentConversationId &&
         nonSubtaskConversations.some(c => c.conversationId === subtask.parentConversationId)
-      
+
       if (!hasParentInCurrentPage) {
         // This subtask is orphaned (parent not in current page or no parent ID)
         groupedConversations.push(subtask)
