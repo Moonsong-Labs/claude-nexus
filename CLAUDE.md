@@ -267,6 +267,7 @@ Currently no automated tests. When implementing:
 ### Main Tables
 
 **api_requests** - Stores all API requests and responses with token tracking:
+
 - `account_id` - Account identifier from credential files for per-account tracking
 - `input_tokens`, `output_tokens`, `total_tokens` - Token usage metrics
 - `conversation_id`, `branch_id` - Conversation tracking
@@ -277,6 +278,7 @@ Currently no automated tests. When implementing:
 ### Account-Based Token Tracking
 
 Token usage is tracked directly in the `api_requests` table:
+
 - Each request is associated with an `account_id` from the credential file
 - Token counts are stored per request for accurate tracking
 - Queries aggregate usage by account and time window

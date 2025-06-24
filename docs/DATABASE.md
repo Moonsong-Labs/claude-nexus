@@ -10,53 +10,53 @@ Claude Nexus Proxy uses PostgreSQL to store API request/response data, conversat
 
 The main table storing all API requests and responses.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| request_id | UUID | Primary key, unique request identifier |
-| domain | VARCHAR(255) | Domain name from Host header |
-| account_id | VARCHAR(255) | Account identifier from credential file |
-| timestamp | TIMESTAMPTZ | Request timestamp |
-| method | VARCHAR(10) | HTTP method (always POST for Claude) |
-| path | VARCHAR(255) | API path (e.g., /v1/messages) |
-| headers | JSONB | Request headers (sanitized) |
-| body | JSONB | Request body |
-| api_key_hash | VARCHAR(50) | Hashed API key for security |
-| model | VARCHAR(100) | Claude model name |
-| request_type | VARCHAR(50) | Type: inference, query_evaluation, or quota |
-| response_status | INTEGER | HTTP response status code |
-| response_headers | JSONB | Response headers |
-| response_body | JSONB | Response body |
-| response_streaming | BOOLEAN | Whether response was streamed |
-| input_tokens | INTEGER | Input token count |
-| output_tokens | INTEGER | Output token count |
-| total_tokens | INTEGER | Total tokens (input + output) |
-| cache_creation_input_tokens | INTEGER | Cache creation tokens |
-| cache_read_input_tokens | INTEGER | Cache read tokens |
-| usage_data | JSONB | Additional usage metadata |
-| first_token_ms | INTEGER | Time to first token (streaming) |
-| duration_ms | INTEGER | Total request duration |
-| error | TEXT | Error message if request failed |
-| tool_call_count | INTEGER | Number of tool calls in response |
-| current_message_hash | CHAR(64) | SHA-256 hash of last message |
-| parent_message_hash | CHAR(64) | SHA-256 hash of previous message |
-| conversation_id | UUID | Groups messages into conversations |
-| branch_id | VARCHAR(255) | Branch within conversation (default: 'main') |
-| message_count | INTEGER | Total messages in conversation |
-| created_at | TIMESTAMPTZ | Record creation timestamp |
+| Column                      | Type         | Description                                  |
+| --------------------------- | ------------ | -------------------------------------------- |
+| request_id                  | UUID         | Primary key, unique request identifier       |
+| domain                      | VARCHAR(255) | Domain name from Host header                 |
+| account_id                  | VARCHAR(255) | Account identifier from credential file      |
+| timestamp                   | TIMESTAMPTZ  | Request timestamp                            |
+| method                      | VARCHAR(10)  | HTTP method (always POST for Claude)         |
+| path                        | VARCHAR(255) | API path (e.g., /v1/messages)                |
+| headers                     | JSONB        | Request headers (sanitized)                  |
+| body                        | JSONB        | Request body                                 |
+| api_key_hash                | VARCHAR(50)  | Hashed API key for security                  |
+| model                       | VARCHAR(100) | Claude model name                            |
+| request_type                | VARCHAR(50)  | Type: inference, query_evaluation, or quota  |
+| response_status             | INTEGER      | HTTP response status code                    |
+| response_headers            | JSONB        | Response headers                             |
+| response_body               | JSONB        | Response body                                |
+| response_streaming          | BOOLEAN      | Whether response was streamed                |
+| input_tokens                | INTEGER      | Input token count                            |
+| output_tokens               | INTEGER      | Output token count                           |
+| total_tokens                | INTEGER      | Total tokens (input + output)                |
+| cache_creation_input_tokens | INTEGER      | Cache creation tokens                        |
+| cache_read_input_tokens     | INTEGER      | Cache read tokens                            |
+| usage_data                  | JSONB        | Additional usage metadata                    |
+| first_token_ms              | INTEGER      | Time to first token (streaming)              |
+| duration_ms                 | INTEGER      | Total request duration                       |
+| error                       | TEXT         | Error message if request failed              |
+| tool_call_count             | INTEGER      | Number of tool calls in response             |
+| current_message_hash        | CHAR(64)     | SHA-256 hash of last message                 |
+| parent_message_hash         | CHAR(64)     | SHA-256 hash of previous message             |
+| conversation_id             | UUID         | Groups messages into conversations           |
+| branch_id                   | VARCHAR(255) | Branch within conversation (default: 'main') |
+| message_count               | INTEGER      | Total messages in conversation               |
+| created_at                  | TIMESTAMPTZ  | Record creation timestamp                    |
 
 ### streaming_chunks
 
 Stores individual chunks from streaming responses.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | SERIAL | Primary key |
-| request_id | UUID | Foreign key to api_requests |
-| chunk_index | INTEGER | Chunk sequence number |
-| timestamp | TIMESTAMPTZ | Chunk timestamp |
-| data | TEXT | Chunk data |
-| token_count | INTEGER | Tokens in this chunk |
-| created_at | TIMESTAMPTZ | Record creation timestamp |
+| Column      | Type        | Description                 |
+| ----------- | ----------- | --------------------------- |
+| id          | SERIAL      | Primary key                 |
+| request_id  | UUID        | Foreign key to api_requests |
+| chunk_index | INTEGER     | Chunk sequence number       |
+| timestamp   | TIMESTAMPTZ | Chunk timestamp             |
+| data        | TEXT        | Chunk data                  |
+| token_count | INTEGER     | Tokens in this chunk        |
+| created_at  | TIMESTAMPTZ | Record creation timestamp   |
 
 ## Indexes
 
@@ -112,7 +112,7 @@ The `request_type` column categorizes requests:
 ### Token Usage by Account (5-hour window)
 
 ```sql
-SELECT 
+SELECT
   account_id,
   SUM(output_tokens) as total_output_tokens,
   COUNT(*) as request_count
@@ -126,7 +126,7 @@ GROUP BY account_id;
 ### Conversations with Branches
 
 ```sql
-SELECT 
+SELECT
   conversation_id,
   branch_id,
   COUNT(*) as message_count,
@@ -141,7 +141,7 @@ ORDER BY last_message_at DESC;
 ### Daily Usage Statistics
 
 ```sql
-SELECT 
+SELECT
   DATE(timestamp) as date,
   account_id,
   SUM(input_tokens) as input_tokens,

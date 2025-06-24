@@ -141,14 +141,16 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
               ${details.conversationId
                 ? html`
-              <dt class="text-gray-600">Conversation ID:</dt>
-              <dd>
-                <a href="/dashboard/conversation/${details.conversationId}" 
-                   class="font-mono text-blue-600 hover:text-blue-800 hover:underline">
-                  ${details.conversationId}
-                </a>
-              </dd>
-              `
+                    <dt class="text-gray-600">Conversation ID:</dt>
+                    <dd>
+                      <a
+                        href="/dashboard/conversation/${details.conversationId}"
+                        class="font-mono text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        ${details.conversationId}
+                      </a>
+                    </dd>
+                  `
                 : ''}
 
               <dt class="text-gray-600">Domain:</dt>
@@ -457,27 +459,32 @@ requestDetailsRoutes.get('/request/:id', async c => {
         }
 
         // Add copy link functionality
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
           // Handle copy link buttons
           document.querySelectorAll('.copy-message-link').forEach(button => {
-            button.addEventListener('click', function(e) {
+            button.addEventListener('click', function (e) {
               e.preventDefault()
               const messageIndex = this.getAttribute('data-message-index')
-              const url = window.location.origin + window.location.pathname + '#message-' + messageIndex
-              
-              navigator.clipboard.writeText(url).then(() => {
-                // Show feedback
-                const originalHtml = this.innerHTML
-                this.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"></path></svg>'
-                this.style.color = '#10b981'
-                
-                setTimeout(() => {
-                  this.innerHTML = originalHtml
-                  this.style.color = ''
-                }, 2000)
-              }).catch(err => {
-                console.error('Failed to copy link:', err)
-              })
+              const url =
+                window.location.origin + window.location.pathname + '#message-' + messageIndex
+
+              navigator.clipboard
+                .writeText(url)
+                .then(() => {
+                  // Show feedback
+                  const originalHtml = this.innerHTML
+                  this.innerHTML =
+                    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"></path></svg>'
+                  this.style.color = '#10b981'
+
+                  setTimeout(() => {
+                    this.innerHTML = originalHtml
+                    this.style.color = ''
+                  }, 2000)
+                })
+                .catch(err => {
+                  console.error('Failed to copy link:', err)
+                })
             })
           })
 
@@ -663,7 +670,6 @@ requestDetailsRoutes.get('/request/:id', async c => {
           }
         }
 
-
         // Copy JSON to clipboard
         function copyJsonToClipboard(type) {
           let data
@@ -706,9 +712,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
       </script>
     `
 
-    return c.html(
-      layout('Request Details', content)
-    )
+    return c.html(layout('Request Details', content))
   } catch (error) {
     return c.html(
       layout(

@@ -2,7 +2,12 @@ import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
-import { formatNumber, formatDuration, escapeHtml, formatRelativeTime } from '../utils/formatters.js'
+import {
+  formatNumber,
+  formatDuration,
+  escapeHtml,
+  formatRelativeTime,
+} from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
 
 export const overviewRoutes = new Hono<{
@@ -237,11 +242,12 @@ overviewRoutes.get('/', async c => {
                                 </a>
                               </td>
                               <td class="text-sm">
-                                ${branch.branchCount > 1
-                                  ? `<span style="color: #2563eb; font-weight: 600;">
+                                ${
+                                  branch.branchCount > 1
+                                    ? `<span style="color: #2563eb; font-weight: 600;">
                                       ${branch.branchCount} branches
                                     </span>`
-                                  : `<span style="color: #6b7280;">
+                                    : `<span style="color: #6b7280;">
                                       1 branch
                                     </span>`
                                 }
@@ -253,9 +259,11 @@ overviewRoutes.get('/', async c => {
                                          class="text-blue-600" 
                                          style="font-family: monospace; font-size: 0.75rem;"
                                          title="View token usage for ${escapeHtml(branch.accountId)}">
-                                        ${branch.accountId.length > 20 
-                                          ? escapeHtml(branch.accountId.substring(0, 17)) + '...' 
-                                          : escapeHtml(branch.accountId)}
+                                        ${
+                                          branch.accountId.length > 20
+                                            ? escapeHtml(branch.accountId.substring(0, 17)) + '...'
+                                            : escapeHtml(branch.accountId)
+                                        }
                                       </a>`
                                     : '<span class="text-gray-400">N/A</span>'
                                 }
@@ -414,4 +422,3 @@ function generatePageNumbers(current: number, total: number): (number | string)[
 
   return pages
 }
-

@@ -186,4 +186,3 @@ requestsRoutes.get('/requests', async c => {
 
   return c.html(layout('Requests', content))
 })
-
