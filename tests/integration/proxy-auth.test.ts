@@ -19,7 +19,7 @@ describe('Proxy Authentication Integration', () => {
         headers: {
           'Content-Type': 'application/json',
           'anthropic-version': '2023-06-01',
-          'Host': 'test.example.com',
+          Host: 'test.example.com',
         },
         body: JSON.stringify({
           model: 'claude-3-opus-20240229',
@@ -41,7 +41,7 @@ describe('Proxy Authentication Integration', () => {
           'Content-Type': 'application/json',
           'x-api-key': process.env.TEST_API_KEY || 'sk-ant-test-key',
           'anthropic-version': '2023-06-01',
-          'Host': 'test.example.com',
+          Host: 'test.example.com',
         },
         body: JSON.stringify({
           model: 'claude-3-opus-20240229',
@@ -62,7 +62,7 @@ describe('Proxy Authentication Integration', () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.TEST_API_KEY || 'sk-ant-test-key'}`,
           'anthropic-version': '2023-06-01',
-          'Host': 'test.example.com',
+          Host: 'test.example.com',
         },
         body: JSON.stringify({
           model: 'claude-3-opus-20240229',
@@ -84,7 +84,7 @@ describe('Proxy Authentication Integration', () => {
           'Content-Type': 'application/json',
           'x-api-key': process.env.TEST_API_KEY || 'sk-ant-test-key',
           'anthropic-version': '2023-06-01',
-          'Host': 'test.example.com',
+          Host: 'test.example.com',
         },
         body: JSON.stringify({
           model: 'claude-3-opus-20240229',
@@ -107,7 +107,7 @@ describe('Proxy Authentication Integration', () => {
           Authorization: `Bearer ${process.env.TEST_CLIENT_API_KEY || 'cnp_test_key'}`,
           'x-api-key': process.env.TEST_API_KEY || 'sk-ant-test-key',
           'anthropic-version': '2023-06-01',
-          'Host': 'test.example.com',
+          Host: 'test.example.com',
         },
         body: JSON.stringify({
           model: 'claude-3-opus-20240229',
@@ -129,7 +129,7 @@ describe('Proxy Authentication Integration', () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer oauth-access-token`,
           'anthropic-version': '2023-06-01',
-          'Host': 'test.example.com',
+          Host: 'test.example.com',
         },
         body: JSON.stringify({
           model: 'claude-3-opus-20240229',
