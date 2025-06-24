@@ -1,8 +1,7 @@
 import { Hono } from 'hono'
-import { html, raw } from 'hono/html'
+import { html } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
-import { formatNumber } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
 
 export const tokenUsageRoutes = new Hono<{
