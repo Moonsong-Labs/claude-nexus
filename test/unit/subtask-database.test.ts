@@ -224,6 +224,12 @@ describe('Sub-task Database Logic', () => {
         parentMessageHash: 'parent-hash-123', // Has parent, not first message
       }
 
+      // Mock existing subtask check query
+      mockPool.query.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+      })
+
       // Mock detectBranch parent query
       mockPool.query.mockResolvedValueOnce({
         rows: [{ branch_id: 'main' }],
@@ -245,12 +251,13 @@ describe('Sub-task Database Logic', () => {
       await writer.storeRequest(request)
 
       // Verify the correct number of queries were made:
-      // 1. detectBranch parent query
-      // 2. detectBranch children query
-      // 3. INSERT query
-      expect(mockPool.query).toHaveBeenCalledTimes(3)
+      // 1. Check if conversation is already a subtask
+      // 2. detectBranch parent query
+      // 3. detectBranch children query
+      // 4. INSERT query
+      expect(mockPool.query).toHaveBeenCalledTimes(4)
 
-      const insertCall = mockPool.query.mock.calls[2]
+      const insertCall = mockPool.query.mock.calls[3]
       const insertValues = insertCall[1]
 
       // Verify defaults were used (indices 16 and 17)
