@@ -103,8 +103,8 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   const subtaskNodeWidth = 100
   const subtaskNodeHeight = 36
   const horizontalSpacing = 120
-  const verticalSpacing = 50
-  const subtaskOffset = 180 // How far to the right sub-task nodes should be
+  const verticalSpacing = 30
+  const subtaskOffset = 150 // How far to the right sub-task nodes should be
 
   // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
