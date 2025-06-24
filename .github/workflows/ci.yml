@@ -38,7 +38,7 @@ jobs:
         run: bun run build:dashboard
 
       - name: Run tests
-        run: bun run test:ci
+        run: bun test
         continue-on-error: true # Don't fail if tests have issues
 
       - name: Build Docker images
