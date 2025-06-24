@@ -20,7 +20,11 @@ claude-nexus-proxy/
 ├── docker/              # Docker configurations
 │   ├── proxy/           # Proxy Dockerfile
 │   └── dashboard/       # Dashboard Dockerfile
-└── docker-compose.yml   # Container orchestration
+├── docker-compose.yml   # Container orchestration
+├── .env                 # Proxy/Dashboard configuration
+└── credentials/         # Domain credentials (Claude Auth, Slack, ...)
+
+
 ```
 
 ### Key Services
@@ -35,7 +39,7 @@ claude-nexus-proxy/
 
 **Dashboard Service** (`services/dashboard/`)
 
-- Real-time monitoring UI
+- Monitoring UI
 - Analytics and usage charts
 - Request history browser
 - SSE for live updates
@@ -74,13 +78,16 @@ docker run -p 3001:3001 alanpurestake/claude-nexus-dashboard:latest
 
 Docker configurations are in the `docker/` directory. Each service has its own optimized image for better security, scaling, and maintainability.
 
-### Claude CLI with Usage Monitor
+### Docker Compose Environment
 
-The Claude CLI Docker image includes integrated usage monitoring:
+docker/docker-compose.yml: Postgres + Proxy + Dashboard + Claude CLI (with ccusage and token monitoring). `./docker-up.sh` script is used instead of `docker compose -f ...` to ensure `.env` is loaded properly.
 
 ```bash
-# Run Claude CLI
-docker compose --profile claude exec claude-cli claude --help
+# Build the local images
+./docker-up.sh build
+
+# Run the full environment (requires real Claude account in )
+./docker-up.sh up -d
 
 # Run usage monitor for real-time tracking
 docker compose --profile claude exec claude-cli monitor

@@ -1,10 +1,11 @@
-# Docker Compose configuration for Claude Nexus Proxy
-# This file is located in the docker/ directory
+# Docker Compose configuration for local development with locally built images
 # 
 # Usage from project root:
-#   ./docker-up.sh up -d
+#   ./docker-up.sh -f docker-compose.local.yml up -d
 # Or from docker directory:
-#   docker compose --env-file ../.env up -d
+#   docker compose -f docker-compose.local.yml --env-file ../.env up -d
+#
+# This file uses locally built images instead of registry images
 
 services:
   # PostgreSQL Database
@@ -26,9 +27,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # Proxy Service
+  # Proxy Service - Built locally
   proxy:
-    image: alanpurestake/claude-nexus-proxy:v12
+    build:
+      context: ../
+      dockerfile: docker/proxy/Dockerfile
+    image: claude-nexus-proxy:local
     container_name: claude-nexus-proxy
     environment:
       # Server configuration
@@ -72,9 +76,12 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Dashboard Service
+  # Dashboard Service - Built locally
   dashboard:
-    image: alanpurestake/claude-nexus-dashboard:v12
+    build:
+      context: ../
+      dockerfile: docker/dashboard/Dockerfile
+    image: claude-nexus-dashboard:local
     environment:
       # Server configuration
       PORT: 3001
@@ -108,6 +115,7 @@ services:
       - "5050:80"
     depends_on:
       - postgres
+
   # Claude CLI Service - Run Claude CLI connected to the proxy
   claude-cli:
     build:
@@ -131,8 +139,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-
-
 volumes:
   postgres_data:
   claude_data:
@@ -140,3 +146,4 @@ volumes:
 networks:
   default:
     name: claude-nexus-network
+    external: true
