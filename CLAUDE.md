@@ -89,11 +89,14 @@ docker/docker-compose.yml: Postgres + Proxy + Dashboard + Claude CLI (with ccusa
 # Run the full environment (requires real Claude account in )
 ./docker-up.sh up -d
 
+# Run a claude query
+./docker-up.sh exec claude-cli claude "hi"
+
 # Run usage monitor for real-time tracking
-docker compose --profile claude exec claude-cli monitor
+./docker-up.sh exec claude-cli monitor
 
 # Check daily usage stats
-docker compose --profile claude exec claude-cli ccusage daily
+./docker-up.sh exec claude-cli ccusage daily
 ```
 
 ## Key Implementation Details
