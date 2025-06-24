@@ -204,6 +204,11 @@ async function migrateSubtaskSchema() {
       console.log(`✅ Linked ${linkedCount || 0} sub-task conversations based on prompt matching`)
 
       // Update task invocations with linked conversation IDs
+      // TODO: Handle multiple sub-tasks per parent (MEDIUM)
+      // Currently only updates the first task invocation (index 0) in the array.
+      // If a parent request spawns multiple sub-tasks, only the first gets linked.
+      // Need to match sub-task prompts to specific array indices for complete linking.
+      // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
       if (linkedCount && linkedCount > 0) {
         const updateLinkedConversationsQuery = `
           WITH linked_tasks AS (

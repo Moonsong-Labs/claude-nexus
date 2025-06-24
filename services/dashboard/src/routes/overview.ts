@@ -106,13 +106,11 @@ overviewRoutes.get('/', async c => {
     const parentConversations = filteredBranches.filter(conv => !conv.isSubtask)
     const subtasksByParent = new Map<string, typeof filteredBranches>()
 
-    // Create a map to find parent conversations by their request ID
-    const conversationsByRequestId = new Map<string, (typeof filteredBranches)[0]>()
-    filteredBranches.forEach(conv => {
-      if (conv.latestRequestId) {
-        conversationsByRequestId.set(conv.latestRequestId, conv)
-      }
-    })
+    // TODO: Fix incorrect sub-task grouping logic (CRITICAL)
+    // Currently assigns subtasks to the first available parent, which is incorrect.
+    // Need to add parent_conversation_id to API response from /api/conversations endpoint
+    // and use it for proper grouping. Without this, subtasks may appear under wrong parents.
+    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
 
     // Group subtasks by their parent
     // First, create a map of all subtasks
@@ -126,12 +124,11 @@ overviewRoutes.get('/', async c => {
         // Try to find the parent conversation that spawned this subtask
         let parentFound = false
         for (const parent of parentConversations) {
-          // This is a simplified approach - in a real implementation,
-          // we'd need to check if the parent conversation contains the request
-          // that spawned this subtask
+          // FIXME: This arbitrarily assigns subtasks to the first parent conversation
+          // The correct approach requires knowing which conversation contains the
+          // parent task request ID, which needs API enhancement
           if (!parentFound) {
-            // For now, we'll add subtasks to the first available parent
-            // In production, you'd want to query the database to find the exact parent
+            // Temporary workaround: add subtasks to the first available parent
             const key = parent.conversationId
             if (!subtasksByParent.has(key)) {
               subtasksByParent.set(key, [])

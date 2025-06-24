@@ -9,6 +9,10 @@ import { randomUUID } from 'crypto'
  */
 export class StorageAdapter {
   private writer: StorageWriter
+  // TODO: Fix memory leak (HIGH)
+  // This map grows indefinitely as requests are processed.
+  // Should clean up entries after storeResponse completes.
+  // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
   private requestIdMap: Map<string, string> = new Map() // Map nanoid to UUID
 
   constructor(pool: Pool) {
@@ -138,6 +142,9 @@ export class StorageAdapter {
         error: undefined,
         toolCallCount: data.tool_call_count,
       })
+
+      // TODO: Clean up the requestIdMap entry here to prevent memory leak
+      // this.requestIdMap.delete(data.request_id)
     } catch (error) {
       logger.error('Failed to store response', {
         requestId: data.request_id,

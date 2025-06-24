@@ -585,12 +585,13 @@ export class StorageWriter {
         },
       })
 
-      // Look for Task invocations in the last 60 seconds
+      // Look for Task invocations in the last 30 seconds
+      // Using 30-second window to match migration script for consistency
       const query = `
         SELECT request_id, timestamp
         FROM api_requests
         WHERE task_tool_invocation IS NOT NULL
-        AND timestamp >= $1::timestamp - interval '60 seconds'
+        AND timestamp >= $1::timestamp - interval '30 seconds'
         AND timestamp <= $1::timestamp
         AND jsonb_path_exists(
           task_tool_invocation,
@@ -618,7 +619,7 @@ export class StorageWriter {
 
       logger.debug('No matching Task invocation found', {
         metadata: {
-          searchWindow: '60 seconds',
+          searchWindow: '30 seconds',
         },
       })
 

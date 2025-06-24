@@ -453,6 +453,11 @@ apiRoutes.get('/conversations', async c => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     // Get conversations grouped by conversation_id with account info and subtask status
+    // TODO: Optimize query performance (HIGH)
+    // The correlated subqueries for latest_request_id and parent_task_request_id
+    // create an N+1 query pattern. Should be rewritten using window functions
+    // or additional CTEs to calculate all fields in a single pass.
+    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
     const conversationsQuery = `
       WITH conversation_summary AS (
         SELECT 
@@ -758,6 +763,10 @@ apiRoutes.get('/token-usage/accounts', async c => {
     }))
 
     // For each account, get mini time series (last 20 points)
+    // TODO: Fix N+1 query pattern (MEDIUM)
+    // This loops through each account and executes a separate query for time series data.
+    // Should be refactored to fetch all time series data in a single query with window functions.
+    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
     const accountsWithSeries = await Promise.all(
       accounts.map(async account => {
         const miniSeriesQuery = `
