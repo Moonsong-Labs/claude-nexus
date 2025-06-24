@@ -104,40 +104,44 @@ overviewRoutes.get('/', async c => {
     // Sort by last message time
     filteredBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
 
-    // Group conversations and their subtasks
-    const parentConversations: typeof filteredBranches = []
+    // Separate conversations into parents and subtasks
+    const nonSubtaskConversations = filteredBranches.filter(conv => !conv.isSubtask)
+    const subtaskConversations = filteredBranches.filter(conv => conv.isSubtask)
+    
+    // Create a map to group subtasks by their parent conversation ID
     const subtasksByParentId = new Map<string, typeof filteredBranches>()
-    const orphanedSubtasks: typeof filteredBranches = []
-    const allParentConvIds = new Set(
-      filteredBranches.filter(c => !c.isSubtask).map(c => c.conversationId)
-    )
-
-    for (const conv of filteredBranches) {
-      if (conv.isSubtask) {
-        // A subtask is an orphan if its parent doesn't exist in the currently fetched list (due to pagination).
-        if (conv.parentConversationId && allParentConvIds.has(conv.parentConversationId)) {
-          if (!subtasksByParentId.has(conv.parentConversationId)) {
-            subtasksByParentId.set(conv.parentConversationId, [])
-          }
-          subtasksByParentId.get(conv.parentConversationId)!.push(conv)
-        } else {
-          orphanedSubtasks.push(conv)
+    
+    // Group subtasks by their parent conversation ID
+    subtaskConversations.forEach(subtask => {
+      if (subtask.parentConversationId) {
+        if (!subtasksByParentId.has(subtask.parentConversationId)) {
+          subtasksByParentId.set(subtask.parentConversationId, [])
         }
-      } else {
-        parentConversations.push(conv)
+        subtasksByParentId.get(subtask.parentConversationId)!.push(subtask)
       }
-    }
-
-    // Build flattened list with parent conversations followed by their subtasks
+    })
+    
+    // Build the final list with conversations and their subtasks
     const groupedConversations: typeof filteredBranches = []
-    parentConversations.forEach(parent => {
+    
+    // Add each non-subtask conversation followed by its subtasks
+    nonSubtaskConversations.forEach(parent => {
       groupedConversations.push(parent)
       const subtasks = subtasksByParentId.get(parent.conversationId) || []
       subtasks.forEach(subtask => groupedConversations.push(subtask))
     })
-
-    // Add orphaned subtasks at the end
-    orphanedSubtasks.forEach(subtask => groupedConversations.push(subtask))
+    
+    // Add orphaned subtasks (those without a parent in the current page)
+    subtaskConversations.forEach(subtask => {
+      // Check if this subtask has already been added (it has a parent in the current page)
+      const hasParentInCurrentPage = subtask.parentConversationId && 
+        nonSubtaskConversations.some(c => c.conversationId === subtask.parentConversationId)
+      
+      if (!hasParentInCurrentPage) {
+        // This subtask is orphaned (parent not in current page or no parent ID)
+        groupedConversations.push(subtask)
+      }
+    })
 
     // Get unique domains for the dropdown
     const uniqueDomains = [...new Set(conversationBranches.map(branch => branch.domain))].sort()
