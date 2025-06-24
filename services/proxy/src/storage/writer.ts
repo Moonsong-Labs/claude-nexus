@@ -570,21 +570,26 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
     } else {
       // Verify all required tables exist
       const requiredTables = ['api_requests', 'streaming_chunks', 'domain_telemetry']
-      const tableCheck = await pool.query(`
+      const tableCheck = await pool.query(
+        `
         SELECT table_name 
         FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = ANY($1)
-      `, [requiredTables])
+      `,
+        [requiredTables]
+      )
 
       const foundTables = tableCheck.rows.map(row => row.table_name)
       const missingTables = requiredTables.filter(table => !foundTables.includes(table))
 
       if (missingTables.length > 0) {
         logger.error('Missing required database tables', {
-          metadata: { missingTables }
+          metadata: { missingTables },
         })
-        throw new Error(`Missing required tables: ${missingTables.join(', ')}. Please run database migrations.`)
+        throw new Error(
+          `Missing required tables: ${missingTables.join(', ')}. Please run database migrations.`
+        )
       }
 
       logger.info('Database schema verified successfully')
