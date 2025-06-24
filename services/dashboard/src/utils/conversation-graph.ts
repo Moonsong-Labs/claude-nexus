@@ -124,86 +124,91 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   // Find max message count to reverse Y positions
   const maxMessageCount = Math.max(...graph.nodes.map(n => n.messageCount || 0))
 
-  // Position nodes based on message count
-  const layoutNodes: LayoutNode[] = graph.nodes.map(node => {
-    // Check if this is a sub-task summary node
-    const isSubtaskSummary = node.id.endsWith('-subtasks')
-
-    if (isSubtaskSummary) {
-      // For sub-task summary nodes, position them to the right of their parent
-      const parentId = node.parentId
-      const parentNode = graph.nodes.find(n => n.id === parentId)
-      if (parentNode) {
-        const parentLane = branchLanes.get(parentNode.branchId) || 0
-        const parentMessageCount = parentNode.messageCount || 0
-        
-        // Find how many subtask nodes are already positioned for this parent
-        const existingSubtaskNodes = layoutNodes.filter(ln => 
-          ln.id.endsWith('-subtasks') && 
-          graph.nodes.find(n => n.id === ln.id)?.parentId === parentId
-        ).length
-
-        return {
-          id: node.id,
-          x: parentLane * horizontalSpacing + subtaskOffset,
-          y: (maxMessageCount - parentMessageCount) * verticalSpacing + (existingSubtaskNodes * (subtaskNodeHeight + 10)),
-          width: subtaskNodeWidth,
-          height: subtaskNodeHeight,
-          branchId: node.branchId,
-          timestamp: node.timestamp,
-          label: node.label,
-          tokens: node.tokens,
-          model: node.model,
-          hasError: node.hasError,
-          messageIndex: node.messageIndex,
-          messageCount: node.messageCount,
-          toolCallCount: node.toolCallCount,
-          messageTypes: node.messageTypes,
-          isSubtask: node.isSubtask,
-          hasSubtasks: node.hasSubtasks,
-          subtaskCount: node.subtaskCount,
-          linkedConversationId: node.linkedConversationId,
-          subtaskPrompt: node.subtaskPrompt,
-        }
+  // First pass: position regular nodes
+  const layoutNodes: LayoutNode[] = []
+  const subtaskNodes: typeof graph.nodes = []
+  
+  // Separate regular nodes and subtask nodes
+  graph.nodes.forEach(node => {
+    if (node.id.endsWith('-subtasks')) {
+      subtaskNodes.push(node)
+    } else {
+      // Process regular nodes first
+      // Assign lane to branch if not already assigned
+      if (!branchLanes.has(node.branchId)) {
+        branchLanes.set(node.branchId, nextLane++)
       }
+
+      const lane = branchLanes.get(node.branchId) || 0
+      const messageCount = node.messageCount || 0
+
+      // Y position is based on reversed message count (newest at top)
+      const y = (maxMessageCount - messageCount) * verticalSpacing
+
+      // X position is based on branch lane
+      const x = lane * horizontalSpacing
+
+      layoutNodes.push({
+        id: node.id,
+        x,
+        y,
+        width: nodeWidth,
+        height: nodeHeight,
+        branchId: node.branchId,
+        timestamp: node.timestamp,
+        label: node.label,
+        tokens: node.tokens,
+        model: node.model,
+        hasError: node.hasError,
+        messageIndex: node.messageIndex,
+        messageCount: node.messageCount,
+        toolCallCount: node.toolCallCount,
+        messageTypes: node.messageTypes,
+        isSubtask: node.isSubtask,
+        hasSubtasks: node.hasSubtasks,
+        subtaskCount: node.subtaskCount,
+        linkedConversationId: node.linkedConversationId,
+        subtaskPrompt: node.subtaskPrompt,
+      })
     }
+  })
+  
+  // Second pass: position subtask nodes
+  subtaskNodes.forEach(node => {
+    const parentId = node.parentId
+    const parentNode = graph.nodes.find(n => n.id === parentId)
+    if (parentNode) {
+      const parentLane = branchLanes.get(parentNode.branchId) || 0
+      const parentMessageCount = parentNode.messageCount || 0
+      
+      // Count how many subtask nodes are already positioned for this parent
+      const existingSubtaskNodes = layoutNodes.filter(ln => 
+        ln.id.endsWith('-subtasks') && 
+        subtaskNodes.find(n => n.id === ln.id)?.parentId === parentId
+      ).length
 
-    // Regular nodes
-    // Assign lane to branch if not already assigned
-    if (!branchLanes.has(node.branchId)) {
-      branchLanes.set(node.branchId, nextLane++)
-    }
-
-    const lane = branchLanes.get(node.branchId) || 0
-    const messageCount = node.messageCount || 0
-
-    // Y position is based on reversed message count (newest at top)
-    const y = (maxMessageCount - messageCount) * verticalSpacing
-
-    // X position is based on branch lane
-    const x = lane * horizontalSpacing
-
-    return {
-      id: node.id,
-      x,
-      y,
-      width: nodeWidth,
-      height: nodeHeight,
-      branchId: node.branchId,
-      timestamp: node.timestamp,
-      label: node.label,
-      tokens: node.tokens,
-      model: node.model,
-      hasError: node.hasError,
-      messageIndex: node.messageIndex,
-      messageCount: node.messageCount,
-      toolCallCount: node.toolCallCount,
-      messageTypes: node.messageTypes,
-      isSubtask: node.isSubtask,
-      hasSubtasks: node.hasSubtasks,
-      subtaskCount: node.subtaskCount,
-      linkedConversationId: node.linkedConversationId,
-      subtaskPrompt: node.subtaskPrompt,
+      layoutNodes.push({
+        id: node.id,
+        x: parentLane * horizontalSpacing + subtaskOffset,
+        y: (maxMessageCount - parentMessageCount) * verticalSpacing + (existingSubtaskNodes * (subtaskNodeHeight + 10)),
+        width: subtaskNodeWidth,
+        height: subtaskNodeHeight,
+        branchId: node.branchId,
+        timestamp: node.timestamp,
+        label: node.label,
+        tokens: node.tokens,
+        model: node.model,
+        hasError: node.hasError,
+        messageIndex: node.messageIndex,
+        messageCount: node.messageCount,
+        toolCallCount: node.toolCallCount,
+        messageTypes: node.messageTypes,
+        isSubtask: node.isSubtask,
+        hasSubtasks: node.hasSubtasks,
+        subtaskCount: node.subtaskCount,
+        linkedConversationId: node.linkedConversationId,
+        subtaskPrompt: node.subtaskPrompt,
+      })
     }
   })
 
