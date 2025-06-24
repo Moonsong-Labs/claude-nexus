@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS api_requests (
     conversation_id UUID,
     branch_id VARCHAR(255) DEFAULT 'main',
     message_count INTEGER DEFAULT 0,
+    account_id VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -59,6 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_requests_conversation_branch ON api_requests(conv
 CREATE INDEX IF NOT EXISTS idx_requests_message_count ON api_requests(message_count);
 CREATE INDEX IF NOT EXISTS idx_requests_parent_hash ON api_requests(parent_message_hash);
 CREATE INDEX IF NOT EXISTS idx_requests_current_hash ON api_requests(current_message_hash);
+CREATE INDEX IF NOT EXISTS idx_requests_account_id ON api_requests(account_id);
 
 -- Create indexes for streaming_chunks
 CREATE INDEX IF NOT EXISTS idx_chunks_request_id ON streaming_chunks(request_id);
@@ -69,3 +71,4 @@ COMMENT ON COLUMN api_requests.parent_message_hash IS 'SHA-256 hash of the previ
 COMMENT ON COLUMN api_requests.conversation_id IS 'UUID grouping related messages into conversations';
 COMMENT ON COLUMN api_requests.branch_id IS 'Branch identifier within a conversation (defaults to main)';
 COMMENT ON COLUMN api_requests.message_count IS 'Total number of messages in the conversation up to this request';
+COMMENT ON COLUMN api_requests.account_id IS 'Account identifier from credential file for per-account tracking';

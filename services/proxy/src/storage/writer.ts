@@ -4,6 +4,7 @@ import { logger } from '../middleware/logger.js'
 interface StorageRequest {
   requestId: string
   domain: string
+  accountId?: string // Account identifier from credentials
   timestamp: Date
   method: string
   path: string
@@ -83,16 +84,17 @@ export class StorageWriter {
 
       const query = `
         INSERT INTO api_requests (
-          request_id, domain, timestamp, method, path, headers, body, 
+          request_id, domain, account_id, timestamp, method, path, headers, body, 
           api_key_hash, model, request_type, current_message_hash, 
           parent_message_hash, conversation_id, branch_id, message_count
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         ON CONFLICT (request_id) DO NOTHING
       `
 
       const values = [
         request.requestId,
         request.domain,
+        request.accountId || null,
         request.timestamp,
         request.method,
         request.path,
@@ -443,6 +445,7 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           conversation_id UUID,
           branch_id VARCHAR(255) DEFAULT 'main',
           message_count INTEGER DEFAULT 0,
+          account_id VARCHAR(255),
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `)
@@ -537,6 +540,16 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
 
       await pool.query(`
         COMMENT ON COLUMN api_requests.message_count IS 'Total number of messages in the conversation up to this request'
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_branch_id 
+        ON api_requests(branch_id)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_account_id 
+        ON api_requests(account_id)
       `)
 
       logger.info('Database schema created successfully')

@@ -41,6 +41,7 @@ Domain-specific credentials are stored in JSON files in the credentials director
 ```json
 {
   "type": "api_key",
+  "accountId": "acc_unique_identifier",
   "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_..."
 }
@@ -51,9 +52,14 @@ Domain-specific credentials are stored in JSON files in the credentials director
 ```json
 {
   "type": "oauth",
-  "access_token": "...",
-  "refresh_token": "...",
-  "expires_at": "2024-12-31T23:59:59Z"
+  "accountId": "acc_unique_identifier",
+  "oauth": {
+    "accessToken": "...",
+    "refreshToken": "...",
+    "expiresAt": 1735689599000,
+    "scopes": ["org:create_api_key", "user:profile", "user:inference"],
+    "isMax": true
+  }
 }
 ```
 
@@ -85,10 +91,10 @@ postgresql://username:password@host:port/database?pool_max=20
 Run migrations to set up the database schema:
 
 ```bash
-# Run all migrations
-bun run db:migrate
+# Run token usage migration (required for account-based tracking)
+bun run db:migrate:token-usage
 
-# Run specific migration
+# Other available migrations
 bun run db:migrate:init
 bun run db:migrate:conversations
 bun run db:migrate:optimize

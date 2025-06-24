@@ -6,6 +6,7 @@ import { ClaudeApiClient } from './services/ClaudeApiClient.js'
 import { MetricsService } from './services/MetricsService.js'
 import { NotificationService } from './services/NotificationService.js'
 import { StorageAdapter } from './storage/StorageAdapter.js'
+import { TokenUsageService } from './services/TokenUsageService.js'
 import { config } from '@claude-nexus/shared/config'
 import { logger } from './middleware/logger.js'
 
@@ -15,6 +16,7 @@ import { logger } from './middleware/logger.js'
 class Container {
   private pool?: Pool
   private storageService?: StorageAdapter
+  private tokenUsageService?: TokenUsageService
   private metricsService?: MetricsService
   private notificationService?: NotificationService
   private authenticationService?: AuthenticationService
@@ -46,6 +48,14 @@ class Container {
     // Initialize storage service if enabled
     if (this.pool && config.storage.enabled) {
       this.storageService = new StorageAdapter(this.pool)
+      this.tokenUsageService = new TokenUsageService(this.pool)
+
+      // Ensure partitions exist
+      this.tokenUsageService.ensurePartitions().catch(err => {
+        logger.error('Failed to ensure token usage partitions', {
+          error: { message: err.message, stack: err.stack },
+        })
+      })
     }
 
     // Initialize services
@@ -56,7 +66,8 @@ class Container {
         enableTelemetry: config.telemetry.enabled,
       },
       this.storageService,
-      config.telemetry.endpoint
+      config.telemetry.endpoint,
+      this.tokenUsageService
     )
     this.notificationService = new NotificationService()
     this.authenticationService = new AuthenticationService(
@@ -88,6 +99,10 @@ class Container {
 
   getStorageService(): StorageAdapter | undefined {
     return this.storageService
+  }
+
+  getTokenUsageService(): TokenUsageService | undefined {
+    return this.tokenUsageService
   }
 
   getMetricsService(): MetricsService {

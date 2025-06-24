@@ -9,6 +9,7 @@ export interface AuthResult {
   headers: Record<string, string>
   key: string
   betaHeader?: string
+  accountId?: string // Account identifier from credentials
 }
 
 /**
@@ -69,6 +70,9 @@ export class AuthenticationService {
         logger.info(`Using OAuth credentials for non-personal domain`, {
           requestId: context.requestId,
           domain: context.host,
+          metadata: {
+            accountId: credentials.accountId,
+          },
         })
 
         return {
@@ -79,11 +83,15 @@ export class AuthenticationService {
           },
           key: apiKey,
           betaHeader: 'oauth-2025-04-20',
+          accountId: credentials.accountId,
         }
       } else {
         logger.info(`Using API key for non-personal domain`, {
           requestId: context.requestId,
           domain: context.host,
+          metadata: {
+            accountId: credentials.accountId,
+          },
         })
 
         return {
@@ -92,6 +100,7 @@ export class AuthenticationService {
             'x-api-key': apiKey,
           },
           key: apiKey,
+          accountId: credentials.accountId,
         }
       }
     } catch (error) {
@@ -174,6 +183,7 @@ export class AuthenticationService {
                 },
                 key: apiKey,
                 betaHeader: 'oauth-2025-04-20',
+                accountId: credentials.accountId,
               }
             } else {
               logger.debug(`Using API key from credential file`, {
@@ -190,6 +200,7 @@ export class AuthenticationService {
                   'x-api-key': apiKey,
                 },
                 key: apiKey,
+                accountId: credentials.accountId,
               }
             }
           }
@@ -227,6 +238,7 @@ export class AuthenticationService {
           },
           key: context.apiKey.replace('Bearer ', ''),
           betaHeader: 'oauth-2025-04-20',
+          // Note: No accountId available when using Bearer token from request
         }
       } else if (this.defaultApiKey) {
         // Use default API key as last resort
@@ -244,6 +256,7 @@ export class AuthenticationService {
             'x-api-key': this.defaultApiKey,
           },
           key: this.defaultApiKey,
+          // Note: No accountId available when using default API key
         }
       }
 

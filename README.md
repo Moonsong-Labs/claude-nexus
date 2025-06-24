@@ -8,7 +8,7 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 🔀 **Conversation Tracking** - Automatic message threading with branch support
 - 📊 **Real-time Dashboard** - Monitor usage, view conversations, and analyze patterns
 - 🔐 **Multi-Auth Support** - API keys and OAuth with auto-refresh
-- 📈 **Token Tracking** - Detailed usage statistics per domain
+- 📈 **Token Tracking** - Detailed usage statistics per domain and account
 - 🔄 **Streaming Support** - Full SSE streaming with chunk storage
 - 🐳 **Docker Ready** - Separate optimized images for each service
 - 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
@@ -36,7 +36,7 @@ cp .env.example .env
 # Edit .env with your settings
 
 # Initialize database
-bun run db:migrate:init
+bun run db:migrate:token-usage
 
 # Start development servers
 bun run dev
@@ -114,6 +114,7 @@ bun run auth:generate-key
 cat > credentials/example.com.credentials.json << EOF
 {
   "type": "api_key",
+  "accountId": "acc_unique_identifier",
   "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_..."
 }
@@ -184,13 +185,30 @@ See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.
 
 ### Docker
 
-```bash
-# Build images
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy .
-docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard .
+#### Using Pre-built Images (Default)
 
-# Run with docker-compose
-docker-compose up -d
+```bash
+# Run with docker-compose using images from registry
+./docker-up.sh up -d
+```
+
+#### Using Locally Built Images
+
+```bash
+# Build and run with locally built images
+./docker-local.sh up -d --build
+
+# Or manually:
+cd docker
+docker compose -f docker-compose.local.yml --env-file ../.env up -d --build
+```
+
+#### Building Images Separately
+
+```bash
+# Build images individually
+docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy:local .
+docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
 ```
 
 ### Production

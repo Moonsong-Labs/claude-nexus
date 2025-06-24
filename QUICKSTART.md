@@ -24,6 +24,7 @@ Create credential files for your domain:
 cat > credentials/localhost:3000.credentials.json << 'EOF'
 {
   "type": "oauth",
+  "accountId": "acc_unique_identifier",
   "oauth": {
     "accessToken": "sk-ant-oat01-YOUR-TOKEN",
     "refreshToken": "",

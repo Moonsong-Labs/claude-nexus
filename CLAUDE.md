@@ -20,7 +20,11 @@ claude-nexus-proxy/
 ├── docker/              # Docker configurations
 │   ├── proxy/           # Proxy Dockerfile
 │   └── dashboard/       # Dashboard Dockerfile
-└── docker-compose.yml   # Container orchestration
+├── docker-compose.yml   # Container orchestration
+├── .env                 # Proxy/Dashboard configuration
+└── credentials/         # Domain credentials (Claude Auth, Slack, ...)
+
+
 ```
 
 ### Key Services
@@ -35,7 +39,7 @@ claude-nexus-proxy/
 
 **Dashboard Service** (`services/dashboard/`)
 
-- Real-time monitoring UI
+- Monitoring UI
 - Analytics and usage charts
 - Request history browser
 - SSE for live updates
@@ -74,19 +78,25 @@ docker run -p 3001:3001 alanpurestake/claude-nexus-dashboard:latest
 
 Docker configurations are in the `docker/` directory. Each service has its own optimized image for better security, scaling, and maintainability.
 
-### Claude CLI with Usage Monitor
+### Docker Compose Environment
 
-The Claude CLI Docker image includes integrated usage monitoring:
+docker/docker-compose.yml: Postgres + Proxy + Dashboard + Claude CLI (with ccusage and token monitoring). `./docker-up.sh` script is used instead of `docker compose -f ...` to ensure `.env` is loaded properly.
 
 ```bash
-# Run Claude CLI
-docker compose --profile claude exec claude-cli claude --help
+# Build the local images
+./docker-up.sh build
+
+# Run the full environment (requires real Claude account in )
+./docker-up.sh up -d
+
+# Run a claude query
+./docker-up.sh exec claude-cli claude "hi"
 
 # Run usage monitor for real-time tracking
-docker compose --profile claude exec claude-cli monitor
+./docker-up.sh exec claude-cli monitor
 
 # Check daily usage stats
-docker compose --profile claude exec claude-cli ccusage daily
+./docker-up.sh exec claude-cli ccusage daily
 ```
 
 ## Key Implementation Details
@@ -161,10 +171,24 @@ The proxy automatically tracks conversations and detects branches using message 
 
 ### Token Tracking
 
+**In-Memory Tracking (Legacy)**
+
 - Per-domain statistics
 - Request type classification (query evaluation vs inference)
 - Tool call counting
 - Available at `/token-stats` endpoint
+
+**Comprehensive Token Usage Tracking (New)**
+
+- Tracks ALL request types (including query_evaluation and quota)
+- Persistent storage in partitioned `token_usage` table
+- 5-hour rolling window support for monitoring Claude API limits
+- Per-account AND per-domain tracking
+- API endpoints:
+  - `/api/token-usage/current` - Current window usage
+  - `/api/token-usage/daily` - Historical daily usage data
+  - `/api/conversations` - Conversations with account info
+- **Note**: Rate limiting is handled by Claude API directly. The proxy only tracks and displays usage statistics.
 
 ### Storage
 
@@ -241,6 +265,27 @@ Currently no automated tests. When implementing:
 - TypeScript compilation for production builds
 - Model-agnostic (accepts any model name)
 
+## Database Schema
+
+### Main Tables
+
+**api_requests** - Stores all API requests and responses with token tracking:
+
+- `account_id` - Account identifier from credential files for per-account tracking
+- `input_tokens`, `output_tokens`, `total_tokens` - Token usage metrics
+- `conversation_id`, `branch_id` - Conversation tracking
+- `current_message_hash`, `parent_message_hash` - Message linking
+
+**streaming_chunks** - Stores streaming response chunks
+
+### Account-Based Token Tracking
+
+Token usage is tracked directly in the `api_requests` table:
+
+- Each request is associated with an `account_id` from the credential file
+- Token counts are stored per request for accurate tracking
+- Queries aggregate usage by account and time window
+
 ## Common Tasks
 
 ### Add Domain Credentials
@@ -253,6 +298,7 @@ bun run scripts/generate-api-key.ts
 cat > credentials/domain.com.credentials.json << EOF
 {
   "type": "api_key",
+  "accountId": "acc_f9e1c2d3b4a5",  # Unique account identifier
   "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_..."
 }
@@ -277,4 +323,20 @@ curl http://localhost:3000/token-stats
 ```bash
 open http://localhost:3001
 # Use DASHBOARD_API_KEY for authentication
+```
+
+### Check Token Usage
+
+```bash
+# Current 5-hour window usage
+curl "http://localhost:3000/api/token-usage/current?accountId=acc_f9e1c2d3b4a5&window=300" \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY"
+
+# Daily usage (last 30 days)
+curl "http://localhost:3000/api/token-usage/daily?accountId=acc_f9e1c2d3b4a5&aggregate=true" \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY"
+
+# View conversations
+curl "http://localhost:3000/api/conversations?accountId=acc_f9e1c2d3b4a5" \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY"
 ```

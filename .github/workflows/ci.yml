@@ -38,8 +38,7 @@ jobs:
         run: bun run build:dashboard
 
       - name: Run tests
-        run: bun test
-        continue-on-error: true # Don't fail if no tests exist yet
+        run: bun run test:ci
 
       - name: Build Docker images
         run: |
@@ -81,4 +80,3 @@ jobs:
 
       - name: Run linting
         run: bun run lint
-        continue-on-error: true # Don't fail if lint script doesn't exist yet
