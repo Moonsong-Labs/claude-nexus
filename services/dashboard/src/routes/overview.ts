@@ -63,6 +63,9 @@ overviewRoutes.get('/', async c => {
       lastMessage: Date
       domain: string
       latestRequestId?: string
+      isSubtask?: boolean
+      parentTaskRequestId?: string
+      subtaskMessageCount?: number
     }> = []
 
     // Process API conversations
@@ -78,6 +81,9 @@ overviewRoutes.get('/', async c => {
         lastMessage: new Date(conv.lastMessageTime),
         domain: conv.domain,
         latestRequestId: conv.latestRequestId,
+        isSubtask: conv.isSubtask,
+        parentTaskRequestId: conv.parentTaskRequestId,
+        subtaskMessageCount: conv.subtaskMessageCount,
       })
     })
 
@@ -235,11 +241,20 @@ overviewRoutes.get('/', async c => {
                           return `
                             <tr>
                               <td class="text-sm">
-                                <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
-                                   class="text-blue-600" 
-                                   style="font-family: monospace; font-size: 0.75rem;">
-                                  ${branch.conversationId.substring(0, 8)}...
-                                </a>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                  ${branch.isSubtask ? `
+                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background-color: #e0e7ff; border-radius: 50%; flex-shrink: 0;" title="This is a sub-task spawned by Task tool">
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                      </svg>
+                                    </span>
+                                  ` : ''}
+                                  <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
+                                     class="text-blue-600" 
+                                     style="font-family: monospace; font-size: 0.75rem;">
+                                    ${branch.conversationId.substring(0, 8)}...
+                                  </a>
+                                </div>
                               </td>
                               <td class="text-sm">
                                 ${
@@ -274,11 +289,18 @@ overviewRoutes.get('/', async c => {
                               <td class="text-sm">${formatDuration(duration)}</td>
                               <td class="text-sm">${formatRelativeTime(branch.lastMessage)}</td>
                               <td class="text-sm">
-                                ${
-                                  branch.latestRequestId
-                                    ? `<a href="/dashboard/request/${branch.latestRequestId}" class="text-blue-600" title="View latest request">Latest →</a>`
-                                    : '<span class="text-gray-400">N/A</span>'
-                                }
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                  ${
+                                    branch.parentTaskRequestId
+                                      ? `<a href="/dashboard/request/${branch.parentTaskRequestId}" class="text-purple-600" title="View parent task" style="font-size: 0.75rem;">Parent ↑</a>`
+                                      : ''
+                                  }
+                                  ${
+                                    branch.latestRequestId
+                                      ? `<a href="/dashboard/request/${branch.latestRequestId}" class="text-blue-600" title="View latest request">Latest →</a>`
+                                      : '<span class="text-gray-400">N/A</span>'
+                                  }
+                                </div>
                               </td>
                             </tr>
                           `

@@ -452,7 +452,7 @@ apiRoutes.get('/conversations', async c => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    // Get conversations grouped by conversation_id with account info
+    // Get conversations grouped by conversation_id with account info and subtask status
     const conversationsQuery = `
       WITH conversation_summary AS (
         SELECT 
@@ -469,7 +469,10 @@ apiRoutes.get('/conversations', async c => {
            WHERE conversation_id = ar.conversation_id 
            ${whereClause ? 'AND ' + whereClause.replace('WHERE', '') : ''}
            ORDER BY timestamp DESC 
-           LIMIT 1) as latest_request_id
+           LIMIT 1) as latest_request_id,
+          BOOL_OR(is_subtask) as is_subtask,
+          MAX(parent_task_request_id) as parent_task_request_id,
+          COUNT(CASE WHEN is_subtask THEN 1 END) as subtask_message_count
         FROM api_requests ar
         ${whereClause}
         ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
@@ -495,6 +498,9 @@ apiRoutes.get('/conversations', async c => {
       branchCount: parseInt(row.branch_count),
       modelsUsed: row.models_used,
       latestRequestId: row.latest_request_id,
+      isSubtask: row.is_subtask,
+      parentTaskRequestId: row.parent_task_request_id,
+      subtaskMessageCount: parseInt(row.subtask_message_count || 0),
     }))
 
     return c.json({ conversations })
