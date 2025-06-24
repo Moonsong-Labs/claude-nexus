@@ -39,7 +39,6 @@ jobs:
 
       - name: Run tests
         run: bun test
-        continue-on-error: true # Don't fail if no tests exist yet
 
       - name: Build Docker images
         run: |
