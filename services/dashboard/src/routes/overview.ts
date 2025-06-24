@@ -108,7 +108,9 @@ overviewRoutes.get('/', async c => {
     const parentConversations: typeof filteredBranches = []
     const subtasksByParentId = new Map<string, typeof filteredBranches>()
     const orphanedSubtasks: typeof filteredBranches = []
-    const allParentConvIds = new Set(filteredBranches.filter(c => !c.isSubtask).map(c => c.conversationId))
+    const allParentConvIds = new Set(
+      filteredBranches.filter(c => !c.isSubtask).map(c => c.conversationId)
+    )
 
     for (const conv of filteredBranches) {
       if (conv.isSubtask) {
