@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { Pool } from 'pg'
 import { StorageWriter } from '../../services/proxy/src/storage/writer'
 import { randomUUID } from 'crypto'
-import mainRequestSample from '../../services/proxy/test-samples/inference_streaming_with_tools_with_system_opus-1750420376296-im7ygz453.json'
-import subtaskRequestSample from '../../services/proxy/test-samples/inference_streaming_with_tools_with_system_opus-1750420386819-wixegs6ph.json'
+import mainRequestSample from '../data/inference_streaming_with_tools_with_system_opus-1750420376296-im7ygz453.json'
+import subtaskRequestSample from '../data/inference_streaming_with_tools_with_system_opus-1750420386819-wixegs6ph.json'
 
 describe('Sub-task Linking', () => {
   let pool: Pool
