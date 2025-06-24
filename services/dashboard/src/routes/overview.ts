@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
-import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
+import { formatNumber, formatDuration, escapeHtml, formatRelativeTime } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
 import { getBranchColor } from '../utils/conversation-graph.js'
 
@@ -253,11 +253,11 @@ overviewRoutes.get('/', async c => {
                                     : '<span class="text-gray-400">N/A</span>'
                                 }
                               </td>
-                              <td class="text-sm">${branch.domain}</td>
+                              <td class="text-sm">${escapeHtml(branch.domain)}</td>
                               <td class="text-sm">${branch.messageCount}</td>
                               <td class="text-sm">${formatNumber(branch.tokens)}</td>
                               <td class="text-sm">${formatDuration(duration)}</td>
-                              <td class="text-sm">${formatTimestamp(branch.lastMessage)}</td>
+                              <td class="text-sm">${formatRelativeTime(branch.lastMessage)}</td>
                               <td class="text-sm">
                                 ${
                                   branch.latestRequestId
@@ -408,20 +408,3 @@ function generatePageNumbers(current: number, total: number): (number | string)[
   return pages
 }
 
-function formatTimestamp(timestamp: string | Date): string {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  if (diff < 60000) {
-    return 'Just now'
-  }
-  if (diff < 3600000) {
-    return `${Math.floor(diff / 60000)}m ago`
-  }
-  if (diff < 86400000) {
-    return `${Math.floor(diff / 3600000)}h ago`
-  }
-
-  return date.toLocaleString()
-}

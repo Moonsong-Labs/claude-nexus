@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
-import { formatNumber } from '../utils/formatters.js'
+import { formatNumber, escapeHtml, formatRelativeTime } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
 
 export const requestsRoutes = new Hono<{
@@ -164,8 +164,8 @@ requestsRoutes.get('/requests', async c => {
                       .map(
                         req => `
                 <tr>
-                  <td class="text-sm">${formatTimestamp(req.timestamp)}</td>
-                  <td class="text-sm">${req.domain}</td>
+                  <td class="text-sm">${formatRelativeTime(req.timestamp)}</td>
+                  <td class="text-sm">${escapeHtml(req.domain)}</td>
                   <td class="text-sm">${req.model || 'N/A'}</td>
                   <td class="text-sm">${formatNumber(req.totalTokens || 0)}</td>
                   <td class="text-sm">${req.responseStatus || 'N/A'}</td>
@@ -187,20 +187,3 @@ requestsRoutes.get('/requests', async c => {
   return c.html(layout('Requests', content))
 })
 
-function formatTimestamp(timestamp: string | Date): string {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  if (diff < 60000) {
-    return 'Just now'
-  }
-  if (diff < 3600000) {
-    return `${Math.floor(diff / 60000)}m ago`
-  }
-  if (diff < 86400000) {
-    return `${Math.floor(diff / 3600000)}h ago`
-  }
-
-  return date.toLocaleString()
-}
