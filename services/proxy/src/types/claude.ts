@@ -152,9 +152,6 @@ export function validateClaudeRequest(request: any): request is ClaudeMessagesRe
   if (!Array.isArray(request.messages) || request.messages.length === 0) {
     return false
   }
-  if (!request.max_tokens || typeof request.max_tokens !== 'number') {
-    return false
-  }
 
   // Validate messages
   for (const message of request.messages) {

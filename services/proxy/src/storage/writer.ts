@@ -464,30 +464,25 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
         )
       `)
 
-      // Create indexes
+      // Create indexes for api_requests
       await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_api_requests_domain_timestamp 
-        ON api_requests(domain, timestamp DESC)
+        CREATE INDEX IF NOT EXISTS idx_requests_domain 
+        ON api_requests(domain)
       `)
 
       await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_api_requests_timestamp 
-        ON api_requests(timestamp DESC)
+        CREATE INDEX IF NOT EXISTS idx_requests_timestamp 
+        ON api_requests(timestamp)
       `)
 
       await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_streaming_chunks_request_id 
-        ON streaming_chunks(request_id, chunk_index)
+        CREATE INDEX IF NOT EXISTS idx_requests_model 
+        ON api_requests(model)
       `)
 
       await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_requests_current_message_hash 
-        ON api_requests(current_message_hash)
-      `)
-
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_requests_parent_message_hash 
-        ON api_requests(parent_message_hash)
+        CREATE INDEX IF NOT EXISTS idx_requests_request_type 
+        ON api_requests(request_type)
       `)
 
       await pool.query(`
@@ -501,11 +496,89 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       `)
 
       await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_conversation_branch 
+        ON api_requests(conversation_id, branch_id)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_message_count 
+        ON api_requests(message_count)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_parent_hash 
+        ON api_requests(parent_message_hash)
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_current_hash 
+        ON api_requests(current_message_hash)
+      `)
+
+      // Create indexes for streaming_chunks
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_chunks_request_id 
+        ON streaming_chunks(request_id)
+      `)
+
+      // Add column comments
+      await pool.query(`
+        COMMENT ON COLUMN api_requests.current_message_hash IS 'SHA-256 hash of the last message in this request'
+      `)
+
+      await pool.query(`
+        COMMENT ON COLUMN api_requests.parent_message_hash IS 'SHA-256 hash of the previous message (null for conversation start)'
+      `)
+
+      await pool.query(`
+        COMMENT ON COLUMN api_requests.conversation_id IS 'UUID grouping related messages into conversations'
+      `)
+
+      await pool.query(`
+        COMMENT ON COLUMN api_requests.branch_id IS 'Branch identifier within a conversation (defaults to main)'
+      `)
+
+      await pool.query(`
+        COMMENT ON COLUMN api_requests.message_count IS 'Total number of messages in the conversation up to this request'
+      `)
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_requests_branch_id 
+        ON api_requests(branch_id)
+      `)
+
+      await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_requests_account_id 
         ON api_requests(account_id)
       `)
 
       logger.info('Database schema created successfully')
+    } else {
+      // Verify all required tables exist
+      const requiredTables = ['api_requests', 'streaming_chunks']
+      const tableCheck = await pool.query(
+        `
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = ANY($1)
+      `,
+        [requiredTables]
+      )
+
+      const foundTables = tableCheck.rows.map(row => row.table_name)
+      const missingTables = requiredTables.filter(table => !foundTables.includes(table))
+
+      if (missingTables.length > 0) {
+        logger.error('Missing required database tables', {
+          metadata: { missingTables },
+        })
+        throw new Error(
+          `Missing required tables: ${missingTables.join(', ')}. Please run database migrations.`
+        )
+      }
+
+      logger.info('Database schema verified successfully')
     }
   } catch (error) {
     logger.error('Failed to initialize database', {
