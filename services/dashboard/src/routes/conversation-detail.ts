@@ -38,19 +38,26 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Fetch sub-tasks for requests that have task invocations
     const subtasksMap = new Map<string, any[]>()
     for (const req of conversation.requests) {
-      if (req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0) {
+      if (
+        req.task_tool_invocation &&
+        Array.isArray(req.task_tool_invocation) &&
+        req.task_tool_invocation.length > 0
+      ) {
         const subtasks = await storageService.getSubtasksForRequest(req.request_id)
         if (subtasks.length > 0) {
           // Group sub-tasks by their conversation ID
-          const subtasksByConversation = subtasks.reduce((acc, subtask) => {
-            const convId = subtask.conversation_id || 'unknown'
-            if (!acc[convId]) {
-              acc[convId] = []
-            }
-            acc[convId].push(subtask)
-            return acc
-          }, {} as Record<string, any[]>)
-          
+          const subtasksByConversation = subtasks.reduce(
+            (acc, subtask) => {
+              const convId = subtask.conversation_id || 'unknown'
+              if (!acc[convId]) {
+                acc[convId] = []
+              }
+              acc[convId].push(subtask)
+              return acc
+            },
+            {} as Record<string, any[]>
+          )
+
           // Link sub-task conversations to task invocations
           const enrichedInvocations = req.task_tool_invocation.map((invocation: any) => {
             // Find matching sub-task conversation by checking first message content
@@ -66,7 +73,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             }
             return invocation
           })
-          
+
           subtasksMap.set(req.request_id, enrichedInvocations)
         }
       }
@@ -96,24 +103,28 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Build the graph structure - keep original relationships but display in reverse order
     const graphNodes: ConversationNode[] = []
     const graphEdges: Array<{ source: string; target: string }> = []
-    
+
     // First, add all conversation request nodes
     conversation.requests.forEach((req, index) => {
       const details = requestDetailsMap.get(req.request_id) || {
         messageCount: 0,
         messageTypes: [],
       }
-      
+
       // Get sub-task info
       const enrichedInvocations = subtasksMap.get(req.request_id)
       const hasSubtasks = enrichedInvocations && enrichedInvocations.length > 0
       const subtaskCount = enrichedInvocations?.length || 0
-      
+
       // Also check raw task_tool_invocation if not in subtasksMap
-      const hasTaskInvocation = req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0
+      const hasTaskInvocation =
+        req.task_tool_invocation &&
+        Array.isArray(req.task_tool_invocation) &&
+        req.task_tool_invocation.length > 0
       const finalHasSubtasks = hasSubtasks || hasTaskInvocation
-      const finalSubtaskCount = subtaskCount || (hasTaskInvocation ? req.task_tool_invocation.length : 0)
-      
+      const finalSubtaskCount =
+        subtaskCount || (hasTaskInvocation ? req.task_tool_invocation.length : 0)
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
@@ -134,31 +145,37 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         subtaskCount: finalSubtaskCount,
       })
     })
-    
+
     // Track sub-task numbers across the conversation
     let subtaskNumber = 0
-    
+
     // Now add sub-task summary nodes for requests that spawned tasks
     for (const req of conversation.requests) {
       // Check if this request has task invocations
-      if (req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0) {
+      if (
+        req.task_tool_invocation &&
+        Array.isArray(req.task_tool_invocation) &&
+        req.task_tool_invocation.length > 0
+      ) {
         // Get actual sub-task count from database
         const actualSubtaskCount = await storageService.countSubtasksForRequests([req.request_id])
-        
+
         // Even if actualSubtaskCount is 0, show the task invocations if they exist
         const displayCount = actualSubtaskCount || req.task_tool_invocation.length
-        
+
         // Increment sub-task number
         subtaskNumber++
-        
+
         // Try to find the linked conversation ID and prompt from the enriched invocations
         const enrichedInvocations = subtasksMap.get(req.request_id)
         let linkedConversationId = null
         let subtaskPrompt = ''
-        
+
         if (enrichedInvocations && enrichedInvocations.length > 0) {
           // Look for any invocation with a linked conversation
-          const linkedInvocation = enrichedInvocations.find((inv: any) => inv.linked_conversation_id)
+          const linkedInvocation = enrichedInvocations.find(
+            (inv: any) => inv.linked_conversation_id
+          )
           if (linkedInvocation) {
             linkedConversationId = linkedInvocation.linked_conversation_id
             // Get the prompt from the first invocation
@@ -170,12 +187,16 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             subtaskPrompt = enrichedInvocations[0].input.prompt
           }
         }
-        
+
         // If we don't have a prompt yet, try from the raw task invocations
-        if (!subtaskPrompt && req.task_tool_invocation && req.task_tool_invocation[0]?.input?.prompt) {
+        if (
+          !subtaskPrompt &&
+          req.task_tool_invocation &&
+          req.task_tool_invocation[0]?.input?.prompt
+        ) {
           subtaskPrompt = req.task_tool_invocation[0].input.prompt
         }
-        
+
         // If we still don't have a linked conversation, try to find it from sub-tasks
         if (!linkedConversationId) {
           const subtasks = await storageService.getSubtasksForRequest(req.request_id)
@@ -183,7 +204,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             linkedConversationId = subtasks[0].conversation_id
           }
         }
-        
+
         // Create a sub-task summary node
         const subtaskNodeId = `${req.request_id}-subtasks`
         graphNodes.push({
@@ -203,7 +224,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           linkedConversationId: linkedConversationId, // Store the linked conversation ID
           subtaskPrompt: subtaskPrompt, // Store the prompt snippet
         })
-        
+
         // Add edge from parent request to sub-task node
         graphEdges.push({
           source: req.request_id,
@@ -211,7 +232,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         })
       }
     }
-    
+
     const graph: ConversationGraph = {
       nodes: graphNodes,
       edges: graphEdges,
@@ -342,13 +363,17 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Calculate total sub-tasks spawned by this conversation
     // First, get the actual count of sub-task requests linked to this conversation
     let totalSubtasksSpawned = 0
-    let requestsWithSubtasks = 0
-    
+
     // Get request IDs that have task invocations
     const requestIdsWithTasks = conversation.requests
-      .filter(req => req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0)
+      .filter(
+        req =>
+          req.task_tool_invocation &&
+          Array.isArray(req.task_tool_invocation) &&
+          req.task_tool_invocation.length > 0
+      )
       .map(req => req.request_id)
-    
+
     if (requestIdsWithTasks.length > 0) {
       // Count actual sub-tasks linked to these requests
       totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsWithTasks)
@@ -362,13 +387,18 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const totalTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
       const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
       const duration = timestamps.length > 0 ? Math.max(...timestamps) - Math.min(...timestamps) : 0
-      
+
       // Calculate sub-tasks for filtered branch
       let branchSubtasks = 0
       const branchRequestIdsWithTasks = filteredRequests
-        .filter(req => req.task_tool_invocation && Array.isArray(req.task_tool_invocation) && req.task_tool_invocation.length > 0)
+        .filter(
+          req =>
+            req.task_tool_invocation &&
+            Array.isArray(req.task_tool_invocation) &&
+            req.task_tool_invocation.length > 0
+        )
         .map(req => req.request_id)
-      
+
       if (branchRequestIdsWithTasks.length > 0) {
         branchSubtasks = await storageService.countSubtasksForRequests(branchRequestIdsWithTasks)
       }
@@ -407,7 +437,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           <div class="conversation-stat-value">${displayStats.messageCount}</div>
         </div>
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Sub-tasks</div>
+          <div class="conversation-stat-label">
+            ${selectedBranch ? 'Branch' : 'Total'} Sub-tasks
+          </div>
           <div class="conversation-stat-value">${displayStats.totalSubtasks}</div>
         </div>
         <div class="conversation-stat-card">
@@ -467,25 +499,25 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           ${raw(renderConversationMessages(filteredRequests, conversation.branches, subtasksMap))}
         </div>
       </div>
-      
+
       <script>
         // Add hover functionality for sub-task tooltips
-        document.addEventListener('DOMContentLoaded', function() {
-          const subtaskGroups = document.querySelectorAll('.subtask-node-group');
-          
+        document.addEventListener('DOMContentLoaded', function () {
+          const subtaskGroups = document.querySelectorAll('.subtask-node-group')
+
           subtaskGroups.forEach(group => {
-            const promptHover = group.querySelector('.subtask-prompt-hover');
+            const promptHover = group.querySelector('.subtask-prompt-hover')
             if (promptHover) {
-              group.addEventListener('mouseenter', function() {
-                promptHover.style.display = 'block';
-              });
-              
-              group.addEventListener('mouseleave', function() {
-                promptHover.style.display = 'none';
-              });
+              group.addEventListener('mouseenter', function () {
+                promptHover.style.display = 'block'
+              })
+
+              group.addEventListener('mouseleave', function () {
+                promptHover.style.display = 'none'
+              })
             }
-          });
-        });
+          })
+        })
       </script>
     `
 
@@ -559,7 +591,11 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 /**
  * Helper to render conversation messages
  */
-function renderConversationMessages(requests: ConversationRequest[], _branches: string[], subtasksMap?: Map<string, any[]>) {
+function renderConversationMessages(
+  requests: ConversationRequest[],
+  _branches: string[],
+  subtasksMap?: Map<string, any[]>
+) {
   // Sort requests by timestamp in descending order (newest first)
   const sortedRequests = [...requests].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -576,9 +612,7 @@ function renderConversationMessages(requests: ConversationRequest[], _branches: 
             // Check if this request has sub-tasks based on task_tool_invocation
             const taskInvocations = subtasksMap?.get(req.request_id) || req.task_tool_invocation
             const hasTaskInvocation =
-              taskInvocations &&
-              Array.isArray(taskInvocations) &&
-              taskInvocations.length > 0
+              taskInvocations && Array.isArray(taskInvocations) && taskInvocations.length > 0
 
             return `
           <div class="section" id="message-${req.request_id}">

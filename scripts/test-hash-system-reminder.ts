@@ -4,7 +4,10 @@
  * produce the same hash
  */
 
-import { hashMessage, normalizeMessageContent } from '../packages/shared/dist/utils/conversation-hash.js'
+import {
+  hashMessage,
+  normalizeMessageContent,
+} from '../packages/shared/dist/utils/conversation-hash.js'
 import type { ClaudeMessage } from '../packages/shared/dist/types/claude.js'
 
 // Test case 1: Message without system reminder
@@ -12,8 +15,8 @@ const messageWithoutReminder: ClaudeMessage = {
   role: 'user',
   content: [
     { type: 'text', text: 'spawn an task to list the code lines of the repo' },
-    { type: 'text', text: 'Some other content' }
-  ]
+    { type: 'text', text: 'Some other content' },
+  ],
 }
 
 // Test case 2: Same message with system reminder inserted
@@ -22,18 +25,24 @@ const messageWithReminder: ClaudeMessage = {
   content: [
     { type: 'text', text: 'spawn an task to list the code lines of the repo' },
     { type: 'text', text: 'Some other content' },
-    { type: 'text', text: '<system-reminder>This is a system reminder that should be ignored</system-reminder>' }
-  ]
+    {
+      type: 'text',
+      text: '<system-reminder>This is a system reminder that should be ignored</system-reminder>',
+    },
+  ],
 }
 
 // Test case 3: System reminder in different position
 const messageWithReminderFirst: ClaudeMessage = {
   role: 'user',
   content: [
-    { type: 'text', text: '<system-reminder>This is a system reminder that should be ignored</system-reminder>' },
+    {
+      type: 'text',
+      text: '<system-reminder>This is a system reminder that should be ignored</system-reminder>',
+    },
     { type: 'text', text: 'spawn an task to list the code lines of the repo' },
-    { type: 'text', text: 'Some other content' }
-  ]
+    { type: 'text', text: 'Some other content' },
+  ],
 }
 
 console.log('Testing message hashing with system reminders...\n')

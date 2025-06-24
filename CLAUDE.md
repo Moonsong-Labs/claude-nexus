@@ -273,11 +273,13 @@ open http://localhost:3001
 The proxy automatically detects and tracks sub-tasks spawned using the Task tool:
 
 **Database Fields:**
+
 - `parent_task_request_id` - Links sub-task requests to their parent task
 - `is_subtask` - Boolean flag indicating if a request is a sub-task
 - `task_tool_invocation` - JSONB array storing Task tool invocations
 
 **Sub-task Linking:**
+
 - Sub-tasks are linked by matching the user message to Task tool invocation prompts
 - The system creates parent-child relationships between tasks and their sub-tasks
 - Multiple sub-tasks can be spawned from a single parent request
@@ -285,16 +287,19 @@ The proxy automatically detects and tracks sub-tasks spawned using the Task tool
 ### Dashboard Visualization
 
 **Conversation Tree:**
+
 - Sub-task nodes appear as separate gray boxes to the right of parent nodes
 - Format: "sub-task N (M)" where N is the sub-task number and M is the message count
 - Sub-task boxes are clickable and link to their conversation
 - Hover over sub-task boxes to see the task prompt in a tooltip
 
 **Stats Display:**
+
 - "Total Sub-tasks" panel shows count of all sub-tasks in a conversation
 - Sub-task indicators on parent nodes show number of spawned tasks
 
 **Visual Design:**
+
 - Sub-task boxes: 100x36px gray boxes with 150px right offset
 - Tooltips: 250x130px with gradient background, appear above nodes on hover
 - Connected to parent nodes with horizontal edges
@@ -302,15 +307,19 @@ The proxy automatically detects and tracks sub-tasks spawned using the Task tool
 ## Important Implementation Notes
 
 ### Conversation Hash Filtering
+
 When generating message hashes for conversation tracking, the system filters out:
+
 - Content items that start with `<system-reminder>`
 - This prevents conversation linking from breaking when Claude adds system reminders
 
 ### Dashboard Authentication
+
 - Uses `X-Dashboard-Key` header (not Authorization)
 - Cookie-based auth also supported for browser sessions
 
 ### SQL Query Optimization
+
 - Always include all required fields in SELECT statements
 - Missing fields like `parent_task_request_id`, `is_subtask`, `task_tool_invocation` will break sub-task tracking
 - Use the SLOW_QUERY_THRESHOLD_MS env var to monitor query performance

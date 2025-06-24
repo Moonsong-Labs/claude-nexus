@@ -796,13 +796,13 @@ export class StorageReader {
         FROM api_requests 
         WHERE parent_task_request_id = ANY($1::uuid[])
       `
-      
+
       const result = await this.executeQuery<{ count: string }>(
         query,
         [parentRequestIds],
         'countSubtasksForRequests'
       )
-      
+
       return parseInt(result[0]?.count || '0')
     } catch (error) {
       logger.error('Failed to count sub-tasks', {

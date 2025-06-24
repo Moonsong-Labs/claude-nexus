@@ -128,7 +128,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   const layoutNodes: LayoutNode[] = graph.nodes.map(node => {
     // Check if this is a sub-task summary node
     const isSubtaskSummary = node.id.endsWith('-subtasks')
-    
+
     if (isSubtaskSummary) {
       // For sub-task summary nodes, position them to the right of their parent
       const parentId = node.parentId
@@ -136,7 +136,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       if (parentNode) {
         const parentLane = branchLanes.get(parentNode.branchId) || 0
         const parentMessageCount = parentNode.messageCount || 0
-        
+
         return {
           id: node.id,
           x: parentLane * horizontalSpacing + subtaskOffset,
@@ -161,7 +161,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
         }
       }
     }
-    
+
     // Regular nodes
     // Assign lane to branch if not already assigned
     if (!branchLanes.has(node.branchId)) {
@@ -210,7 +210,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
     if (sourceNode && targetNode) {
       // Check if this is an edge to a sub-task summary node
       const isToSubtask = targetNode.id.endsWith('-subtasks')
-      
+
       if (isToSubtask) {
         // For edges to sub-task nodes, draw from the right side of parent to left side of sub-task
         layoutEdges.push({
@@ -363,10 +363,10 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
   // Render nodes
   svg += '<g class="graph-nodes">\n'
-  
+
   // Collect tooltips to render them last
   let tooltips = ''
-  
+
   for (const node of layout.nodes) {
     const x = node.x + padding
     const y = node.y + padding
@@ -381,12 +381,14 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     if (isSubtaskSummary) {
       // Use foreignObject for better HTML tooltip support
       const tooltipId = `tooltip-${node.id.replace(/[^a-zA-Z0-9]/g, '-')}`
-      
+
       svg += `  <g class="subtask-node-group">\n`
-      
+
       // Render sub-task summary node with hover handler
-      const hoverHandlers = node.subtaskPrompt ? ` onmouseover="document.querySelector('.${tooltipId}').style.display='block'" onmouseout="document.querySelector('.${tooltipId}').style.display='none'"` : ''
-      
+      const hoverHandlers = node.subtaskPrompt
+        ? ` onmouseover="document.querySelector('.${tooltipId}').style.display='block'" onmouseout="document.querySelector('.${tooltipId}').style.display='none'"`
+        : ''
+
       // Make sub-task nodes clickable if they have a linked conversation
       if (interactive && node.linkedConversationId) {
         svg += `    <a href="/dashboard/conversation/${node.linkedConversationId}" style="cursor: pointer;">\n`
@@ -397,13 +399,14 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         svg += `      <rect x="${x}" y="${y}" width="${node.width}" height="${node.height}" rx="4" ry="4" class="graph-node" style="fill: #f3f4f6; stroke: #9ca3af; stroke-width: 1.5;"${hoverHandlers} />\n`
         svg += `      <text x="${x + node.width / 2}" y="${y + node.height / 2 + 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 600; font-size: 12px; fill: #4b5563;">${node.label}</text>\n`
       }
-      
+
       // Prepare tooltip to be rendered later
       if (node.subtaskPrompt) {
-        const truncatedPrompt = node.subtaskPrompt.length > 250 
-          ? node.subtaskPrompt.substring(0, 250) + '...' 
-          : node.subtaskPrompt
-          
+        const truncatedPrompt =
+          node.subtaskPrompt.length > 250
+            ? node.subtaskPrompt.substring(0, 250) + '...'
+            : node.subtaskPrompt
+
         tooltips += `    <foreignObject x="${x - 75}" y="${y - 140}" width="250" height="130" style="display: none; z-index: 1000; pointer-events: none;" class="${tooltipId}">\n`
         tooltips += `      <div xmlns="http://www.w3.org/1999/xhtml" style="background: linear-gradient(135deg, #374151 0%, #1f2937 100%); border: 2px solid #6b7280; padding: 12px 14px; border-radius: 8px; font-size: 11px; line-height: 1.6; box-shadow: 0 6px 20px rgba(0,0,0,0.4); word-wrap: break-word; position: relative;">\n`
         tooltips += `        <div style="font-size: 10px; color: #9ca3af; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #4b5563; padding-bottom: 4px;">📋 Task Prompt</div>\n`
@@ -413,7 +416,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         tooltips += `      </div>\n`
         tooltips += `    </foreignObject>\n`
       }
-      
+
       svg += `  </g>\n`
     } else {
       // Regular node rendering
@@ -454,7 +457,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
     }
   }
   svg += '</g>\n'
-  
+
   // Render tooltips last so they appear on top
   if (tooltips) {
     svg += '<g class="graph-tooltips">\n'
