@@ -471,7 +471,10 @@ apiRoutes.get('/conversations', async c => {
            ORDER BY timestamp DESC 
            LIMIT 1) as latest_request_id,
           BOOL_OR(is_subtask) as is_subtask,
-          MAX(parent_task_request_id) as parent_task_request_id,
+          (SELECT parent_task_request_id FROM api_requests 
+           WHERE conversation_id = ar.conversation_id 
+           AND is_subtask = true 
+           LIMIT 1) as parent_task_request_id,
           COUNT(CASE WHEN is_subtask THEN 1 END) as subtask_message_count
         FROM api_requests ar
         ${whereClause}
