@@ -40,6 +40,7 @@
     "lint": "bun run --filter '*' lint",
     "clean": "bun run --filter '*' clean",
     "test": "bun test",
+    "test:ci": "bun test test/unit services/proxy/tests tests/unit",
     "test:unit": "bun test test/unit",
     "test:integration": "bun test test/integration",
     "test:e2e": "bun test test/e2e",

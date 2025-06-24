@@ -38,7 +38,7 @@ jobs:
         run: bun run build:dashboard
 
       - name: Run tests
-        run: bun test
+        run: bun run test:ci
 
       - name: Build Docker images
         run: |
