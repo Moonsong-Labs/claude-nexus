@@ -79,7 +79,6 @@ describe('Claude CLI End-to-End Tests', () => {
       const count = parseInt(stdout.trim())
       expect(count).toBeGreaterThanOrEqual(0)
     })
-
   })
 
   describe('Error Handling', () => {

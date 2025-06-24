@@ -461,7 +461,6 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
         )
       `)
 
-
       // Create indexes for api_requests
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_requests_domain 
