@@ -8,6 +8,7 @@ export const dashboardStyles = `
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
     line-height: 1.5;
     color: #1f2937;
     background-color: #f9fafb;

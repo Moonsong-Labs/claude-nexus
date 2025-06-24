@@ -141,7 +141,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <dd>${details.requestId}</dd>
 
               ${details.conversationId
-                ? `
+                ? html`
               <dt class="text-gray-600">Conversation ID:</dt>
               <dd>
                 <a href="/dashboard/conversation/${details.conversationId}" 
@@ -666,7 +666,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
     `
 
     return c.html(
-      layout('Request Details', content, '<script src="/message-selection.js" defer></script>')
+      layout('Request Details', content)
     )
   } catch (error) {
     return c.html(
