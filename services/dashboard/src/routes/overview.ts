@@ -4,6 +4,7 @@ import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
+import { getBranchColor } from '../utils/conversation-graph.js'
 
 export const overviewRoutes = new Hono<{
   Variables: {
@@ -208,6 +209,7 @@ overviewRoutes.get('/', async c => {
                   <thead>
                     <tr>
                       <th>Conversation</th>
+                      <th>Branch</th>
                       <th>Account</th>
                       <th>Domain</th>
                       <th>Messages</th>
@@ -223,6 +225,7 @@ overviewRoutes.get('/', async c => {
                         .map(branch => {
                           const duration =
                             branch.lastMessage.getTime() - branch.firstMessage.getTime()
+                          const branchColor = getBranchColor(branch.branch)
 
                           return `
                             <tr>
@@ -232,6 +235,11 @@ overviewRoutes.get('/', async c => {
                                    style="font-family: monospace; font-size: 0.75rem;">
                                   ${branch.conversationId.substring(0, 8)}...
                                 </a>
+                              </td>
+                              <td class="text-sm">
+                                <span style="color: ${branchColor}; font-weight: 500;">
+                                  ${escapeHtml(branch.branch)}
+                                </span>
                               </td>
                               <td class="text-sm">
                                 ${
