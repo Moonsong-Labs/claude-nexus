@@ -68,19 +68,17 @@ export const dashboardStyles = `
 
   .section {
     background: white;
-    border-radius: 0.375rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    margin-bottom: 1rem;
-    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
   }
   .section-header {
-    padding: 0.75rem 1rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid #e5e7eb;
     font-weight: 500;
-    font-size: 0.9rem;
   }
   .section-content {
-    padding: 1rem;
+    padding: 1.5rem;
   }
 
   table {
