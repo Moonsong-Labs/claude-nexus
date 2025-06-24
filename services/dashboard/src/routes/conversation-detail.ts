@@ -3,6 +3,7 @@ import { html, raw } from 'hono/html'
 import { getErrorMessage } from '@claude-nexus/shared'
 import {
   ConversationGraph,
+  ConversationNode,
   calculateGraphLayout,
   renderGraphSVG,
   getBranchColor,
@@ -351,7 +352,6 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     if (requestIdsWithTasks.length > 0) {
       // Count actual sub-tasks linked to these requests
       totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsWithTasks)
-      requestsWithSubtasks = requestIdsWithTasks.length
     }
 
     // Calculate stats for selected branch or total

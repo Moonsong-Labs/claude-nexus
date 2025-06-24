@@ -116,7 +116,7 @@ Options:
       console.log(`Copying database content...`)
       const backupUrl = new URL(databaseUrl)
       backupUrl.pathname = `/${backupDbName}`
-      
+
       const backupCommand = `pg_dump "${databaseUrl}" --verbose --no-owner --no-privileges | psql "${backupUrl.toString()}"`
 
       execSync(backupCommand, { stdio: 'inherit', shell: true })
