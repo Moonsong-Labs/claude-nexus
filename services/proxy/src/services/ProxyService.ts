@@ -180,7 +180,7 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    _auth: any,
+    auth: any,
     conversationData?: {
       currentMessageHash: string
       parentMessageHash: string | null
@@ -237,7 +237,8 @@ export class ProxyService {
       claudeResponse.status,
       conversationData,
       responseHeaders,
-      jsonResponse
+      jsonResponse,
+      auth.accountId
     )
 
     // Update test sample with response if enabled

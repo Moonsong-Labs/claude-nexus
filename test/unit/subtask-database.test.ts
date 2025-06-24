@@ -244,8 +244,11 @@ describe('Sub-task Database Logic', () => {
 
       await writer.storeRequest(request)
 
-      // Skip this check for now - there's an issue with mock setup
-      // expect(mockPool.query).toHaveBeenCalledTimes(3)
+      // Verify the correct number of queries were made:
+      // 1. detectBranch parent query
+      // 2. detectBranch children query  
+      // 3. INSERT query
+      expect(mockPool.query).toHaveBeenCalledTimes(3)
 
       const insertCall = mockPool.query.mock.calls[2]
       const insertValues = insertCall[1]
