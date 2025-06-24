@@ -16,7 +16,7 @@ export const requestDetailsRoutes = new Hono<{
 /**
  * Request details page with conversation view
  */
-requestDetailsRoutes.get('/:id', async c => {
+requestDetailsRoutes.get('/request/:id', async c => {
   const apiClient = c.get('apiClient')
   const requestId = c.req.param('id')
 

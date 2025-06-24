@@ -15,10 +15,8 @@ export const dashboardRoutes = new Hono<{
   }
 }>()
 
-// Mount auth routes
+// Mount routes
 dashboardRoutes.route('/', authRoutes)
-
-// Mount dashboard routes
 dashboardRoutes.route('/', overviewRoutes)
 dashboardRoutes.route('/', requestsRoutes)
 dashboardRoutes.route('/', requestDetailsRoutes)
