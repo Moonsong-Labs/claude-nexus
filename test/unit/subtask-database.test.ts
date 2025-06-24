@@ -48,7 +48,7 @@ describe('Sub-task Database Logic', () => {
       expect(query).toContain('jsonb_path_exists')
       expect(query).toContain('task_tool_invocation')
       expect(query).toContain("timestamp >= $1::timestamp - interval '60 seconds'")
-      expect(query).toContain('timestamp <= $1::timestamp')
+      expect(query).toContain("timestamp <= $1::timestamp")
 
       // Check parameters
       expect(params).toHaveLength(2)
@@ -224,9 +224,9 @@ describe('Sub-task Database Logic', () => {
         parentMessageHash: 'parent-hash-123', // Has parent, not first message
       }
 
-      // Mock existing subtask check query
+      // Mock check for existing sub-task conversation
       mockPool.query.mockResolvedValueOnce({
-        rows: [],
+        rows: [], // No existing sub-task
         rowCount: 0,
       })
 
@@ -250,11 +250,7 @@ describe('Sub-task Database Logic', () => {
 
       await writer.storeRequest(request)
 
-      // Verify the correct number of queries were made:
-      // 1. Check if conversation is already a subtask
-      // 2. detectBranch parent query
-      // 3. detectBranch children query
-      // 4. INSERT query
+      // Four queries: check sub-task, two for detectBranch, and one INSERT
       expect(mockPool.query).toHaveBeenCalledTimes(4)
 
       const insertCall = mockPool.query.mock.calls[3]
