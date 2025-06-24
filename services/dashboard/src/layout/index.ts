@@ -1,4 +1,4 @@
-import { html } from 'hono/html'
+import { html, raw } from 'hono/html'
 import { dashboardStyles } from './styles.js'
 
 /**
@@ -12,7 +12,7 @@ export const layout = (title: string, content: any, additionalScripts: string = 
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>${title} - Claude Nexus Dashboard</title>
       <style>
-        ${dashboardStyles}
+        ${raw(dashboardStyles)}
       </style>
       <link
         rel="stylesheet"

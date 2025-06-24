@@ -11,6 +11,15 @@ describe('CSS Validation', () => {
     })
   })
 
+  test('should not contain HTML entities', () => {
+    // Check for common HTML entities that might break CSS
+    const htmlEntities = ['&quot;', '&#39;', '&apos;', '&lt;', '&gt;', '&amp;', '&#x27;', '&#x22;']
+    
+    htmlEntities.forEach(entity => {
+      expect(dashboardStyles).not.toContain(entity)
+    })
+  })
+
   test('should have valid CSS syntax', () => {
     // Basic CSS syntax checks
     const lines = dashboardStyles.split('\n')
