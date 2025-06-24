@@ -17,6 +17,7 @@ import { container } from './container.js'
 import { closeRateLimitStores } from './middleware/rate-limit.js'
 import { CredentialStatusService } from './services/CredentialStatusService.js'
 import { CredentialManager } from './services/CredentialManager.js'
+import { config } from '@claude-nexus/shared'
 
 // Load .env file from multiple possible locations
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -235,7 +236,6 @@ async function main() {
     // Set server timeout to be longer than the max request + retry time
     // This prevents the server from closing connections prematurely
     // Note: The Hono node server wraps the underlying Node.js server
-    const { config } = await import('@claude-nexus/shared')
     const serverTimeout = config.server.timeout
 
     // Access the underlying Node.js server if available

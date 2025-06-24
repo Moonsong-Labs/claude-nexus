@@ -9,6 +9,10 @@ import { randomUUID } from 'crypto'
  */
 export class StorageAdapter {
   private writer: StorageWriter
+  // TODO: Fix memory leak (HIGH)
+  // This map grows indefinitely as requests are processed.
+  // Should clean up entries after storeResponse completes.
+  // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
   private requestIdMap: Map<string, string> = new Map() // Map nanoid to UUID
 
   constructor(pool: Pool) {
@@ -43,11 +47,22 @@ export class StorageAdapter {
     conversationId?: string
     branchId?: string
     messageCount?: number
+    parentTaskRequestId?: string
+    isSubtask?: boolean
+    taskToolInvocation?: any
   }): Promise<void> {
     try {
       // Generate a UUID for this request and store the mapping
       const uuid = randomUUID()
       this.requestIdMap.set(data.id, uuid)
+
+      logger.debug('Stored request ID mapping', {
+        metadata: {
+          claudeId: data.id,
+          uuid: uuid,
+          mapSize: this.requestIdMap.size,
+        },
+      })
 
       await this.writer.storeRequest({
         requestId: uuid,
@@ -66,6 +81,9 @@ export class StorageAdapter {
         conversationId: data.conversationId,
         branchId: data.branchId,
         messageCount: data.messageCount,
+        parentTaskRequestId: data.parentTaskRequestId,
+        isSubtask: data.isSubtask,
+        taskToolInvocation: data.taskToolInvocation,
       })
     } catch (error) {
       logger.error('Failed to store request', {
@@ -124,6 +142,9 @@ export class StorageAdapter {
         error: undefined,
         toolCallCount: data.tool_call_count,
       })
+
+      // TODO: Clean up the requestIdMap entry here to prevent memory leak
+      // this.requestIdMap.delete(data.request_id)
     } catch (error) {
       logger.error('Failed to store response', {
         requestId: data.request_id,
@@ -172,6 +193,52 @@ export class StorageAdapter {
    */
   async findConversationByParentHash(parentHash: string): Promise<string | null> {
     return await this.writer.findConversationByParentHash(parentHash)
+  }
+
+  /**
+   * Process Task tool invocations in a response
+   */
+  async processTaskToolInvocations(requestId: string, responseBody: any): Promise<void> {
+    const taskInvocations = this.writer.findTaskToolInvocations(responseBody)
+
+    if (taskInvocations.length > 0) {
+      logger.info('Found Task tool invocations', {
+        requestId,
+        metadata: {
+          taskCount: taskInvocations.length,
+          tasks: taskInvocations.map(t => ({ id: t.id, name: t.name })),
+        },
+      })
+
+      // Get the UUID for this request
+      // First check if requestId is already a UUID
+      const uuid = this.isValidUUID(requestId) ? requestId : this.requestIdMap.get(requestId)
+
+      if (!uuid) {
+        logger.warn('No UUID mapping found for request when processing task invocations', {
+          requestId,
+          metadata: {
+            mapSize: this.requestIdMap.size,
+            isUUID: this.isValidUUID(requestId),
+          },
+        })
+        return
+      }
+
+      // Mark the request as having task invocations
+      await this.writer.markTaskToolInvocations(uuid, taskInvocations)
+
+      // Task invocations are now tracked in the database
+      // Linking will happen when new conversations are stored
+    }
+  }
+
+  /**
+   * Check if a string is a valid UUID
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
   }
 
   /**

@@ -214,3 +214,6 @@ Thumbs.db
 
 # Build artifacts
 *.tsbuildinfo
+
+# Debug images
+/*.png

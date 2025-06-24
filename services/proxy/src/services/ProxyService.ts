@@ -147,27 +147,9 @@ export class ProxyService {
           response,
           context,
           auth,
+          conversationData,
           sampleId
         )
-      }
-
-      // Track metrics for successful request
-      // Note: For streaming responses, metrics are tracked after stream completes
-      if (!request.isStreaming) {
-        await this.metricsService.trackRequest(
-          request,
-          response,
-          context,
-          claudeResponse.status,
-          conversationData,
-          auth.accountId
-        )
-      }
-
-      // Send notifications
-      // Note: For streaming responses, notifications are sent after stream completes
-      if (!request.isStreaming) {
-        await this.notificationService.notify(request, response, context, auth)
       }
 
       return finalResponse
@@ -198,7 +180,12 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    _auth: any,
+    auth: any,
+    conversationData?: {
+      currentMessageHash: string
+      parentMessageHash: string | null
+      conversationId: string
+    },
     sampleId?: string
   ): Promise<Response> {
     const log = {
@@ -235,6 +222,24 @@ export class ProxyService {
       outputTokens: response.outputTokens,
       toolCalls: response.toolCallCount,
     })
+
+    // Extract response headers
+    const responseHeaders: Record<string, string> = {}
+    claudeResponse.headers.forEach((value, key) => {
+      responseHeaders[key] = value
+    })
+
+    // Track metrics with full response data
+    await this.metricsService.trackRequest(
+      request,
+      response,
+      context,
+      claudeResponse.status,
+      conversationData,
+      responseHeaders,
+      jsonResponse,
+      auth.accountId
+    )
 
     // Update test sample with response if enabled
     if (sampleId) {
@@ -399,22 +404,20 @@ export class ProxyService {
       for await (const chunk of this.apiClient.processStreamingResponse(claudeResponse, response)) {
         await writer.write(encoder.encode(chunk))
 
-        // Collect chunks for test sample if enabled
-        if (sampleId) {
-          try {
-            // Parse SSE data
-            const lines = chunk.split('\n')
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.substring(6)
-                if (data !== '[DONE]' && data.trim()) {
-                  streamingChunks.push(JSON.parse(data))
-                }
+        // Always collect chunks for response reconstruction
+        try {
+          // Parse SSE data
+          const lines = chunk.split('\n')
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.substring(6)
+              if (data !== '[DONE]' && data.trim()) {
+                streamingChunks.push(JSON.parse(data))
               }
             }
-          } catch (_parseError) {
-            // Ignore parsing errors for test collection
           }
+        } catch (_parseError) {
+          // Ignore parsing errors
         }
       }
 
@@ -425,11 +428,11 @@ export class ProxyService {
         toolCalls: response.toolCallCount,
       })
 
+      // Reconstruct the full response from chunks
+      const fullResponse = this.reconstructResponseFromChunks(streamingChunks)
+
       // Update test sample with streaming response if enabled
       if (sampleId) {
-        // Reconstruct the full response from chunks
-        const fullResponse = this.reconstructResponseFromChunks(streamingChunks)
-
         await testSampleCollector.updateSampleWithResponse(sampleId, claudeResponse, fullResponse, {
           inputTokens: response.inputTokens,
           outputTokens: response.outputTokens,
@@ -438,13 +441,21 @@ export class ProxyService {
         })
       }
 
-      // Track metrics after streaming completes
+      // Extract response headers
+      const responseHeaders: Record<string, string> = {}
+      claudeResponse.headers.forEach((value, key) => {
+        responseHeaders[key] = value
+      })
+
+      // Track metrics after streaming completes with full response data
       await this.metricsService.trackRequest(
         request,
         response,
         context,
         claudeResponse.status,
         conversationData,
+        responseHeaders,
+        fullResponse,
         auth.accountId
       )
 

@@ -452,7 +452,12 @@ apiRoutes.get('/conversations', async c => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    // Get conversations grouped by conversation_id with account info
+    // Get conversations grouped by conversation_id with account info and subtask status
+    // TODO: Optimize query performance (HIGH)
+    // The correlated subqueries for latest_request_id and parent_task_request_id
+    // create an N+1 query pattern. Should be rewritten using window functions
+    // or additional CTEs to calculate all fields in a single pass.
+    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
     const conversationsQuery = `
       WITH conversation_summary AS (
         SELECT 
@@ -469,7 +474,13 @@ apiRoutes.get('/conversations', async c => {
            WHERE conversation_id = ar.conversation_id 
            ${whereClause ? 'AND ' + whereClause.replace('WHERE', '') : ''}
            ORDER BY timestamp DESC 
-           LIMIT 1) as latest_request_id
+           LIMIT 1) as latest_request_id,
+          BOOL_OR(is_subtask) as is_subtask,
+          (SELECT parent_task_request_id FROM api_requests 
+           WHERE conversation_id = ar.conversation_id 
+           AND is_subtask = true 
+           LIMIT 1) as parent_task_request_id,
+          COUNT(CASE WHEN is_subtask THEN 1 END) as subtask_message_count
         FROM api_requests ar
         ${whereClause}
         ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
@@ -495,6 +506,9 @@ apiRoutes.get('/conversations', async c => {
       branchCount: parseInt(row.branch_count),
       modelsUsed: row.models_used,
       latestRequestId: row.latest_request_id,
+      isSubtask: row.is_subtask,
+      parentTaskRequestId: row.parent_task_request_id,
+      subtaskMessageCount: parseInt(row.subtask_message_count || 0),
     }))
 
     return c.json({ conversations })
@@ -749,6 +763,10 @@ apiRoutes.get('/token-usage/accounts', async c => {
     }))
 
     // For each account, get mini time series (last 20 points)
+    // TODO: Fix N+1 query pattern (MEDIUM)
+    // This loops through each account and executes a separate query for time series data.
+    // Should be refactored to fetch all time series data in a single query with window functions.
+    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
     const accountsWithSeries = await Promise.all(
       accounts.map(async account => {
         const miniSeriesQuery = `
