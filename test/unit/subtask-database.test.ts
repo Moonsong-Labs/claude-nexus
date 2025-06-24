@@ -246,7 +246,7 @@ describe('Sub-task Database Logic', () => {
 
       // Verify the correct number of queries were made:
       // 1. detectBranch parent query
-      // 2. detectBranch children query  
+      // 2. detectBranch children query
       // 3. INSERT query
       expect(mockPool.query).toHaveBeenCalledTimes(3)
 

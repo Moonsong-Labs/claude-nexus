@@ -105,28 +105,28 @@ overviewRoutes.get('/', async c => {
     // Group conversations by parent
     const parentConversations = filteredBranches.filter(conv => !conv.isSubtask)
     const subtasksByParent = new Map<string, typeof filteredBranches>()
-    
+
     // Create a map to find parent conversations by their request ID
-    const conversationsByRequestId = new Map<string, typeof filteredBranches[0]>()
+    const conversationsByRequestId = new Map<string, (typeof filteredBranches)[0]>()
     filteredBranches.forEach(conv => {
       if (conv.latestRequestId) {
         conversationsByRequestId.set(conv.latestRequestId, conv)
       }
     })
-    
+
     // Group subtasks by their parent
     // First, create a map of all subtasks
     const subtaskConversations = filteredBranches.filter(conv => conv.isSubtask)
-    
+
     // For now, we'll group orphaned subtasks at the end
     const orphanedSubtasks: typeof filteredBranches = []
-    
+
     subtaskConversations.forEach(subtask => {
       if (subtask.parentTaskRequestId) {
         // Try to find the parent conversation that spawned this subtask
         let parentFound = false
         for (const parent of parentConversations) {
-          // This is a simplified approach - in a real implementation, 
+          // This is a simplified approach - in a real implementation,
           // we'd need to check if the parent conversation contains the request
           // that spawned this subtask
           if (!parentFound) {
@@ -159,7 +159,7 @@ overviewRoutes.get('/', async c => {
       const subtasks = subtasksByParent.get(parent.conversationId) || []
       subtasks.forEach(subtask => groupedConversations.push(subtask))
     })
-    
+
     // Add orphaned subtasks at the end
     orphanedSubtasks.forEach(subtask => groupedConversations.push(subtask))
 
@@ -303,13 +303,17 @@ overviewRoutes.get('/', async c => {
                             <tr style="${branch.isSubtask ? 'background-color: #f9fafb;' : ''}">
                               <td class="text-sm">
                                 <div style="display: flex; align-items: center; gap: 0.5rem; ${branch.isSubtask ? 'padding-left: 2rem;' : ''}">
-                                  ${branch.isSubtask ? `
+                                  ${
+                                    branch.isSubtask
+                                      ? `
                                     <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background-color: #e0e7ff; border-radius: 50%; flex-shrink: 0;" title="This is a sub-task spawned by Task tool">
                                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                       </svg>
                                     </span>
-                                  ` : ''}
+                                  `
+                                      : ''
+                                  }
                                   <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
                                      class="text-blue-600" 
                                      style="font-family: monospace; font-size: 0.75rem;">

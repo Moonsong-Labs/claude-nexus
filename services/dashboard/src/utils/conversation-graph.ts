@@ -127,7 +127,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   // First pass: position regular nodes
   const layoutNodes: LayoutNode[] = []
   const subtaskNodes: typeof graph.nodes = []
-  
+
   // Separate regular nodes and subtask nodes
   graph.nodes.forEach(node => {
     if (node.id.endsWith('-subtasks')) {
@@ -172,7 +172,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       })
     }
   })
-  
+
   // Second pass: position subtask nodes
   subtaskNodes.forEach(node => {
     const parentId = node.parentId
@@ -180,17 +180,20 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
     if (parentNode) {
       const parentLane = branchLanes.get(parentNode.branchId) || 0
       const parentMessageCount = parentNode.messageCount || 0
-      
+
       // Count how many subtask nodes are already positioned for this parent
-      const existingSubtaskNodes = layoutNodes.filter(ln => 
-        ln.id.endsWith('-subtasks') && 
-        subtaskNodes.find(n => n.id === ln.id)?.parentId === parentId
+      const existingSubtaskNodes = layoutNodes.filter(
+        ln =>
+          ln.id.endsWith('-subtasks') &&
+          subtaskNodes.find(n => n.id === ln.id)?.parentId === parentId
       ).length
 
       layoutNodes.push({
         id: node.id,
         x: parentLane * horizontalSpacing + subtaskOffset,
-        y: (maxMessageCount - parentMessageCount) * verticalSpacing + (existingSubtaskNodes * (subtaskNodeHeight + 10)),
+        y:
+          (maxMessageCount - parentMessageCount) * verticalSpacing +
+          existingSubtaskNodes * (subtaskNodeHeight + 10),
         width: subtaskNodeWidth,
         height: subtaskNodeHeight,
         branchId: node.branchId,
@@ -229,7 +232,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
         const endX = targetNode.x
         const endY = targetNode.y + targetNode.height / 2
         const midX = startX + (endX - startX) / 2
-        
+
         layoutEdges.push({
           id: `e${idx}`,
           source: edge.source,
@@ -240,7 +243,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
               endPoint: { x: endX, y: endY },
               bendPoints: [
                 { x: midX, y: startY },
-                { x: midX, y: endY }
+                { x: midX, y: endY },
               ],
             },
           ],

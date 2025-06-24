@@ -78,14 +78,16 @@ async function migrateSubtaskSchema() {
 
     // Process existing data (idempotent)
     console.log('\n🔍 Processing existing Task tool invocations...')
-    
+
     // Count how many requests already have task_tool_invocation populated
-    const { rows: [{ processed_count }] } = await pool.query(`
+    const {
+      rows: [{ processed_count }],
+    } = await pool.query(`
       SELECT COUNT(*) as processed_count 
       FROM api_requests 
       WHERE task_tool_invocation IS NOT NULL
     `)
-    
+
     console.log(`Found ${processed_count} requests already processed`)
 
     // Find all requests that have Task tool invocations in their response body but haven't been processed yet
@@ -111,7 +113,7 @@ async function migrateSubtaskSchema() {
     if (requests.length > 0) {
       // Process all requests in a single batch operation
       console.log('🔄 Processing Task invocations in batch...')
-      
+
       // Extract task invocations and update in batch
       const updateTaskInvocationsQuery = `
         WITH task_extractions AS (
@@ -139,13 +141,13 @@ async function migrateSubtaskSchema() {
         WHERE ar.request_id = te.request_id
         RETURNING ar.request_id
       `
-      
+
       const { rowCount: processedCount } = await pool.query(updateTaskInvocationsQuery)
       console.log(`✅ Updated ${processedCount} requests with Task invocations`)
 
       // Now perform batch linking based on prompts AND timing
       console.log('🔗 Performing batch subtask linking...')
-      
+
       const batchLinkQuery = `
         WITH parent_task_prompts AS (
           SELECT 
@@ -197,10 +199,10 @@ async function migrateSubtaskSchema() {
         WHERE ar.conversation_id = ms.subtask_conversation_id
         RETURNING ar.conversation_id, ar.parent_task_request_id
       `
-      
+
       const { rowCount: linkedCount } = await pool.query(batchLinkQuery)
       console.log(`✅ Linked ${linkedCount || 0} sub-task conversations based on prompt matching`)
-      
+
       // Update task invocations with linked conversation IDs
       if (linkedCount && linkedCount > 0) {
         const updateLinkedConversationsQuery = `
@@ -224,28 +226,29 @@ async function migrateSubtaskSchema() {
           AND lt.rn = 1
           AND NOT (ar.task_tool_invocation->0->>'linked_conversation_id' IS NOT NULL)
         `
-        
+
         await pool.query(updateLinkedConversationsQuery)
       }
     }
 
     // Commit transaction
     await pool.query('COMMIT')
-    
+
     // Final summary
-    const { rows: [summary] } = await pool.query(`
+    const {
+      rows: [summary],
+    } = await pool.query(`
       SELECT 
         COUNT(*) FILTER (WHERE task_tool_invocation IS NOT NULL) as tasks_with_invocations,
         COUNT(*) FILTER (WHERE is_subtask = true) as subtask_conversations,
         COUNT(DISTINCT parent_task_request_id) as parent_tasks_with_subtasks
       FROM api_requests
     `)
-    
+
     console.log('\n✨ Migration and data processing complete!')
     console.log(`   - ${summary.tasks_with_invocations} requests with Task invocations`)
     console.log(`   - ${summary.subtask_conversations} sub-task conversations`)
     console.log(`   - ${summary.parent_tasks_with_subtasks} parent tasks with linked sub-tasks`)
-    
   } catch (error) {
     // Rollback on error
     await pool.query('ROLLBACK')
