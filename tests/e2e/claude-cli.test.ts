@@ -69,18 +69,27 @@ describe('Claude CLI End-to-End Tests', () => {
 
   describe('Proxy Logging', () => {
     it('should log requests to database', async () => {
+      // Get initial count
+      const { stdout: initialStdout } = await exec(
+        `${dockerCompose} exec -T postgres psql -U postgres -d claude_proxy -c "SELECT COUNT(*) FROM request_response_logs;" -t`
+      )
+      const initialCount = parseInt(initialStdout.trim())
+
       // Make a test request
       await exec(
         `${dockerCompose} exec -T claude-cli /usr/local/bin/setup-claude claude "test request"`
       ).catch(() => {}) // Ignore errors
 
+      // Wait a moment for the log to be written
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
       // Check database for logged requests
-      const { stdout } = await exec(
+      const { stdout: finalStdout } = await exec(
         `${dockerCompose} exec -T postgres psql -U postgres -d claude_proxy -c "SELECT COUNT(*) FROM request_response_logs;" -t`
       )
 
-      const count = parseInt(stdout.trim())
-      expect(count).toBeGreaterThanOrEqual(0)
+      const finalCount = parseInt(finalStdout.trim())
+      expect(finalCount).toBe(initialCount + 1)
     })
   })
 
