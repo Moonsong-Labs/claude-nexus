@@ -404,22 +404,20 @@ export class ProxyService {
       for await (const chunk of this.apiClient.processStreamingResponse(claudeResponse, response)) {
         await writer.write(encoder.encode(chunk))
 
-        // Collect chunks for test sample if enabled
-        if (sampleId) {
-          try {
-            // Parse SSE data
-            const lines = chunk.split('\n')
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.substring(6)
-                if (data !== '[DONE]' && data.trim()) {
-                  streamingChunks.push(JSON.parse(data))
-                }
+        // Always collect chunks for response reconstruction
+        try {
+          // Parse SSE data
+          const lines = chunk.split('\n')
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.substring(6)
+              if (data !== '[DONE]' && data.trim()) {
+                streamingChunks.push(JSON.parse(data))
               }
             }
-          } catch (_parseError) {
-            // Ignore parsing errors for test collection
           }
+        } catch (_parseError) {
+          // Ignore parsing errors
         }
       }
 
