@@ -103,8 +103,8 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   const subtaskNodeWidth = 100
   const subtaskNodeHeight = 36
   const horizontalSpacing = 120
-  const verticalSpacing = 30
-  const subtaskOffset = 150 // How far to the right sub-task nodes should be
+  const verticalSpacing = 50
+  const subtaskOffset = 180 // How far to the right sub-task nodes should be
 
   // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
@@ -136,11 +136,17 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       if (parentNode) {
         const parentLane = branchLanes.get(parentNode.branchId) || 0
         const parentMessageCount = parentNode.messageCount || 0
+        
+        // Find how many subtask nodes are already positioned for this parent
+        const existingSubtaskNodes = layoutNodes.filter(ln => 
+          ln.id.endsWith('-subtasks') && 
+          graph.nodes.find(n => n.id === ln.id)?.parentId === parentId
+        ).length
 
         return {
           id: node.id,
           x: parentLane * horizontalSpacing + subtaskOffset,
-          y: (maxMessageCount - parentMessageCount) * verticalSpacing,
+          y: (maxMessageCount - parentMessageCount) * verticalSpacing + (existingSubtaskNodes * (subtaskNodeHeight + 10)),
           width: subtaskNodeWidth,
           height: subtaskNodeHeight,
           branchId: node.branchId,
@@ -213,20 +219,24 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
 
       if (isToSubtask) {
         // For edges to sub-task nodes, draw from the right side of parent to left side of sub-task
+        const startX = sourceNode.x + sourceNode.width
+        const startY = sourceNode.y + sourceNode.height / 2
+        const endX = targetNode.x
+        const endY = targetNode.y + targetNode.height / 2
+        const midX = startX + (endX - startX) / 2
+        
         layoutEdges.push({
           id: `e${idx}`,
           source: edge.source,
           target: edge.target,
           sections: [
             {
-              startPoint: {
-                x: sourceNode.x + sourceNode.width,
-                y: sourceNode.y + sourceNode.height / 2,
-              },
-              endPoint: {
-                x: targetNode.x,
-                y: targetNode.y + targetNode.height / 2,
-              },
+              startPoint: { x: startX, y: startY },
+              endPoint: { x: endX, y: endY },
+              bendPoints: [
+                { x: midX, y: startY },
+                { x: midX, y: endY }
+              ],
             },
           ],
         })
@@ -339,21 +349,20 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       const endX = section.endPoint.x + padding
       const endY = section.endPoint.y + padding
 
-      if (isBranchDiverging && Math.abs(startX - endX) > 5) {
+      if (section.bendPoints && section.bendPoints.length > 0) {
+        // Use bend points for curved edges
+        path = `M${startX},${startY}`
+        section.bendPoints.forEach(bend => {
+          path += ` L${bend.x + padding},${bend.y + padding}`
+        })
+        path += ` L${endX},${endY}`
+      } else if (isBranchDiverging && Math.abs(startX - endX) > 5) {
         // For diverging branches, create a squared path with right angles
         const midY = startY + (endY - startY) / 2
         path = `M${startX},${startY} L${startX},${midY} L${endX},${midY} L${endX},${endY}`
       } else {
-        // For regular edges, use straight line or bend points if available
-        path = `M${startX},${startY}`
-
-        if (section.bendPoints && section.bendPoints.length > 0) {
-          for (const bend of section.bendPoints) {
-            path += ` L${bend.x + padding},${bend.y + padding}`
-          }
-        }
-
-        path += ` L${endX},${endY}`
+        // For regular edges, use straight line
+        path = `M${startX},${startY} L${endX},${endY}`
       }
 
       svg += `  <path d="${path}" class="graph-edge" />\n`
