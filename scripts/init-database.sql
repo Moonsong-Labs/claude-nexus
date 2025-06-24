@@ -48,21 +48,6 @@ CREATE TABLE IF NOT EXISTS streaming_chunks (
     UNIQUE(request_id, chunk_index)
 );
 
--- Create domain_telemetry table for token tracking
-CREATE TABLE IF NOT EXISTS domain_telemetry (
-    id SERIAL PRIMARY KEY,
-    domain VARCHAR(255) NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL,
-    input_tokens INTEGER DEFAULT 0,
-    output_tokens INTEGER DEFAULT 0,
-    total_tokens INTEGER DEFAULT 0,
-    model VARCHAR(100),
-    request_type VARCHAR(50),
-    cache_creation_input_tokens INTEGER DEFAULT 0,
-    cache_read_input_tokens INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- Create indexes for api_requests
 CREATE INDEX IF NOT EXISTS idx_requests_domain ON api_requests(domain);
 CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON api_requests(timestamp);
@@ -77,10 +62,6 @@ CREATE INDEX IF NOT EXISTS idx_requests_current_hash ON api_requests(current_mes
 
 -- Create indexes for streaming_chunks
 CREATE INDEX IF NOT EXISTS idx_chunks_request_id ON streaming_chunks(request_id);
-
--- Create indexes for domain_telemetry
-CREATE INDEX IF NOT EXISTS idx_telemetry_domain ON domain_telemetry(domain);
-CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp ON domain_telemetry(timestamp);
 
 -- Add column comments
 COMMENT ON COLUMN api_requests.current_message_hash IS 'SHA-256 hash of the last message in this request';

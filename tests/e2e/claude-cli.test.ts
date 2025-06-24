@@ -79,15 +79,6 @@ describe('Claude CLI End-to-End Tests', () => {
       const count = parseInt(stdout.trim())
       expect(count).toBeGreaterThanOrEqual(0)
     })
-
-    it('should track token usage', async () => {
-      const { stdout } = await exec(
-        'docker compose exec -T postgres psql -U postgres -d claude_proxy -c "SELECT COUNT(*) FROM domain_telemetry;" -t'
-      )
-
-      const count = parseInt(stdout.trim())
-      expect(count).toBeGreaterThanOrEqual(0)
-    })
   })
 
   describe('Error Handling', () => {
