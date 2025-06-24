@@ -204,13 +204,13 @@ overviewRoutes.get('/', async c => {
         </div>
       </div>
 
-      <!-- Conversation Branches Table -->
+      <!-- Conversations Table -->
       <div class="section">
         <div class="section-header">
-          Conversation Branches
+          Conversations
           <span class="text-sm text-gray-500" style="float: right;">
             Showing ${paginatedBranches.length} of ${totalItems}
-            ${searchQuery ? 'filtered ' : ''}branches (Page ${currentPage} of ${totalPages})
+            ${searchQuery ? 'filtered ' : ''}conversations (Page ${currentPage} of ${totalPages})
           </span>
         </div>
         <div class="section-content">
@@ -241,19 +241,20 @@ overviewRoutes.get('/', async c => {
                           return `
                             <tr>
                               <td class="text-sm">
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                  ${branch.isSubtask ? `
-                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background-color: #e0e7ff; border-radius: 50%; flex-shrink: 0;" title="This is a sub-task spawned by Task tool">
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                      </svg>
-                                    </span>
-                                  ` : ''}
+                                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                                   <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
                                      class="text-blue-600" 
                                      style="font-family: monospace; font-size: 0.75rem;">
                                     ${branch.conversationId.substring(0, 8)}...
                                   </a>
+                                  ${branch.isSubtask ? `
+                                    <div style="display: flex; align-items: center; gap: 0.25rem; margin-left: 1rem;">
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                      </svg>
+                                      <span style="font-size: 0.7rem; color: #6b7280;">Sub-task</span>
+                                    </div>
+                                  ` : ''}
                                 </div>
                               </td>
                               <td class="text-sm">
