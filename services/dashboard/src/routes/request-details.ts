@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
-import { parseConversation, calculateCost, formatMessageTime } from '../utils/conversation.js'
+import { parseConversation, calculateCost } from '../utils/conversation.js'
 import { formatDuration, escapeHtml } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
 
@@ -80,7 +80,6 @@ requestDetailsRoutes.get('/request/:id', async c => {
         return `
         <div class="${messageClass}" id="message-${idx}" data-message-index="${idx}">
           <div class="message-meta">
-            <div class="message-time">${formatMessageTime(msg.timestamp)}</div>
             <div class="message-role">${roleDisplay}</div>
             <button class="copy-message-link" data-message-index="${idx}" title="Copy link to this message">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -439,6 +438,61 @@ requestDetailsRoutes.get('/request/:id', async c => {
           const el = document.getElementById(id)
           return el ? JSON.parse(el.textContent) : null
         }
+
+        // Function to toggle message expansion
+        function toggleMessage(messageId) {
+          const idx = messageId.split('-')[1]
+          const content = document.getElementById('content-' + idx)
+          const truncated = document.getElementById('truncated-' + idx)
+
+          if (content && truncated) {
+            if (content.classList.contains('hidden')) {
+              content.classList.remove('hidden')
+              truncated.classList.add('hidden')
+            } else {
+              content.classList.add('hidden')
+              truncated.classList.remove('hidden')
+            }
+          }
+        }
+
+        // Add copy link functionality
+        document.addEventListener('DOMContentLoaded', function() {
+          // Handle copy link buttons
+          document.querySelectorAll('.copy-message-link').forEach(button => {
+            button.addEventListener('click', function(e) {
+              e.preventDefault()
+              const messageIndex = this.getAttribute('data-message-index')
+              const url = window.location.origin + window.location.pathname + '#message-' + messageIndex
+              
+              navigator.clipboard.writeText(url).then(() => {
+                // Show feedback
+                const originalHtml = this.innerHTML
+                this.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"></path></svg>'
+                this.style.color = '#10b981'
+                
+                setTimeout(() => {
+                  this.innerHTML = originalHtml
+                  this.style.color = ''
+                }, 2000)
+              }).catch(err => {
+                console.error('Failed to copy link:', err)
+              })
+            })
+          })
+
+          // Scroll to message if hash is present
+          if (window.location.hash) {
+            const messageElement = document.querySelector(window.location.hash)
+            if (messageElement) {
+              messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              messageElement.style.backgroundColor = '#fef3c7'
+              setTimeout(() => {
+                messageElement.style.backgroundColor = ''
+              }, 2000)
+            }
+          }
+        })
       </script>
 
       <!-- Hidden data storage -->
@@ -609,19 +663,6 @@ requestDetailsRoutes.get('/request/:id', async c => {
           }
         }
 
-        function toggleMessage(messageId) {
-          const idx = messageId.split('-')[1]
-          const content = document.getElementById('content-' + idx)
-          const truncated = document.getElementById('truncated-' + idx)
-
-          if (content.classList.contains('hidden')) {
-            content.classList.remove('hidden')
-            truncated.classList.add('hidden')
-          } else {
-            content.classList.add('hidden')
-            truncated.classList.remove('hidden')
-          }
-        }
 
         // Copy JSON to clipboard
         function copyJsonToClipboard(type) {

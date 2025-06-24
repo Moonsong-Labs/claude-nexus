@@ -4,7 +4,6 @@ import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import { formatNumber, formatDuration, escapeHtml, formatRelativeTime } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
-import { getBranchColor } from '../utils/conversation-graph.js'
 
 export const overviewRoutes = new Hono<{
   Variables: {
@@ -52,6 +51,7 @@ overviewRoutes.get('/', async c => {
       conversationId: string
       accountId?: string
       branch: string
+      branchCount: number
       messageCount: number
       tokens: number
       firstMessage: Date
@@ -66,12 +66,13 @@ overviewRoutes.get('/', async c => {
         conversationId: conv.conversationId,
         accountId: conv.accountId,
         branch: 'main', // API doesn't return branch info yet
+        branchCount: conv.branchCount || 1,
         messageCount: conv.messageCount,
         tokens: conv.totalTokens,
         firstMessage: new Date(conv.firstMessageTime),
         lastMessage: new Date(conv.lastMessageTime),
         domain: conv.domain,
-        latestRequestId: undefined, // Not available from API yet
+        latestRequestId: conv.latestRequestId,
       })
     })
 
@@ -209,7 +210,7 @@ overviewRoutes.get('/', async c => {
                   <thead>
                     <tr>
                       <th>Conversation</th>
-                      <th>Branch</th>
+                      <th>Branches</th>
                       <th>Account</th>
                       <th>Domain</th>
                       <th>Messages</th>
@@ -225,7 +226,6 @@ overviewRoutes.get('/', async c => {
                         .map(branch => {
                           const duration =
                             branch.lastMessage.getTime() - branch.firstMessage.getTime()
-                          const branchColor = getBranchColor(branch.branch)
 
                           return `
                             <tr>
@@ -237,9 +237,14 @@ overviewRoutes.get('/', async c => {
                                 </a>
                               </td>
                               <td class="text-sm">
-                                <span style="color: ${branchColor}; font-weight: 500;">
-                                  ${escapeHtml(branch.branch)}
-                                </span>
+                                ${branch.branchCount > 1
+                                  ? `<span style="color: #2563eb; font-weight: 600;">
+                                      ${branch.branchCount} branches
+                                    </span>`
+                                  : `<span style="color: #6b7280;">
+                                      1 branch
+                                    </span>`
+                                }
                               </td>
                               <td class="text-sm">
                                 ${
@@ -248,7 +253,9 @@ overviewRoutes.get('/', async c => {
                                          class="text-blue-600" 
                                          style="font-family: monospace; font-size: 0.75rem;"
                                          title="View token usage for ${escapeHtml(branch.accountId)}">
-                                        ${escapeHtml(branch.accountId.substring(0, 12))}...
+                                        ${branch.accountId.length > 20 
+                                          ? escapeHtml(branch.accountId.substring(0, 17)) + '...' 
+                                          : escapeHtml(branch.accountId)}
                                       </a>`
                                     : '<span class="text-gray-400">N/A</span>'
                                 }

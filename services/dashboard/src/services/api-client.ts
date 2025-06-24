@@ -109,6 +109,7 @@ interface ConversationSummary {
   totalTokens: number
   branchCount: number
   modelsUsed: string[]
+  latestRequestId?: string
 }
 
 /**

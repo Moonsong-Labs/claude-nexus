@@ -464,8 +464,13 @@ apiRoutes.get('/conversations', async c => {
           COUNT(*) as message_count,
           SUM(input_tokens + output_tokens) as total_tokens,
           COUNT(DISTINCT branch_id) as branch_count,
-          ARRAY_AGG(DISTINCT model) as models_used
-        FROM api_requests
+          ARRAY_AGG(DISTINCT model) as models_used,
+          (SELECT request_id FROM api_requests 
+           WHERE conversation_id = ar.conversation_id 
+           ${whereClause ? 'AND ' + whereClause.replace('WHERE', '') : ''}
+           ORDER BY timestamp DESC 
+           LIMIT 1) as latest_request_id
+        FROM api_requests ar
         ${whereClause}
         ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
         GROUP BY conversation_id, domain, account_id
@@ -489,6 +494,7 @@ apiRoutes.get('/conversations', async c => {
       totalTokens: parseInt(row.total_tokens),
       branchCount: parseInt(row.branch_count),
       modelsUsed: row.models_used,
+      latestRequestId: row.latest_request_id,
     }))
 
     return c.json({ conversations })

@@ -191,41 +191,111 @@ export const dashboardStyles = `
   .message {
     display: flex;
     gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
     font-size: 0.875rem;
-    line-height: 1.4;
+    line-height: 1.5;
   }
 
   .message-meta {
     flex-shrink: 0;
-    width: 65px;
+    width: 80px;
     padding-top: 0.5rem;
     text-align: right;
     font-size: 0.75rem;
     color: #6b7280;
-    font-weight: 500;
   }
 
   .message-content {
     flex: 1;
     min-width: 0;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.375rem;
-    background: #f3f4f6;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: #f9fafb;
+    border-left: 4px solid #e5e7eb;
+    position: relative;
   }
 
-  .message.user .message-content {
-    background: #e0e7ff;
+  .message-user .message-content {
+    background: #eff6ff;
+    border-left-color: #3b82f6;
   }
 
-  .message.assistant .message-content {
+  .message-assistant .message-content {
     background: white;
     border: 1px solid #e5e7eb;
+    border-left: 4px solid #10b981;
+  }
+
+  /* Special styling for assistant responses in request details */
+  .message-assistant-response .message-content {
+    background: #f0fdf4;
+    border: 2px solid #86efac;
+    border-left: 6px solid #10b981;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.1);
   }
 
   .message-text {
     white-space: pre-wrap;
     word-wrap: break-word;
+  }
+
+  /* Code blocks in messages */
+  .message-content pre {
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+  }
+
+  .message-content code {
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+    font-family: monospace;
+  }
+
+  .message-content pre code {
+    padding: 0;
+    font-size: 0.875rem;
+  }
+
+  /* Message role and time styles */
+  .message-role {
+    font-weight: 600;
+    margin-top: 0.25rem;
+  }
+
+  .message-time {
+    font-size: 0.675rem;
+    color: #9ca3af;
+  }
+
+  /* Tool message styles */
+  .message-tool-use .message-content {
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    border-left: 4px solid #f59e0b;
+  }
+
+  .message-tool-result .message-content {
+    background: #dcfce7;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #22c55e;
+  }
+
+  /* Copy link button */
+  .copy-message-link {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0.25rem;
+    margin-top: 0.25rem;
+    transition: color 0.2s;
+  }
+
+  .copy-message-link:hover {
+    color: #6b7280;
   }
 
   /* Tool call styles */
@@ -383,6 +453,63 @@ export const dashboardStyles = `
     color: #9ca3af;
   }
 
+  /* View toggle styles */
+  .view-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .view-toggle button {
+    padding: 0.5rem 1rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #6b7280;
+    transition: all 0.2s;
+  }
+
+  .view-toggle button:hover {
+    color: #374151;
+  }
+
+  .view-toggle button.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+  }
+
+  /* Cost info styles */
+  .cost-info {
+    display: inline-flex;
+    gap: 0.75rem;
+    color: #6b7280;
+  }
+
+  .cost-info span {
+    white-space: nowrap;
+  }
+
+  /* Message truncation styles */
+  .message-truncated {
+    position: relative;
+  }
+
+  .show-more-btn {
+    color: #3b82f6;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+    text-decoration: underline;
+  }
+
+  .show-more-btn:hover {
+    color: #2563eb;
+  }
+
   /* Utility classes */
   .text-right {
     text-align: right;
@@ -402,8 +529,103 @@ export const dashboardStyles = `
     white-space: nowrap;
   }
 
+  .hidden {
+    display: none !important;
+  }
+
   .flex {
     display: flex;
+  }
+
+  /* Conversation detail styles */
+  .conversation-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .conversation-stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .conversation-stat-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+  }
+
+  .conversation-stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  /* Branch filter styles */
+  .branch-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .branch-chip {
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    border-radius: 9999px;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: 1px solid;
+    font-weight: 500;
+  }
+
+  .branch-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .branch-chip-active {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  }
+
+  /* Conversation graph container */
+  .conversation-graph-container {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 2rem;
+    margin-top: 2rem;
+  }
+
+  .conversation-graph {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+
+  .conversation-timeline {
+    min-width: 0;
+  }
+
+  /* Responsive layout */
+  @media (max-width: 1024px) {
+    .conversation-graph-container {
+      grid-template-columns: 1fr;
+    }
+    
+    .conversation-graph {
+      position: static;
+      max-height: 500px;
+    }
   }
 
   .items-center {
