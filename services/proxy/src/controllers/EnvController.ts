@@ -6,7 +6,7 @@ import { serializeError } from '../types/errors'
 
 /**
  * Controller for handling /api/.env endpoint
- * 
+ *
  * NOTE: This endpoint is not documented in the official Anthropic API.
  * Implementation is provided for compatibility but may need adjustment
  * based on actual API behavior.
@@ -31,11 +31,7 @@ export class EnvController {
       const body = c.req.method === 'GET' ? undefined : await c.req.json().catch(() => ({}))
 
       // Delegate to service with a special request format
-      const response = await this.proxyService.handleEnvRequest(
-        body,
-        requestContext,
-        c.req.method
-      )
+      const response = await this.proxyService.handleEnvRequest(body, requestContext, c.req.method)
 
       return response
     } catch (error) {

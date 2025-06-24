@@ -53,7 +53,7 @@ export class ClaudeApiClient {
     auth: AuthResult
   ): Promise<Response> {
     const url = `${this.config.baseUrl}${endpoint}`
-    
+
     // Create headers from auth result
     const headers: Record<string, string> = {
       ...auth.headers,

@@ -580,11 +580,7 @@ export class ProxyService {
    * Handle an env endpoint request
    * NOTE: This endpoint is not documented in the official Anthropic API
    */
-  async handleEnvRequest(
-    body: any,
-    context: RequestContext,
-    method: string
-  ): Promise<Response> {
+  async handleEnvRequest(body: any, context: RequestContext, method: string): Promise<Response> {
     const log = {
       info: (message: string, metadata?: Record<string, any>) => {
         logger.info(message, { requestId: context.requestId, domain: context.host, metadata })
@@ -620,16 +616,11 @@ export class ProxyService {
       })
 
       // Forward to Claude using a generic endpoint approach
-      const claudeResponse = await this.apiClient.forwardToEndpoint(
-        '/api/.env',
-        method,
-        body,
-        auth
-      )
+      const claudeResponse = await this.apiClient.forwardToEndpoint('/api/.env', method, body, auth)
 
       // For non-streaming responses, return directly
       const responseBody = await claudeResponse.text()
-      
+
       // Try to parse as JSON, otherwise return as text
       let parsedBody: any
       try {
