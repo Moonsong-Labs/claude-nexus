@@ -65,6 +65,7 @@ overviewRoutes.get('/', async c => {
       latestRequestId?: string
       isSubtask?: boolean
       parentTaskRequestId?: string
+      parentConversationId?: string
       subtaskMessageCount?: number
     }> = []
 
@@ -83,6 +84,7 @@ overviewRoutes.get('/', async c => {
         latestRequestId: conv.latestRequestId,
         isSubtask: conv.isSubtask,
         parentTaskRequestId: conv.parentTaskRequestId,
+        parentConversationId: conv.parentConversationId,
         subtaskMessageCount: conv.subtaskMessageCount,
       })
     })
@@ -102,58 +104,33 @@ overviewRoutes.get('/', async c => {
     // Sort by last message time
     filteredBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
 
-    // Group conversations by parent
-    const parentConversations = filteredBranches.filter(conv => !conv.isSubtask)
-    const subtasksByParent = new Map<string, typeof filteredBranches>()
-
-    // TODO: Fix incorrect sub-task grouping logic (CRITICAL)
-    // Currently assigns subtasks to the first available parent, which is incorrect.
-    // Need to add parent_conversation_id to API response from /api/conversations endpoint
-    // and use it for proper grouping. Without this, subtasks may appear under wrong parents.
-    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
-
-    // Group subtasks by their parent
-    // First, create a map of all subtasks
-    const subtaskConversations = filteredBranches.filter(conv => conv.isSubtask)
-
-    // For now, we'll group orphaned subtasks at the end
+    // Group conversations and their subtasks
+    const parentConversations: typeof filteredBranches = []
+    const subtasksByParentId = new Map<string, typeof filteredBranches>()
     const orphanedSubtasks: typeof filteredBranches = []
+    const allParentConvIds = new Set(filteredBranches.filter(c => !c.isSubtask).map(c => c.conversationId))
 
-    subtaskConversations.forEach(subtask => {
-      if (subtask.parentTaskRequestId) {
-        // Try to find the parent conversation that spawned this subtask
-        let parentFound = false
-        for (const parent of parentConversations) {
-          // FIXME: This arbitrarily assigns subtasks to the first parent conversation
-          // The correct approach requires knowing which conversation contains the
-          // parent task request ID, which needs API enhancement
-          if (!parentFound) {
-            // Temporary workaround: add subtasks to the first available parent
-            const key = parent.conversationId
-            if (!subtasksByParent.has(key)) {
-              subtasksByParent.set(key, [])
-            }
-            // Only add if not already added
-            const existing = subtasksByParent.get(key)!
-            if (!existing.some(s => s.conversationId === subtask.conversationId)) {
-              subtasksByParent.get(key)!.push(subtask)
-              parentFound = true
-            }
+    for (const conv of filteredBranches) {
+      if (conv.isSubtask) {
+        // A subtask is an orphan if its parent doesn't exist in the currently fetched list (due to pagination).
+        if (conv.parentConversationId && allParentConvIds.has(conv.parentConversationId)) {
+          if (!subtasksByParentId.has(conv.parentConversationId)) {
+            subtasksByParentId.set(conv.parentConversationId, [])
           }
-        }
-        if (!parentFound) {
-          orphanedSubtasks.push(subtask)
+          subtasksByParentId.get(conv.parentConversationId)!.push(conv)
+        } else {
+          orphanedSubtasks.push(conv)
         }
       } else {
-        orphanedSubtasks.push(subtask)
+        parentConversations.push(conv)
       }
-    })
+    }
 
     // Build flattened list with parent conversations followed by their subtasks
     const groupedConversations: typeof filteredBranches = []
     parentConversations.forEach(parent => {
       groupedConversations.push(parent)
-      const subtasks = subtasksByParent.get(parent.conversationId) || []
+      const subtasks = subtasksByParentId.get(parent.conversationId) || []
       subtasks.forEach(subtask => groupedConversations.push(subtask))
     })
 

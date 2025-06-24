@@ -467,7 +467,7 @@ apiRoutes.get('/conversations', async c => {
           MIN(timestamp) as first_message_time,
           MAX(timestamp) as last_message_time,
           COUNT(*) as message_count,
-          SUM(input_tokens + output_tokens) as total_tokens,
+          SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
           COUNT(DISTINCT branch_id) as branch_count,
           ARRAY_AGG(DISTINCT model) as models_used,
           (SELECT request_id FROM api_requests 
@@ -486,7 +486,11 @@ apiRoutes.get('/conversations', async c => {
         ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
         GROUP BY conversation_id, domain, account_id
       )
-      SELECT * FROM conversation_summary
+      SELECT 
+        cs.*,
+        parent_req.conversation_id as parent_conversation_id
+      FROM conversation_summary cs
+      LEFT JOIN api_requests parent_req ON cs.parent_task_request_id = parent_req.request_id
       ORDER BY last_message_time DESC
       LIMIT $${++paramCount}
     `
@@ -508,6 +512,7 @@ apiRoutes.get('/conversations', async c => {
       latestRequestId: row.latest_request_id,
       isSubtask: row.is_subtask,
       parentTaskRequestId: row.parent_task_request_id,
+      parentConversationId: row.parent_conversation_id,
       subtaskMessageCount: parseInt(row.subtask_message_count || 0),
     }))
 
