@@ -39,60 +39,86 @@ async function linkSubtasks() {
 
     console.log(`Found ${parentTasks.length} requests with Task invocations in the last hour`)
 
-    let totalLinked = 0
-
-    for (const parent of parentTasks) {
-      for (const task of parent.task_tool_invocation) {
-        const taskPrompt = task.input?.prompt || task.input?.description || ''
-
-        if (!taskPrompt) continue
-
-        // Link conversations that match this task prompt
-        const linkQuery = `
-          UPDATE api_requests
-          SET parent_task_request_id = $1,
-              is_subtask = true
-          WHERE conversation_id IN (
-            SELECT DISTINCT ar.conversation_id
-            FROM api_requests ar
-            WHERE ar.timestamp > $2
-            AND ar.timestamp < $2 + interval '30 seconds'
-            AND ar.timestamp = (
-              SELECT MIN(timestamp) FROM api_requests WHERE conversation_id = ar.conversation_id
-            )
-            AND body->'messages'->0->>'role' = 'user'
-            AND (
-              -- Check if content matches (handling both string and array formats)
-              (body->'messages'->0->>'content' = $3)
-              OR 
-              (body->'messages'->0->'content'->0->>'text' = $3)
-              OR 
-              (body->'messages'->0->'content'->1->>'text' = $3)
-            )
-            AND parent_task_request_id IS NULL -- Not already linked
+    // Perform batch linking for all parent tasks
+    if (parentTasks.length > 0) {
+      const batchLinkQuery = `
+        WITH parent_task_prompts AS (
+          SELECT 
+            ar.request_id,
+            ar.timestamp,
+            ar.conversation_id as parent_conversation_id,
+            jsonb_array_elements(ar.task_tool_invocation) as task,
+            (jsonb_array_elements(ar.task_tool_invocation)->>'input')::jsonb->>'prompt' as prompt,
+            (jsonb_array_elements(ar.task_tool_invocation)->>'input')::jsonb->>'description' as description
+          FROM api_requests ar
+          WHERE ar.task_tool_invocation IS NOT NULL
+          AND ar.timestamp > NOW() - interval '1 hour'
+        ),
+        task_prompts AS (
+          SELECT 
+            request_id,
+            timestamp,
+            parent_conversation_id,
+            COALESCE(prompt, description) as task_prompt
+          FROM parent_task_prompts
+          WHERE COALESCE(prompt, description) IS NOT NULL
+        ),
+        first_messages AS (
+          SELECT DISTINCT ON (ar.conversation_id)
+            ar.conversation_id,
+            ar.timestamp,
+            ar.body->'messages'->0->>'content' as string_content,
+            ar.body->'messages'->0->'content'->0->>'text' as array_content_0,
+            ar.body->'messages'->0->'content'->1->>'text' as array_content_1
+          FROM api_requests ar
+          WHERE ar.timestamp = (
+            SELECT MIN(timestamp) FROM api_requests WHERE conversation_id = ar.conversation_id
           )
-          RETURNING conversation_id
-        `
-
-        const result = await client.query(linkQuery, [
-          parent.request_id,
-          parent.timestamp,
-          taskPrompt,
-        ])
-
-        if (result.rowCount && result.rowCount > 0) {
-          console.log(
-            `✅ Linked ${result.rowCount} sub-task conversation(s) to parent ${parent.request_id}`
+          AND ar.body->'messages'->0->>'role' = 'user'
+          AND ar.parent_task_request_id IS NULL
+          ORDER BY ar.conversation_id, ar.timestamp
+        ),
+        matched_subtasks AS (
+          SELECT DISTINCT
+            tp.request_id as parent_request_id,
+            fm.conversation_id as subtask_conversation_id
+          FROM task_prompts tp
+          JOIN first_messages fm ON (
+            fm.timestamp > tp.timestamp AND
+            fm.timestamp < tp.timestamp + interval '30 seconds' AND
+            fm.conversation_id != tp.parent_conversation_id AND
+            (
+              fm.string_content = tp.task_prompt OR
+              fm.array_content_0 = tp.task_prompt OR
+              fm.array_content_1 = tp.task_prompt
+            )
           )
-          totalLinked += result.rowCount
-        }
+        ),
+        updated AS (
+          UPDATE api_requests ar
+          SET 
+            parent_task_request_id = ms.parent_request_id,
+            is_subtask = true
+          FROM matched_subtasks ms
+          WHERE ar.conversation_id = ms.subtask_conversation_id
+          RETURNING ar.conversation_id, ar.parent_task_request_id
+        )
+        SELECT 
+          COUNT(DISTINCT conversation_id) as linked_conversations,
+          COUNT(DISTINCT parent_task_request_id) as parent_tasks
+        FROM updated
+      `
+
+      const result = await client.query(batchLinkQuery)
+      const { linked_conversations, parent_tasks } = result.rows[0]
+      
+      if (linked_conversations > 0) {
+        console.log(`\n✅ Linked ${linked_conversations} sub-task conversations to ${parent_tasks} parent tasks`)
+      } else {
+        console.log('\n⏳ No new sub-tasks to link')
       }
-    }
-
-    if (totalLinked > 0) {
-      console.log(`\n✅ Total linked: ${totalLinked} sub-task conversations`)
     } else {
-      console.log('\n⏳ No new sub-tasks to link')
+      console.log('\n⏳ No parent tasks found in the last hour')
     }
   } catch (error) {
     console.error('❌ Error linking sub-tasks:', error)

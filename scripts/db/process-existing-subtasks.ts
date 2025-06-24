@@ -35,10 +35,15 @@ async function processExistingSubtasks() {
     let processedCount = 0
     let linkedCount = 0
 
+    // Process all requests in batches
+    console.log('🔄 Processing Task invocations in batch...')
+    
+    // First, extract and store all task invocations
+    const taskInvocationUpdates: Array<{ request_id: string; task_invocations: any }> = []
+    const taskPromptMappings: Array<{ request_id: string; prompt: string; task_index: number }> = []
+    
     for (const request of requests) {
-      const { request_id, response_body, conversation_id } = request
-
-      // Check if response contains Task tool invocations
+      const { request_id, response_body } = request
       const content = response_body.content
       if (!Array.isArray(content)) continue
 
@@ -48,75 +53,166 @@ async function processExistingSubtasks() {
 
       if (taskInvocations.length === 0) continue
 
-      console.log(
-        `\n📋 Processing request ${request_id} with ${taskInvocations.length} Task invocations`
-      )
+      const taskDetails = taskInvocations.map((task: any, index: number) => {
+        const detail = {
+          id: task.id,
+          name: task.name || 'Task',
+          prompt: task.input?.prompt || '',
+          description: task.input?.description || '',
+        }
+        
+        // Track prompts for linking
+        if (detail.prompt) {
+          taskPromptMappings.push({
+            request_id,
+            prompt: detail.prompt.trim(),
+            task_index: index
+          })
+        }
+        
+        return detail
+      })
 
-      // Extract task details
-      const taskDetails = taskInvocations.map((task: any) => ({
-        id: task.id,
-        name: task.name || 'Task',
-        prompt: task.input?.prompt || '',
-        description: task.input?.description || '',
-      }))
-
-      // Update the request with task_tool_invocation
-      await pool.query('UPDATE api_requests SET task_tool_invocation = $1 WHERE request_id = $2', [
-        JSON.stringify(taskDetails),
-        request_id,
-      ])
+      taskInvocationUpdates.push({ request_id, task_invocations: taskDetails })
       processedCount++
+    }
 
-      // Try to link sub-task conversations
-      for (const task of taskDetails) {
-        if (!task.prompt) continue
+    // Batch update all task invocations
+    if (taskInvocationUpdates.length > 0) {
+      const updateTasksQuery = `
+        UPDATE api_requests AS ar
+        SET task_tool_invocation = updates.task_invocations::jsonb
+        FROM (
+          SELECT 
+            unnest($1::text[]) as request_id,
+            unnest($2::text[]) as task_invocations
+        ) AS updates
+        WHERE ar.request_id = updates.request_id::uuid
+      `
+      
+      await pool.query(updateTasksQuery, [
+        taskInvocationUpdates.map(u => u.request_id),
+        taskInvocationUpdates.map(u => JSON.stringify(u.task_invocations))
+      ])
+      
+      console.log(`✅ Updated ${taskInvocationUpdates.length} requests with Task invocations`)
+    }
 
-        // Normalize the prompt for matching
-        const normalizedPrompt = task.prompt.trim()
-
-        // Find conversations that start with this prompt
-        const linkQuery = `
-          UPDATE api_requests
+    // Now perform batch linking based on prompts AND timing
+    if (taskPromptMappings.length > 0) {
+      console.log('🔗 Performing batch subtask linking...')
+      
+      const batchLinkQuery = `
+        WITH task_prompts AS (
+          SELECT 
+            unnest($1::text[]) as request_id,
+            unnest($2::text[]) as prompt,
+            unnest($3::int[]) as task_index
+        ),
+        parent_tasks AS (
+          SELECT 
+            tp.request_id,
+            tp.prompt,
+            tp.task_index,
+            ar.timestamp,
+            ar.conversation_id as parent_conversation_id
+          FROM task_prompts tp
+          JOIN api_requests ar ON ar.request_id = tp.request_id::uuid
+        ),
+        first_messages AS (
+          SELECT DISTINCT ON (conversation_id)
+            conversation_id,
+            timestamp,
+            body->'messages'->0->>'content' as string_content,
+            body->'messages'->0->'content'->0->>'text' as array_content_0,
+            body->'messages'->0->'content'->1->>'text' as array_content_1
+          FROM api_requests
+          ORDER BY conversation_id, timestamp
+        ),
+        matched_subtasks AS (
+          SELECT DISTINCT
+            pt.request_id as parent_request_id,
+            pt.prompt,
+            pt.task_index,
+            fm.conversation_id as subtask_conversation_id
+          FROM parent_tasks pt
+          JOIN first_messages fm ON (
+            fm.timestamp > pt.timestamp AND
+            fm.timestamp < pt.timestamp + interval '30 seconds' AND
+            fm.conversation_id != pt.parent_conversation_id AND
+            (
+              fm.string_content = pt.prompt OR
+              fm.array_content_0 = pt.prompt OR
+              fm.array_content_1 = pt.prompt
+            )
+          )
+        ),
+        updated AS (
+          UPDATE api_requests ar
           SET 
-            parent_task_request_id = $1,
+            parent_task_request_id = ms.parent_request_id::uuid,
             is_subtask = true
-          WHERE conversation_id IN (
-            SELECT DISTINCT ar.conversation_id
-            FROM api_requests ar
-            WHERE ar.timestamp = (
-              SELECT MIN(timestamp) FROM api_requests WHERE conversation_id = ar.conversation_id
+          FROM matched_subtasks ms
+          WHERE ar.conversation_id = ms.subtask_conversation_id
+          AND ar.parent_task_request_id IS NULL
+          RETURNING ar.conversation_id, ms.parent_request_id, ms.task_index
+        )
+        SELECT 
+          parent_request_id,
+          task_index,
+          conversation_id
+        FROM updated
+      `
+      
+      const { rows: linkedResults } = await pool.query(batchLinkQuery, [
+        taskPromptMappings.map(m => m.request_id),
+        taskPromptMappings.map(m => m.prompt),
+        taskPromptMappings.map(m => m.task_index)
+      ])
+      
+      linkedCount = linkedResults.length
+      
+      // Update task invocations with linked conversation IDs
+      if (linkedResults.length > 0) {
+        // Group by parent request
+        const linksByParent = linkedResults.reduce((acc: any, link: any) => {
+          if (!acc[link.parent_request_id]) {
+            acc[link.parent_request_id] = []
+          }
+          acc[link.parent_request_id].push({
+            task_index: link.task_index,
+            conversation_id: link.conversation_id
+          })
+          return acc
+        }, {})
+        
+        // Update each parent's task invocations
+        for (const [parentId, links] of Object.entries(linksByParent)) {
+          const updateLinkedQuery = `
+            UPDATE api_requests
+            SET task_tool_invocation = (
+              SELECT jsonb_agg(
+                CASE 
+                  WHEN elem_index - 1 = ANY($2::int[])
+                  THEN jsonb_set(elem, '{linked_conversation_id}', to_jsonb(
+                    $3::text[][$2::int[]::int[] ? (elem_index - 1)]
+                  ))
+                  ELSE elem
+                END
+              )
+              FROM jsonb_array_elements(task_tool_invocation) WITH ORDINALITY AS t(elem, elem_index)
             )
-            AND (
-              ar.body->'messages'->0->>'content' = $2
-              OR ar.body->'messages'->0->'content'->0->>'text' = $2
-              OR ar.body->'messages'->0->'content'->1->>'text' = $2
-            )
-          )
-          AND parent_task_request_id IS NULL
-          RETURNING conversation_id
-        `
-
-        const { rows: linkedConversations } = await pool.query(linkQuery, [
-          request_id,
-          normalizedPrompt,
-        ])
-
-        if (linkedConversations.length > 0) {
-          console.log(`  ✅ Linked ${linkedConversations.length} sub-task conversations`)
-          linkedCount += linkedConversations.length
-
-          // Update the task with linked conversation ID
-          const linkedConvId = linkedConversations[0].conversation_id
-          const updatedTasks = taskDetails.map((t: any) =>
-            t.prompt === normalizedPrompt ? { ...t, linked_conversation_id: linkedConvId } : t
-          )
-
-          await pool.query(
-            'UPDATE api_requests SET task_tool_invocation = $1 WHERE request_id = $2',
-            [JSON.stringify(updatedTasks), request_id]
-          )
+            WHERE request_id = $1
+          `
+          
+          const taskIndices = (links as any[]).map(l => l.task_index)
+          const conversationIds = (links as any[]).map(l => l.conversation_id)
+          
+          await pool.query(updateLinkedQuery, [parentId, taskIndices, conversationIds])
         }
       }
+      
+      console.log(`✅ Linked ${linkedCount} sub-task conversations based on prompt matching`)
     }
 
     console.log('\n✨ Processing complete!')

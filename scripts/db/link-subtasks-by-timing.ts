@@ -31,57 +31,70 @@ async function linkSubtasksByTiming() {
     const { rows: taskRequests } = await pool.query(taskQuery)
     console.log(`Found ${taskRequests.length} requests with Task invocations`)
 
-    let linkedCount = 0
-
-    for (const taskRequest of taskRequests) {
-      // Find conversations that started shortly after this Task invocation
-      const linkQuery = `
+    // Use a single query to link all subtasks at once
+    console.log('🔄 Performing batch linking operation...')
+    
+    const batchLinkQuery = `
+      WITH task_requests AS (
+        SELECT request_id, conversation_id, timestamp
+        FROM api_requests
+        WHERE task_tool_invocation IS NOT NULL
+      ),
+      potential_subtasks AS (
+        SELECT DISTINCT 
+          tr.request_id as parent_request_id,
+          ar.conversation_id as subtask_conversation_id,
+          MIN(ar.request_id) as first_subtask_request_id
+        FROM task_requests tr
+        INNER JOIN api_requests ar ON 
+          ar.timestamp > tr.timestamp AND
+          ar.timestamp < tr.timestamp + interval '30 seconds' AND
+          ar.conversation_id != tr.conversation_id AND
+          ar.parent_task_request_id IS NULL
+        GROUP BY tr.request_id, ar.conversation_id
+      ),
+      updated AS (
         UPDATE api_requests ar
         SET 
-          parent_task_request_id = $1,
+          parent_task_request_id = ps.parent_request_id,
           is_subtask = true
-        WHERE ar.conversation_id IN (
-          SELECT DISTINCT conversation_id
-          FROM api_requests
-          WHERE timestamp > $2
-          AND timestamp < $2 + interval '30 seconds'
-          AND conversation_id != $3
-          AND parent_task_request_id IS NULL
+        FROM potential_subtasks ps
+        WHERE ar.conversation_id = ps.subtask_conversation_id
+        RETURNING ar.request_id, ar.parent_task_request_id, ar.conversation_id
+      ),
+      linked_conversations AS (
+        SELECT 
+          parent_task_request_id,
+          conversation_id,
+          ROW_NUMBER() OVER (PARTITION BY parent_task_request_id ORDER BY MIN(request_id)) as rn
+        FROM updated
+        GROUP BY parent_task_request_id, conversation_id
+      ),
+      updated_parents AS (
+        UPDATE api_requests ar
+        SET task_tool_invocation = jsonb_set(
+          COALESCE(ar.task_tool_invocation, '[]'::jsonb),
+          '{0,linked_conversation_id}',
+          to_jsonb(lc.conversation_id)
         )
-        RETURNING ar.conversation_id
-      `
+        FROM linked_conversations lc
+        WHERE ar.request_id = lc.parent_task_request_id
+        AND lc.rn = 1
+        RETURNING ar.request_id
+      )
+      SELECT 
+        (SELECT COUNT(DISTINCT conversation_id) FROM updated) as linked_conversations,
+        (SELECT COUNT(*) FROM updated) as linked_requests,
+        (SELECT COUNT(*) FROM updated_parents) as updated_parents
+    `
 
-      const { rows: linkedConversations } = await pool.query(linkQuery, [
-        taskRequest.request_id,
-        taskRequest.timestamp,
-        taskRequest.conversation_id,
-      ])
-
-      if (linkedConversations.length > 0) {
-        linkedCount += linkedConversations.length
-        console.log(
-          `  ✅ Linked ${linkedConversations.length} sub-task conversations to ${taskRequest.request_id}`
-        )
-
-        // Update the parent task with the first linked conversation
-        const updateParentQuery = `
-          UPDATE api_requests
-          SET task_tool_invocation = jsonb_set(
-            task_tool_invocation,
-            '{0,linked_conversation_id}',
-            $2::jsonb
-          )
-          WHERE request_id = $1
-        `
-
-        await pool.query(updateParentQuery, [
-          taskRequest.request_id,
-          JSON.stringify(linkedConversations[0].conversation_id),
-        ])
-      }
-    }
-
-    console.log(`\n✨ Linked ${linkedCount} sub-task conversations total`)
+    const { rows } = await pool.query(batchLinkQuery)
+    const result = rows[0]
+    
+    console.log(`\n✨ Batch operation completed:`)
+    console.log(`   - Linked ${result.linked_conversations} sub-task conversations`)
+    console.log(`   - Updated ${result.linked_requests} requests`)
+    console.log(`   - Updated ${result.updated_parents} parent tasks with linked conversation IDs`)
   } catch (error) {
     console.error('Error linking sub-tasks:', getErrorMessage(error))
   } finally {
