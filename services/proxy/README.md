@@ -49,6 +49,7 @@ See `.env.example` in the root directory for all available environment variables
 ## API Endpoints
 
 - `POST /v1/messages` - Main Claude API proxy endpoint
+- `ALL /api/.env` - Environment endpoint proxy (Note: This endpoint is not documented in the official Anthropic API)
 - `GET /health` - Health check
 - `GET /token-stats` - Token usage statistics
 - `GET /client-setup/:filename` - Client configuration files
@@ -57,7 +58,8 @@ See `.env.example` in the root directory for all available environment variables
 
 The service uses dependency injection via a container pattern:
 
-- `MessageController` - Handles API requests
+- `MessageController` - Handles /v1/messages API requests
+- `EnvController` - Handles /api/.env API requests
 - `ProxyService` - Core proxy logic
 - `AuthenticationService` - API key and OAuth handling
 - `MetricsService` - Token tracking and telemetry

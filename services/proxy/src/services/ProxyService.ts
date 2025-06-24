@@ -575,4 +575,92 @@ export class ProxyService {
 
     return response
   }
+
+  /**
+   * Handle an env endpoint request
+   * NOTE: This endpoint is not documented in the official Anthropic API
+   */
+  async handleEnvRequest(
+    body: any,
+    context: RequestContext,
+    method: string
+  ): Promise<Response> {
+    const log = {
+      info: (message: string, metadata?: Record<string, any>) => {
+        logger.info(message, { requestId: context.requestId, domain: context.host, metadata })
+      },
+      warn: (message: string, metadata?: Record<string, any>) => {
+        logger.warn(message, { requestId: context.requestId, domain: context.host, metadata })
+      },
+      error: (message: string, error?: Error, metadata?: Record<string, any>) => {
+        logger.error(message, {
+          requestId: context.requestId,
+          domain: context.host,
+          error: error
+            ? {
+                message: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+              }
+            : undefined,
+          metadata,
+        })
+      },
+    }
+
+    try {
+      // Authenticate
+      const auth = context.host.toLowerCase().includes('personal')
+        ? await this.authService.authenticatePersonalDomain(context)
+        : await this.authService.authenticateNonPersonalDomain(context)
+
+      log.info('Forwarding /api/.env request to Claude', {
+        method,
+        authSource: context.apiKey ? 'passthrough from request' : 'domain credential file',
+      })
+
+      // Forward to Claude using a generic endpoint approach
+      const claudeResponse = await this.apiClient.forwardToEndpoint(
+        '/api/.env',
+        method,
+        body,
+        auth
+      )
+
+      // For non-streaming responses, return directly
+      const responseBody = await claudeResponse.text()
+      
+      // Try to parse as JSON, otherwise return as text
+      let parsedBody: any
+      try {
+        parsedBody = JSON.parse(responseBody)
+      } catch {
+        parsedBody = responseBody
+      }
+
+      return new Response(
+        typeof parsedBody === 'string' ? parsedBody : JSON.stringify(parsedBody),
+        {
+          status: claudeResponse.status,
+          headers: {
+            'Content-Type': claudeResponse.headers.get('content-type') || 'application/json',
+            ...this.getCorsHeaders(),
+          },
+        }
+      )
+    } catch (error) {
+      log.error(
+        'Env endpoint request failed',
+        error instanceof Error ? error : new Error(String(error))
+      )
+
+      // Send error notification
+      await this.notificationService.notifyError(
+        error instanceof Error ? error : new Error(String(error)),
+        context
+      )
+
+      throw error
+    }
+  }
 }

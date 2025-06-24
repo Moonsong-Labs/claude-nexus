@@ -44,6 +44,34 @@ export class ClaudeApiClient {
   }
 
   /**
+   * Forward a request to a specific Claude API endpoint
+   */
+  async forwardToEndpoint(
+    endpoint: string,
+    method: string,
+    body: any,
+    auth: AuthResult
+  ): Promise<Response> {
+    const url = `${this.config.baseUrl}${endpoint}`
+    
+    // Create headers from auth result
+    const headers: Record<string, string> = {
+      ...auth.headers,
+      'Content-Type': 'application/json',
+    }
+
+    // Use circuit breaker for protection
+    return claudeApiCircuitBreaker.execute(async () => {
+      // Use retry logic for transient failures
+      return retryWithBackoff(
+        async () => this.makeGenericRequest(url, method, body, headers),
+        retryConfigs.standard,
+        { operation: 'claude_api_generic_call' }
+      )
+    })
+  }
+
+  /**
    * Make the actual HTTP request
    */
   private async makeRequest(
@@ -100,6 +128,78 @@ export class ClaudeApiClient {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new TimeoutError('Claude API request timeout', {
           requestId: request.requestId,
+          timeout: this.config.timeout,
+        })
+      }
+
+      throw error
+    }
+  }
+
+  /**
+   * Make a generic HTTP request (for non-messages endpoints)
+   */
+  private async makeGenericRequest(
+    url: string,
+    method: string,
+    body: any,
+    headers: Record<string, string>
+  ): Promise<Response> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), this.config.timeout)
+
+    try {
+      const options: RequestInit = {
+        method,
+        headers,
+        signal: controller.signal,
+      }
+
+      // Only add body for methods that support it
+      if (method !== 'GET' && method !== 'HEAD' && body !== undefined) {
+        options.body = JSON.stringify(body)
+      }
+
+      const response = await fetch(url, options)
+
+      clearTimeout(timeout)
+
+      // Check for errors
+      if (!response.ok) {
+        const errorBody = await response.text()
+        let errorMessage = `Claude API error: ${response.status}`
+        let parsedError: any
+
+        try {
+          parsedError = JSON.parse(errorBody)
+          if (isClaudeError(parsedError)) {
+            errorMessage = `${parsedError.error.type}: ${parsedError.error.message}`
+          }
+        } catch {
+          // Use text error if not JSON
+          errorMessage = errorBody || errorMessage
+          parsedError = { error: { message: errorBody, type: 'api_error' } }
+        }
+
+        throw new UpstreamError(
+          errorMessage,
+          response.status,
+          {
+            status: response.status,
+            body: errorBody,
+            endpoint: url,
+          },
+          parsedError
+        )
+      }
+
+      return response
+    } catch (error) {
+      clearTimeout(timeout)
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new TimeoutError('Claude API request timeout', {
+          endpoint: url,
           timeout: this.config.timeout,
         })
       }

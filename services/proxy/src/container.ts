@@ -1,5 +1,6 @@
 import { Pool } from 'pg'
 import { MessageController } from './controllers/MessageController.js'
+import { EnvController } from './controllers/EnvController.js'
 import { ProxyService } from './services/ProxyService.js'
 import { AuthenticationService } from './services/AuthenticationService.js'
 import { ClaudeApiClient } from './services/ClaudeApiClient.js'
@@ -21,6 +22,7 @@ class Container {
   private claudeApiClient?: ClaudeApiClient
   private proxyService?: ProxyService
   private messageController?: MessageController
+  private envController?: EnvController
 
   constructor() {
     this.initializeServices()
@@ -80,6 +82,7 @@ class Container {
     )
 
     this.messageController = new MessageController(this.proxyService)
+    this.envController = new EnvController(this.proxyService)
   }
 
   getDbPool(): Pool | undefined {
@@ -130,6 +133,13 @@ class Container {
       throw new Error('MessageController not initialized')
     }
     return this.messageController
+  }
+
+  getEnvController(): EnvController {
+    if (!this.envController) {
+      throw new Error('EnvController not initialized')
+    }
+    return this.envController
   }
 
   async cleanup(): Promise<void> {

@@ -77,6 +77,7 @@ export async function createProxyApp(): Promise<
   // Apply before rate limiting to protect against unauthenticated requests
   if (config.features.enableClientAuth !== false) {
     app.use('/v1/*', clientAuthMiddleware())
+    app.use('/api/.env', clientAuthMiddleware())
   }
 
   // Rate limiting
@@ -190,6 +191,10 @@ export async function createProxyApp(): Promise<
   app.post('/v1/messages', c => messageController.handle(c))
   app.options('/v1/messages', c => messageController.handleOptions(c))
 
+  // Generic API proxy handler for additional endpoints
+  const envController = container.getEnvController()
+  app.all('/api/.env', c => envController.handle(c))
+
   // Root endpoint
   app.get('/', c => {
     return c.json({
@@ -198,6 +203,7 @@ export async function createProxyApp(): Promise<
       status: 'operational',
       endpoints: {
         api: '/v1/messages',
+        env: '/api/.env',
         health: '/health',
         stats: '/token-stats',
         'client-setup': '/client-setup/*',
