@@ -112,6 +112,7 @@ interface ConversationSummary {
   latestRequestId?: string
   isSubtask?: boolean
   parentTaskRequestId?: string
+  parentConversationId?: string
   subtaskMessageCount?: number
 }
 
