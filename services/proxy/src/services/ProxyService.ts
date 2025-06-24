@@ -152,27 +152,6 @@ export class ProxyService {
         )
       }
 
-      // Track metrics for successful request
-      // Note: For streaming responses, metrics are tracked after stream completes
-      if (!request.isStreaming) {
-        await this.metricsService.trackRequest(
-          request,
-          response,
-          context,
-          claudeResponse.status,
-          conversationData,
-          undefined,  // responseHeaders - only available for streaming
-          undefined,  // fullResponseBody - only available for streaming
-          auth.accountId
-        )
-      }
-
-      // Send notifications
-      // Note: For streaming responses, notifications are sent after stream completes
-      if (!request.isStreaming) {
-        await this.notificationService.notify(request, response, context, auth)
-      }
-
       return finalResponse
     } catch (error) {
       // Track error metrics

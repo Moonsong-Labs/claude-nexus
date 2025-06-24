@@ -390,13 +390,13 @@ When generating message hashes for conversation tracking, the system filters out
 ```bash
 # Current 5-hour window usage
 curl "http://localhost:3000/api/token-usage/current?accountId=acc_f9e1c2d3b4a5&window=300" \
-  -H "Authorization: Bearer $DASHBOARD_API_KEY"
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 
 # Daily usage (last 30 days)
 curl "http://localhost:3000/api/token-usage/daily?accountId=acc_f9e1c2d3b4a5&aggregate=true" \
-  -H "Authorization: Bearer $DASHBOARD_API_KEY"
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 
 # View conversations
 curl "http://localhost:3000/api/conversations?accountId=acc_f9e1c2d3b4a5" \
-  -H "Authorization: Bearer $DASHBOARD_API_KEY"
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
