@@ -146,6 +146,14 @@ Both services share a PostgreSQL database:
 
 The database is automatically initialized with required tables and indexes.
 
+Key features:
+
+- Account-based token tracking via `account_id` column
+- Automatic conversation grouping with branch support
+- Efficient indexes for time-series queries
+
+See [DATABASE.md](./DATABASE.md) for complete schema documentation.
+
 ## Security
 
 - Dashboard requires API key authentication

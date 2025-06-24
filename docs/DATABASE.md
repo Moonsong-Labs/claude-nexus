@@ -1,0 +1,168 @@
+# Database Schema Documentation
+
+## Overview
+
+Claude Nexus Proxy uses PostgreSQL to store API request/response data, conversation tracking, and token usage metrics. The database schema is designed for efficient querying and real-time analytics.
+
+## Tables
+
+### api_requests
+
+The main table storing all API requests and responses.
+
+| Column                      | Type         | Description                                  |
+| --------------------------- | ------------ | -------------------------------------------- |
+| request_id                  | UUID         | Primary key, unique request identifier       |
+| domain                      | VARCHAR(255) | Domain name from Host header                 |
+| account_id                  | VARCHAR(255) | Account identifier from credential file      |
+| timestamp                   | TIMESTAMPTZ  | Request timestamp                            |
+| method                      | VARCHAR(10)  | HTTP method (always POST for Claude)         |
+| path                        | VARCHAR(255) | API path (e.g., /v1/messages)                |
+| headers                     | JSONB        | Request headers (sanitized)                  |
+| body                        | JSONB        | Request body                                 |
+| api_key_hash                | VARCHAR(50)  | Hashed API key for security                  |
+| model                       | VARCHAR(100) | Claude model name                            |
+| request_type                | VARCHAR(50)  | Type: inference, query_evaluation, or quota  |
+| response_status             | INTEGER      | HTTP response status code                    |
+| response_headers            | JSONB        | Response headers                             |
+| response_body               | JSONB        | Response body                                |
+| response_streaming          | BOOLEAN      | Whether response was streamed                |
+| input_tokens                | INTEGER      | Input token count                            |
+| output_tokens               | INTEGER      | Output token count                           |
+| total_tokens                | INTEGER      | Total tokens (input + output)                |
+| cache_creation_input_tokens | INTEGER      | Cache creation tokens                        |
+| cache_read_input_tokens     | INTEGER      | Cache read tokens                            |
+| usage_data                  | JSONB        | Additional usage metadata                    |
+| first_token_ms              | INTEGER      | Time to first token (streaming)              |
+| duration_ms                 | INTEGER      | Total request duration                       |
+| error                       | TEXT         | Error message if request failed              |
+| tool_call_count             | INTEGER      | Number of tool calls in response             |
+| current_message_hash        | CHAR(64)     | SHA-256 hash of last message                 |
+| parent_message_hash         | CHAR(64)     | SHA-256 hash of previous message             |
+| conversation_id             | UUID         | Groups messages into conversations           |
+| branch_id                   | VARCHAR(255) | Branch within conversation (default: 'main') |
+| message_count               | INTEGER      | Total messages in conversation               |
+| created_at                  | TIMESTAMPTZ  | Record creation timestamp                    |
+
+### streaming_chunks
+
+Stores individual chunks from streaming responses.
+
+| Column      | Type        | Description                 |
+| ----------- | ----------- | --------------------------- |
+| id          | SERIAL      | Primary key                 |
+| request_id  | UUID        | Foreign key to api_requests |
+| chunk_index | INTEGER     | Chunk sequence number       |
+| timestamp   | TIMESTAMPTZ | Chunk timestamp             |
+| data        | TEXT        | Chunk data                  |
+| token_count | INTEGER     | Tokens in this chunk        |
+| created_at  | TIMESTAMPTZ | Record creation timestamp   |
+
+## Indexes
+
+### Performance Indexes
+
+- `idx_requests_domain` - Filter by domain
+- `idx_requests_timestamp` - Time-based queries
+- `idx_requests_model` - Filter by model
+- `idx_requests_request_type` - Filter by request type
+- `idx_requests_account_id` - Filter by account
+
+### Conversation Tracking Indexes
+
+- `idx_requests_conversation_id` - Group by conversation
+- `idx_requests_branch_id` - Filter by branch
+- `idx_requests_conversation_branch` - Composite index
+- `idx_requests_current_hash` - Find by message hash
+- `idx_requests_parent_hash` - Find parent messages
+
+### Streaming Indexes
+
+- `idx_chunks_request_id` - Chunks by request
+
+## Key Features
+
+### Account-Based Token Tracking
+
+The `account_id` column enables tracking token usage per account rather than just per domain. This allows:
+
+- Multiple domains to share the same Claude account
+- Accurate tracking against Claude's 140,000 token per 5-hour window limit
+- Per-account usage dashboards and alerts
+
+### Conversation Tracking
+
+Messages are automatically linked into conversations using:
+
+- `current_message_hash` - SHA-256 hash of the last message in the request
+- `parent_message_hash` - Hash of the previous message (null for first message)
+- `conversation_id` - UUID grouping all related messages
+- `branch_id` - Supports conversation branching when resuming from earlier points
+
+### Request Types
+
+The `request_type` column categorizes requests:
+
+- `inference` - Normal Claude API calls (2+ system messages)
+- `query_evaluation` - Special evaluation requests (0-1 system messages)
+- `quota` - Quota check requests (user message = "quota")
+
+## Common Queries
+
+### Token Usage by Account (5-hour window)
+
+```sql
+SELECT
+  account_id,
+  SUM(output_tokens) as total_output_tokens,
+  COUNT(*) as request_count
+FROM api_requests
+WHERE account_id = 'acc_12345'
+  AND timestamp > NOW() - INTERVAL '5 hours'
+  AND request_type = 'inference'
+GROUP BY account_id;
+```
+
+### Conversations with Branches
+
+```sql
+SELECT
+  conversation_id,
+  branch_id,
+  COUNT(*) as message_count,
+  MIN(timestamp) as started_at,
+  MAX(timestamp) as last_message_at
+FROM api_requests
+WHERE conversation_id IS NOT NULL
+GROUP BY conversation_id, branch_id
+ORDER BY last_message_at DESC;
+```
+
+### Daily Usage Statistics
+
+```sql
+SELECT
+  DATE(timestamp) as date,
+  account_id,
+  SUM(input_tokens) as input_tokens,
+  SUM(output_tokens) as output_tokens,
+  COUNT(*) as requests
+FROM api_requests
+WHERE timestamp > NOW() - INTERVAL '30 days'
+GROUP BY DATE(timestamp), account_id
+ORDER BY date DESC;
+```
+
+## Migration Notes
+
+When upgrading from earlier versions:
+
+1. The `domain_telemetry` table has been removed - all token tracking now happens in `api_requests`
+2. The `account_id` column must be populated for existing records (see migration script)
+3. No separate `token_usage` table is created - despite what older docs might suggest
+
+## Database Maintenance
+
+- Indexes are automatically created during initialization
+- Consider partitioning `api_requests` by month for very high volume deployments
+- Regular VACUUM and ANALYZE recommended for optimal performance

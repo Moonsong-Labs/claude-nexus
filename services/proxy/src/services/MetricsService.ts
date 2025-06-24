@@ -3,6 +3,7 @@ import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { tokenTracker } from './tokenTracker.js'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
+import { TokenUsageService } from './TokenUsageService.js'
 import { logger } from '../middleware/logger'
 import { broadcastConversation, broadcastMetrics } from '../dashboard/sse.js'
 
@@ -42,7 +43,8 @@ export class MetricsService {
       enableTelemetry: true,
     },
     private storageService?: StorageAdapter,
-    private telemetryEndpoint?: string
+    private telemetryEndpoint?: string,
+    private tokenUsageService?: TokenUsageService
   ) {}
 
   /**
@@ -59,7 +61,8 @@ export class MetricsService {
       conversationId: string
     },
     responseHeaders?: Record<string, string>,
-    fullResponseBody?: any
+    fullResponseBody?: any,
+    accountId?: string
   ): Promise<void> {
     const metrics = response.getMetrics()
 
@@ -80,6 +83,22 @@ export class MetricsService {
         request.requestType === 'quota' ? undefined : request.requestType,
         metrics.toolCallCount
       )
+
+      // Also track in persistent storage if available
+      if (this.tokenUsageService && accountId) {
+        await this.tokenUsageService.recordUsage({
+          accountId,
+          domain: context.host,
+          model: request.model,
+          requestType: request.requestType,
+          inputTokens: metrics.inputTokens,
+          outputTokens: metrics.outputTokens,
+          totalTokens: metrics.inputTokens + metrics.outputTokens,
+          cacheCreationInputTokens: metrics.cacheCreationInputTokens || 0,
+          cacheReadInputTokens: metrics.cacheReadInputTokens || 0,
+          requestCount: 1,
+        })
+      }
     }
 
     // Store in database
@@ -91,7 +110,8 @@ export class MetricsService {
         status,
         conversationData,
         responseHeaders,
-        fullResponseBody
+        fullResponseBody,
+        accountId
       )
     }
 
@@ -226,7 +246,8 @@ export class MetricsService {
       conversationId: string
     },
     responseHeaders?: Record<string, string>,
-    fullResponseBody?: any
+    fullResponseBody?: any,
+    accountId?: string
   ): Promise<void> {
     if (!this.storageService) {
       return
@@ -254,6 +275,7 @@ export class MetricsService {
       await this.storageService.storeRequest({
         id: context.requestId,
         domain: context.host,
+        accountId: accountId,
         timestamp: new Date(context.startTime),
         method: context.method,
         path: context.path,

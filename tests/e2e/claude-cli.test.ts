@@ -4,16 +4,19 @@ import { promisify } from 'util'
 
 const exec = promisify(require('child_process').exec)
 
+// Docker compose command with correct file path
+const dockerCompose = 'docker compose -f docker/docker-compose.yml'
+
 describe('Claude CLI End-to-End Tests', () => {
   let dockerComposeUp = false
 
   beforeAll(async () => {
     // Start Docker services if not already running
     try {
-      await exec('docker compose ps | grep -q claude-nexus-proxy')
+      await exec(`${dockerCompose} ps | grep -q claude-nexus-proxy`)
     } catch {
       console.log('Starting Docker services...')
-      await exec('docker compose --profile dev --profile claude up -d')
+      await exec(`${dockerCompose} --profile dev --profile claude up -d`)
       dockerComposeUp = true
       // Wait for services to be ready
       await new Promise(resolve => setTimeout(resolve, 10000))
@@ -23,14 +26,14 @@ describe('Claude CLI End-to-End Tests', () => {
   afterAll(async () => {
     if (dockerComposeUp) {
       console.log('Stopping Docker services...')
-      await exec('docker compose down')
+      await exec(`${dockerCompose} down`)
     }
   })
 
   describe('Claude CLI Integration', () => {
     it('should connect to proxy successfully', async () => {
       const { stdout, stderr } = await exec(
-        'docker compose exec -T claude-cli cat /root/.claude.json'
+        `${dockerCompose} exec -T claude-cli cat /root/.claude.json`
       )
 
       const config = JSON.parse(stdout)
@@ -39,7 +42,7 @@ describe('Claude CLI End-to-End Tests', () => {
 
     it('should have credentials configured', async () => {
       const { stdout } = await exec(
-        'docker compose exec -T claude-cli cat /root/.claude/.credentials.json'
+        `${dockerCompose} exec -T claude-cli cat /root/.claude/.credentials.json`
       )
 
       const creds = JSON.parse(stdout)
@@ -56,7 +59,7 @@ describe('Claude CLI End-to-End Tests', () => {
       }
 
       const { stdout, stderr } = await exec(
-        'docker compose exec -T claude-cli /usr/local/bin/setup-claude claude "What is 2+2?"'
+        `${dockerCompose} exec -T claude-cli /usr/local/bin/setup-claude claude "What is 2+2?"`
       )
 
       // Should get a response (or at least not an auth error)
@@ -66,27 +69,27 @@ describe('Claude CLI End-to-End Tests', () => {
 
   describe('Proxy Logging', () => {
     it('should log requests to database', async () => {
+      // Get initial count
+      const { stdout: initialStdout } = await exec(
+        `${dockerCompose} exec -T postgres psql -U postgres -d claude_proxy -c "SELECT COUNT(*) FROM request_response_logs;" -t`
+      )
+      const initialCount = parseInt(initialStdout.trim())
+
       // Make a test request
       await exec(
-        'docker compose exec -T claude-cli /usr/local/bin/setup-claude claude "test request"'
+        `${dockerCompose} exec -T claude-cli /usr/local/bin/setup-claude claude "test request"`
       ).catch(() => {}) // Ignore errors
 
+      // Wait a moment for the log to be written
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
       // Check database for logged requests
-      const { stdout } = await exec(
-        'docker compose exec -T postgres psql -U postgres -d claude_proxy -c "SELECT COUNT(*) FROM request_response_logs;" -t'
+      const { stdout: finalStdout } = await exec(
+        `${dockerCompose} exec -T postgres psql -U postgres -d claude_proxy -c "SELECT COUNT(*) FROM request_response_logs;" -t`
       )
 
-      const count = parseInt(stdout.trim())
-      expect(count).toBeGreaterThanOrEqual(0)
-    })
-
-    it('should track token usage', async () => {
-      const { stdout } = await exec(
-        'docker compose exec -T postgres psql -U postgres -d claude_proxy -c "SELECT COUNT(*) FROM domain_telemetry;" -t'
-      )
-
-      const count = parseInt(stdout.trim())
-      expect(count).toBeGreaterThanOrEqual(0)
+      const finalCount = parseInt(finalStdout.trim())
+      expect(finalCount).toBe(initialCount + 1)
     })
   })
 
@@ -95,7 +98,7 @@ describe('Claude CLI End-to-End Tests', () => {
       // Test with invalid credentials
       // This test verifies error handling when the proxy has no valid credentials
       const result = await exec(
-        'docker compose exec -T claude-cli /usr/local/bin/setup-claude claude "test"'
+        `${dockerCompose} exec -T claude-cli /usr/local/bin/setup-claude claude "test"`
       ).catch(err => err)
 
       // Should fail gracefully with authentication error
@@ -104,16 +107,16 @@ describe('Claude CLI End-to-End Tests', () => {
 
     it('should handle network errors', async () => {
       // Test with proxy down
-      await exec('docker compose stop proxy')
+      await exec(`${dockerCompose} stop proxy`)
 
       const result = await exec(
-        'docker compose exec -T claude-cli /usr/local/bin/setup-claude claude "test"'
+        `${dockerCompose} exec -T claude-cli /usr/local/bin/setup-claude claude "test"`
       ).catch(err => err)
 
       expect(result.code).not.toBe(0)
 
       // Restart proxy
-      await exec('docker compose start proxy')
+      await exec(`${dockerCompose} start proxy`)
       await new Promise(resolve => setTimeout(resolve, 5000))
     })
   })

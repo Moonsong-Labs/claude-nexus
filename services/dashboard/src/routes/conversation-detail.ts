@@ -521,16 +521,22 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       </script>
     `
 
-    // Use the shared layout from dashboard-api
-    const { layout: dashboardLayout } = await import('./dashboard-api.js')
-    return c.html(dashboardLayout('Conversation Detail', content))
+    // Use the shared layout
+    const { layout } = await import('../layout/index.js')
+    return c.html(layout('Conversation Detail', content))
   } catch (error) {
     console.error('Error loading conversation detail:', error)
-    return c.html(html`
-      <div class="error-banner">
-        <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversation'}
-      </div>
-    `)
+    const { layout } = await import('../layout/index.js')
+    return c.html(
+      layout(
+        'Error',
+        html`
+          <div class="error-banner">
+            <strong>Error:</strong> ${getErrorMessage(error) || 'Failed to load conversation'}
+          </div>
+        `
+      )
+    )
   }
 })
 

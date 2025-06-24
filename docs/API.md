@@ -153,10 +153,10 @@ https://dashboard.yourdomain.com  # Production
 
 ### Authentication
 
-Include the dashboard API key:
+Include the dashboard API key in the Authorization header:
 
 ```bash
-X-API-Key: YOUR_DASHBOARD_KEY
+Authorization: Bearer YOUR_DASHBOARD_KEY
 ```
 
 ### Endpoints
@@ -231,12 +231,13 @@ GET /api/requests/:id
 #### List Conversations
 
 ```http
-GET /api/conversations?domain=example.com&limit=20
+GET /api/conversations?domain=example.com&accountId=acc_123&limit=20
 ```
 
 **Query Parameters:**
 
 - `domain` - Filter by domain
+- `accountId` - Filter by account
 - `limit` - Number of conversations
 
 **Response:**
@@ -245,13 +246,15 @@ GET /api/conversations?domain=example.com&limit=20
 {
   "conversations": [
     {
-      "conversation_id": "uuid",
+      "conversationId": "uuid",
       "domain": "example.com",
-      "created_at": "2024-01-15T09:00:00Z",
-      "last_updated": "2024-01-15T10:00:00Z",
-      "request_count": 10,
-      "total_messages": 20,
-      "branches": ["main", "branch-2024-01-15-09-30-00"]
+      "accountId": "acc_123",
+      "firstMessageTime": "2024-01-15T09:00:00Z",
+      "lastMessageTime": "2024-01-15T10:00:00Z",
+      "messageCount": 20,
+      "totalTokens": 5000,
+      "branchCount": 2,
+      "modelsUsed": ["claude-3-opus-20240229"]
     }
   ]
 }
@@ -320,6 +323,137 @@ GET /api/analytics/tokens?period=day&days=7
       }
     }
   ]
+}
+```
+
+#### Token Usage - Current Window
+
+```http
+GET /api/token-usage/current?accountId=acc_123&window=300
+```
+
+Get token usage for the current sliding window (default 5 hours).
+
+**Query Parameters:**
+
+- `accountId` - Account identifier (required)
+- `window` - Window size in minutes (default: 300)
+- `domain` - Filter by domain (optional)
+- `model` - Filter by model (optional)
+
+**Response:**
+
+```json
+{
+  "accountId": "acc_123",
+  "domain": "example.com",
+  "model": "claude-3-opus-20240229",
+  "windowStart": "2024-01-15T05:00:00Z",
+  "windowEnd": "2024-01-15T10:00:00Z",
+  "totalInputTokens": 45000,
+  "totalOutputTokens": 62000,
+  "totalTokens": 107000,
+  "totalRequests": 150,
+  "cacheCreationInputTokens": 1000,
+  "cacheReadInputTokens": 500
+}
+```
+
+#### Token Usage - Daily
+
+```http
+GET /api/token-usage/daily?accountId=acc_123&days=30&aggregate=true
+```
+
+Get daily token usage statistics.
+
+**Query Parameters:**
+
+- `accountId` - Account identifier (required)
+- `days` - Number of days to retrieve (default: 30)
+- `domain` - Filter by domain (optional)
+- `aggregate` - Aggregate across models (default: false)
+
+**Response:**
+
+```json
+{
+  "usage": [
+    {
+      "date": "2024-01-15",
+      "accountId": "acc_123",
+      "domain": "example.com",
+      "totalInputTokens": 100000,
+      "totalOutputTokens": 150000,
+      "totalTokens": 250000,
+      "totalRequests": 500
+    }
+  ]
+}
+```
+
+#### Rate Limits Configuration
+
+```http
+GET /api/rate-limits?accountId=acc_123
+```
+
+Get rate limit configurations.
+
+**Query Parameters:**
+
+- `accountId` - Filter by account
+- `domain` - Filter by domain
+- `model` - Filter by model
+
+**Response:**
+
+```json
+{
+  "configs": [
+    {
+      "id": 1,
+      "accountId": "acc_123",
+      "domain": null,
+      "model": "claude-3-opus-20240229",
+      "windowMinutes": 300,
+      "tokenLimit": 140000,
+      "requestLimit": null,
+      "fallbackModel": "claude-3-haiku-20240307",
+      "enabled": true
+    }
+  ]
+}
+```
+
+#### Update Rate Limit
+
+```http
+POST /api/rate-limits/:id
+```
+
+Update a rate limit configuration.
+
+**Request:**
+
+```json
+{
+  "tokenLimit": 200000,
+  "fallbackModel": "claude-3-haiku-20240307",
+  "enabled": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "config": {
+    "id": 1,
+    "tokenLimit": 200000,
+    "fallbackModel": "claude-3-haiku-20240307",
+    "enabled": true
+  }
 }
 ```
 

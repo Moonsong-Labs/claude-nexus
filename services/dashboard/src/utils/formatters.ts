@@ -61,6 +61,27 @@ export function formatTimestamp(date: Date | string): string {
 }
 
 /**
+ * Format timestamp as relative time (e.g., "5m ago")
+ */
+export function formatRelativeTime(timestamp: string | Date): string {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+
+  if (diff < 60000) {
+    return 'Just now'
+  }
+  if (diff < 3600000) {
+    return `${Math.floor(diff / 60000)}m ago`
+  }
+  if (diff < 86400000) {
+    return `${Math.floor(diff / 3600000)}h ago`
+  }
+
+  return date.toLocaleString()
+}
+
+/**
  * Escape HTML to prevent XSS
  */
 export function escapeHtml(text: string): string {

@@ -21,6 +21,7 @@ export class StorageAdapter {
   async storeRequest(data: {
     id: string
     domain: string
+    accountId?: string
     timestamp: Date
     method: string
     path: string
@@ -62,6 +63,7 @@ export class StorageAdapter {
       await this.writer.storeRequest({
         requestId: uuid,
         domain: data.domain,
+        accountId: data.accountId,
         timestamp: data.timestamp,
         method: data.method,
         path: data.path,

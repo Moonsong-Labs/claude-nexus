@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Pool } from 'pg'
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage, getErrorStack } from '@claude-nexus/shared'
+import { container } from '../container.js'
 
 // Query parameter schemas
 const statsQuerySchema = z.object({
@@ -14,6 +15,12 @@ const requestsQuerySchema = z.object({
   domain: z.string().optional(),
   limit: z.string().regex(/^\d+$/).transform(Number).default('100'),
   offset: z.string().regex(/^\d+$/).transform(Number).default('0'),
+})
+
+const conversationsQuerySchema = z.object({
+  domain: z.string().optional(),
+  accountId: z.string().optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).default('20'),
 })
 
 // Response types
@@ -407,5 +414,385 @@ apiRoutes.get('/domains', async c => {
   } catch (error) {
     logger.error('Failed to get domains', { error: getErrorMessage(error) })
     return c.json({ error: 'Failed to retrieve domains' }, 500)
+  }
+})
+
+/**
+ * GET /api/conversations - Get conversations with account information
+ */
+apiRoutes.get('/conversations', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    const { container } = await import('../container.js')
+    pool = container.getDbPool()
+
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    const query = c.req.query()
+    const params = conversationsQuerySchema.parse(query)
+
+    const conditions: string[] = []
+    const values: any[] = []
+    let paramCount = 0
+
+    if (params.domain) {
+      conditions.push(`domain = $${++paramCount}`)
+      values.push(params.domain)
+    }
+
+    if (params.accountId) {
+      conditions.push(`account_id = $${++paramCount}`)
+      values.push(params.accountId)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    // Get conversations grouped by conversation_id with account info
+    const conversationsQuery = `
+      WITH conversation_summary AS (
+        SELECT 
+          conversation_id,
+          domain,
+          account_id,
+          MIN(timestamp) as first_message_time,
+          MAX(timestamp) as last_message_time,
+          COUNT(*) as message_count,
+          SUM(input_tokens + output_tokens) as total_tokens,
+          COUNT(DISTINCT branch_id) as branch_count,
+          ARRAY_AGG(DISTINCT model) as models_used,
+          (SELECT request_id FROM api_requests 
+           WHERE conversation_id = ar.conversation_id 
+           ${whereClause ? 'AND ' + whereClause.replace('WHERE', '') : ''}
+           ORDER BY timestamp DESC 
+           LIMIT 1) as latest_request_id
+        FROM api_requests ar
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+        GROUP BY conversation_id, domain, account_id
+      )
+      SELECT * FROM conversation_summary
+      ORDER BY last_message_time DESC
+      LIMIT $${++paramCount}
+    `
+
+    values.push(params.limit)
+
+    const result = await pool.query(conversationsQuery, values)
+
+    const conversations = result.rows.map(row => ({
+      conversationId: row.conversation_id,
+      domain: row.domain,
+      accountId: row.account_id,
+      firstMessageTime: row.first_message_time,
+      lastMessageTime: row.last_message_time,
+      messageCount: parseInt(row.message_count),
+      totalTokens: parseInt(row.total_tokens),
+      branchCount: parseInt(row.branch_count),
+      modelsUsed: row.models_used,
+      latestRequestId: row.latest_request_id,
+    }))
+
+    return c.json({ conversations })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
+    }
+    logger.error('Failed to get conversations', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve conversations' }, 500)
+  }
+})
+
+// Token usage query schemas
+const tokenUsageWindowSchema = z.object({
+  accountId: z.string(),
+  domain: z.string().optional(),
+  model: z.string().optional(),
+  window: z.string().regex(/^\d+$/).transform(Number).default('300'), // Default 5 hours (300 minutes)
+})
+
+const tokenUsageDailySchema = z.object({
+  accountId: z.string(),
+  domain: z.string().optional(),
+  days: z.string().regex(/^\d+$/).transform(Number).default('30'),
+  aggregate: z
+    .string()
+    .transform(v => v === 'true')
+    .default('false'),
+})
+
+/**
+ * GET /api/token-usage/current - Get current window token usage
+ */
+apiRoutes.get('/token-usage/current', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+
+  if (!tokenUsageService) {
+    return c.json({ error: 'Token usage tracking not configured' }, 503)
+  }
+
+  try {
+    const query = c.req.query()
+    const params = tokenUsageWindowSchema.parse(query)
+
+    const windowHours = params.window / 60 // Convert minutes to hours
+    const usage = await tokenUsageService.getUsageWindow(
+      params.accountId,
+      windowHours,
+      params.domain,
+      params.model
+    )
+
+    return c.json(usage)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
+    }
+    logger.error('Failed to get token usage window', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve token usage' }, 500)
+  }
+})
+
+/**
+ * GET /api/token-usage/daily - Get daily token usage
+ */
+apiRoutes.get('/token-usage/daily', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+
+  if (!tokenUsageService) {
+    return c.json({ error: 'Token usage tracking not configured' }, 503)
+  }
+
+  try {
+    const query = c.req.query()
+    const params = tokenUsageDailySchema.parse(query)
+
+    const usage = params.aggregate
+      ? await tokenUsageService.getAggregatedDailyUsage(
+          params.accountId,
+          params.days,
+          params.domain
+        )
+      : await tokenUsageService.getDailyUsage(params.accountId, params.days, params.domain)
+
+    return c.json({ usage })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
+    }
+    logger.error('Failed to get daily token usage', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve daily usage' }, 500)
+  }
+})
+
+/**
+ * GET /api/token-usage/time-series - Get token usage time series with 5-minute granularity
+ */
+apiRoutes.get('/token-usage/time-series', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+
+  if (!tokenUsageService) {
+    return c.json({ error: 'Token usage tracking not configured' }, 503)
+  }
+
+  try {
+    const query = c.req.query()
+    const accountId = query.accountId
+    const windowHours = parseInt(query.window || '5')
+    const intervalMinutes = parseInt(query.interval || '5')
+
+    if (!accountId) {
+      return c.json({ error: 'accountId is required' }, 400)
+    }
+
+    let pool = c.get('pool')
+    if (!pool) {
+      pool = container.getDbPool()
+      if (!pool) {
+        return c.json({ error: 'Database not configured' }, 503)
+      }
+    }
+
+    // Get time series data with specified interval
+    const timeSeriesQuery = `
+      WITH time_buckets AS (
+        SELECT 
+          generate_series(
+            NOW() - ($2 * INTERVAL '1 hour'),
+            NOW(),
+            $3 * INTERVAL '1 minute'
+          ) AS bucket_time
+      )
+      SELECT 
+        tb.bucket_time,
+        (
+          SELECT COALESCE(SUM(output_tokens), 0)
+          FROM api_requests
+          WHERE account_id = $1
+            AND timestamp > tb.bucket_time - ($2 * INTERVAL '1 hour')
+            AND timestamp <= tb.bucket_time
+        ) AS cumulative_output_tokens
+      FROM time_buckets tb
+      ORDER BY tb.bucket_time ASC
+    `
+
+    const result = await pool.query(timeSeriesQuery, [accountId, windowHours, intervalMinutes])
+
+    // Calculate tokens remaining from limit
+    const tokenLimit = 140000 // 5-hour limit
+
+    const timeSeries = result.rows.map(row => {
+      const cumulativeUsage = parseInt(row.cumulative_output_tokens) || 0
+      const remaining = tokenLimit - cumulativeUsage
+
+      return {
+        time: row.bucket_time,
+        outputTokens: cumulativeUsage,
+        cumulativeUsage,
+        remaining: Math.max(0, remaining),
+        percentageUsed: (cumulativeUsage / tokenLimit) * 100,
+      }
+    })
+
+    return c.json({
+      accountId,
+      windowHours,
+      intervalMinutes,
+      tokenLimit,
+      timeSeries,
+    })
+  } catch (error) {
+    logger.error('Failed to get token usage time series', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve time series data' }, 500)
+  }
+})
+
+/**
+ * GET /api/token-usage/accounts - Get all accounts with their current token usage
+ */
+apiRoutes.get('/token-usage/accounts', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    pool = container.getDbPool()
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    // Get all accounts with usage in the last 5 hours
+    const accountsQuery = `
+      WITH account_usage AS (
+        SELECT 
+          account_id,
+          SUM(output_tokens) as total_output_tokens,
+          SUM(input_tokens) as total_input_tokens,
+          COUNT(*) as request_count,
+          MAX(timestamp) as last_request_time
+        FROM api_requests
+        WHERE account_id IS NOT NULL
+          AND timestamp >= NOW() - INTERVAL '5 hours'
+        GROUP BY account_id
+      ),
+      domain_usage AS (
+        SELECT 
+          account_id,
+          domain,
+          SUM(output_tokens) as domain_output_tokens,
+          COUNT(*) as domain_requests
+        FROM api_requests
+        WHERE account_id IS NOT NULL
+          AND timestamp >= NOW() - INTERVAL '5 hours'
+        GROUP BY account_id, domain
+      )
+      SELECT 
+        au.account_id,
+        au.total_output_tokens,
+        au.total_input_tokens,
+        au.request_count,
+        au.last_request_time,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'domain', du.domain,
+              'outputTokens', du.domain_output_tokens,
+              'requests', du.domain_requests
+            ) ORDER BY du.domain_output_tokens DESC
+          ) FILTER (WHERE du.domain IS NOT NULL),
+          '[]'::json
+        ) as domains
+      FROM account_usage au
+      LEFT JOIN domain_usage du ON au.account_id = du.account_id
+      GROUP BY au.account_id, au.total_output_tokens, au.total_input_tokens, 
+               au.request_count, au.last_request_time
+      ORDER BY au.total_output_tokens DESC
+    `
+
+    const result = await pool.query(accountsQuery)
+
+    const tokenLimit = 140000 // 5-hour limit
+
+    const accounts = result.rows.map(row => ({
+      accountId: row.account_id,
+      outputTokens: parseInt(row.total_output_tokens) || 0,
+      inputTokens: parseInt(row.total_input_tokens) || 0,
+      requestCount: parseInt(row.request_count) || 0,
+      lastRequestTime: row.last_request_time,
+      remainingTokens: Math.max(0, tokenLimit - (parseInt(row.total_output_tokens) || 0)),
+      percentageUsed: ((parseInt(row.total_output_tokens) || 0) / tokenLimit) * 100,
+      domains: row.domains || [],
+    }))
+
+    // For each account, get mini time series (last 20 points)
+    const accountsWithSeries = await Promise.all(
+      accounts.map(async account => {
+        const miniSeriesQuery = `
+          WITH time_buckets AS (
+            SELECT 
+              generate_series(
+                NOW() - INTERVAL '5 hours',
+                NOW(),
+                INTERVAL '15 minutes'
+              ) AS bucket_time
+          )
+          SELECT 
+            tb.bucket_time,
+            (
+              SELECT COALESCE(SUM(output_tokens), 0)
+              FROM api_requests
+              WHERE account_id = $1
+                AND timestamp > tb.bucket_time - INTERVAL '5 hours'
+                AND timestamp <= tb.bucket_time
+            ) AS cumulative_output_tokens
+          FROM time_buckets tb
+          ORDER BY tb.bucket_time ASC
+        `
+
+        const seriesResult = await pool.query(miniSeriesQuery, [account.accountId])
+
+        const miniSeries = seriesResult.rows.map(row => ({
+          time: row.bucket_time,
+          remaining: Math.max(0, tokenLimit - (parseInt(row.cumulative_output_tokens) || 0)),
+        }))
+
+        return {
+          ...account,
+          miniSeries,
+        }
+      })
+    )
+
+    return c.json({
+      accounts: accountsWithSeries,
+      tokenLimit,
+    })
+  } catch (error) {
+    logger.error('Failed to get accounts token usage', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve accounts data' }, 500)
   }
 })
