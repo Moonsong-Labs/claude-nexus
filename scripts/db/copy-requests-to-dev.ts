@@ -20,8 +20,8 @@ async function main() {
   const targetPool = new Pool({ connectionString: DEV_CONNECTION_STRING })
 
   const requestIds = [
-    'b5068a6b-ccfb-465b-a524-6dfb7f5233fb', // First request (127 messages)
-    'd83ea021-04f2-4ab1-9344-68a454e5a0f2', // Second request (129 messages)
+    'b8dd8bee-76df-436c-be51-c32e92c70987', // First request (127 messages)
+    'ee9ec976-5cf7-4795-9ab5-a82210bbd555', // Second request (129 messages)
   ]
 
   try {
@@ -36,13 +36,15 @@ async function main() {
       console.error('Connection string:', DEV_CONNECTION_STRING)
       console.error('Error:', error.message)
       console.error('\nMake sure PostgreSQL is running. You can start it with:')
-      console.error('  docker run -d --name postgres-dev -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:15-alpine')
+      console.error(
+        '  docker run -d --name postgres-dev -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:15-alpine'
+      )
       process.exit(1)
     }
-    
+
     // Ensure table has all required columns
     console.log('Ensuring target database schema...')
-    
+
     // First check if table exists
     const tableExists = await targetPool.query(`
       SELECT EXISTS (
@@ -51,11 +53,11 @@ async function main() {
         AND table_name = 'api_requests'
       )
     `)
-    
+
     if (tableExists.rows[0].exists) {
       // Add missing columns if table exists
       console.log('Table exists, ensuring all columns are present...')
-      
+
       const columnsToAdd = [
         { name: 'account_id', definition: 'VARCHAR(255)' },
         { name: 'cache_creation_input_tokens', definition: 'INTEGER DEFAULT 0' },
@@ -64,13 +66,13 @@ async function main() {
         { name: 'current_message_hash', definition: 'CHAR(64)' },
         { name: 'parent_message_hash', definition: 'CHAR(64)' },
         { name: 'conversation_id', definition: 'UUID' },
-        { name: 'branch_id', definition: 'VARCHAR(255) DEFAULT \'main\'' },
+        { name: 'branch_id', definition: "VARCHAR(255) DEFAULT 'main'" },
         { name: 'message_count', definition: 'INTEGER DEFAULT 0' },
         { name: 'parent_task_request_id', definition: 'UUID' },
         { name: 'is_subtask', definition: 'BOOLEAN DEFAULT false' },
         { name: 'task_tool_invocation', definition: 'JSONB' },
       ]
-      
+
       for (const column of columnsToAdd) {
         try {
           await targetPool.query(`
@@ -101,7 +103,6 @@ async function main() {
       console.log('No requests found with the specified IDs')
       return
     }
-
 
     // Check if requests already exist in target
     const existingCheck = await targetPool.query(
@@ -234,13 +235,15 @@ async function main() {
         console.log(`   - Conversation: ${row.conversation_id || 'NULL'}`)
         console.log(`   - Is subtask: ${row.is_subtask || false}`)
         if (row.task_tool_invocation) {
-          console.log(`   - Task invocations: ${Array.isArray(row.task_tool_invocation) ? row.task_tool_invocation.length : 1}`)
+          console.log(
+            `   - Task invocations: ${Array.isArray(row.task_tool_invocation) ? row.task_tool_invocation.length : 1}`
+          )
         }
         console.log('')
       } catch (insertError) {
         console.error(`\n❌ Failed to insert request ${row.request_id}:`)
         console.error(`   Error: ${insertError.message}`)
-        
+
         // For debugging, log the specific field if it's a JSON parsing error
         if (insertError.message.includes('$33')) {
           console.error('\n   Task tool invocation debug:')
@@ -248,7 +251,7 @@ async function main() {
           console.error(`   - Is Array: ${Array.isArray(row.task_tool_invocation)}`)
           console.error(`   - Value: ${JSON.stringify(row.task_tool_invocation, null, 2)}`)
         }
-        
+
         throw insertError
       }
     }

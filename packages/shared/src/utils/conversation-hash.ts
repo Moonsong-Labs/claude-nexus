@@ -138,21 +138,26 @@ function getStableSystemPrompt(systemPrompt: string | any[]): string {
   }
 
   // For array content, check if any text item contains the CLI tool prefix
-  const cliToolPrefix = 'You are an interactive CLI tool that helps users with software engineering tasks'
-  
+  const cliToolPrefix =
+    'You are an interactive CLI tool that helps users with software engineering tasks'
+
   if (Array.isArray(systemPrompt)) {
     for (const item of systemPrompt) {
-      if (item.type === 'text' && typeof item.text === 'string' && item.text.trim().startsWith(cliToolPrefix)) {
+      if (
+        item.type === 'text' &&
+        typeof item.text === 'string' &&
+        item.text.trim().startsWith(cliToolPrefix)
+      ) {
         // Found CLI tool text - return normalized content with just the first item and the CLI prefix
         const stableContent = [
           systemPrompt[0], // Keep the first item (usually "You are Claude Code...")
-          { type: 'text', text: cliToolPrefix } // Replace the second item with just the prefix
+          { type: 'text', text: cliToolPrefix }, // Replace the second item with just the prefix
         ]
         return normalizeMessageContent(stableContent)
       }
     }
   }
-  
+
   // For array content without CLI prefix, apply normalization which already filters system-reminders
   return normalizeMessageContent(systemPrompt)
 }
