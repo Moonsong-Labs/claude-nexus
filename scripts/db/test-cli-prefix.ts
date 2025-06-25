@@ -35,7 +35,7 @@ Recent commits:
 // Test messages
 const testMessage = {
   role: 'user' as const,
-  content: 'Hello world'
+  content: 'Hello world',
 }
 
 console.log('Testing CLI tool system prompt detection...\n')
@@ -51,7 +51,9 @@ console.log('Hash with system prompt 2:', hash2)
 console.log('\nHashes match:', hash1 === hash2 ? 'YES ✅' : 'NO ❌')
 
 if (hash1 === hash2) {
-  console.log('\n✅ SUCCESS: CLI tool system prompts with different git status produce identical hashes!')
+  console.log(
+    '\n✅ SUCCESS: CLI tool system prompts with different git status produce identical hashes!'
+  )
 } else {
   console.log('\n❌ FAILED: CLI tool system prompts still produce different hashes')
 }

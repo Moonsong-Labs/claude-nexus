@@ -27,9 +27,13 @@ if (!CONNECTION_STRING) {
 // Get request IDs from command line arguments
 const args = process.argv.slice(2)
 if (args.length !== 2) {
-  console.error('Usage: bun run scripts/db/analyze-request-linking.ts <request_id_1> <request_id_2>')
+  console.error(
+    'Usage: bun run scripts/db/analyze-request-linking.ts <request_id_1> <request_id_2>'
+  )
   console.error('\nExample:')
-  console.error('  bun run scripts/db/analyze-request-linking.ts b8dd8bee-76df-436c-be51-c32e92c70987 ee9ec976-5cf7-4795-9ab5-a82210bbd555')
+  console.error(
+    '  bun run scripts/db/analyze-request-linking.ts b8dd8bee-76df-436c-be51-c32e92c70987 ee9ec976-5cf7-4795-9ab5-a82210bbd555'
+  )
   process.exit(1)
 }
 
@@ -102,7 +106,9 @@ async function main() {
     console.log(`  Parent hash: ${req2.parent_message_hash || 'NULL'}\n`)
 
     console.log(`Time difference: ${Math.round((req2.timestamp - req1.timestamp) / 1000)} seconds`)
-    console.log(`Same conversation: ${req1.conversation_id === req2.conversation_id ? 'YES' : 'NO'}`)
+    console.log(
+      `Same conversation: ${req1.conversation_id === req2.conversation_id ? 'YES' : 'NO'}`
+    )
 
     // 1. SYSTEM PROMPT ANALYSIS
     console.log('\n==========================================')
@@ -274,9 +280,7 @@ async function main() {
             `  [${idx}] type: text, starts with <system-reminder>: ${hasSystemReminder ? 'YES (filtered out)' : 'NO'}`
           )
           if (hasSystemReminder) {
-            console.log(
-              `       Preview: "${item.text.substring(0, 80).replace(/\n/g, ' ')}..."`
-            )
+            console.log(`       Preview: "${item.text.substring(0, 80).replace(/\n/g, ' ')}..."`)
           }
         } else {
           console.log(`  [${idx}] type: ${item.type}`)
@@ -293,9 +297,7 @@ async function main() {
             `  [${idx}] type: text, starts with <system-reminder>: ${hasSystemReminder ? 'YES (filtered out)' : 'NO'}`
           )
           if (hasSystemReminder) {
-            console.log(
-              `       Preview: "${item.text.substring(0, 80).replace(/\n/g, ' ')}..."`
-            )
+            console.log(`       Preview: "${item.text.substring(0, 80).replace(/\n/g, ' ')}..."`)
           }
         } else {
           console.log(`  [${idx}] type: ${item.type}`)
@@ -385,27 +387,35 @@ async function main() {
 
     console.log('\nRoot Causes:')
     const causes = []
-    
+
     if (sys1Str !== sys2Str) {
       causes.push('1. System prompts are different (possibly git status, timestamps, etc.)')
     }
-    
+
     if (filteredStr1 !== filteredStr2) {
       causes.push('2. Message content differs even after filtering system-reminders')
     }
-    
-    if (lastMatchingHash && req2.parent_message_hash && lastMatchingHash !== req2.parent_message_hash) {
-      causes.push('3. Parent hash mismatch - database hash doesn\'t match computed hash')
+
+    if (
+      lastMatchingHash &&
+      req2.parent_message_hash &&
+      lastMatchingHash !== req2.parent_message_hash
+    ) {
+      causes.push("3. Parent hash mismatch - database hash doesn't match computed hash")
     }
-    
+
     if (causes.length === 0) {
       causes.push('No obvious issues found - requests should be linking correctly')
     }
-    
+
     causes.forEach(cause => console.log(`   ${cause}`))
 
     console.log('\nRecommendations:')
-    if (lastMatchingHash && req2.parent_message_hash && lastMatchingHash !== req2.parent_message_hash) {
+    if (
+      lastMatchingHash &&
+      req2.parent_message_hash &&
+      lastMatchingHash !== req2.parent_message_hash
+    ) {
       console.log('   • Run rebuild-conversations.ts to recalculate conversation hashes')
     }
     if (sys1Str !== sys2Str) {
@@ -414,7 +424,6 @@ async function main() {
     if (filteredStr1 !== filteredStr2) {
       console.log('   • Check if requests are from different conversation branches')
     }
-
   } catch (error) {
     console.error('Error:', error)
   } finally {
