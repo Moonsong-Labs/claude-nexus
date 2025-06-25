@@ -54,8 +54,12 @@ function normalizeMessageContent(content: string | any[]): string {
         case 'tool_use':
           return `[${index}]tool_use:${item.name}:${item.id}:${JSON.stringify(item.input || {})}`
         case 'tool_result':
-          const resultContent =
+          let resultContent =
             typeof item.content === 'string' ? item.content : JSON.stringify(item.content || [])
+          // Remove system-reminder blocks from tool_result content
+          if (typeof item.content === 'string') {
+            resultContent = item.content.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim()
+          }
           return `[${index}]tool_result:${item.tool_use_id}:${resultContent}`
         default:
           // For unknown types, only include type and essential content
@@ -85,6 +89,48 @@ export function hashConversationState(messages: ClaudeMessage[]): string {
 }
 
 /**
+ * Removes transient/volatile context from system prompts to ensure stable hashing
+ * @param systemPrompt - The system prompt content
+ * @returns The stable part of the system prompt
+ */
+function getStableSystemPrompt(systemPrompt: string | any[]): string {
+  if (typeof systemPrompt === 'string') {
+    let stable = systemPrompt
+    
+    // Remove transient_context blocks (future-proofing)
+    stable = stable.replace(/<transient_context>[\s\S]*?<\/transient_context>/g, '')
+    
+    // Remove system-reminder blocks
+    stable = stable.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    
+    // Remove git status sections (common in Claude Code)
+    // Pattern: "gitStatus: " followed by content until double newline or end
+    stable = stable.replace(/gitStatus:[\s\S]*?(?:\n\n|$)/g, '\n\n')
+    
+    // Remove standalone Status: sections that contain git information
+    // This captures multi-line status blocks that contain file changes
+    stable = stable.replace(/(?:^|\n)Status:\s*\n(?:[^\n]*\n)*?(?=\n\n|$)/gm, '\n')
+    
+    // Remove Current branch: lines
+    stable = stable.replace(/(?:^|\n)Current branch:.*$/gm, '')
+    
+    // Remove Main branch: lines  
+    stable = stable.replace(/(?:^|\n)Main branch.*:.*$/gm, '')
+    
+    // Remove Recent commits: sections including the content
+    stable = stable.replace(/(?:^|\n)Recent commits:.*\n(?:(?!^\n).*\n)*/gm, '\n')
+    
+    // Clean up multiple consecutive newlines
+    stable = stable.replace(/\n{3,}/g, '\n\n')
+    
+    return stable.trim()
+  }
+  
+  // For array content, apply normalization which already filters system-reminders
+  return normalizeMessageContent(systemPrompt)
+}
+
+/**
  * Generates a hash for conversation state including system prompt
  * @param messages - Array of messages
  * @param system - Optional system prompt (string or array of content blocks)
@@ -100,10 +146,12 @@ export function hashConversationStateWithSystem(
 
   let conversationString = ''
 
-  // Include system prompt in the hash if present
+  // Include stable system prompt in the hash if present
   if (system) {
-    const systemContent = typeof system === 'string' ? system : normalizeMessageContent(system)
-    conversationString = `[SYSTEM]${systemContent}||`
+    const stableSystemContent = getStableSystemPrompt(system)
+    if (stableSystemContent) {
+      conversationString = `[SYSTEM]${stableSystemContent}||`
+    }
   }
 
   // Add all messages
