@@ -42,12 +42,16 @@ class ConversationRebuilder {
   private processedRequests: Set<string> = new Set()
   private conversationRoots: ConversationNode[] = []
   private dryRun: boolean
-  private onlyOrphanRequests: boolean
+  private onlyOrphanConversations: boolean
 
-  constructor(databaseUrl: string, dryRun: boolean = false, onlyOrphanRequests: boolean = false) {
+  constructor(
+    databaseUrl: string,
+    dryRun: boolean = false,
+    onlyOrphanConversations: boolean = false
+  ) {
     this.pool = new Pool({ connectionString: databaseUrl })
     this.dryRun = dryRun
-    this.onlyOrphanRequests = onlyOrphanRequests
+    this.onlyOrphanConversations = onlyOrphanConversations
   }
 
   async rebuild() {
@@ -116,17 +120,31 @@ class ConversationRebuilder {
     `
 
     // Add filter for orphan requests if requested
-    if (this.onlyOrphanRequests) {
-      query += `
-        AND (
-          -- Either message_count > 1
-          message_count > 1
-          -- Or if message_count is null, check the JSON array length
-          OR (message_count IS NULL AND jsonb_array_length(body->'messages') > 1)
-        )
-        -- And has no parent message hash (starts a conversation)
-        AND parent_message_hash IS NULL
+    if (this.onlyOrphanConversations) {
+      // First, find all conversation IDs that have at least one request with only 1 message
+      const conversationsWithSingleMessageQuery = `
+        SELECT DISTINCT conversation_id 
+        FROM api_requests 
+        WHERE request_type IN ('inference')
+          AND conversation_id IS NOT NULL
+          AND (message_count = 1 OR (message_count IS NULL AND jsonb_array_length(body->'messages') = 1))
       `
+
+      const conversationsWithSingleMessage = await this.pool.query(
+        conversationsWithSingleMessageQuery
+      )
+      const conversationIds = conversationsWithSingleMessage.rows.map(row => row.conversation_id)
+
+      if (conversationIds.length > 0) {
+        // Exclude these conversations from our query
+        query += `
+          AND (conversation_id IS NULL OR conversation_id NOT IN (${conversationIds.map(id => `'${id}'`).join(',')}))
+        `
+      }
+
+      console.log(
+        `   Filtering for orphan conversations (excluding ${conversationIds.length} conversations with single-message requests)`
+      )
     }
 
     query += ' ORDER BY timestamp ASC'
@@ -523,18 +541,18 @@ class ConversationRebuilder {
 }
 
 // Parse command line arguments
-function parseArgs(): { dryRun: boolean; onlyOrphanRequests: boolean } {
+function parseArgs(): { dryRun: boolean; onlyOrphanConversations: boolean } {
   const args = process.argv.slice(2)
   return {
     dryRun: args.includes('--dry-run'),
-    onlyOrphanRequests: args.includes('--only-orphan-requests'),
+    onlyOrphanConversations: args.includes('--only-orphan-conversations'),
   }
 }
 
 // Main execution
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  const { dryRun, onlyOrphanRequests } = parseArgs()
+  const { dryRun, onlyOrphanConversations } = parseArgs()
 
   if (!databaseUrl) {
     console.error('ERROR: DATABASE_URL environment variable is required')
@@ -555,8 +573,10 @@ async function main() {
     console.log('It is recommended to backup your database before proceeding.')
   }
 
-  if (onlyOrphanRequests) {
-    console.log('🎯 Only processing orphan requests (starting with >1 message)')
+  if (onlyOrphanConversations) {
+    console.log(
+      '🎯 Only processing orphan conversations (conversations without any single-message requests)'
+    )
   }
 
   console.log('')
@@ -571,7 +591,7 @@ async function main() {
     }
   }
 
-  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanRequests)
+  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations)
 
   try {
     await rebuilder.rebuild()
