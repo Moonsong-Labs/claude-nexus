@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 Claude Nexus Proxy - A high-performance proxy for Claude API with monitoring dashboard. Built with Bun and Hono framework, deployed as separate Docker images for each service.
 
+## Architectural Decision Records (ADRs)
+
+Technical decisions are documented in `docs/ADRs/`. Key architectural decisions:
+
+- **ADR-001**: Example ADR
+
+**AI Assistant Directive**: When discussing architecture or making technical decisions, always reference relevant ADRs. If a new architectural decision is made during development, create or update an ADR to document it. This ensures all technical decisions have clear rationale and can be revisited if needed.
+
 ## Architecture
 
 ### Monorepo Structure
