@@ -116,7 +116,7 @@ class ConversationRebuilder {
         request_type,
         message_count
       FROM api_requests
-      WHERE request_type IN ('inference', 'inference_streaming')
+      WHERE request_type IN ('inference')
     `
 
     // Add filter for orphan requests if requested
