@@ -58,7 +58,9 @@ function normalizeMessageContent(content: string | any[]): string {
             typeof item.content === 'string' ? item.content : JSON.stringify(item.content || [])
           // Remove system-reminder blocks from tool_result content
           if (typeof item.content === 'string') {
-            resultContent = item.content.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim()
+            resultContent = item.content
+              .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+              .trim()
           }
           return `[${index}]tool_result:${item.tool_use_id}:${resultContent}`
         default:
@@ -96,36 +98,36 @@ export function hashConversationState(messages: ClaudeMessage[]): string {
 function getStableSystemPrompt(systemPrompt: string | any[]): string {
   if (typeof systemPrompt === 'string') {
     let stable = systemPrompt
-    
+
     // Remove transient_context blocks (future-proofing)
     stable = stable.replace(/<transient_context>[\s\S]*?<\/transient_context>/g, '')
-    
+
     // Remove system-reminder blocks
     stable = stable.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
-    
+
     // Remove git status sections (common in Claude Code)
     // Pattern: "gitStatus: " followed by content until double newline or end
     stable = stable.replace(/gitStatus:[\s\S]*?(?:\n\n|$)/g, '\n\n')
-    
+
     // Remove standalone Status: sections that contain git information
     // This captures multi-line status blocks that contain file changes
     stable = stable.replace(/(?:^|\n)Status:\s*\n(?:[^\n]*\n)*?(?=\n\n|$)/gm, '\n')
-    
+
     // Remove Current branch: lines
     stable = stable.replace(/(?:^|\n)Current branch:.*$/gm, '')
-    
-    // Remove Main branch: lines  
+
+    // Remove Main branch: lines
     stable = stable.replace(/(?:^|\n)Main branch.*:.*$/gm, '')
-    
+
     // Remove Recent commits: sections including the content
     stable = stable.replace(/(?:^|\n)Recent commits:.*\n(?:(?!^\n).*\n)*/gm, '\n')
-    
+
     // Clean up multiple consecutive newlines
     stable = stable.replace(/\n{3,}/g, '\n\n')
-    
+
     return stable.trim()
   }
-  
+
   // For array content, apply normalization which already filters system-reminders
   return normalizeMessageContent(systemPrompt)
 }
