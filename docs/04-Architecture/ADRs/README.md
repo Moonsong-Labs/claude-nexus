@@ -1,0 +1,75 @@
+# Architecture Decision Records
+
+This directory contains Architecture Decision Records (ADRs) for the Claude Nexus Proxy project.
+
+## What is an ADR?
+
+An Architecture Decision Record captures an important architectural decision made along with its context and consequences.
+
+## ADR Template
+
+All ADRs in this project follow this template:
+
+```markdown
+# ADR-XXX: [Title]
+
+## Status
+[Proposed | Accepted | Deprecated | Superseded]
+
+## Context
+What is the issue that we're seeing that is motivating this decision or change?
+
+## Decision
+What is the change that we're proposing and/or doing?
+
+## Consequences
+What becomes easier or more difficult to do because of this change?
+```
+
+## Current ADRs
+
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| [ADR-001](./adr-001-monorepo-structure.md) | Monorepo Structure | Accepted | 2024-01-15 |
+| [ADR-002](./adr-002-separate-docker-images.md) | Separate Docker Images | Accepted | 2024-01-20 |
+| [ADR-003](./adr-003-conversation-tracking.md) | Conversation Tracking Design | Accepted | 2024-02-01 |
+| [ADR-004](./adr-004-proxy-authentication.md) | Proxy-Level Authentication | Accepted | 2024-06-25 |
+| [ADR-005](./adr-005-token-usage-tracking.md) | Comprehensive Token Usage Tracking | Accepted | 2024-06-25 |
+| [ADR-006](./adr-006-long-running-requests.md) | Support for Long-Running Requests | Accepted | 2024-06-25 |
+| [ADR-007](./adr-007-subtask-tracking.md) | Sub-task Detection and Tracking | Accepted | 2024-06-25 |
+| [ADR-008](./adr-008-cicd-strategy.md) | CI/CD Strategy with GitHub Actions | Accepted | 2024-06-25 |
+| [ADR-009](./adr-009-dashboard-architecture.md) | Dashboard Architecture with HTMX | Accepted | 2024-06-25 |
+| [ADR-010](./adr-010-docker-cli-integration.md) | Docker-Based Claude CLI Integration | Accepted | 2024-06-25 |
+| [ADR-011](./adr-011-future-decisions.md) | Future Architectural Decisions | Proposed | 2024-06-25 |
+
+## Creating a New ADR
+
+1. Copy the template from `template.md`
+2. Name it `adr-XXX-brief-description.md` where XXX is the next number
+3. Fill in all sections
+4. Update this README with the new ADR
+5. Submit PR for review
+
+## Reviewing ADRs
+
+When reviewing an ADR, consider:
+
+- Is the context clearly explained?
+- Are alternatives considered?
+- Are trade-offs documented?
+- Are the consequences realistic?
+- Is the decision actionable?
+
+## Superseding ADRs
+
+When an ADR is superseded:
+
+1. Update the original ADR status to "Superseded by ADR-XXX"
+2. Link to the new ADR
+3. Explain in the new ADR why the original decision is being changed
+
+## References
+
+- [Documenting Architecture Decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions) by Michael Nygard
+- [ADR Tools](https://github.com/npryce/adr-tools)
+- [MADR](https://adr.github.io/madr/) - Markdown Architectural Decision Records

@@ -100,7 +100,7 @@ DEBUG=false
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ```
 
-See [CONFIGURATION.md](docs/CONFIGURATION.md) for complete options.
+See the [Documentation](docs/README.md) for complete configuration options.
 
 ### Domain Credentials
 
@@ -213,18 +213,38 @@ docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
 
 ### Production
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment guide.
+See the [Deployment Guide](docs/03-Operations/deployment/) for production deployment options.
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) - System design and components
-- [Configuration](docs/CONFIGURATION.md) - All configuration options
-- [Development](docs/DEVELOPMENT.md) - Development setup and guidelines
-- [API Reference](docs/API.md) - API endpoints and usage
-- [Claude CLI](docs/CLAUDE_CLI.md) - Using Claude CLI with the proxy
-- [Deployment](docs/DEPLOYMENT.md) - Production deployment guide
-- [Security](docs/SECURITY.md) - Security considerations
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+Comprehensive documentation is available in the [docs](docs/) directory:
+
+### 📚 Getting Started
+- [Quick Start Guide](docs/00-Overview/quickstart.md) - Get up and running in 5 minutes
+- [Installation](docs/01-Getting-Started/installation.md) - Detailed installation instructions
+- [Configuration](docs/01-Getting-Started/configuration.md) - All configuration options
+
+### 🔧 User Guides
+- [API Reference](docs/02-User-Guide/api-reference.md) - Complete API documentation
+- [Authentication](docs/02-User-Guide/authentication.md) - Auth setup and troubleshooting
+- [Dashboard Guide](docs/02-User-Guide/dashboard-guide.md) - Using the monitoring dashboard
+- [Claude CLI](docs/02-User-Guide/claude-cli.md) - CLI integration guide
+
+### 🚀 Operations
+- [Deployment](docs/03-Operations/deployment/) - Docker and production deployment
+- [Security](docs/03-Operations/security.md) - Security best practices
+- [Monitoring](docs/03-Operations/monitoring.md) - Metrics and observability
+- [Backup & Recovery](docs/03-Operations/backup-recovery.md) - Data protection
+
+### 🏗️ Architecture
+- [System Architecture](docs/00-Overview/architecture.md) - High-level design
+- [Internals](docs/04-Architecture/internals.md) - Deep implementation details
+- [ADRs](docs/04-Architecture/ADRs/) - Architecture decision records
+
+### 🔍 Troubleshooting
+- [Common Issues](docs/05-Troubleshooting/common-issues.md) - FAQ and solutions
+- [Performance](docs/05-Troubleshooting/performance.md) - Performance optimization
+- [Debugging](docs/05-Troubleshooting/debugging.md) - Debug techniques
 
 ## Contributing
 
@@ -236,6 +256,7 @@ Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTIN
 
 ## Support
 
-- 📖 [Documentation](docs/)
+- 📖 [Full Documentation](docs/README.md)
 - 🐛 [Issue Tracker](https://github.com/yourusername/claude-nexus-proxy/issues)
 - 💬 [Discussions](https://github.com/yourusername/claude-nexus-proxy/discussions)
+- 📊 [Changelog](docs/06-Reference/changelog.md)
