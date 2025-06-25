@@ -7,8 +7,8 @@
 import {
   hashMessage,
   normalizeMessageContent,
-} from '../packages/shared/dist/utils/conversation-hash.js'
-import type { ClaudeMessage } from '../packages/shared/dist/types/claude.js'
+} from '../packages/shared/src/utils/conversation-hash'
+import type { ClaudeMessage } from '../packages/shared/src/types/claude'
 
 // Test case 1: Message without system reminder
 const messageWithoutReminder: ClaudeMessage = {

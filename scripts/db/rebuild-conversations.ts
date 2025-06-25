@@ -7,7 +7,7 @@
 import { Pool } from 'pg'
 import { randomUUID } from 'crypto'
 import { config } from 'dotenv'
-import { extractMessageHashes } from '../../packages/shared/dist/utils/conversation-hash.js'
+import { extractMessageHashes } from '../../packages/shared/src/utils/conversation-hash'
 
 // Load environment variables
 config()
@@ -41,9 +41,17 @@ class ConversationRebuilder {
   private requestsByHash: Map<string, Request[]> = new Map()
   private processedRequests: Set<string> = new Set()
   private conversationRoots: ConversationNode[] = []
+  private dryRun: boolean
+  private onlyOrphanConversations: boolean
 
-  constructor(databaseUrl: string) {
+  constructor(
+    databaseUrl: string,
+    dryRun: boolean = false,
+    onlyOrphanConversations: boolean = false
+  ) {
     this.pool = new Pool({ connectionString: databaseUrl })
+    this.dryRun = dryRun
+    this.onlyOrphanConversations = onlyOrphanConversations
   }
 
   async rebuild() {
@@ -95,7 +103,7 @@ class ConversationRebuilder {
   }
 
   private async loadRequests(): Promise<Request[]> {
-    const query = `
+    let query = `
       SELECT 
         request_id,
         domain,
@@ -108,9 +116,38 @@ class ConversationRebuilder {
         request_type,
         message_count
       FROM api_requests
-      WHERE request_type IN ('inference', 'inference_streaming')
-      ORDER BY timestamp ASC
+      WHERE request_type IN ('inference')
     `
+
+    // Add filter for orphan requests if requested
+    if (this.onlyOrphanConversations) {
+      // First, find all conversation IDs that have at least one request with only 1 message
+      const conversationsWithSingleMessageQuery = `
+        SELECT DISTINCT conversation_id 
+        FROM api_requests 
+        WHERE request_type IN ('inference')
+          AND conversation_id IS NOT NULL
+          AND (message_count = 1 OR (message_count IS NULL AND jsonb_array_length(body->'messages') = 1))
+      `
+
+      const conversationsWithSingleMessage = await this.pool.query(
+        conversationsWithSingleMessageQuery
+      )
+      const conversationIds = conversationsWithSingleMessage.rows.map(row => row.conversation_id)
+
+      if (conversationIds.length > 0) {
+        // Exclude these conversations from our query
+        query += `
+          AND (conversation_id IS NULL OR conversation_id NOT IN (${conversationIds.map(id => `'${id}'`).join(',')}))
+        `
+      }
+
+      console.log(
+        `   Filtering for orphan conversations (excluding ${conversationIds.length} conversations with single-message requests)`
+      )
+    }
+
+    query += ' ORDER BY timestamp ASC'
 
     const result = await this.pool.query(query)
 
@@ -344,6 +381,49 @@ class ConversationRebuilder {
       message_count?: number
     }>
   ) {
+    if (this.dryRun) {
+      console.log('\n   🔍 DRY RUN MODE - Showing what would be updated:')
+
+      // Group updates by type of change
+      const conversationUpdates = updates.filter(u => u.conversation_id)
+      const hashUpdates = updates.filter(u => u.current_message_hash || u.parent_message_hash)
+      const messageCountUpdates = updates.filter(u => u.message_count !== undefined)
+
+      console.log(`   Would update ${updates.length} total requests:`)
+      console.log(`     - ${conversationUpdates.length} conversation assignments`)
+      console.log(`     - ${hashUpdates.length} hash updates`)
+      console.log(`     - ${messageCountUpdates.length} message count updates`)
+
+      // Show sample of changes
+      if (updates.length > 0) {
+        console.log('\n   Sample of changes (first 5):')
+        updates.slice(0, 5).forEach(update => {
+          console.log(`     Request ${update.request_id}:`)
+          console.log(`       - conversation_id: ${update.conversation_id}`)
+          console.log(`       - branch_id: ${update.branch_id}`)
+          if (update.current_message_hash) {
+            console.log(
+              `       - current_message_hash: ${update.current_message_hash.substring(0, 16)}...`
+            )
+          }
+          if (update.parent_message_hash !== undefined) {
+            console.log(
+              `       - parent_message_hash: ${update.parent_message_hash ? update.parent_message_hash.substring(0, 16) + '...' : 'NULL'}`
+            )
+          }
+          if (update.message_count !== undefined) {
+            console.log(`       - message_count: ${update.message_count}`)
+          }
+        })
+
+        if (updates.length > 5) {
+          console.log(`     ... and ${updates.length - 5} more requests`)
+        }
+      }
+
+      return
+    }
+
     const client = await this.pool.connect()
 
     try {
@@ -419,6 +499,10 @@ class ConversationRebuilder {
   private async showStatistics() {
     console.log('\n6. Final statistics:')
 
+    if (this.dryRun) {
+      console.log('   (Statistics show current database state, not dry-run changes)')
+    }
+
     const stats = await this.pool.query(`
       SELECT 
         COUNT(DISTINCT conversation_id) as total_conversations,
@@ -456,9 +540,19 @@ class ConversationRebuilder {
   }
 }
 
+// Parse command line arguments
+function parseArgs(): { dryRun: boolean; onlyOrphanConversations: boolean } {
+  const args = process.argv.slice(2)
+  return {
+    dryRun: args.includes('--dry-run'),
+    onlyOrphanConversations: args.includes('--only-orphan-conversations'),
+  }
+}
+
 // Main execution
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
+  const { dryRun, onlyOrphanConversations } = parseArgs()
 
   if (!databaseUrl) {
     console.error('ERROR: DATABASE_URL environment variable is required')
@@ -471,23 +565,41 @@ async function main() {
   console.log('This script will retroactively compute conversation IDs and branches')
   console.log('from existing requests in the database based on message hashes.')
   console.log('')
-  console.log('WARNING: This will update existing records in the database.')
-  console.log('It is recommended to backup your database before proceeding.')
-  console.log('')
 
-  // Add a confirmation prompt
-  const response = prompt('Do you want to continue? (yes/no): ')
-
-  if (response?.toLowerCase() !== 'yes') {
-    console.log('Operation cancelled.')
-    process.exit(0)
+  if (dryRun) {
+    console.log('🔍 Running in DRY RUN mode - no changes will be made to the database')
+  } else {
+    console.log('WARNING: This will update existing records in the database.')
+    console.log('It is recommended to backup your database before proceeding.')
   }
 
-  const rebuilder = new ConversationRebuilder(databaseUrl)
+  if (onlyOrphanConversations) {
+    console.log(
+      '🎯 Only processing orphan conversations (conversations without any single-message requests)'
+    )
+  }
+
+  console.log('')
+
+  // Add a confirmation prompt unless in dry run mode
+  if (!dryRun) {
+    const response = prompt('Do you want to continue? (yes/no): ')
+
+    if (response?.toLowerCase() !== 'yes') {
+      console.log('Operation cancelled.')
+      process.exit(0)
+    }
+  }
+
+  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations)
 
   try {
     await rebuilder.rebuild()
-    console.log('\n✅ Conversation rebuild completed successfully!')
+    if (dryRun) {
+      console.log('\n✅ Dry run completed successfully! No changes were made.')
+    } else {
+      console.log('\n✅ Conversation rebuild completed successfully!')
+    }
   } catch (error) {
     console.error('\n❌ Conversation rebuild failed:', error)
     process.exit(1)
