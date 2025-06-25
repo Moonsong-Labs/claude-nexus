@@ -97,6 +97,15 @@ export function hashConversationState(messages: ClaudeMessage[]): string {
  */
 function getStableSystemPrompt(systemPrompt: string | any[]): string {
   if (typeof systemPrompt === 'string') {
+    // Special case: If the system prompt starts with the CLI tool text,
+    // only include this stable snippet to avoid dynamic content differences
+    const cliToolPrefix =
+      'You are an interactive CLI tool that helps users with software engineering tasks'
+    if (systemPrompt.trim().startsWith(cliToolPrefix)) {
+      // Return just the stable prefix, ignoring all the dynamic content that follows
+      return cliToolPrefix
+    }
+
     let stable = systemPrompt
 
     // Remove transient_context blocks (future-proofing)
@@ -128,7 +137,23 @@ function getStableSystemPrompt(systemPrompt: string | any[]): string {
     return stable.trim()
   }
 
-  // For array content, apply normalization which already filters system-reminders
+  // For array content, check if any text item contains the CLI tool prefix
+  const cliToolPrefix = 'You are an interactive CLI tool that helps users with software engineering tasks'
+  
+  if (Array.isArray(systemPrompt)) {
+    for (const item of systemPrompt) {
+      if (item.type === 'text' && typeof item.text === 'string' && item.text.trim().startsWith(cliToolPrefix)) {
+        // Found CLI tool text - return normalized content with just the first item and the CLI prefix
+        const stableContent = [
+          systemPrompt[0], // Keep the first item (usually "You are Claude Code...")
+          { type: 'text', text: cliToolPrefix } // Replace the second item with just the prefix
+        ]
+        return normalizeMessageContent(stableContent)
+      }
+    }
+  }
+  
+  // For array content without CLI prefix, apply normalization which already filters system-reminders
   return normalizeMessageContent(systemPrompt)
 }
 
