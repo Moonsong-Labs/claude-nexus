@@ -18,11 +18,13 @@
 ## Considered Options
 
 1. **Option 1: [Name]**
+
    - Description: [Brief description]
    - Pros: [List of advantages]
    - Cons: [List of disadvantages]
 
 2. **Option 2: [Name]**
+
    - Description: [Brief description]
    - Pros: [List of advantages]
    - Cons: [List of disadvantages]

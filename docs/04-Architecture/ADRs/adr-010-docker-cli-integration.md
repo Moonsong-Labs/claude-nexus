@@ -27,16 +27,19 @@ The challenge was integrating a third-party CLI tool while maintaining security,
 ## Considered Options
 
 1. **Native Installation**
+
    - Description: Users install CLI directly
    - Pros: Direct access, full performance
    - Cons: Installation complexity, version mismatches
 
 2. **Proxy CLI Wrapper**
+
    - Description: Custom CLI that wraps proxy API
    - Pros: Full control, tailored features
    - Cons: Maintenance burden, missing CLI features
 
 3. **Docker Container**
+
    - Description: CLI in container with proxy config
    - Pros: Consistent environment, easy setup
    - Cons: Docker requirement, file access complexity
@@ -53,11 +56,12 @@ We will provide **Docker-based Claude CLI integration** with pre-configured cont
 ### Implementation Details
 
 1. **Docker Service Configuration**:
+
    ```yaml
    services:
      claude-cli:
        image: ghcr.io/anthropics/claude-cli:latest
-       profiles: ["claude"]
+       profiles: ['claude']
        environment:
          CLAUDE_API_URL: http://proxy:3000
          CLAUDE_API_KEY: ${CLAUDE_CLI_API_KEY}
@@ -69,29 +73,33 @@ We will provide **Docker-based Claude CLI integration** with pre-configured cont
    ```
 
 2. **Authentication Flow**:
+
    ```
    CLI → Bearer Token → Proxy → Domain Resolution → Claude API
    ```
+
    - CLI uses standard Bearer authentication
    - Proxy maps to localhost.credentials.json
    - Token tracked under localhost domain
 
 3. **Usage Monitoring**:
+
    ```typescript
    // Additional monitoring for CLI usage
    if (domain === 'localhost' && userAgent.includes('claude-cli')) {
-     metrics.trackCliUsage(request);
+     metrics.trackCliUsage(request)
    }
    ```
 
 4. **Helper Commands**:
+
    ```bash
    # Interactive session
    docker compose run --rm claude-cli claude
-   
+
    # Single command
    docker compose run --rm claude-cli claude "Explain Docker"
-   
+
    # With file access
    docker compose run --rm -v $(pwd):/workspace claude-cli claude "Review this code" /workspace/app.py
    ```
@@ -117,6 +125,7 @@ We will provide **Docker-based Claude CLI integration** with pre-configured cont
 ### Risks and Mitigations
 
 - **Risk**: File permissions issues with volumes
+
   - **Mitigation**: Document UID/GID considerations
   - **Mitigation**: Use consistent workspace directory
 
@@ -135,12 +144,14 @@ We will provide **Docker-based Claude CLI integration** with pre-configured cont
 ## Usage Patterns
 
 1. **Interactive Development**:
+
    ```bash
    docker compose --profile claude up -d
    docker compose exec claude-cli claude
    ```
 
 2. **Script Integration**:
+
    ```bash
    echo "Explain this error: $ERROR" | \
      docker compose run --rm claude-cli claude

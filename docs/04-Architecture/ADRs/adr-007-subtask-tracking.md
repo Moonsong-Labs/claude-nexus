@@ -26,16 +26,19 @@ We needed a way to automatically detect and link these sub-tasks to provide bett
 ## Considered Options
 
 1. **Client-Side Annotation**
+
    - Description: Clients explicitly mark sub-tasks
    - Pros: 100% accurate, explicit relationships
    - Cons: Requires client changes, breaks existing code
 
 2. **Response Analysis**
+
    - Description: Parse responses for Task tool invocations
    - Pros: Works with existing clients, automatic
    - Cons: Parsing overhead, potential false positives
 
 3. **Message Content Matching**
+
    - Description: Match task prompts to new conversations
    - Pros: No client changes, works retroactively
    - Cons: Timing windows, potential mismatches
@@ -52,11 +55,12 @@ We will implement **response analysis with message matching** to automatically d
 ### Implementation Details
 
 1. **Task Detection**:
+
    ```typescript
    // Scan response for Task tool invocations
    function extractTaskInvocations(response: any): TaskInvocation[] {
-     const invocations = [];
-     
+     const invocations = []
+
      // Check content blocks for tool_use
      if (response.content) {
        for (const block of response.content) {
@@ -64,63 +68,66 @@ We will implement **response analysis with message matching** to automatically d
            invocations.push({
              tool_use_id: block.id,
              prompt: block.input.prompt,
-             description: block.input.description
-           });
+             description: block.input.description,
+           })
          }
        }
      }
-     
-     return invocations;
+
+     return invocations
    }
    ```
 
 2. **Database Schema**:
+
    ```sql
    ALTER TABLE api_requests ADD COLUMN is_subtask BOOLEAN DEFAULT FALSE;
    ALTER TABLE api_requests ADD COLUMN parent_task_request_id UUID;
    ALTER TABLE api_requests ADD COLUMN task_tool_invocation JSONB;
-   
+
    CREATE INDEX idx_subtask_parent ON api_requests(parent_task_request_id);
    CREATE INDEX idx_task_invocations ON api_requests USING gin(task_tool_invocation);
    ```
 
 3. **Linking Algorithm**:
+
    ```typescript
    // 30-second window for matching
-   const TASK_MATCH_WINDOW = 30000;
-   
+   const TASK_MATCH_WINDOW = 30000
+
    async function linkSubtask(userMessage: string, timestamp: Date) {
      // Find recent Task invocations
      const recentTasks = await findTaskInvocations({
        since: new Date(timestamp - TASK_MATCH_WINDOW),
-       matchingPrompt: userMessage
-     });
-     
+       matchingPrompt: userMessage,
+     })
+
      if (recentTasks.length > 0) {
        // Link to most recent matching task
        return {
          is_subtask: true,
-         parent_task_request_id: recentTasks[0].request_id
-       };
+         parent_task_request_id: recentTasks[0].request_id,
+       }
      }
    }
    ```
 
 4. **Visualization Data**:
+
    ```typescript
    // Enhance conversation data with sub-task info
    interface ConversationNode {
-     id: string;
-     messages: Message[];
-     subtasks: SubTask[];
+     id: string
+     messages: Message[]
+     subtasks: SubTask[]
    }
-   
+
    interface SubTask {
-     request_id: string;
-     task_number: number;
-     description: string;
-     message_count: number;
-     status: 'running' | 'completed';
+     request_id: string
+     task_number: number
+     description: string
+     message_count: number
+     status: 'running' | 'completed'
    }
    ```
 
@@ -144,10 +151,12 @@ We will implement **response analysis with message matching** to automatically d
 ### Risks and Mitigations
 
 - **Risk**: False positive task linking
+
   - **Mitigation**: Exact prompt matching required
   - **Mitigation**: Time window limits false matches
 
 - **Risk**: Missed sub-tasks due to timing
+
   - **Mitigation**: Configurable time window
   - **Mitigation**: Manual linking API for corrections
 
@@ -165,11 +174,13 @@ We will implement **response analysis with message matching** to automatically d
 ## Dashboard Visualization
 
 1. **Tree View**:
+
    - Parent tasks show sub-task count
    - Sub-tasks appear as connected nodes
    - Tooltips show task descriptions
 
 2. **Metrics**:
+
    - Total sub-tasks in conversation
    - Aggregate token usage
    - Task completion status

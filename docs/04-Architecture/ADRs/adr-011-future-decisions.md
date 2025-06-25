@@ -15,6 +15,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: The api_requests table will grow large over time, affecting query performance.
 
 **Options to Consider**:
+
 - Monthly partitioning by created_at
 - Partitioning by account_id for better account isolation
 - Hybrid partitioning (time + account)
@@ -27,6 +28,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: No caching layer exists, causing repeated expensive computations.
 
 **Options to Consider**:
+
 - Redis for distributed caching
 - In-memory caching with cache invalidation
 - Edge caching with CDN
@@ -39,6 +41,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: Currently relies entirely on Claude API rate limiting.
 
 **Options to Consider**:
+
 - Token bucket algorithm per account
 - Sliding window counters
 - Distributed rate limiting with Redis
@@ -51,6 +54,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: No automated tests exist despite complex business logic.
 
 **Options to Consider**:
+
 - Test framework selection (Bun test, Jest, Vitest)
 - Test types prioritization (unit, integration, e2e)
 - Test data management strategy
@@ -63,6 +67,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: Limited observability beyond basic logging and metrics.
 
 **Options to Consider**:
+
 - OpenTelemetry integration
 - Datadog/New Relic/etc.
 - Self-hosted (Prometheus + Grafana + Jaeger)
@@ -75,6 +80,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: Single region deployment limits availability and latency.
 
 **Options to Consider**:
+
 - Active-active multi-region
 - Active-passive with failover
 - Edge proxy deployment
@@ -87,6 +93,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: Credentials stored in plain files.
 
 **Options to Consider**:
+
 - HashiCorp Vault
 - AWS Secrets Manager / Azure Key Vault
 - Kubernetes secrets
@@ -99,6 +106,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: No versioning strategy for proxy API changes.
 
 **Options to Consider**:
+
 - URL versioning (/v1/, /v2/)
 - Header versioning
 - Content negotiation
@@ -111,6 +119,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: State changes not captured as events.
 
 **Options to Consider**:
+
 - Full event sourcing
 - Audit log only
 - Change data capture (CDC)
@@ -123,6 +132,7 @@ Based on the technical debt register and evolving requirements, several architec
 **Context**: Single instance deployment.
 
 **Options to Consider**:
+
 - Kubernetes deployment
 - Container orchestration
 - Load balancer configuration

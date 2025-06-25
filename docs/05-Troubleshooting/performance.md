@@ -7,6 +7,7 @@ This guide helps identify and resolve performance issues in Claude Nexus Proxy.
 ### High Response Latency
 
 #### Symptoms
+
 - Requests taking longer than 10 seconds
 - Dashboard showing high P95/P99 latencies
 - User complaints about slow responses
@@ -14,10 +15,11 @@ This guide helps identify and resolve performance issues in Claude Nexus Proxy.
 #### Diagnosis
 
 1. **Check Database Performance**
+
 ```sql
 -- Long running queries
-SELECT pid, now() - query_start AS duration, query 
-FROM pg_stat_activity 
+SELECT pid, now() - query_start AS duration, query
+FROM pg_stat_activity
 WHERE (now() - query_start) > interval '5 seconds'
 AND state = 'active';
 
@@ -29,9 +31,10 @@ LIMIT 10;
 ```
 
 2. **Identify Slow Endpoints**
+
 ```sql
 -- Slowest requests
-SELECT 
+SELECT
   method,
   path,
   AVG(response_time_ms) as avg_time,
@@ -44,6 +47,7 @@ ORDER BY avg_time DESC;
 ```
 
 3. **Check Resource Usage**
+
 ```bash
 # System resources
 docker stats
@@ -55,6 +59,7 @@ psql -c "SELECT count(*) FROM pg_stat_activity;"
 #### Solutions
 
 1. **Database Optimization**
+
 ```sql
 -- Add missing indexes
 CREATE INDEX CONCURRENTLY idx_api_requests_created_at ON api_requests(created_at);
@@ -69,11 +74,12 @@ ANALYZE streaming_chunks;
 2. **Query Optimization**
 
 Fix the N+1 query issue in conversations endpoint:
+
 ```typescript
 // Before (N+1 problem)
-const conversations = await getConversations();
+const conversations = await getConversations()
 for (const conv of conversations) {
-  conv.latestRequest = await getLatestRequest(conv.id);
+  conv.latestRequest = await getLatestRequest(conv.id)
 }
 
 // After (single query)
@@ -88,22 +94,24 @@ const conversations = await db.raw(`
   SELECT c.*, lr.latest_request_id
   FROM conversations c
   LEFT JOIN latest_requests lr ON c.id = lr.conversation_id
-`);
+`)
 ```
 
 3. **Connection Pooling**
+
 ```typescript
 // Optimize pool settings
 const pool = new Pool({
   max: 20, // Maximum connections
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
-});
+})
 ```
 
 ### Memory Leaks
 
 #### Symptoms
+
 - Increasing memory usage over time
 - Service crashes with OOM errors
 - Performance degradation after running for days
@@ -122,35 +130,38 @@ docker compose exec proxy node --inspect=0.0.0.0:9229
 #### Solutions
 
 1. **Fix RequestIdMap Memory Leak**
+
 ```typescript
 // services/proxy/src/storage/StorageAdapter.ts
 private requestIdMap = new Map<string, string>();
 
 async storeResponse(data: ResponseData) {
   // ... existing code ...
-  
+
   // Clean up the map entry after storing
   this.requestIdMap.delete(data.request_id);
 }
 ```
 
 2. **Implement Request Cleanup**
+
 ```typescript
 // Add periodic cleanup
 setInterval(() => {
   // Clean up old entries (older than 1 hour)
-  const oneHourAgo = Date.now() - 3600000;
+  const oneHourAgo = Date.now() - 3600000
   for (const [key, value] of this.requestIdMap.entries()) {
     if (value.timestamp < oneHourAgo) {
-      this.requestIdMap.delete(key);
+      this.requestIdMap.delete(key)
     }
   }
-}, 300000); // Every 5 minutes
+}, 300000) // Every 5 minutes
 ```
 
 ### Database Performance
 
 #### Symptoms
+
 - Slow query warnings in logs
 - Database CPU at 100%
 - Connection pool exhaustion
@@ -159,7 +170,7 @@ setInterval(() => {
 
 ```sql
 -- Table bloat
-SELECT 
+SELECT
   schemaname,
   tablename,
   pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS total_size,
@@ -170,7 +181,7 @@ WHERE schemaname = 'public'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 -- Missing indexes
-SELECT 
+SELECT
   schemaname,
   tablename,
   attname,
@@ -185,6 +196,7 @@ AND tablename IN ('api_requests', 'streaming_chunks');
 #### Solutions
 
 1. **Vacuum and Analyze**
+
 ```bash
 # Manual vacuum
 docker compose exec postgres vacuumdb -U postgres -d claude_nexus -z
@@ -195,6 +207,7 @@ ALTER TABLE streaming_chunks SET (autovacuum_vacuum_scale_factor = 0.1);
 ```
 
 2. **Partition Large Tables**
+
 ```sql
 -- Partition api_requests by month
 CREATE TABLE api_requests_2024_01 PARTITION OF api_requests
@@ -205,6 +218,7 @@ FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
 ```
 
 3. **Optimize PostgreSQL Configuration**
+
 ```ini
 # postgresql.conf
 shared_buffers = 1GB
@@ -223,6 +237,7 @@ max_wal_size = 4GB
 ### High Token Usage
 
 #### Symptoms
+
 - Unexpectedly high token consumption
 - Hitting rate limits frequently
 - High costs
@@ -231,7 +246,7 @@ max_wal_size = 4GB
 
 ```sql
 -- Find high token usage requests
-SELECT 
+SELECT
   domain,
   model,
   request_type,
@@ -244,7 +259,7 @@ GROUP BY domain, model, request_type
 ORDER BY avg_tokens DESC;
 
 -- Identify token usage patterns
-SELECT 
+SELECT
   date_trunc('hour', created_at) as hour,
   SUM(input_tokens) as input,
   SUM(output_tokens) as output,
@@ -258,23 +273,25 @@ ORDER BY hour;
 #### Solutions
 
 1. **Implement Token Limits**
+
 ```typescript
 // Add request validation
 if (requestBody.max_tokens > 4000) {
   return res.status(400).json({
-    error: "max_tokens too high",
-    message: "Maximum allowed tokens is 4000"
-  });
+    error: 'max_tokens too high',
+    message: 'Maximum allowed tokens is 4000',
+  })
 }
 ```
 
 2. **Cache Common Responses**
+
 ```typescript
 // Implement response caching for repeated queries
-const cacheKey = generateCacheKey(request);
-const cached = await cache.get(cacheKey);
+const cacheKey = generateCacheKey(request)
+const cached = await cache.get(cacheKey)
 if (cached) {
-  return cached;
+  return cached
 }
 ```
 
@@ -299,22 +316,22 @@ if (cached) {
 const cache = {
   memory: new LRU({ max: 1000 }),
   redis: new Redis(),
-  
+
   async get(key: string) {
     // Try memory first
-    let value = this.memory.get(key);
-    if (value) return value;
-    
+    let value = this.memory.get(key)
+    if (value) return value
+
     // Try Redis
-    value = await this.redis.get(key);
+    value = await this.redis.get(key)
     if (value) {
-      this.memory.set(key, value);
-      return value;
+      this.memory.set(key, value)
+      return value
     }
-    
-    return null;
-  }
-};
+
+    return null
+  },
+}
 ```
 
 ### 4. Load Balancing
@@ -334,14 +351,17 @@ upstream claude_proxy {
 ### Key Metrics to Track
 
 1. **Response Time Percentiles**
+
    - P50, P95, P99 latencies
    - By endpoint and domain
 
 2. **Throughput**
+
    - Requests per second
    - Tokens per minute
 
 3. **Error Rates**
+
    - By error type
    - By domain
 
@@ -353,26 +373,33 @@ upstream claude_proxy {
 ### Performance Dashboard
 
 Create Grafana dashboard with:
+
 ```json
 {
   "panels": [
     {
       "title": "Request Latency",
-      "targets": [{
-        "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"
-      }]
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"
+        }
+      ]
     },
     {
       "title": "Database Query Time",
-      "targets": [{
-        "expr": "rate(pg_stat_statements_total_time[5m])"
-      }]
+      "targets": [
+        {
+          "expr": "rate(pg_stat_statements_total_time[5m])"
+        }
+      ]
     },
     {
       "title": "Token Usage Rate",
-      "targets": [{
-        "expr": "rate(claude_tokens_total[5m])"
-      }]
+      "targets": [
+        {
+          "expr": "rate(claude_tokens_total[5m])"
+        }
+      ]
     }
   ]
 }
@@ -384,8 +411,8 @@ Create Grafana dashboard with:
 
 ```javascript
 // k6 load test script
-import http from 'k6/http';
-import { check } from 'k6';
+import http from 'k6/http'
+import { check } from 'k6'
 
 export let options = {
   stages: [
@@ -393,28 +420,29 @@ export let options = {
     { duration: '10m', target: 100 },
     { duration: '5m', target: 0 },
   ],
-};
+}
 
-export default function() {
-  let response = http.post('http://localhost:3000/v1/messages', 
+export default function () {
+  let response = http.post(
+    'http://localhost:3000/v1/messages',
     JSON.stringify({
       messages: [{ role: 'user', content: 'Hello' }],
       model: 'claude-3-haiku-20240307',
-      max_tokens: 100
+      max_tokens: 100,
     }),
     {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer test-key',
-        'Host': 'test.example.com'
-      }
+        Authorization: 'Bearer test-key',
+        Host: 'test.example.com',
+      },
     }
-  );
-  
+  )
+
   check(response, {
-    'status is 200': (r) => r.status === 200,
-    'response time < 500ms': (r) => r.timings.duration < 500,
-  });
+    'status is 200': r => r.status === 200,
+    'response time < 500ms': r => r.timings.duration < 500,
+  })
 }
 ```
 

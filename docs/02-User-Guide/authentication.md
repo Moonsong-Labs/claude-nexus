@@ -140,6 +140,7 @@ bun run scripts/check-oauth-status.ts credentials/your-domain.credentials.json
 ```
 
 Output shows:
+
 - Token validity status
 - Expiration time
 - Available scopes
@@ -172,11 +173,13 @@ bun run scripts/oauth-refresh-all.ts credentials
 #### "Failed to refresh token: 400 Bad Request - Refresh token not found or invalid"
 
 **Causes:**
+
 - Refresh token expired or revoked
 - Invalid or corrupted token
 - OAuth client ID mismatch
 
 **Solution:**
+
 ```bash
 bun run scripts/oauth-login.ts credentials/your-domain.credentials.json
 ```
@@ -190,16 +193,19 @@ bun run scripts/oauth-login.ts credentials/your-domain.credentials.json
 ### Debugging OAuth Issues
 
 1. **Check credential file**:
+
    ```bash
    cat credentials/your-domain.credentials.json | jq .
    ```
 
 2. **Verify OAuth status**:
+
    ```bash
    bun run scripts/check-oauth-status.ts credentials/domain.credentials.json
    ```
 
 3. **Test refresh token**:
+
    ```bash
    bun run scripts/test-oauth-refresh.ts <refresh_token>
    ```
@@ -214,11 +220,13 @@ bun run scripts/oauth-login.ts credentials/your-domain.credentials.json
 ### Credential File Security
 
 1. **File Permissions**: Restrict access to credential files
+
    ```bash
    chmod 600 credentials/*.json
    ```
 
 2. **Directory Permissions**: Secure the credentials directory
+
    ```bash
    chmod 700 credentials/
    ```
@@ -258,8 +266,8 @@ Access the dashboard:
 // Using header
 fetch('http://localhost:3001/api/stats', {
   headers: {
-    'X-Dashboard-Key': 'your-secure-dashboard-key'
-  }
+    'X-Dashboard-Key': 'your-secure-dashboard-key',
+  },
 })
 
 // Using cookie (set by login page)
@@ -278,6 +286,7 @@ credentials/
 ```
 
 Each domain can use different:
+
 - Authentication methods (API key vs OAuth)
 - Claude accounts
 - Client API keys
@@ -316,6 +325,7 @@ docker compose logs proxy | grep -i auth
 ### Track Authentication Metrics
 
 The dashboard shows:
+
 - Authentication success/failure rates
 - Token refresh events
 - Per-domain authentication methods

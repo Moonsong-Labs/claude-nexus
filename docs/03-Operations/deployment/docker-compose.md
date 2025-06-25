@@ -5,6 +5,7 @@ Deploy the complete Claude Nexus Proxy stack using Docker Compose for a producti
 ## Overview
 
 The Docker Compose configuration includes:
+
 - PostgreSQL database with persistent storage
 - Proxy service with auto-restart
 - Dashboard service with monitoring
@@ -82,7 +83,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -94,12 +95,12 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_nexus
-      STORAGE_ENABLED: "true"
-      DEBUG: "false"
+      STORAGE_ENABLED: 'true'
+      DEBUG: 'false'
     volumes:
       - ./credentials:/app/credentials:ro
     ports:
-      - "3000:3000"
+      - '3000:3000'
     restart: unless-stopped
 
   dashboard:
@@ -111,7 +112,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_nexus
       DASHBOARD_API_KEY: ${DASHBOARD_API_KEY}
     ports:
-      - "3001:3001"
+      - '3001:3001'
     restart: unless-stopped
 
 volumes:
@@ -161,7 +162,7 @@ Deploy different configurations using profiles:
 ```yaml
 services:
   claude-cli:
-    profiles: ["cli"]
+    profiles: ['cli']
     image: ghcr.io/anthropics/claude-cli:latest
     environment:
       CLAUDE_API_URL: http://proxy:3000
@@ -192,7 +193,7 @@ services:
     networks:
       - frontend
       - backend
-  
+
   postgres:
     networks:
       - backend
@@ -259,8 +260,8 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certs:/etc/nginx/certs:ro
@@ -277,7 +278,7 @@ Configure health checks:
 services:
   proxy:
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -302,7 +303,7 @@ services:
   haproxy:
     image: haproxy:alpine
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
 ```
@@ -363,11 +364,13 @@ docker compose exec postgres vacuumdb -U postgres -d claude_nexus -z
 ### Services Won't Start
 
 1. Check port conflicts:
+
    ```bash
    netstat -tlnp | grep -E '3000|3001|5432'
    ```
 
 2. Verify credentials:
+
    ```bash
    docker compose exec proxy ls -la /app/credentials
    ```
@@ -380,11 +383,13 @@ docker compose exec postgres vacuumdb -U postgres -d claude_nexus -z
 ### Performance Issues
 
 1. Monitor resource usage:
+
    ```bash
    docker stats
    ```
 
 2. Check database performance:
+
    ```bash
    docker compose exec postgres pg_top
    ```
@@ -397,6 +402,7 @@ docker compose exec postgres vacuumdb -U postgres -d claude_nexus -z
 ### Data Recovery
 
 1. List backups:
+
    ```bash
    ls -la ./backups/
    ```
@@ -433,7 +439,7 @@ services:
     networks:
       - backend
     expose:
-      - "5432"
+      - '5432'
     # Remove ports mapping
 ```
 
@@ -456,7 +462,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - "9090:9090"
+      - '9090:9090'
 ```
 
 ### Grafana Dashboards
@@ -468,7 +474,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     ports:
-      - "3002:3000"
+      - '3002:3000'
 ```
 
 ## Helper Scripts

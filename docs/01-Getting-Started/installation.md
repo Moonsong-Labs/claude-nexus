@@ -40,6 +40,7 @@ nano .env  # or use your preferred editor
 ```
 
 Required environment variables:
+
 ```bash
 # Database connection
 DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
@@ -230,11 +231,13 @@ curl -X POST http://localhost:3000/v1/messages \
 ### Common Issues
 
 1. **Database Connection Failed**
+
    - Ensure PostgreSQL is running
    - Check DATABASE_URL format
    - Verify database exists: `createdb claude_nexus`
 
 2. **Port Already in Use**
+
    - Change ports in .env:
      ```bash
      PROXY_PORT=3000
@@ -242,6 +245,7 @@ curl -X POST http://localhost:3000/v1/messages \
      ```
 
 3. **Bun Not Found**
+
    - Install Bun: `curl -fsSL https://bun.sh/install | bash`
    - Add to PATH: `export PATH="$HOME/.bun/bin:$PATH"`
 

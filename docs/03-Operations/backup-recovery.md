@@ -5,6 +5,7 @@ Protect your Claude Nexus Proxy data with comprehensive backup and disaster reco
 ## Overview
 
 Critical data to backup:
+
 - PostgreSQL database (requests, responses, conversations)
 - Credential files (API keys, OAuth tokens)
 - Configuration files (.env, custom configs)
@@ -195,7 +196,7 @@ pg_restore -t api_requests -d claude_nexus backup.sql
 # Recovery specific time range
 psql claude_nexus -c "
   COPY (
-    SELECT * FROM api_requests 
+    SELECT * FROM api_requests
     WHERE created_at BETWEEN '2024-01-01' AND '2024-01-02'
   ) TO '/tmp/partial_backup.csv' CSV HEADER;
 "
@@ -259,10 +260,11 @@ pg_ctl start
 #### 2. Recovery Decision (5 minutes)
 
 Decision tree:
+
 ```
 Is database accessible?
 ├── Yes: Proceed to service recovery
-└── No: 
+└── No:
     ├── Recent backup available?
     │   ├── Yes: Full database recovery
     │   └── No: Point-in-time recovery
@@ -375,7 +377,7 @@ CREATE TABLE backup_history (
 );
 
 -- Check recent backups
-SELECT 
+SELECT
     backup_type,
     COUNT(*) as count,
     MAX(created_at) as latest,
@@ -405,16 +407,19 @@ fi
 ## Best Practices
 
 1. **3-2-1 Rule**
+
    - 3 copies of data
    - 2 different storage media
    - 1 offsite backup
 
 2. **Regular Testing**
+
    - Test recovery monthly
    - Document recovery times
    - Update procedures based on tests
 
 3. **Security**
+
    - Encrypt sensitive backups
    - Restrict backup access
    - Audit backup access logs

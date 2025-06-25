@@ -5,6 +5,7 @@ Comprehensive monitoring ensures your Claude Nexus Proxy operates reliably and e
 ## Overview
 
 The proxy provides multiple monitoring capabilities:
+
 - Real-time metrics and statistics
 - Token usage tracking
 - Performance monitoring
@@ -36,6 +37,7 @@ curl http://localhost:3000/token-stats
 ```
 
 Response:
+
 ```json
 {
   "total_requests": 1234,
@@ -75,7 +77,7 @@ Track response times:
 
 ```sql
 -- Average latency by hour
-SELECT 
+SELECT
   date_trunc('hour', created_at) as hour,
   AVG(response_time_ms) as avg_latency,
   PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_latency
@@ -109,16 +111,16 @@ Key metrics to monitor:
 SELECT count(*) FROM pg_stat_activity;
 
 -- Long-running queries
-SELECT pid, now() - pg_stat_activity.query_start AS duration, query 
-FROM pg_stat_activity 
+SELECT pid, now() - pg_stat_activity.query_start AS duration, query
+FROM pg_stat_activity
 WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes';
 
 -- Table sizes
-SELECT 
+SELECT
   schemaname,
   tablename,
   pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
-FROM pg_tables 
+FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ```
@@ -152,11 +154,11 @@ Set up alerts for high usage:
 ```javascript
 // Example alert check
 async function checkTokenUsage() {
-  const usage = await getTokenUsage(accountId);
-  const percentage = (usage.tokens_used / usage.limit) * 100;
-  
+  const usage = await getTokenUsage(accountId)
+  const percentage = (usage.tokens_used / usage.limit) * 100
+
   if (percentage > 80) {
-    sendAlert(`Token usage at ${percentage}% for account ${accountId}`);
+    sendAlert(`Token usage at ${percentage}% for account ${accountId}`)
   }
 }
 ```
@@ -169,7 +171,7 @@ Track error frequency:
 
 ```sql
 -- Error rate by hour
-SELECT 
+SELECT
   date_trunc('hour', created_at) as hour,
   COUNT(*) FILTER (WHERE status_code >= 400) as errors,
   COUNT(*) as total,
@@ -186,7 +188,7 @@ Analyze error types:
 
 ```sql
 -- Error breakdown
-SELECT 
+SELECT
   status_code,
   error_type,
   COUNT(*) as count,
@@ -230,14 +232,15 @@ claude_proxy_tokens_total{type="output"} ${outputTokens}
 claude_proxy_response_time_bucket{le="100"} ${bucket100}
 claude_proxy_response_time_bucket{le="500"} ${bucket500}
 claude_proxy_response_time_bucket{le="1000"} ${bucket1000}
-`;
-  res.type('text/plain').send(metrics);
-});
+`
+  res.type('text/plain').send(metrics)
+})
 ```
 
 ### Grafana Dashboards
 
 Create dashboards for:
+
 - Request rate and latency
 - Token usage trends
 - Error rates and types
@@ -245,6 +248,7 @@ Create dashboards for:
 - Cost projections
 
 Example dashboard config:
+
 ```json
 {
   "dashboard": {
@@ -278,12 +282,12 @@ External monitoring services:
 ```yaml
 # UptimeRobot configuration
 monitors:
-  - name: "Claude Proxy API"
-    url: "https://proxy.example.com/health"
+  - name: 'Claude Proxy API'
+    url: 'https://proxy.example.com/health'
     interval: 300
-    
-  - name: "Claude Dashboard"
-    url: "https://dashboard.example.com/health"
+
+  - name: 'Claude Dashboard'
+    url: 'https://dashboard.example.com/health'
     interval: 300
 ```
 
@@ -304,9 +308,9 @@ logger.info({
   duration: responseTime,
   tokens: {
     input: inputTokens,
-    output: outputTokens
-  }
-});
+    output: outputTokens,
+  },
+})
 ```
 
 ### Log Shipping
@@ -316,17 +320,17 @@ Send logs to centralized system:
 ```yaml
 # Filebeat configuration
 filebeat.inputs:
-- type: container
-  paths:
-    - '/var/lib/docker/containers/*/*.log'
-  processors:
-    - add_docker_metadata: ~
-    - decode_json_fields:
-        fields: ["message"]
-        target: ""
+  - type: container
+    paths:
+      - '/var/lib/docker/containers/*/*.log'
+    processors:
+      - add_docker_metadata: ~
+      - decode_json_fields:
+          fields: ['message']
+          target: ''
 
 output.elasticsearch:
-  hosts: ["elasticsearch:9200"]
+  hosts: ['elasticsearch:9200']
 ```
 
 ### Log Analysis
@@ -351,18 +355,21 @@ docker compose logs proxy | grep ERROR | awk '{print $5}' | sort | uniq -c
 Set up alerts for:
 
 1. **High Error Rate**
+
    ```
    IF error_rate > 5% FOR 5 minutes
    THEN alert "High error rate detected"
    ```
 
 2. **Token Limit Approaching**
+
    ```
    IF token_usage_percentage > 80%
    THEN alert "Token limit approaching for account X"
    ```
 
 3. **Database Issues**
+
    ```
    IF database_connections > 90% of max
    THEN alert "Database connection pool exhausted"
@@ -383,16 +390,16 @@ Configure multiple channels:
 const alertChannels = {
   slack: {
     webhook: process.env.SLACK_WEBHOOK_URL,
-    channel: '#alerts'
+    channel: '#alerts',
   },
   email: {
     smtp: process.env.SMTP_SERVER,
-    recipients: ['ops@example.com']
+    recipients: ['ops@example.com'],
   },
   pagerduty: {
-    serviceKey: process.env.PAGERDUTY_KEY
-  }
-};
+    serviceKey: process.env.PAGERDUTY_KEY,
+  },
+}
 ```
 
 ## Dashboard Monitoring
@@ -403,16 +410,16 @@ Monitor SSE connections:
 
 ```javascript
 // Track active dashboard connections
-let activeConnections = 0;
+let activeConnections = 0
 
 app.get('/api/sse', (req, res) => {
-  activeConnections++;
-  console.log(`Active dashboard connections: ${activeConnections}`);
-  
+  activeConnections++
+  console.log(`Active dashboard connections: ${activeConnections}`)
+
   req.on('close', () => {
-    activeConnections--;
-  });
-});
+    activeConnections--
+  })
+})
 ```
 
 ### Dashboard Performance
@@ -421,7 +428,7 @@ Monitor dashboard queries:
 
 ```sql
 -- Dashboard query performance
-SELECT 
+SELECT
   query,
   calls,
   mean_exec_time,
@@ -442,17 +449,16 @@ Track costs by model:
 const tokenCosts = {
   'claude-3-opus-20240229': { input: 15, output: 75 }, // per million tokens
   'claude-3-sonnet-20240229': { input: 3, output: 15 },
-  'claude-3-haiku-20240307': { input: 0.25, output: 1.25 }
-};
+  'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
+}
 
 function calculateCost(model, inputTokens, outputTokens) {
-  const costs = tokenCosts[model];
+  const costs = tokenCosts[model]
   return {
     input: (inputTokens / 1_000_000) * costs.input,
     output: (outputTokens / 1_000_000) * costs.output,
-    total: ((inputTokens / 1_000_000) * costs.input) + 
-           ((outputTokens / 1_000_000) * costs.output)
-  };
+    total: (inputTokens / 1_000_000) * costs.input + (outputTokens / 1_000_000) * costs.output,
+  }
 }
 ```
 
@@ -463,14 +469,14 @@ Set up cost alerts:
 ```sql
 -- Daily cost tracking
 WITH daily_costs AS (
-  SELECT 
+  SELECT
     date_trunc('day', created_at) as day,
     SUM(input_tokens * 0.000015 + output_tokens * 0.000075) as cost
   FROM api_requests
   WHERE model = 'claude-3-opus-20240229'
   GROUP BY day
 )
-SELECT 
+SELECT
   day,
   cost,
   SUM(cost) OVER (ORDER BY day) as cumulative_cost
@@ -481,16 +487,19 @@ ORDER BY day DESC;
 ## Best Practices
 
 1. **Set Appropriate Thresholds**
+
    - Start with conservative limits
    - Adjust based on baseline metrics
    - Document threshold reasoning
 
 2. **Regular Review**
+
    - Weekly performance reviews
    - Monthly cost analysis
    - Quarterly capacity planning
 
 3. **Automate Responses**
+
    - Auto-scaling for high load
    - Automatic backup triggers
    - Self-healing mechanisms

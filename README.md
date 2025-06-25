@@ -220,28 +220,33 @@ See the [Deployment Guide](docs/03-Operations/deployment/) for production deploy
 Comprehensive documentation is available in the [docs](docs/) directory:
 
 ### 📚 Getting Started
+
 - [Quick Start Guide](docs/00-Overview/quickstart.md) - Get up and running in 5 minutes
 - [Installation](docs/01-Getting-Started/installation.md) - Detailed installation instructions
 - [Configuration](docs/01-Getting-Started/configuration.md) - All configuration options
 
 ### 🔧 User Guides
+
 - [API Reference](docs/02-User-Guide/api-reference.md) - Complete API documentation
 - [Authentication](docs/02-User-Guide/authentication.md) - Auth setup and troubleshooting
 - [Dashboard Guide](docs/02-User-Guide/dashboard-guide.md) - Using the monitoring dashboard
 - [Claude CLI](docs/02-User-Guide/claude-cli.md) - CLI integration guide
 
 ### 🚀 Operations
+
 - [Deployment](docs/03-Operations/deployment/) - Docker and production deployment
 - [Security](docs/03-Operations/security.md) - Security best practices
 - [Monitoring](docs/03-Operations/monitoring.md) - Metrics and observability
 - [Backup & Recovery](docs/03-Operations/backup-recovery.md) - Data protection
 
 ### 🏗️ Architecture
+
 - [System Architecture](docs/00-Overview/architecture.md) - High-level design
 - [Internals](docs/04-Architecture/internals.md) - Deep implementation details
 - [ADRs](docs/04-Architecture/ADRs/) - Architecture decision records
 
 ### 🔍 Troubleshooting
+
 - [Common Issues](docs/05-Troubleshooting/common-issues.md) - FAQ and solutions
 - [Performance](docs/05-Troubleshooting/performance.md) - Performance optimization
 - [Debugging](docs/05-Troubleshooting/debugging.md) - Debug techniques

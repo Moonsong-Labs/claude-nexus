@@ -28,16 +28,19 @@ The choice of CI/CD platform and strategy would significantly impact developer p
 ## Considered Options
 
 1. **GitHub Actions**
+
    - Description: GitHub's native CI/CD platform
    - Pros: Native integration, free for public repos, good marketplace
    - Cons: Limited free minutes for private repos
 
 2. **GitLab CI**
+
    - Description: GitLab's integrated CI/CD
    - Pros: Powerful, self-hostable, great for monorepos
    - Cons: Requires GitLab, learning curve
 
 3. **CircleCI**
+
    - Description: Cloud-based CI/CD service
    - Pros: Fast, good caching, Docker support
    - Cons: Cost, separate service to manage
@@ -54,6 +57,7 @@ We will use **GitHub Actions** for all CI/CD workflows.
 ### Implementation Details
 
 1. **Workflow Structure**:
+
    ```yaml
    name: CI
    on:
@@ -61,7 +65,7 @@ We will use **GitHub Actions** for all CI/CD workflows.
        branches: [main]
      pull_request:
        branches: [main]
-   
+
    jobs:
      typecheck:
        runs-on: ubuntu-latest
@@ -70,7 +74,7 @@ We will use **GitHub Actions** for all CI/CD workflows.
          - uses: oven-sh/setup-bun@v1
          - run: bun install
          - run: bun run typecheck
-         
+
      build:
        runs-on: ubuntu-latest
        steps:
@@ -81,6 +85,7 @@ We will use **GitHub Actions** for all CI/CD workflows.
    ```
 
 2. **Docker Build Strategy**:
+
    ```yaml
    docker:
      runs-on: ubuntu-latest
@@ -97,6 +102,7 @@ We will use **GitHub Actions** for all CI/CD workflows.
    ```
 
 3. **Error Handling**:
+
    ```yaml
    # Continue on TypeScript errors for development
    - run: bun run typecheck
@@ -129,6 +135,7 @@ We will use **GitHub Actions** for all CI/CD workflows.
 ### Risks and Mitigations
 
 - **Risk**: GitHub Actions outages affect deployments
+
   - **Mitigation**: Document manual deployment procedures
   - **Mitigation**: Consider backup CI/CD for critical situations
 
@@ -147,11 +154,13 @@ We will use **GitHub Actions** for all CI/CD workflows.
 ## Workflow Patterns
 
 1. **PR Validation**:
+
    - TypeScript checking
    - Build verification
    - Future: automated tests
 
 2. **Main Branch Protection**:
+
    - Require PR reviews
    - Require CI passing
    - No direct pushes

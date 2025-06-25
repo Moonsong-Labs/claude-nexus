@@ -19,11 +19,13 @@ Claude API conversations consist of a series of messages between users and the a
 ## Considered Options
 
 1. **Client-Provided IDs**
+
    - Description: Require clients to send conversation IDs
    - Pros: Simple implementation, explicit tracking
    - Cons: Requires client changes, breaks API compatibility
 
 2. **Session-Based Tracking**
+
    - Description: Use session cookies or tokens
    - Pros: Works with existing HTTP mechanisms
    - Cons: Doesn't work with API clients, loses context on session end
@@ -40,49 +42,49 @@ We will use **message content hashing** to automatically track conversations and
 ### Implementation Details
 
 1. **Message Normalization**:
+
 ```typescript
 function normalizeContent(content: string | ContentBlock[]): string {
   if (typeof content === 'string') {
-    return content;
+    return content
   }
   return content
     .filter(block => !block.text?.startsWith('<system-reminder>'))
     .map(block => block.text || '')
-    .join('\n');
+    .join('\n')
 }
 ```
 
 2. **Hash Generation**:
+
 ```typescript
 function generateMessageHash(message: Message): string {
-  const normalized = normalizeContent(message.content);
-  return crypto.createHash('sha256')
-    .update(`${message.role}:${normalized}`)
-    .digest('hex');
+  const normalized = normalizeContent(message.content)
+  return crypto.createHash('sha256').update(`${message.role}:${normalized}`).digest('hex')
 }
 ```
 
 3. **Conversation Linking**:
+
 ```typescript
 // For each request:
-const messages = request.messages;
-const currentHash = generateMessageHash(messages[messages.length - 1]);
-const parentHash = messages.length > 1 
-  ? generateMessageHash(messages[messages.length - 2]) 
-  : null;
+const messages = request.messages
+const currentHash = generateMessageHash(messages[messages.length - 1])
+const parentHash = messages.length > 1 ? generateMessageHash(messages[messages.length - 2]) : null
 
 // Find or create conversation
-const conversation = await findConversationByParentHash(parentHash)
-  || await createNewConversation();
+const conversation =
+  (await findConversationByParentHash(parentHash)) || (await createNewConversation())
 
 // Detect branching
 if (parentHash && conversationHasMultipleChildren(parentHash)) {
   // This is a branch point
-  markAsBranch(parentHash);
+  markAsBranch(parentHash)
 }
 ```
 
 4. **Database Schema**:
+
 ```sql
 ALTER TABLE api_requests ADD COLUMN conversation_id UUID;
 ALTER TABLE api_requests ADD COLUMN current_message_hash VARCHAR(64);
@@ -111,9 +113,11 @@ CREATE INDEX idx_message_hashes ON api_requests(parent_message_hash, current_mes
 ### Risks and Mitigations
 
 - **Risk**: Hash collisions could link unrelated conversations
+
   - **Mitigation**: Use SHA-256 for extremely low collision probability
 
 - **Risk**: Message format changes could break hashing
+
   - **Mitigation**: Comprehensive normalization and format detection
 
 - **Risk**: Performance impact on high-volume systems
@@ -130,6 +134,7 @@ CREATE INDEX idx_message_hashes ON api_requests(parent_message_hash, current_mes
 This approach has proven effective in production, enabling powerful conversation analytics without requiring any changes to client applications. The branch detection feature has been particularly valuable for understanding how users explore different conversation paths.
 
 Future enhancements could include:
+
 - Conversation merging detection
 - Semantic similarity for fuzzy matching
 - Conversation templates and patterns

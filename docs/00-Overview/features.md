@@ -5,12 +5,14 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 ## Core Features
 
 ### 🚀 API Proxying
+
 - **Direct API forwarding** to Claude with minimal latency
 - **Streaming support** for real-time responses
 - **Request/response transformation** capabilities
 - **Configurable timeouts** (default 10 minutes for long-running requests)
 
 ### 🔐 Authentication & Security
+
 - **Multi-auth support**:
   - API key authentication
   - OAuth 2.0 with automatic token refresh
@@ -20,6 +22,7 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 - **Secure credential storage** with separate files per domain
 
 ### 📊 Token Tracking & Usage
+
 - **Comprehensive token usage tracking**:
   - Per-account tracking
   - Per-domain tracking
@@ -32,12 +35,14 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 - **Tool call counting** and analysis
 
 ### 💾 Storage & Persistence
+
 - **PostgreSQL-based storage** for all requests and responses
 - **Streaming chunk storage** for complete conversation history
 - **Batch processing** for efficient database writes
 - **Partitioned tables** for scalable data management
 
 ### 🔄 Conversation Management
+
 - **Automatic conversation tracking** using message hashing
 - **Branch detection** and visualization
 - **Parent-child message linking**
@@ -45,6 +50,7 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 - **Sub-task detection** and visualization
 
 ### 📈 Monitoring Dashboard
+
 - **Real-time usage monitoring**
 - **Interactive charts** for token usage analysis
 - **Request history browser**
@@ -53,11 +59,13 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 - **Account-based analytics**
 
 ### 🔔 Notifications & Alerts
+
 - **Slack webhook integration** for notifications
 - **Configurable alert thresholds**
 - **Error notification** with detailed context
 
 ### 🛠️ Developer Experience
+
 - **Test sample collection** for development
 - **Debug logging** with sensitive data masking
 - **TypeScript** with full type safety
@@ -65,6 +73,7 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 - **Monorepo structure** with shared packages
 
 ### 🐳 Deployment Options
+
 - **Docker support** with optimized images
 - **Docker Compose** for full stack deployment
 - **Separate images** for proxy and dashboard
@@ -72,6 +81,7 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 - **Health check endpoints**
 
 ### 🔧 Operational Features
+
 - **Graceful shutdown** handling
 - **Request retry logic**
 - **Error recovery mechanisms**
@@ -81,16 +91,19 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 ## Advanced Features
 
 ### Message Normalization
+
 - Consistent hashing regardless of content format
 - Support for both string and array message content
 - Automatic content type detection
 
 ### Request Metadata
+
 - Detailed request/response logging
 - Performance metrics tracking
 - Error categorization and analysis
 
 ### API Compatibility
+
 - Full Claude API compatibility
 - Model-agnostic design
 - Support for all Claude endpoints
@@ -106,13 +119,13 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 
 ## Feature Comparison
 
-| Feature | Claude Nexus Proxy | Direct Claude API |
-|---------|-------------------|-------------------|
-| Token Tracking | ✅ Comprehensive | ❌ Limited |
-| Usage Analytics | ✅ Built-in Dashboard | ❌ Manual |
-| Conversation Tracking | ✅ Automatic | ❌ Manual |
-| Multi-Domain Support | ✅ Native | ❌ Manual |
-| Request Storage | ✅ Automatic | ❌ None |
-| Cost Analysis | ✅ Per-account/domain | ❌ Account-only |
-| Debug Capabilities | ✅ Enhanced | ❌ Basic |
-| Deployment Options | ✅ Multiple | ❌ N/A |
+| Feature               | Claude Nexus Proxy    | Direct Claude API |
+| --------------------- | --------------------- | ----------------- |
+| Token Tracking        | ✅ Comprehensive      | ❌ Limited        |
+| Usage Analytics       | ✅ Built-in Dashboard | ❌ Manual         |
+| Conversation Tracking | ✅ Automatic          | ❌ Manual         |
+| Multi-Domain Support  | ✅ Native             | ❌ Manual         |
+| Request Storage       | ✅ Automatic          | ❌ None           |
+| Cost Analysis         | ✅ Per-account/domain | ❌ Account-only   |
+| Debug Capabilities    | ✅ Enhanced           | ❌ Basic          |
+| Deployment Options    | ✅ Multiple           | ❌ N/A            |

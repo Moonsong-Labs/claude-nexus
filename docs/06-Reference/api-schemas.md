@@ -8,37 +8,37 @@ Complete reference for request and response schemas used in Claude Nexus Proxy.
 
 ```typescript
 interface MessagesRequest {
-  model: string;                    // e.g., "claude-3-opus-20240229"
-  messages: Message[];              // Conversation history
-  max_tokens: number;              // Maximum tokens to generate
-  temperature?: number;            // 0.0 to 1.0 (default: 1.0)
-  top_p?: number;                 // Nucleus sampling (default: 1.0)
-  top_k?: number;                 // Top-k sampling
-  metadata?: MessageMetadata;      // User tracking
-  stop_sequences?: string[];       // Stop generation at these sequences
-  stream?: boolean;               // Enable streaming (default: false)
-  system?: string;                // System prompt
+  model: string // e.g., "claude-3-opus-20240229"
+  messages: Message[] // Conversation history
+  max_tokens: number // Maximum tokens to generate
+  temperature?: number // 0.0 to 1.0 (default: 1.0)
+  top_p?: number // Nucleus sampling (default: 1.0)
+  top_k?: number // Top-k sampling
+  metadata?: MessageMetadata // User tracking
+  stop_sequences?: string[] // Stop generation at these sequences
+  stream?: boolean // Enable streaming (default: false)
+  system?: string // System prompt
 }
 
 interface Message {
-  role: 'user' | 'assistant';
-  content: string | ContentBlock[];
+  role: 'user' | 'assistant'
+  content: string | ContentBlock[]
 }
 
 interface ContentBlock {
-  type: 'text' | 'image';
-  text?: string;                   // For text blocks
-  source?: ImageSource;            // For image blocks
+  type: 'text' | 'image'
+  text?: string // For text blocks
+  source?: ImageSource // For image blocks
 }
 
 interface ImageSource {
-  type: 'base64';
-  media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-  data: string;                    // Base64 encoded image data
+  type: 'base64'
+  media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+  data: string // Base64 encoded image data
 }
 
 interface MessageMetadata {
-  user_id?: string;
+  user_id?: string
 }
 ```
 
@@ -46,21 +46,21 @@ interface MessageMetadata {
 
 ```typescript
 interface MessagesResponse {
-  id: string;                      // Response ID
-  type: 'message';
-  role: 'assistant';
-  content: ContentBlock[];
-  model: string;
-  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence';
-  stop_sequence?: string;
-  usage: TokenUsage;
+  id: string // Response ID
+  type: 'message'
+  role: 'assistant'
+  content: ContentBlock[]
+  model: string
+  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence'
+  stop_sequence?: string
+  usage: TokenUsage
 }
 
 interface TokenUsage {
-  input_tokens: number;
-  output_tokens: number;
-  cache_creation_input_tokens?: number;
-  cache_read_input_tokens?: number;
+  input_tokens: number
+  output_tokens: number
+  cache_creation_input_tokens?: number
+  cache_read_input_tokens?: number
 }
 ```
 
@@ -69,46 +69,46 @@ interface TokenUsage {
 ```typescript
 // Server-Sent Events format
 interface StreamEvent {
-  event: EventType;
-  data: string;                    // JSON stringified event data
+  event: EventType
+  data: string // JSON stringified event data
 }
 
-type EventType = 
+type EventType =
   | 'message_start'
   | 'content_block_start'
   | 'content_block_delta'
   | 'content_block_stop'
   | 'message_delta'
   | 'message_stop'
-  | 'error';
+  | 'error'
 
 // Event data types
 interface MessageStartEvent {
-  type: 'message_start';
+  type: 'message_start'
   message: {
-    id: string;
-    type: 'message';
-    role: 'assistant';
-    content: [];
-    model: string;
-    usage: TokenUsage;
-  };
+    id: string
+    type: 'message'
+    role: 'assistant'
+    content: []
+    model: string
+    usage: TokenUsage
+  }
 }
 
 interface ContentBlockDeltaEvent {
-  type: 'content_block_delta';
-  index: number;
+  type: 'content_block_delta'
+  index: number
   delta: {
-    type: 'text_delta';
-    text: string;
-  };
+    type: 'text_delta'
+    text: string
+  }
 }
 
 interface MessageStopEvent {
-  type: 'message_stop';
-  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence';
-  stop_sequence?: string;
-  usage?: TokenUsage;              // Final token counts
+  type: 'message_stop'
+  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence'
+  stop_sequence?: string
+  usage?: TokenUsage // Final token counts
 }
 ```
 
@@ -118,36 +118,36 @@ interface MessageStopEvent {
 
 ```typescript
 interface TokenStatsResponse {
-  total_requests: number;
+  total_requests: number
   total_tokens: {
-    input: number;
-    output: number;
-    total: number;
-  };
+    input: number
+    output: number
+    total: number
+  }
   by_domain: {
     [domain: string]: {
-      requests: number;
+      requests: number
       tokens: {
-        input: number;
-        output: number;
-        total: number;
-      };
+        input: number
+        output: number
+        total: number
+      }
       by_type: {
-        inference: number;
-        query_evaluation: number;
-      };
-    };
-  };
+        inference: number
+        query_evaluation: number
+      }
+    }
+  }
   by_model: {
     [model: string]: {
-      requests: number;
+      requests: number
       tokens: {
-        input: number;
-        output: number;
-        total: number;
-      };
-    };
-  };
+        input: number
+        output: number
+        total: number
+      }
+    }
+  }
 }
 ```
 
@@ -155,10 +155,10 @@ interface TokenStatsResponse {
 
 ```typescript
 interface HealthResponse {
-  status: 'ok' | 'error';
-  timestamp?: string;
-  version?: string;
-  database?: 'connected' | 'disconnected';
+  status: 'ok' | 'error'
+  timestamp?: string
+  version?: string
+  database?: 'connected' | 'disconnected'
 }
 ```
 
@@ -168,16 +168,16 @@ interface HealthResponse {
 
 ```typescript
 interface StatsResponse {
-  total_requests: number;
-  total_tokens: number;
-  active_domains: number;
-  total_subtasks: number;
-  success_rate: number;            // Percentage (0-100)
-  average_latency: number;         // Milliseconds
+  total_requests: number
+  total_tokens: number
+  active_domains: number
+  total_subtasks: number
+  success_rate: number // Percentage (0-100)
+  average_latency: number // Milliseconds
   period: {
-    start: string;                 // ISO 8601
-    end: string;                   // ISO 8601
-  };
+    start: string // ISO 8601
+    end: string // ISO 8601
+  }
 }
 ```
 
@@ -185,22 +185,22 @@ interface StatsResponse {
 
 ```typescript
 interface CurrentUsageResponse {
-  account_id: string;
-  window_minutes: number;          // Usually 300 (5 hours)
+  account_id: string
+  window_minutes: number // Usually 300 (5 hours)
   usage: {
-    tokens_used: number;
-    limit: number;                 // Inferred from usage patterns
-    percentage: number;            // Usage percentage
-    reset_at: string;             // ISO 8601
-  };
+    tokens_used: number
+    limit: number // Inferred from usage patterns
+    percentage: number // Usage percentage
+    reset_at: string // ISO 8601
+  }
   requests: {
-    count: number;
+    count: number
     by_type: {
-      inference: number;
-      query_evaluation: number;
-      quota: number;
-    };
-  };
+      inference: number
+      query_evaluation: number
+      quota: number
+    }
+  }
 }
 ```
 
@@ -208,33 +208,33 @@ interface CurrentUsageResponse {
 
 ```typescript
 interface DailyUsageResponse {
-  account_id: string;
+  account_id: string
   period: {
-    start: string;                 // ISO 8601
-    end: string;                   // ISO 8601
-  };
-  days: DailyUsageData[];
+    start: string // ISO 8601
+    end: string // ISO 8601
+  }
+  days: DailyUsageData[]
   totals: {
-    requests: number;
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-    estimated_cost: number;        // USD
-  };
+    requests: number
+    input_tokens: number
+    output_tokens: number
+    total_tokens: number
+    estimated_cost: number // USD
+  }
 }
 
 interface DailyUsageData {
-  date: string;                    // YYYY-MM-DD
-  requests: number;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
+  date: string // YYYY-MM-DD
+  requests: number
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
   by_model: {
     [model: string]: {
-      requests: number;
-      tokens: number;
-    };
-  };
+      requests: number
+      tokens: number
+    }
+  }
 }
 ```
 
@@ -242,41 +242,41 @@ interface DailyUsageData {
 
 ```typescript
 interface ConversationsResponse {
-  conversations: Conversation[];
+  conversations: Conversation[]
   pagination: {
-    total: number;
-    page: number;
-    per_page: number;
-    total_pages: number;
-  };
+    total: number
+    page: number
+    per_page: number
+    total_pages: number
+  }
 }
 
 interface Conversation {
-  conversation_id: string;
-  account_id: string;
-  domain: string;
-  first_message_at: string;        // ISO 8601
-  last_message_at: string;         // ISO 8601
-  message_count: number;
-  total_tokens: number;
-  branches: Branch[];
-  latest_request: RequestSummary;
-  has_subtasks: boolean;
-  subtask_count: number;
+  conversation_id: string
+  account_id: string
+  domain: string
+  first_message_at: string // ISO 8601
+  last_message_at: string // ISO 8601
+  message_count: number
+  total_tokens: number
+  branches: Branch[]
+  latest_request: RequestSummary
+  has_subtasks: boolean
+  subtask_count: number
 }
 
 interface Branch {
-  branch_id: string;
-  parent_hash: string;
-  created_at: string;
-  message_count: number;
+  branch_id: string
+  parent_hash: string
+  created_at: string
+  message_count: number
 }
 
 interface RequestSummary {
-  id: string;
-  status_code: number;
-  model: string;
-  created_at: string;
+  id: string
+  status_code: number
+  model: string
+  created_at: string
 }
 ```
 
@@ -284,37 +284,37 @@ interface RequestSummary {
 
 ```typescript
 interface RequestDetailsResponse {
-  id: string;
-  domain: string;
-  account_id: string;
-  method: string;
-  path: string;
-  status_code: number;
-  error_type?: string;
-  error_message?: string;
-  model?: string;
-  request_type: 'inference' | 'query_evaluation' | 'quota';
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  response_time_ms: number;
-  created_at: string;
-  updated_at: string;
-  conversation_id?: string;
-  branch_id?: string;
-  current_message_hash?: string;
-  parent_message_hash?: string;
-  is_subtask: boolean;
-  parent_task_request_id?: string;
-  request_body: any;              // Original request
-  response_body: any;             // Original response
-  streaming_chunks?: StreamingChunk[];
+  id: string
+  domain: string
+  account_id: string
+  method: string
+  path: string
+  status_code: number
+  error_type?: string
+  error_message?: string
+  model?: string
+  request_type: 'inference' | 'query_evaluation' | 'quota'
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  response_time_ms: number
+  created_at: string
+  updated_at: string
+  conversation_id?: string
+  branch_id?: string
+  current_message_hash?: string
+  parent_message_hash?: string
+  is_subtask: boolean
+  parent_task_request_id?: string
+  request_body: any // Original request
+  response_body: any // Original response
+  streaming_chunks?: StreamingChunk[]
 }
 
 interface StreamingChunk {
-  chunk_index: number;
-  content: string;
-  created_at: string;
+  chunk_index: number
+  content: string
+  created_at: string
 }
 ```
 
@@ -325,12 +325,12 @@ interface StreamingChunk {
 ```typescript
 interface ErrorResponse {
   error: {
-    type: string;                  // Error type/code
-    message: string;               // Human-readable message
-    details?: any;                 // Additional error details
-  };
-  request_id?: string;
-  timestamp: string;
+    type: string // Error type/code
+    message: string // Human-readable message
+    details?: any // Additional error details
+  }
+  request_id?: string
+  timestamp: string
 }
 ```
 
@@ -338,11 +338,11 @@ interface ErrorResponse {
 
 ```typescript
 interface ClaudeErrorResponse {
-  type: 'error';
+  type: 'error'
   error: {
-    type: string;                  // e.g., "invalid_request_error"
-    message: string;
-  };
+    type: string // e.g., "invalid_request_error"
+    message: string
+  }
 }
 ```
 
@@ -350,8 +350,8 @@ interface ClaudeErrorResponse {
 
 ```typescript
 interface OAuthErrorResponse {
-  error: string;                   // e.g., "invalid_grant"
-  error_description: string;       // Detailed error message
+  error: string // e.g., "invalid_grant"
+  error_description: string // Detailed error message
 }
 ```
 
@@ -361,34 +361,34 @@ interface OAuthErrorResponse {
 
 ```typescript
 interface SlackWebhookPayload {
-  text: string;                    // Main message
-  blocks?: SlackBlock[];           // Rich formatting
-  attachments?: SlackAttachment[];
+  text: string // Main message
+  blocks?: SlackBlock[] // Rich formatting
+  attachments?: SlackAttachment[]
 }
 
 interface SlackBlock {
-  type: 'section' | 'header' | 'divider';
+  type: 'section' | 'header' | 'divider'
   text?: {
-    type: 'mrkdwn' | 'plain_text';
-    text: string;
-  };
+    type: 'mrkdwn' | 'plain_text'
+    text: string
+  }
   fields?: Array<{
-    type: 'mrkdwn' | 'plain_text';
-    text: string;
-  }>;
+    type: 'mrkdwn' | 'plain_text'
+    text: string
+  }>
 }
 
 interface SlackAttachment {
-  color: 'good' | 'warning' | 'danger' | string;
-  title: string;
-  text: string;
+  color: 'good' | 'warning' | 'danger' | string
+  title: string
+  text: string
   fields?: Array<{
-    title: string;
-    value: string;
-    short: boolean;
-  }>;
-  footer?: string;
-  ts?: number;                     // Unix timestamp
+    title: string
+    value: string
+    short: boolean
+  }>
+  footer?: string
+  ts?: number // Unix timestamp
 }
 ```
 
@@ -445,28 +445,28 @@ CREATE TABLE streaming_chunks (
 
 ```typescript
 // UUID v4 format
-type UUID = string;
+type UUID = string
 
 // ISO 8601 datetime
-type ISODateTime = string;
+type ISODateTime = string
 
 // Domain name
-type Domain = string;
+type Domain = string
 
 // Model identifier
-type ModelId = string;
+type ModelId = string
 
-// Account identifier  
-type AccountId = string;
+// Account identifier
+type AccountId = string
 
 // Request types
-type RequestType = 'inference' | 'query_evaluation' | 'quota';
+type RequestType = 'inference' | 'query_evaluation' | 'quota'
 
 // HTTP methods
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
 // Status codes
-type StatusCode = number;
+type StatusCode = number
 ```
 
 ### Validation Helpers
@@ -474,14 +474,14 @@ type StatusCode = number;
 ```typescript
 // Validate UUID
 function isValidUUID(id: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(id);
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(id)
 }
 
 // Validate domain
 function isValidDomain(domain: string): boolean {
-  const domainRegex = /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i;
-  return domainRegex.test(domain);
+  const domainRegex = /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i
+  return domainRegex.test(domain)
 }
 
 // Validate model
@@ -492,9 +492,9 @@ function isValidModel(model: string): boolean {
     'claude-3-haiku-20240307',
     'claude-2.1',
     'claude-2.0',
-    'claude-instant-1.2'
-  ];
-  return validModels.includes(model);
+    'claude-instant-1.2',
+  ]
+  return validModels.includes(model)
 }
 ```
 

@@ -17,16 +17,18 @@ private requestIdMap = new Map<string, string>();
 // Missing cleanup after storeResponse
 ```
 
-**Impact**: 
+**Impact**:
+
 - Service crashes after extended operation
 - Increased memory costs
 - Potential data loss during OOM crashes
 
 **Remediation**:
+
 ```typescript
 async storeResponse(data: ResponseData) {
   // ... existing code ...
-  
+
   // Add cleanup
   this.requestIdMap.delete(data.request_id);
 }
@@ -56,11 +58,13 @@ setInterval(() => {
 ```
 
 **Impact**:
+
 - Dashboard slowness with many conversations
 - Database CPU spikes
 - Poor user experience
 
 **Remediation**:
+
 - Rewrite using window functions or CTEs
 - Consider materialized views for frequently accessed data
 - Add appropriate indexes
@@ -76,10 +80,12 @@ setInterval(() => {
 **Issue**: Loops through each account and executes separate queries for time series data.
 
 **Impact**:
+
 - Slow dashboard loading with multiple accounts
 - Unnecessary database load
 
 **Remediation**:
+
 - Refactor to fetch all time series data in a single query
 - Use window functions for aggregation
 - Consider caching time series data
@@ -91,11 +97,13 @@ setInterval(() => {
 **Issue**: No automated test suite despite complex business logic.
 
 **Impact**:
+
 - Risk of regressions
 - Slower development velocity
 - Lower confidence in changes
 
 **Remediation**:
+
 1. Add unit tests for critical functions:
    - Message hashing
    - Token counting
@@ -111,10 +119,12 @@ setInterval(() => {
 **Issue**: Some configuration values are hardcoded rather than externalized.
 
 **Impact**:
+
 - Requires code changes for configuration updates
 - Risk of exposing sensitive values
 
 **Remediation**:
+
 - Audit all hardcoded values
 - Move to environment variables or config files
 - Document all configuration options
@@ -128,10 +138,12 @@ setInterval(() => {
 **Issue**: Some async operations lack proper error handling and recovery.
 
 **Impact**:
+
 - Ungraceful failures
 - Poor error messages for debugging
 
 **Remediation**:
+
 - Add try-catch blocks to all async operations
 - Implement proper error logging
 - Add error recovery mechanisms
@@ -143,10 +155,12 @@ setInterval(() => {
 **Issue**: Manual migration execution without version tracking.
 
 **Impact**:
+
 - Risk of missed migrations
 - No rollback capability
 
 **Remediation**:
+
 - Implement proper migration tool (e.g., Knex, Prisma)
 - Add migration version tracking
 - Create rollback scripts
@@ -158,10 +172,12 @@ setInterval(() => {
 **Issue**: No caching for expensive queries.
 
 **Impact**:
+
 - Repeated expensive computations
 - Higher latency for common requests
 
 **Remediation**:
+
 - Implement Redis caching layer
 - Add cache invalidation logic
 - Configure TTLs appropriately
@@ -178,6 +194,7 @@ setInterval(() => {
 ### Metrics
 
 Track technical debt health:
+
 - Number of high-priority items
 - Average age of debt items
 - Time spent on debt-related incidents

@@ -26,16 +26,19 @@ We needed to support requests that could run for 10+ minutes while maintaining s
 ## Considered Options
 
 1. **Fixed Extended Timeout**
+
    - Description: Increase all timeouts to 10 minutes
    - Pros: Simple implementation
    - Cons: Wastes resources on genuinely failed requests
 
 2. **Progressive Timeout**
+
    - Description: Start with short timeout, increase on retry
    - Pros: Fast failure for actual errors
    - Cons: Complex implementation, multiple request attempts
 
 3. **Configurable Timeouts**
+
    - Description: Environment variables for different timeout values
    - Pros: Flexible, adaptable to different needs
    - Cons: Requires configuration knowledge
@@ -52,6 +55,7 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
 ### Implementation Details
 
 1. **Timeout Configuration**:
+
    ```bash
    # Environment variables
    CLAUDE_API_TIMEOUT=600000      # 10 minutes (default)
@@ -59,36 +63,34 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
    ```
 
 2. **Timeout Hierarchy**:
+
    - Claude API timeout: 10 minutes
    - Proxy server timeout: 11 minutes (allows for overhead)
    - Client connection timeout: Should be > 11 minutes
 
 3. **Streaming Support**:
+
    ```typescript
    // Keep connection alive during streaming
    const streamWithHeartbeat = (stream: ReadableStream) => {
      const heartbeatInterval = setInterval(() => {
        // Send keep-alive comment every 30 seconds
-       controller.enqueue(': keep-alive\n\n');
-     }, 30000);
-     
-     stream.finally(() => clearInterval(heartbeatInterval));
-   };
+       controller.enqueue(': keep-alive\n\n')
+     }, 30000)
+
+     stream.finally(() => clearInterval(heartbeatInterval))
+   }
    ```
 
 4. **Error Handling**:
    ```typescript
    try {
-     const response = await fetchWithTimeout(
-       claudeUrl,
-       requestOptions,
-       CLAUDE_API_TIMEOUT
-     );
+     const response = await fetchWithTimeout(claudeUrl, requestOptions, CLAUDE_API_TIMEOUT)
    } catch (error) {
      if (error.name === 'AbortError') {
-       throw new Error('Claude API request timeout after 10 minutes');
+       throw new Error('Claude API request timeout after 10 minutes')
      }
-     throw error;
+     throw error
    }
    ```
 
@@ -112,10 +114,12 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
 ### Risks and Mitigations
 
 - **Risk**: Resource exhaustion from many long connections
+
   - **Mitigation**: Connection limits per domain
   - **Mitigation**: Monitor active connection count
 
 - **Risk**: Genuinely stuck requests waste resources
+
   - **Mitigation**: Server timeout slightly higher than API timeout
   - **Mitigation**: Proper error logging for investigation
 
@@ -134,11 +138,13 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
 ## Operational Considerations
 
 1. **Monitoring**:
+
    - Track request duration distribution
    - Alert on requests approaching timeout
    - Monitor timeout error rates
 
 2. **Client Configuration**:
+
    ```bash
    # Example client timeouts
    curl --max-time 660 ...

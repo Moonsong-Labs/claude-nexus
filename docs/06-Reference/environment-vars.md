@@ -6,136 +6,138 @@ Complete reference for all environment variables used in Claude Nexus Proxy.
 
 ### Database
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | - | ✅ |
+| Variable       | Description                  | Default | Required |
+| -------------- | ---------------------------- | ------- | -------- |
+| `DATABASE_URL` | PostgreSQL connection string | -       | ✅       |
 
 Example:
+
 ```bash
 DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
 ```
 
 ### Authentication
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `DASHBOARD_API_KEY` | API key for dashboard authentication | - | ✅ |
-| `ENABLE_CLIENT_AUTH` | Enable client API key authentication | `true` | ❌ |
+| Variable             | Description                          | Default | Required |
+| -------------------- | ------------------------------------ | ------- | -------- |
+| `DASHBOARD_API_KEY`  | API key for dashboard authentication | -       | ✅       |
+| `ENABLE_CLIENT_AUTH` | Enable client API key authentication | `true`  | ❌       |
 
 ## Feature Flags
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `STORAGE_ENABLED` | Enable request/response storage | `false` |
-| `DEBUG` | Enable debug logging | `false` |
+| Variable               | Description                         | Default |
+| ---------------------- | ----------------------------------- | ------- |
+| `STORAGE_ENABLED`      | Enable request/response storage     | `false` |
+| `DEBUG`                | Enable debug logging                | `false` |
 | `COLLECT_TEST_SAMPLES` | Collect request samples for testing | `false` |
 
 ## Performance Configuration
 
 ### Timeouts
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CLAUDE_API_TIMEOUT` | Timeout for Claude API requests (ms) | `600000` (10 min) |
-| `PROXY_SERVER_TIMEOUT` | Server-level timeout (ms) | `660000` (11 min) |
-| `SLOW_QUERY_THRESHOLD_MS` | Log queries slower than this (ms) | `5000` |
+| Variable                  | Description                          | Default           |
+| ------------------------- | ------------------------------------ | ----------------- |
+| `CLAUDE_API_TIMEOUT`      | Timeout for Claude API requests (ms) | `600000` (10 min) |
+| `PROXY_SERVER_TIMEOUT`    | Server-level timeout (ms)            | `660000` (11 min) |
+| `SLOW_QUERY_THRESHOLD_MS` | Log queries slower than this (ms)    | `5000`            |
 
 ### Caching
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DASHBOARD_CACHE_TTL` | Dashboard cache TTL (seconds) | `30` |
+| Variable              | Description                   | Default |
+| --------------------- | ----------------------------- | ------- |
+| `DASHBOARD_CACHE_TTL` | Dashboard cache TTL (seconds) | `30`    |
 
 ## Service Configuration
 
 ### Proxy Service
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PROXY_PORT` | Port for proxy service | `3000` |
-| `NODE_ENV` | Node environment | `development` |
-| `LOG_LEVEL` | Logging level | `info` |
+| Variable     | Description            | Default       |
+| ------------ | ---------------------- | ------------- |
+| `PROXY_PORT` | Port for proxy service | `3000`        |
+| `NODE_ENV`   | Node environment       | `development` |
+| `LOG_LEVEL`  | Logging level          | `info`        |
 
 ### Dashboard Service
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DASHBOARD_PORT` | Port for dashboard service | `3001` |
-| `DASHBOARD_TIMEZONE` | Display timezone | `UTC` |
-| `DASHBOARD_DATE_FORMAT` | Date format | `ISO` |
+| Variable                | Description                | Default |
+| ----------------------- | -------------------------- | ------- |
+| `DASHBOARD_PORT`        | Port for dashboard service | `3001`  |
+| `DASHBOARD_TIMEZONE`    | Display timezone           | `UTC`   |
+| `DASHBOARD_DATE_FORMAT` | Date format                | `ISO`   |
 
 ## Integration Configuration
 
 ### Slack Integration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SLACK_WEBHOOK_URL` | Slack webhook for notifications | - |
+| Variable            | Description                     | Default |
+| ------------------- | ------------------------------- | ------- |
+| `SLACK_WEBHOOK_URL` | Slack webhook for notifications | -       |
 
 Example:
+
 ```bash
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 ```
 
 ### OAuth Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable                 | Description                | Default                                |
+| ------------------------ | -------------------------- | -------------------------------------- |
 | `CLAUDE_OAUTH_CLIENT_ID` | OAuth client ID for Claude | `9d1c250a-e61b-44d9-88ed-5944d1962f5e` |
 
 ## Directory Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CREDENTIALS_DIR` | Directory for credential files | `./credentials` |
-| `TEST_SAMPLES_DIR` | Directory for test samples | `./test-samples` |
+| Variable           | Description                    | Default          |
+| ------------------ | ------------------------------ | ---------------- |
+| `CREDENTIALS_DIR`  | Directory for credential files | `./credentials`  |
+| `TEST_SAMPLES_DIR` | Directory for test samples     | `./test-samples` |
 
 ## Development Configuration
 
 ### Debug Options
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AUTH_DEBUG` | Extra authentication debugging | `false` |
-| `SQL_DEBUG` | Log all SQL queries | `false` |
-| `STREAM_DEBUG` | Debug streaming responses | `false` |
+| Variable       | Description                    | Default |
+| -------------- | ------------------------------ | ------- |
+| `AUTH_DEBUG`   | Extra authentication debugging | `false` |
+| `SQL_DEBUG`    | Log all SQL queries            | `false` |
+| `STREAM_DEBUG` | Debug streaming responses      | `false` |
 
 ### Test Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TEST_MODE` | Enable test mode | `false` |
-| `TEST_API_KEY` | API key for testing | - |
+| Variable       | Description         | Default |
+| -------------- | ------------------- | ------- |
+| `TEST_MODE`    | Enable test mode    | `false` |
+| `TEST_API_KEY` | API key for testing | -       |
 
 ## Docker Configuration
 
 When running in Docker, additional variables may be needed:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_HOST` | Database hostname | `postgres` |
-| `DATABASE_PORT` | Database port | `5432` |
-| `DATABASE_NAME` | Database name | `claude_nexus` |
-| `DATABASE_USER` | Database username | `postgres` |
-| `DATABASE_PASSWORD` | Database password | - |
+| Variable            | Description       | Default        |
+| ------------------- | ----------------- | -------------- |
+| `DATABASE_HOST`     | Database hostname | `postgres`     |
+| `DATABASE_PORT`     | Database port     | `5432`         |
+| `DATABASE_NAME`     | Database name     | `claude_nexus` |
+| `DATABASE_USER`     | Database username | `postgres`     |
+| `DATABASE_PASSWORD` | Database password | -              |
 
 ## Production Configuration
 
 ### Security
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FORCE_HTTPS` | Force HTTPS connections | `false` |
-| `CORS_ORIGIN` | Allowed CORS origins | `*` |
-| `SECURE_COOKIES` | Use secure cookies | `false` |
+| Variable         | Description             | Default |
+| ---------------- | ----------------------- | ------- |
+| `FORCE_HTTPS`    | Force HTTPS connections | `false` |
+| `CORS_ORIGIN`    | Allowed CORS origins    | `*`     |
+| `SECURE_COOKIES` | Use secure cookies      | `false` |
 
 ### Monitoring
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `METRICS_ENABLED` | Enable metrics endpoint | `false` |
-| `METRICS_PORT` | Port for metrics | `9090` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry endpoint | - |
+| Variable                      | Description             | Default |
+| ----------------------------- | ----------------------- | ------- |
+| `METRICS_ENABLED`             | Enable metrics endpoint | `false` |
+| `METRICS_PORT`                | Port for metrics        | `9090`  |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry endpoint  | -       |
 
 ## Example .env File
 
@@ -215,8 +217,8 @@ SECURE_COOKIES=true
 The project automatically loads `.env` files using dotenv:
 
 ```typescript
-import { config } from 'dotenv';
-config();
+import { config } from 'dotenv'
+config()
 ```
 
 ### From Docker
@@ -250,11 +252,11 @@ services:
 The proxy validates required environment variables on startup:
 
 ```typescript
-const requiredVars = ['DATABASE_URL', 'DASHBOARD_API_KEY'];
+const requiredVars = ['DATABASE_URL', 'DASHBOARD_API_KEY']
 
 for (const varName of requiredVars) {
   if (!process.env[varName]) {
-    throw new Error(`Missing required environment variable: ${varName}`);
+    throw new Error(`Missing required environment variable: ${varName}`)
   }
 }
 ```

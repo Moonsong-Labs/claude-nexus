@@ -15,6 +15,7 @@ DEBUG=true
 ```
 
 Debug mode enables:
+
 - Full request/response logging
 - Detailed error stack traces
 - Performance timing information
@@ -56,6 +57,7 @@ docker compose logs proxy | grep -i auth
 ```
 
 Common auth debug patterns:
+
 ```javascript
 // Successful auth
 DEBUG: Checking client auth for domain: example.com
@@ -91,11 +93,11 @@ app.use(async (c, next) => {
       method: c.req.method,
       url: c.req.url,
       headers: Object.fromEntries(c.req.headers),
-      body: await c.req.json()
-    });
+      body: await c.req.json(),
+    })
   }
-  await next();
-});
+  await next()
+})
 ```
 
 #### Debug Streaming Responses
@@ -103,7 +105,7 @@ app.use(async (c, next) => {
 ```bash
 # Monitor streaming chunks
 docker compose exec postgres psql -U postgres claude_nexus -c "
-  SELECT 
+  SELECT
     request_id,
     chunk_index,
     LENGTH(content) as size,
@@ -136,7 +138,7 @@ docker compose logs postgres | grep -i statement
 SET log_min_duration_statement = 100; -- Log queries over 100ms
 
 -- Check current slow queries
-SELECT 
+SELECT
   pid,
   now() - query_start AS duration,
   state,
@@ -150,24 +152,24 @@ ORDER BY duration DESC;
 
 ```typescript
 // Log pool events
-pool.on('connect', (client) => {
-  console.log('Pool: client connected');
-});
+pool.on('connect', client => {
+  console.log('Pool: client connected')
+})
 
 pool.on('error', (err, client) => {
-  console.error('Pool error:', err);
-});
+  console.error('Pool error:', err)
+})
 
-pool.on('remove', (client) => {
-  console.log('Pool: client removed');
-});
+pool.on('remove', client => {
+  console.log('Pool: client removed')
+})
 
 // Check pool status
 console.log({
   total: pool.totalCount,
   idle: pool.idleCount,
-  waiting: pool.waitingCount
-});
+  waiting: pool.waitingCount,
+})
 ```
 
 ### Memory Debugging
@@ -188,14 +190,14 @@ NODE_OPTIONS="--inspect=0.0.0.0:9229" bun run dev:proxy
 ```javascript
 // Add memory monitoring
 setInterval(() => {
-  const usage = process.memoryUsage();
+  const usage = process.memoryUsage()
   console.log({
     rss: `${Math.round(usage.rss / 1024 / 1024)}MB`,
     heapTotal: `${Math.round(usage.heapTotal / 1024 / 1024)}MB`,
     heapUsed: `${Math.round(usage.heapUsed / 1024 / 1024)}MB`,
-    external: `${Math.round(usage.external / 1024 / 1024)}MB`
-  });
-}, 60000); // Every minute
+    external: `${Math.round(usage.external / 1024 / 1024)}MB`,
+  })
+}, 60000) // Every minute
 ```
 
 ### Network Debugging
@@ -218,17 +220,17 @@ tcpdump -i any -w trace.pcap host api.anthropic.com
 
 ```typescript
 // Log outgoing requests to Claude
-const originalFetch = fetch;
+const originalFetch = fetch
 global.fetch = async (...args) => {
   if (process.env.DEBUG === 'true') {
-    console.log('Outgoing request:', args);
+    console.log('Outgoing request:', args)
   }
-  const response = await originalFetch(...args);
+  const response = await originalFetch(...args)
   if (process.env.DEBUG === 'true') {
-    console.log('Response status:', response.status);
+    console.log('Response status:', response.status)
   }
-  return response;
-};
+  return response
+}
 ```
 
 ## Debugging Tools
@@ -251,7 +253,7 @@ docker compose logs proxy | jq -r 'select(.level == "error") | .error' | sort | 
 
 ```sql
 -- Check request details
-SELECT 
+SELECT
   id,
   domain,
   method,
@@ -265,7 +267,7 @@ FROM api_requests
 WHERE id = 'your-request-id';
 
 -- View request/response bodies
-SELECT 
+SELECT
   request_body,
   response_body
 FROM api_requests
@@ -276,15 +278,15 @@ WHERE id = 'your-request-id'\gx
 
 ```javascript
 // Add performance marks
-performance.mark('request-start');
+performance.mark('request-start')
 
 // ... process request ...
 
-performance.mark('request-end');
-performance.measure('request-duration', 'request-start', 'request-end');
+performance.mark('request-end')
+performance.measure('request-duration', 'request-start', 'request-end')
 
-const measure = performance.getEntriesByName('request-duration')[0];
-console.log(`Request took ${measure.duration}ms`);
+const measure = performance.getEntriesByName('request-duration')[0]
+console.log(`Request took ${measure.duration}ms`)
 ```
 
 ## Debug Utilities
@@ -293,35 +295,35 @@ console.log(`Request took ${measure.duration}ms`);
 
 ```typescript
 // scripts/test-request.ts
-import { config } from '../services/proxy/src/config';
+import { config } from '../services/proxy/src/config'
 
 async function testRequest() {
   const response = await fetch('http://localhost:3000/v1/messages', {
     method: 'POST',
     headers: {
-      'Host': 'test.example.com',
-      'Authorization': `Bearer ${config.testApiKey}`,
-      'Content-Type': 'application/json'
+      Host: 'test.example.com',
+      Authorization: `Bearer ${config.testApiKey}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       messages: [{ role: 'user', content: 'Test message' }],
       model: 'claude-3-haiku-20240307',
-      max_tokens: 100
-    })
-  });
+      max_tokens: 100,
+    }),
+  })
 
-  console.log('Status:', response.status);
-  console.log('Headers:', Object.fromEntries(response.headers));
-  
+  console.log('Status:', response.status)
+  console.log('Headers:', Object.fromEntries(response.headers))
+
   if (response.ok) {
-    const data = await response.text();
-    console.log('Response:', data);
+    const data = await response.text()
+    console.log('Response:', data)
   } else {
-    console.error('Error:', await response.text());
+    console.error('Error:', await response.text())
   }
 }
 
-testRequest().catch(console.error);
+testRequest().catch(console.error)
 ```
 
 ### Health Check Script
@@ -351,16 +353,13 @@ docker stats --no-stream
 ```typescript
 // Replay a failed request
 async function replayRequest(requestId: string) {
-  const original = await db.query(
-    'SELECT * FROM api_requests WHERE id = $1',
-    [requestId]
-  );
+  const original = await db.query('SELECT * FROM api_requests WHERE id = $1', [requestId])
 
   if (!original.rows[0]) {
-    throw new Error('Request not found');
+    throw new Error('Request not found')
   }
 
-  const { domain, request_body, headers } = original.rows[0];
+  const { domain, request_body, headers } = original.rows[0]
 
   // Replay with debug enabled
   const response = await fetch(`http://localhost:3000${path}`, {
@@ -368,16 +367,16 @@ async function replayRequest(requestId: string) {
     headers: {
       ...JSON.parse(headers),
       'X-Debug': 'true',
-      'X-Replay-Id': requestId
+      'X-Replay-Id': requestId,
     },
-    body: request_body
-  });
+    body: request_body,
+  })
 
   console.log('Replay response:', {
     status: response.status,
     headers: Object.fromEntries(response.headers),
-    body: await response.text()
-  });
+    body: await response.text(),
+  })
 }
 ```
 
@@ -387,10 +386,10 @@ async function replayRequest(requestId: string) {
 
 ```typescript
 // Enable debug for specific domains only
-const debugDomains = process.env.DEBUG_DOMAINS?.split(',') || [];
+const debugDomains = process.env.DEBUG_DOMAINS?.split(',') || []
 
 if (debugDomains.includes(domain)) {
-  console.log('Debug enabled for domain:', domain);
+  console.log('Debug enabled for domain:', domain)
   // Add debug headers, logging, etc.
 }
 ```
@@ -400,9 +399,9 @@ if (debugDomains.includes(domain)) {
 ```typescript
 // Add debug information to response headers
 if (c.req.header('X-Debug') === 'true') {
-  c.header('X-Request-Id', requestId);
-  c.header('X-Processing-Time', `${processingTime}ms`);
-  c.header('X-Token-Count', `${tokenCount}`);
+  c.header('X-Request-Id', requestId)
+  c.header('X-Processing-Time', `${processingTime}ms`)
+  c.header('X-Token-Count', `${tokenCount}`)
 }
 ```
 
@@ -410,15 +409,15 @@ if (c.req.header('X-Debug') === 'true') {
 
 ```typescript
 // Generate correlation ID for request tracing
-const correlationId = c.req.header('X-Correlation-Id') || nanoid();
-c.set('correlationId', correlationId);
+const correlationId = c.req.header('X-Correlation-Id') || nanoid()
+c.set('correlationId', correlationId)
 
 // Include in all log entries
 logger.info({
   correlationId,
   event: 'request_received',
   // ... other fields
-});
+})
 ```
 
 ## Debug Checklist

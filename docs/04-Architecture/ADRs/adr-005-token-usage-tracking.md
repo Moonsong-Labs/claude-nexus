@@ -28,16 +28,19 @@ With Claude's 140,000 token limit per 5-hour window, users needed better visibil
 ## Considered Options
 
 1. **Separate Partitioned Table**
+
    - Description: New `token_usage` table with monthly partitions
    - Pros: Optimized for time-series queries, easy archival
    - Cons: Complex implementation, data duplication, sync issues
 
 2. **Time-Series Database**
+
    - Description: Use InfluxDB or TimescaleDB
    - Pros: Built for time-series data, automatic retention
    - Cons: Additional dependency, operational complexity
 
 3. **In-Memory with Periodic Snapshots**
+
    - Description: Track in memory, periodically write to database
    - Pros: Fast, minimal request impact
    - Cons: Data loss risk, complex aggregation, no real-time queries
@@ -54,31 +57,35 @@ We will implement **direct storage in the api_requests table** with account-leve
 ### Implementation Details
 
 1. **Account Identification**:
+
    ```json
    // In credentials file
    {
      "type": "api_key",
-     "accountId": "acc_f9e1c2d3b4a5",  // Required for tracking
+     "accountId": "acc_f9e1c2d3b4a5", // Required for tracking
      "api_key": "sk-ant-..."
    }
    ```
 
 2. **Database Schema**:
+
    ```sql
-   ALTER TABLE api_requests 
+   ALTER TABLE api_requests
    ADD COLUMN account_id VARCHAR(255);
-   
-   CREATE INDEX idx_api_requests_account_time 
+
+   CREATE INDEX idx_api_requests_account_time
    ON api_requests(account_id, created_at);
    ```
 
 3. **Request Type Handling**:
+
    - Track ALL types: `inference`, `query_evaluation`, `quota`
    - Non-storable types excluded from response storage but tracked for metrics
 
 4. **5-Hour Window Queries**:
+
    ```sql
-   SELECT 
+   SELECT
      account_id,
      SUM(input_tokens + output_tokens) as tokens_used,
      COUNT(*) as request_count
@@ -115,6 +122,7 @@ We will implement **direct storage in the api_requests table** with account-leve
 ### Risks and Mitigations
 
 - **Risk**: Slow queries on large datasets
+
   - **Mitigation**: Proper indexes on (account_id, created_at)
   - **Mitigation**: Consider partitioning in future if needed
 
@@ -133,6 +141,7 @@ We will implement **direct storage in the api_requests table** with account-leve
 ## Monitoring and Alerts
 
 1. **Usage Thresholds**:
+
    - Warn at 80% of 5-hour limit
    - Alert at 90% of 5-hour limit
    - Automatic model fallback when exceeded

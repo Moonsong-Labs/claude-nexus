@@ -28,16 +28,19 @@ The choice would significantly impact dashboard performance, development velocit
 ## Considered Options
 
 1. **React SPA**
+
    - Description: Client-side React application
    - Pros: Rich ecosystem, familiar to many developers
    - Cons: Bundle size, complexity, SEO challenges
 
 2. **Vue.js SPA**
+
    - Description: Vue-based single-page application
    - Pros: Simpler than React, good docs
    - Cons: Still requires build pipeline, client-side state
 
 3. **HTMX + Server-Side Rendering**
+
    - Description: HTML-over-the-wire with HTMX
    - Pros: Minimal JavaScript, progressive enhancement
    - Cons: Less familiar pattern, server does more work
@@ -54,11 +57,10 @@ We will use **HTMX with server-side rendering** for the dashboard.
 ### Implementation Details
 
 1. **Architecture Pattern**:
+
    ```html
    <!-- HTMX for dynamic updates -->
-   <div hx-get="/api/stats" 
-        hx-trigger="every 5s"
-        hx-target="#stats">
+   <div hx-get="/api/stats" hx-trigger="every 5s" hx-target="#stats">
      <div id="stats">
        <!-- Server-rendered content -->
      </div>
@@ -66,6 +68,7 @@ We will use **HTMX with server-side rendering** for the dashboard.
    ```
 
 2. **Real-time Updates**:
+
    ```html
    <!-- SSE for live data -->
    <div hx-sse="connect:/api/sse">
@@ -76,6 +79,7 @@ We will use **HTMX with server-side rendering** for the dashboard.
    ```
 
 3. **Graph Visualization**:
+
    ```typescript
    // Custom algorithm for conversation trees
    function calculateNodePositions(conversations: Conversation[]) {
@@ -83,19 +87,17 @@ We will use **HTMX with server-side rendering** for the dashboard.
        nodeWidth: 180,
        nodeHeight: 60,
        levelGap: 100,
-       siblingGap: 20
-     });
-     
-     return layout.calculate(conversations);
+       siblingGap: 20,
+     })
+
+     return layout.calculate(conversations)
    }
    ```
 
 4. **Split-Pane Layout**:
    ```html
    <div class="split-pane">
-     <div class="pane left" 
-          hx-get="/conversations/{id}" 
-          hx-target="#details">
+     <div class="pane left" hx-get="/conversations/{id}" hx-target="#details">
        <!-- Conversation list -->
      </div>
      <div class="pane right" id="details">
@@ -125,6 +127,7 @@ We will use **HTMX with server-side rendering** for the dashboard.
 ### Risks and Mitigations
 
 - **Risk**: Poor performance with many concurrent users
+
   - **Mitigation**: Response caching (30s default)
   - **Mitigation**: CDN for static assets
 

@@ -5,22 +5,26 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 ## Documentation Structure
 
 ### 📚 [00-Overview](./00-Overview/)
+
 - [Architecture](./00-Overview/architecture.md) - System design and components
 - [Quick Start](./00-Overview/quickstart.md) - Get up and running in 5 minutes
 - [Features](./00-Overview/features.md) - Complete feature list and capabilities
 
 ### 🚀 [01-Getting Started](./01-Getting-Started/)
+
 - [Installation](./01-Getting-Started/installation.md) - Detailed installation guide
 - [Configuration](./01-Getting-Started/configuration.md) - Configuration options and environment variables
 - [Development](./01-Getting-Started/development.md) - Local development setup
 
 ### 📖 [02-User Guide](./02-User-Guide/)
+
 - [API Reference](./02-User-Guide/api-reference.md) - Complete API documentation
 - [Authentication](./02-User-Guide/authentication.md) - Authentication methods, OAuth, and troubleshooting
 - [Dashboard Guide](./02-User-Guide/dashboard-guide.md) - Using the monitoring dashboard
 - [Claude CLI](./02-User-Guide/claude-cli.md) - Command-line interface reference
 
 ### ⚙️ [03-Operations](./03-Operations/)
+
 - [Deployment](./03-Operations/deployment/)
   - [Docker](./03-Operations/deployment/docker.md) - Docker deployment guide
   - [Docker Compose](./03-Operations/deployment/docker-compose.md) - Full stack deployment
@@ -30,16 +34,19 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 - [Backup & Recovery](./03-Operations/backup-recovery.md) - Backup procedures and disaster recovery
 
 ### 🏗️ [04-Architecture](./04-Architecture/)
+
 - [Architecture Decision Records](./04-Architecture/ADRs/) - Key architectural decisions
 - [Technical Debt](./04-Architecture/technical-debt.md) - Known issues and improvement plans
 - [Internals](./04-Architecture/internals.md) - Deep dive into implementation details
 
 ### 🔧 [05-Troubleshooting](./05-Troubleshooting/)
+
 - [Common Issues](./05-Troubleshooting/common-issues.md) - Frequently encountered problems and solutions
 - [Performance](./05-Troubleshooting/performance.md) - Performance tuning and optimization
 - [Debugging](./05-Troubleshooting/debugging.md) - Debug procedures and techniques
 
 ### 📋 [06-Reference](./06-Reference/)
+
 - [Environment Variables](./06-Reference/environment-vars.md) - Complete environment variable reference
 - [API Schemas](./06-Reference/api-schemas.md) - Request and response schemas
 - [Changelog](./06-Reference/changelog.md) - Version history and release notes
