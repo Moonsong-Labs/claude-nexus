@@ -9,14 +9,17 @@ import { randomUUID } from 'crypto'
  */
 export class StorageAdapter {
   private writer: StorageWriter
-  // TODO: Fix memory leak (HIGH)
-  // This map grows indefinitely as requests are processed.
-  // Should clean up entries after storeResponse completes.
-  // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
-  private requestIdMap: Map<string, string> = new Map() // Map nanoid to UUID
+  private requestIdMap: Map<string, { uuid: string; timestamp: number }> = new Map() // Map nanoid to UUID with timestamp
+  private cleanupTimer: NodeJS.Timeout | null = null
+  private isClosed: boolean = false
+  private readonly CLEANUP_INTERVAL_MS =
+    Number(process.env.STORAGE_ADAPTER_CLEANUP_MS) || 5 * 60 * 1000 // 5 minutes
+  private readonly RETENTION_TIME_MS =
+    Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
 
   constructor(pool: Pool) {
     this.writer = new StorageWriter(pool)
+    this.scheduleNextCleanup()
   }
 
   /**
@@ -52,9 +55,9 @@ export class StorageAdapter {
     taskToolInvocation?: any
   }): Promise<void> {
     try {
-      // Generate a UUID for this request and store the mapping
+      // Generate a UUID for this request and store the mapping with timestamp
       const uuid = randomUUID()
-      this.requestIdMap.set(data.id, uuid)
+      this.requestIdMap.set(data.id, { uuid, timestamp: Date.now() })
 
       logger.debug('Stored request ID mapping', {
         metadata: {
@@ -116,13 +119,20 @@ export class StorageAdapter {
   }): Promise<void> {
     try {
       // Get the UUID for this request ID
-      const uuid = this.requestIdMap.get(data.request_id)
-      if (!uuid) {
-        logger.warn('No UUID mapping found for request ID', {
+      const mapping = this.requestIdMap.get(data.request_id)
+      if (!mapping) {
+        // This can happen if the request was cleaned up due to age
+        // Log at debug level instead of warn to reduce noise
+        logger.debug('No UUID mapping found for request ID - may have been cleaned up', {
           requestId: data.request_id,
+          metadata: {
+            mapSize: this.requestIdMap.size,
+            reason: 'likely_cleaned_up',
+          },
         })
         return
       }
+      const uuid = mapping.uuid
 
       // The writer's storeResponse method will update the existing request
       await this.writer.storeResponse({
@@ -143,8 +153,8 @@ export class StorageAdapter {
         toolCallCount: data.tool_call_count,
       })
 
-      // TODO: Clean up the requestIdMap entry here to prevent memory leak
-      // this.requestIdMap.delete(data.request_id)
+      // Clean up the requestIdMap entry to prevent memory leak
+      this.requestIdMap.delete(data.request_id)
     } catch (error) {
       logger.error('Failed to store response', {
         requestId: data.request_id,
@@ -162,13 +172,22 @@ export class StorageAdapter {
   async storeStreamingChunk(requestId: string, chunkIndex: number, data: any): Promise<void> {
     try {
       // Get the UUID for this request ID
-      const uuid = this.requestIdMap.get(requestId)
-      if (!uuid) {
-        logger.warn('No UUID mapping found for request ID in storeStreamingChunk', {
-          requestId,
-        })
+      const mapping = this.requestIdMap.get(requestId)
+      if (!mapping) {
+        // This can happen if the request was cleaned up due to age
+        logger.debug(
+          'No UUID mapping found for request ID in storeStreamingChunk - may have been cleaned up',
+          {
+            requestId,
+            metadata: {
+              mapSize: this.requestIdMap.size,
+              reason: 'likely_cleaned_up',
+            },
+          }
+        )
         return
       }
+      const uuid = mapping.uuid
 
       await this.writer.storeStreamingChunk({
         requestId: uuid,
@@ -212,17 +231,22 @@ export class StorageAdapter {
 
       // Get the UUID for this request
       // First check if requestId is already a UUID
-      const uuid = this.isValidUUID(requestId) ? requestId : this.requestIdMap.get(requestId)
-
-      if (!uuid) {
-        logger.warn('No UUID mapping found for request when processing task invocations', {
-          requestId,
-          metadata: {
-            mapSize: this.requestIdMap.size,
-            isUUID: this.isValidUUID(requestId),
-          },
-        })
-        return
+      let uuid: string
+      if (this.isValidUUID(requestId)) {
+        uuid = requestId
+      } else {
+        const mapping = this.requestIdMap.get(requestId)
+        if (!mapping) {
+          logger.warn('No UUID mapping found for request when processing task invocations', {
+            requestId,
+            metadata: {
+              mapSize: this.requestIdMap.size,
+              isUUID: this.isValidUUID(requestId),
+            },
+          })
+          return
+        }
+        uuid = mapping.uuid
       }
 
       // Mark the request as having task invocations
@@ -242,9 +266,102 @@ export class StorageAdapter {
   }
 
   /**
+   * Schedule the next cleanup using recursive setTimeout
+   */
+  private scheduleNextCleanup(): void {
+    // Don't schedule if we're closed
+    if (this.isClosed) {
+      return
+    }
+
+    this.cleanupTimer = setTimeout(() => {
+      try {
+        this.cleanupOrphanedEntries()
+      } catch (error) {
+        logger.error('Error during cleanup of orphaned entries', {
+          metadata: {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+        })
+        // Continue scheduling despite errors to prevent the cleanup from stopping
+      }
+      this.scheduleNextCleanup()
+    }, this.CLEANUP_INTERVAL_MS)
+  }
+
+  /**
+   * Clean up orphaned entries older than retention time
+   */
+  private cleanupOrphanedEntries(): void {
+    const startTime = Date.now()
+    const now = startTime
+    let cleanedCount = 0
+    const initialSize = this.requestIdMap.size
+
+    try {
+      for (const [requestId, mapping] of this.requestIdMap.entries()) {
+        if (now - mapping.timestamp > this.RETENTION_TIME_MS) {
+          this.requestIdMap.delete(requestId)
+          cleanedCount++
+        }
+      }
+
+      const durationMs = Date.now() - startTime
+
+      // Always log metrics for observability
+      logger.info('Storage adapter cleanup cycle completed', {
+        metadata: {
+          cleanedCount,
+          initialSize,
+          currentSize: this.requestIdMap.size,
+          durationMs,
+          retentionTimeMs: this.RETENTION_TIME_MS,
+          cleanupIntervalMs: this.CLEANUP_INTERVAL_MS,
+        },
+      })
+
+      // Warn if cleanup is taking too long
+      if (durationMs > 100) {
+        logger.warn('Storage adapter cleanup took longer than expected', {
+          metadata: {
+            durationMs,
+            mapSize: initialSize,
+            cleanedCount,
+          },
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to complete cleanup of orphaned entries', {
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          initialSize,
+          cleanedCount,
+        },
+      })
+      // Re-throw to ensure the error is handled by the caller
+      throw error
+    }
+  }
+
+  /**
    * Close the storage adapter
    */
   async close(): Promise<void> {
+    // Mark as closed to prevent new cleanups from being scheduled
+    this.isClosed = true
+
+    // Clear the cleanup timer
+    if (this.cleanupTimer) {
+      clearTimeout(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+
+    // Clear the request ID map
+    this.requestIdMap.clear()
+
+    // Close the writer
     await this.writer.cleanup()
   }
 }
