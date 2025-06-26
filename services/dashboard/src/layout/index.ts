@@ -21,11 +21,11 @@ export const layout = (title: string, content: any, additionalScripts: string = 
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
       <script
         type="module"
-        src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.js"
+        src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/json-viewer.js"
       ></script>
       <link
         rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.css"
+        href="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/json-viewer.css"
       />
       <style>
         /* JSON Viewer VSCode-like theme styles */
