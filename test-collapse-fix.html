@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Test Collapse Fix</title>
+    <script src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/iife/index.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+
+      andypf-json-viewer {
+        display: block;
+        padding: 0.5rem;
+        font-size: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Test: Only "tools" and "system" keys should collapse</h2>
+    <andypf-json-viewer
+      id="test-viewer"
+      expand-icon-type="arrow"
+      expanded="true"
+      expand-level="10"
+    ></andypf-json-viewer>
+
+    <button onclick="testCollapse()">Test Collapse</button>
+    <div id="output"></div>
+
+    <script>
+      const testData = {
+        model: 'claude-3-opus',
+        messages: [
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi there!' },
+        ],
+        system: {
+          prompt: 'You are a helpful assistant',
+          version: '1.0',
+        },
+        tools: [
+          { name: 'calculator', type: 'function' },
+          { name: 'search', type: 'function' },
+        ],
+        metadata: {
+          tools_mentioned: 'This field contains the word tools but should not collapse',
+          system_info: 'This field contains the word system but should not collapse',
+        },
+      }
+
+      const viewer = document.getElementById('test-viewer')
+      viewer.data = testData
+
+      function testCollapse() {
+        if (!viewer.shadowRoot) {
+          alert('No shadow root')
+          return
+        }
+
+        let collapsedCount = 0
+        const keysToCollapse = ['tools', 'system']
+        const dataRows = viewer.shadowRoot.querySelectorAll('.data-row')
+
+        dataRows.forEach((row, index) => {
+          const keyElement = row.querySelector('.key')
+          if (!keyElement) return
+
+          const keyText = keyElement.textContent || ''
+
+          keysToCollapse.forEach(keyToCollapse => {
+            if (keyText === '"' + keyToCollapse + '"' || keyText === keyToCollapse) {
+              const expandIcon = row.querySelector('.expand.icon.clickable')
+              if (expandIcon) {
+                expandIcon.click()
+                collapsedCount++
+                document.getElementById('output').innerHTML +=
+                  'Collapsed: ' + keyToCollapse + '<br>'
+              }
+            }
+          })
+        })
+
+        document.getElementById('output').innerHTML +=
+          'Total collapsed: ' + collapsedCount + ' (should be 2)<br>'
+      }
+
+      // Auto-test after a delay
+      setTimeout(testCollapse, 500)
+    </script>
+  </body>
+</html>

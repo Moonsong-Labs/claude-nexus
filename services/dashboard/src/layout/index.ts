@@ -12,73 +12,92 @@ export const layout = (title: string, content: any, additionalScripts: string = 
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>${title} - Claude Nexus Dashboard</title>
       <style>
-        ${raw(dashboardStyles)}
+        ${raw(
+          dashboardStyles
+        )}
+        
+        /* Ultra-dense JSON viewer styles injected globally */
+        andypf-json-viewer::part(json-viewer) {
+          font-size: 10px !important;
+          line-height: 1.1 !important;
+        }
+
+        andypf-json-viewer::part(key) {
+          font-size: 10px !important;
+        }
+
+        andypf-json-viewer::part(value) {
+          font-size: 10px !important;
+        }
+
+        andypf-json-viewer::part(row) {
+          line-height: 1.1 !important;
+          padding: 0 !important;
+        }
       </style>
       <link
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"
       />
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/renderjson@1.4.0/renderjson.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/iife/index.js"></script>
       <style>
-        /* RenderJSON light theme styles */
-        .renderjson a {
-          text-decoration: none;
-        }
-        .renderjson .disclosure {
-          color: #6b7280;
-          font-size: 125%;
-        }
-        .renderjson .syntax {
-          color: #6b7280;
-        }
-        .renderjson .string {
-          color: #059669;
-        }
-        .renderjson .number {
-          color: #dc2626;
-        }
-        .renderjson .boolean {
-          color: #2563eb;
-        }
-        .renderjson .key {
-          color: #111827;
-          font-weight: 500;
-        }
-        .renderjson .keyword {
-          color: #7c3aed;
-        }
-        .renderjson .object.syntax {
-          color: #6b7280;
-        }
-        .renderjson .array.syntax {
-          color: #6b7280;
+        /* JSON Viewer styling - Ultra Dense */
+        andypf-json-viewer {
+          display: block;
+          padding: 0.5rem;
+          border-radius: 0.25rem;
+          overflow: auto;
+          margin-bottom: 0.125rem;
+          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+          font-size: 10px;
+          line-height: 1.2;
+          letter-spacing: -0.03em;
+          --json-viewer-indent: 12px;
+          --json-viewer-key-color: #1e40af;
+          --json-viewer-value-string-color: #059669;
+          --json-viewer-value-number-color: #dc2626;
+          --json-viewer-value-boolean-color: #7c3aed;
+          --json-viewer-value-null-color: #6b7280;
+          --json-viewer-property-color: #1e40af;
+          --json-viewer-bracket-color: #6b7280;
+          --json-viewer-comma-color: #6b7280;
         }
 
-        /* Override any dark backgrounds from highlight.js */
-        #request-json,
-        #response-json,
-        #request-headers,
-        #response-headers,
-        #request-metadata,
-        #telemetry-data {
-          background-color: #f3f4f6 !important;
+        /* Compact view - reduce padding on containers */
+        #request-json-container andypf-json-viewer,
+        #response-json-container andypf-json-viewer {
+          padding: 0.25rem;
+          margin-bottom: 0;
         }
 
-        #request-json pre,
-        #response-json pre,
-        #request-headers pre,
-        #response-headers pre,
-        #request-metadata pre,
-        #telemetry-data pre,
-        #request-json code,
-        #response-json code,
-        #request-headers code,
-        #response-headers code,
-        #request-metadata code,
-        #telemetry-data code {
-          background-color: transparent !important;
-          color: #1f2937 !important;
+        /* Make the overall section more compact */
+        #raw-view .section-content {
+          padding: 0.25rem;
+        }
+
+        /* Reduce spacing between sections */
+        .section {
+          margin-bottom: 0.5rem;
+        }
+
+        .section-header {
+          padding: 0.375rem 0.5rem;
+          font-size: 0.875rem;
+        }
+
+        .section-content {
+          padding: 0.375rem;
+        }
+
+        /* Dense view toggle buttons */
+        .view-toggle {
+          margin: 0.5rem 0;
+        }
+
+        .view-toggle button {
+          padding: 0.25rem 0.75rem;
+          font-size: 0.8125rem;
         }
 
         /* Ensure code blocks in these containers have light backgrounds */

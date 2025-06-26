@@ -321,11 +321,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     Copy JSON
                   </button>
                 </div>
-                <div class="section-content">
-                  <div
-                    id="request-json"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                <div class="section-content" id="request-json-container">
+                  <!-- Will be populated by JavaScript with multiple viewers -->
                 </div>
               </div>
             `
@@ -343,11 +340,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     Copy JSON
                   </button>
                 </div>
-                <div class="section-content">
-                  <div
-                    id="response-json"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                <div class="section-content" id="response-json-container">
+                  <!-- Will be populated by JavaScript with multiple viewers -->
                 </div>
               </div>
             `
@@ -386,10 +380,13 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Request Headers</div>
                 <div class="section-content">
-                  <div
+                  <andypf-json-viewer
                     id="request-headers"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="true"
+                    expand-level="10"
+                    theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
@@ -399,10 +396,13 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Response Headers</div>
                 <div class="section-content">
-                  <div
+                  <andypf-json-viewer
                     id="response-headers"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="true"
+                    expand-level="10"
+                    theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
@@ -411,10 +411,13 @@ requestDetailsRoutes.get('/request/:id', async c => {
         <div class="section">
           <div class="section-header">Request Metadata</div>
           <div class="section-content">
-            <div
+            <andypf-json-viewer
               id="request-metadata"
-              style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-            ></div>
+              expand-icon-type="arrow"
+              expanded="true"
+              expand-level="10"
+              theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+            ></andypf-json-viewer>
           </div>
         </div>
 
@@ -423,10 +426,13 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Telemetry & Performance</div>
                 <div class="section-content">
-                  <div
+                  <andypf-json-viewer
                     id="telemetry-data"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="true"
+                    expand-level="10"
+                    theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
@@ -550,6 +556,120 @@ requestDetailsRoutes.get('/request/:id', async c => {
         const telemetryData = getJsonData('telemetry-data-storage')
         const requestMetadata = getJsonData('metadata-storage')
 
+        // Function to set up JSON viewer with selective collapse using MutationObserver
+        function setupJsonViewer(containerId, data, keysToCollapse = ['tools', 'system']) {
+          const container = document.getElementById(containerId)
+          if (!container || !data) return
+
+          container.innerHTML = '' // Clear existing content
+
+          // Add show-copy class to container to enable copy functionality
+          container.classList.add('show-copy')
+
+          // Create a single viewer for visual cohesion
+          const viewer = document.createElement('andypf-json-viewer')
+          viewer.setAttribute('expand-icon-type', 'arrow')
+          viewer.setAttribute('expanded', 'true')
+          viewer.setAttribute('expand-level', '10')
+          viewer.setAttribute('show-copy', 'true')
+          viewer.setAttribute(
+            'theme',
+            '{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+          )
+          viewer.data = data
+          container.appendChild(viewer)
+
+          // Use MutationObserver to detect when content is rendered and collapse specific keys
+          customElements.whenDefined('andypf-json-viewer').then(() => {
+            // Inject dense styles into shadow DOM
+            function injectDenseStyles() {
+              if (!viewer.shadowRoot) return
+
+              // Check if we already injected styles
+              if (viewer.shadowRoot.querySelector('#dense-styles')) return
+
+              const style = document.createElement('style')
+              style.id = 'dense-styles'
+              style.textContent =
+                /* Row and general spacing */
+                '.data-row { line-height: 1.2 !important; padding: 1px 0 !important; margin: 0 !important; } ' +
+                '.data-row .data-row { padding-left: 16px !important; margin-left: 4px !important; border-left: solid 1px var(--base02) !important; } ' +
+                '.key-value-wrapper { display: inline-flex !important; align-items: center !important; } ' +
+                '.key, .value, .property { font-size: 10px !important; line-height: 1.05 !important; } ' +
+                '.comma, .bracket { font-size: 10px !important; } ' +
+                /* Copy icon sizing and spacing */
+                '.copy.icon { width: 6px !important; height: 8px !important; margin-left: 6px !important; opacity: 0 !important; transition: opacity 0.2s !important; } ' +
+                '.key-value-wrapper:hover .copy.icon { opacity: 1 !important; } ' +
+                '.icon-wrapper:has(.copy.icon) { display: inline-flex !important; width: 20px !important; margin-left: 4px !important; flex-shrink: 0 !important; } ' +
+                '.copy.icon:before { width: 6px !important; height: 8px !important; } ' +
+                /* CSS Triangle Arrow sizing - override the border-based arrow */
+                '.expand-icon-arrow .expand.icon { ' +
+                'width: 0 !important; height: 0 !important; ' +
+                'border-left: solid 4px var(--base0E) !important; ' +
+                'border-top: solid 4px transparent !important; ' +
+                'border-bottom: solid 4px transparent !important; ' +
+                'margin-right: 4px !important; margin-left: 2px !important; ' +
+                '} ' +
+                '.expand-icon-arrow .expanded>.key-value-wrapper .expand.icon, ' +
+                '.expand-icon-arrow .expanded.icon.expand { ' +
+                'border-left-color: var(--base0D) !important; ' +
+                '} ' +
+                /* Square/Circle icon sizing */
+                '.expand-icon-square .expand.icon, .expand-icon-circle .expand.icon { ' +
+                'width: 7px !important; height: 7px !important; ' +
+                '} ' +
+                /* Icon wrapper spacing */
+                '.icon-wrapper { margin-right: 2px !important; }'
+              viewer.shadowRoot.appendChild(style)
+            }
+
+            // Function to collapse specific keys by clicking on the SVG expand/collapse icons
+            function collapseSpecificKeys() {
+              if (!viewer.shadowRoot) {
+                return false
+              }
+
+              let collapsedCount = 0
+
+              // Strategy: Find all .data-row elements that contain our target keys
+              const dataRows = viewer.shadowRoot.querySelectorAll('.data-row')
+
+              dataRows.forEach((row, index) => {
+                // Look for the key element specifically, not just text content
+                const keyElement = row.querySelector('.key')
+                if (!keyElement) return
+
+                const keyText = keyElement.textContent || ''
+
+                keysToCollapse.forEach(keyToCollapse => {
+                  // Check if this key element exactly matches our target
+                  if (keyText === '"' + keyToCollapse + '"' || keyText === keyToCollapse) {
+                    // Look for the expand icon within this row - it has class "expand icon clickable"
+                    const expandIcon = row.querySelector('.expand.icon.clickable')
+                    if (expandIcon) {
+                      expandIcon.click()
+                      collapsedCount++
+                    }
+                  }
+                })
+              })
+
+              return collapsedCount > 0
+            }
+
+            // Start observing the shadow root for changes
+            if (viewer.shadowRoot) {
+              // Inject dense styles first
+              injectDenseStyles()
+
+              // Collapse specific keys after a short delay to ensure DOM is ready
+              setTimeout(() => {
+                collapseSpecificKeys()
+              }, 100)
+            }
+          })
+        }
+
         function showView(view) {
           const conversationView = document.getElementById('conversation-view')
           const rawView = document.getElementById('raw-view')
@@ -571,102 +691,71 @@ requestDetailsRoutes.get('/request/:id', async c => {
             rawView.classList.remove('hidden')
             buttons[1].classList.add('active')
 
-            // Render JSON using RenderJSON when switching to raw view
-            if (typeof renderjson !== 'undefined') {
-              // Configure RenderJSON
-              renderjson.set_max_string_length(200) // Truncate very long strings
-              renderjson.set_sort_objects(true) // Sort object keys
+            // Use the new approach with MutationObserver for selective collapse
+            setupJsonViewer('request-json-container', requestData)
+            setupJsonViewer('response-json-container', responseData)
 
-              // Parse and render request body
-              if (requestData && document.getElementById('request-json')) {
-                const requestContainer = document.getElementById('request-json')
-                requestContainer.innerHTML = ''
+            // Parse and render streaming chunks
+            streamingChunks.forEach((chunk, i) => {
+              const chunkContainer = document.getElementById('chunk-' + i)
+              if (chunkContainer) {
                 try {
-                  requestContainer.appendChild(renderjson.set_show_to_level('all')(requestData))
+                  const chunkData = JSON.parse(chunk.data)
+                  // Create a andypf-json-viewer element for each chunk
+                  const viewer = document.createElement('andypf-json-viewer')
+                  viewer.setAttribute('expand-icon-type', 'arrow')
+                  viewer.setAttribute('expanded', 'true')
+                  viewer.setAttribute('expand-level', '2')
+                  viewer.setAttribute('show-copy', 'true')
+                  viewer.setAttribute(
+                    'theme',
+                    '{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+                  )
+                  viewer.data = chunkData
+                  chunkContainer.innerHTML = ''
+                  chunkContainer.appendChild(viewer)
                 } catch (e) {
-                  console.error('Failed to render request data:', e)
+                  // If not valid JSON, display as text
+                  chunkContainer.textContent = chunk.data
                 }
               }
-
-              // Parse and render response body
-              if (responseData && document.getElementById('response-json')) {
-                const responseContainer = document.getElementById('response-json')
-                responseContainer.innerHTML = ''
-                try {
-                  responseContainer.appendChild(renderjson.set_show_to_level('all')(responseData))
-                } catch (e) {
-                  console.error('Failed to render response data:', e)
-                }
-              }
-
-              // Parse and render streaming chunks
-              try {
-                streamingChunks.forEach((chunk, i) => {
-                  const chunkContainer = document.getElementById('chunk-' + i)
-                  if (chunkContainer) {
-                    chunkContainer.innerHTML = ''
-                    try {
-                      const chunkData = JSON.parse(chunk.data)
-                      chunkContainer.appendChild(renderjson.set_show_to_level('all')(chunkData))
-                    } catch (e) {
-                      // If not valid JSON, display as text
-                      chunkContainer.textContent = chunk.data
-                    }
-                  }
-                })
-              } catch (e) {
-                console.error('Failed to parse chunks:', e)
-              }
-            }
+            })
           } else if (view === 'headers') {
             headersView.classList.remove('hidden')
             buttons[2].classList.add('active')
 
-            // Render headers and metadata using RenderJSON
-            if (typeof renderjson !== 'undefined') {
-              renderjson.set_max_string_length(200)
-              renderjson.set_sort_objects(true)
-
+            // Render headers and metadata using andypf-json-viewer
+            setTimeout(() => {
               // Render request headers
-              if (requestHeaders && document.getElementById('request-headers')) {
-                const container = document.getElementById('request-headers')
-                container.innerHTML = ''
-                try {
-                  container.appendChild(renderjson.set_show_to_level('all')(requestHeaders))
-                } catch (e) {
-                  console.error('Failed to render request headers:', e)
+              if (requestHeaders) {
+                const requestHeadersViewer = document.getElementById('request-headers')
+                if (requestHeadersViewer) {
+                  requestHeadersViewer.data = requestHeaders
                 }
               }
 
               // Render response headers
-              if (responseHeaders && document.getElementById('response-headers')) {
-                const container = document.getElementById('response-headers')
-                container.innerHTML = ''
-                try {
-                  container.appendChild(renderjson.set_show_to_level('all')(responseHeaders))
-                } catch (e) {
-                  console.error('Failed to render response headers:', e)
+              if (responseHeaders) {
+                const responseHeadersViewer = document.getElementById('response-headers')
+                if (responseHeadersViewer) {
+                  responseHeadersViewer.data = responseHeaders
                 }
               }
 
               // Render request metadata
-              const metadataContainer = document.getElementById('request-metadata')
-              if (metadataContainer) {
-                metadataContainer.innerHTML = ''
-                metadataContainer.appendChild(renderjson.set_show_to_level('all')(requestMetadata))
+              const metadataViewer = document.getElementById('request-metadata')
+              if (metadataViewer && requestMetadata) {
+                metadataViewer.data = requestMetadata
               }
 
               // Render telemetry data
-              if (telemetryData && document.getElementById('telemetry-data')) {
-                const container = document.getElementById('telemetry-data')
-                container.innerHTML = ''
-                try {
-                  container.appendChild(renderjson.set_show_to_level('all')(telemetryData))
-                } catch (e) {
-                  console.error('Failed to render telemetry data:', e)
+              if (telemetryData) {
+                const telemetryViewer = document.getElementById('telemetry-data')
+                if (telemetryViewer) {
+                  telemetryViewer.data = telemetryData
                 }
               }
-            }
+            }, 100)
           }
         }
 
@@ -705,9 +794,15 @@ requestDetailsRoutes.get('/request/:id', async c => {
           }
         }
 
-        // Initialize syntax highlighting
+        // Initialize syntax highlighting and JSON viewers
         document.addEventListener('DOMContentLoaded', function () {
           hljs.highlightAll()
+
+          // Initialize JSON viewers on page load if raw view is active
+          if (!document.getElementById('raw-view').classList.contains('hidden')) {
+            setupJsonViewer('request-json-container', requestData)
+            setupJsonViewer('response-json-container', responseData)
+          }
         })
       </script>
     `

@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Test Arrow Size</title>
+    <script src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/iife/index.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+
+      andypf-json-viewer {
+        display: block;
+        padding: 0.25rem;
+        border-radius: 0.25rem;
+        overflow: auto;
+        margin-bottom: 0.125rem;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+        font-size: 10px;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Testing Arrow Size in JSON Viewer</h2>
+    <andypf-json-viewer
+      id="test-viewer"
+      expand-icon-type="arrow"
+      expanded="true"
+      expand-level="10"
+    ></andypf-json-viewer>
+
+    <script>
+      const testData = {
+        name: 'Test',
+        system: {
+          os: 'Linux',
+          version: '5.15',
+        },
+        tools: [
+          { name: 'Bash', type: 'shell' },
+          { name: 'Read', type: 'file' },
+        ],
+        config: {
+          debug: true,
+          nested: {
+            deep: {
+              value: 123,
+            },
+          },
+        },
+      }
+
+      const viewer = document.getElementById('test-viewer')
+      viewer.data = testData
+
+      // Wait for element to be defined then inject styles
+      customElements.whenDefined('andypf-json-viewer').then(() => {
+        setTimeout(() => {
+          if (viewer.shadowRoot) {
+            const style = document.createElement('style')
+            style.textContent =
+              '.data-row { line-height: 1.05 !important; padding: 0 !important; margin: 0 !important; } ' +
+              '.indent { width: 12px !important; } ' +
+              '.key, .value, .property { font-size: 10px !important; line-height: 1.05 !important; } ' +
+              '.expand.icon { width: 8px !important; height: 8px !important; margin-right: 2px !important; } ' +
+              '.expand.icon svg { width: 8px !important; height: 8px !important; } ' +
+              '.icon svg { width: 8px !important; height: 8px !important; } ' +
+              'svg.icon { width: 8px !important; height: 8px !important; } ' +
+              '.comma, .bracket { font-size: 10px !important; } ' +
+              '.json-viewer > * { margin: 0 !important; padding: 0 !important; } ' +
+              '.data-row .icon { width: 8px !important; height: 8px !important; margin-right: 2px !important; }'
+            viewer.shadowRoot.appendChild(style)
+
+            // Check what elements we have
+            console.log('Icons found:', viewer.shadowRoot.querySelectorAll('.icon').length)
+            console.log('SVGs found:', viewer.shadowRoot.querySelectorAll('svg').length)
+
+            // Try more aggressive approach
+            const allSvgs = viewer.shadowRoot.querySelectorAll('svg')
+            console.log('All SVG elements:', allSvgs)
+            allSvgs.forEach(svg => {
+              console.log('SVG classes:', svg.className.baseVal || svg.className)
+              console.log('SVG parent classes:', svg.parentElement?.className)
+            })
+          }
+        }, 100)
+      })
+    </script>
+  </body>
+</html>
