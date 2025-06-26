@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Branch parent resolution for conversations with hash collisions
 - Conversation tree pointing to incorrect parent requests
 - Message count display showing 0 for existing conversations
+- Conversation UI now properly displays messages with multiple tool_use or tool_result blocks
 
 ## [2.0.0] - 2024-01-15
 
