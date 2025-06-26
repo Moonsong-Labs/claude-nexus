@@ -11,6 +11,7 @@ Claude Nexus Proxy - A high-performance proxy for Claude API with monitoring das
 Technical decisions are documented in `docs/ADRs/`. Key architectural decisions:
 
 - **ADR-001**: Example ADR
+- **ADR-012**: Database Schema Evolution Strategy - TypeScript migrations with init SQL
 
 **AI Assistant Directive**: When discussing architecture or making technical decisions, always reference relevant ADRs. If a new architectural decision is made during development, create or update an ADR to document it. This ensures all technical decisions have clear rationale and can be revisited if needed.
 
@@ -235,6 +236,9 @@ When `DEBUG=true`:
 - `SLOW_QUERY_THRESHOLD_MS` - Threshold in milliseconds for logging slow SQL queries (default: 5000)
 - `CLAUDE_API_TIMEOUT` - Timeout for Claude API requests in milliseconds (default: 600000 / 10 minutes)
 - `PROXY_SERVER_TIMEOUT` - Server-level timeout in milliseconds (default: 660000 / 11 minutes)
+- `STORAGE_ADAPTER_CLEANUP_MS` - Interval for cleaning up orphaned request ID mappings in milliseconds (default: 300000 / 5 minutes)
+- `STORAGE_ADAPTER_RETENTION_MS` - Retention time for request ID mappings in milliseconds (default: 3600000 / 1 hour)
+- `API_KEY_SALT` - Salt for hashing API keys in database (default: 'claude-nexus-proxy-default-salt')
 
 ## Important Notes
 
@@ -284,6 +288,7 @@ Currently no automated tests. When implementing:
 - `input_tokens`, `output_tokens`, `total_tokens` - Token usage metrics
 - `conversation_id`, `branch_id` - Conversation tracking
 - `current_message_hash`, `parent_message_hash` - Message linking
+- `parent_task_request_id`, `is_subtask`, `task_tool_invocation` - Sub-task tracking
 
 **streaming_chunks** - Stores streaming response chunks
 
@@ -294,6 +299,35 @@ Token usage is tracked directly in the `api_requests` table:
 - Each request is associated with an `account_id` from the credential file
 - Token counts are stored per request for accurate tracking
 - Queries aggregate usage by account and time window
+
+### Database Schema Evolution
+
+**Schema Management:**
+
+- Initial schema: `scripts/init-database.sql`
+- Migrations: `scripts/db/migrations/` (TypeScript files)
+- Auto-initialization: `writer.ts` uses init SQL file when tables don't exist
+
+**Running Migrations:**
+
+```bash
+# Run a specific migration
+bun run scripts/db/migrations/001-add-conversation-tracking.ts
+
+# Run all migrations in order
+for file in scripts/db/migrations/*.ts; do bun run "$file"; done
+```
+
+**Available Migrations:**
+
+- 000: Initial database setup
+- 001: Add conversation tracking
+- 002: Optimize conversation indexes
+- 003: Add sub-task tracking
+- 004: Optimize window function queries
+- 005: Populate account IDs
+
+See `docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md` for details.
 
 ## Common Tasks
 
@@ -408,3 +442,9 @@ curl "http://localhost:3000/api/token-usage/daily?accountId=acc_f9e1c2d3b4a5&agg
 curl "http://localhost:3000/api/conversations?accountId=acc_f9e1c2d3b4a5" \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
+
+## Maintenance
+
+### Grooming
+
+The process of `grooming` is used to keep a clean repository. It should be performed regularly and rely on [GROOMING.md](GROOMING.md)

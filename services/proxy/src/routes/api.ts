@@ -453,13 +453,30 @@ apiRoutes.get('/conversations', async c => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     // Get conversations grouped by conversation_id with account info and subtask status
-    // TODO: Optimize query performance (HIGH)
-    // The correlated subqueries for latest_request_id and parent_task_request_id
-    // create an N+1 query pattern. Should be rewritten using window functions
-    // or additional CTEs to calculate all fields in a single pass.
-    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
+    // Optimized query using window functions to avoid N+1 pattern
     const conversationsQuery = `
-      WITH conversation_summary AS (
+      WITH ranked_requests AS (
+        -- Get all requests with ranking for latest request and first subtask per conversation
+        SELECT 
+          request_id,
+          conversation_id,
+          domain,
+          account_id,
+          timestamp,
+          input_tokens,
+          output_tokens,
+          branch_id,
+          model,
+          is_subtask,
+          parent_task_request_id,
+          ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY timestamp DESC, request_id DESC) as rn,
+          ROW_NUMBER() OVER (PARTITION BY conversation_id, is_subtask ORDER BY timestamp ASC, request_id ASC) as subtask_rn
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+      ),
+      conversation_summary AS (
+        -- Aggregate conversation data including latest request info
         SELECT 
           conversation_id,
           domain,
@@ -469,21 +486,13 @@ apiRoutes.get('/conversations', async c => {
           COUNT(*) as message_count,
           SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
           COUNT(DISTINCT branch_id) as branch_count,
-          ARRAY_AGG(DISTINCT model) as models_used,
-          (SELECT request_id FROM api_requests 
-           WHERE conversation_id = ar.conversation_id 
-           ${whereClause ? 'AND ' + whereClause.replace('WHERE', '') : ''}
-           ORDER BY timestamp DESC 
-           LIMIT 1) as latest_request_id,
+          ARRAY_AGG(DISTINCT model) FILTER (WHERE model IS NOT NULL) as models_used,
+          MAX(CASE WHEN rn = 1 THEN request_id END) as latest_request_id,
           BOOL_OR(is_subtask) as is_subtask,
-          (SELECT parent_task_request_id FROM api_requests 
-           WHERE conversation_id = ar.conversation_id 
-           AND is_subtask = true 
-           LIMIT 1) as parent_task_request_id,
+          -- Get the parent_task_request_id from the first subtask in the conversation
+          MAX(CASE WHEN is_subtask = true AND subtask_rn = 1 THEN parent_task_request_id END) as parent_task_request_id,
           COUNT(CASE WHEN is_subtask THEN 1 END) as subtask_message_count
-        FROM api_requests ar
-        ${whereClause}
-        ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+        FROM ranked_requests
         GROUP BY conversation_id, domain, account_id
       )
       SELECT 
@@ -767,48 +776,66 @@ apiRoutes.get('/token-usage/accounts', async c => {
       domains: row.domains || [],
     }))
 
-    // For each account, get mini time series (last 20 points)
-    // TODO: Fix N+1 query pattern (MEDIUM)
-    // This loops through each account and executes a separate query for time series data.
-    // Should be refactored to fetch all time series data in a single query with window functions.
-    // See: https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review
-    const accountsWithSeries = await Promise.all(
-      accounts.map(async account => {
-        const miniSeriesQuery = `
-          WITH time_buckets AS (
-            SELECT 
-              generate_series(
-                NOW() - INTERVAL '5 hours',
-                NOW(),
-                INTERVAL '15 minutes'
-              ) AS bucket_time
-          )
-          SELECT 
-            tb.bucket_time,
-            (
-              SELECT COALESCE(SUM(output_tokens), 0)
-              FROM api_requests
-              WHERE account_id = $1
-                AND timestamp > tb.bucket_time - INTERVAL '5 hours'
-                AND timestamp <= tb.bucket_time
-            ) AS cumulative_output_tokens
-          FROM time_buckets tb
-          ORDER BY tb.bucket_time ASC
-        `
+    // Fetch time series data for all accounts in a single query
+    const accountIds = accounts.map(acc => acc.accountId)
 
-        const seriesResult = await pool.query(miniSeriesQuery, [account.accountId])
+    const timeSeriesQuery = `
+      WITH time_buckets AS (
+        SELECT 
+          generate_series(
+            NOW() - INTERVAL '5 hours',
+            NOW(),
+            INTERVAL '15 minutes'
+          ) AS bucket_time
+      ),
+      account_cumulative AS (
+        SELECT 
+          au.account_id,
+          tb.bucket_time,
+          COALESCE(
+            SUM(ar.output_tokens) FILTER (
+              WHERE ar.timestamp > tb.bucket_time - INTERVAL '5 hours' 
+              AND ar.timestamp <= tb.bucket_time
+            ),
+            0
+          ) AS cumulative_output_tokens
+        FROM (SELECT unnest($1::text[]) AS account_id) au
+        CROSS JOIN time_buckets tb
+        LEFT JOIN api_requests ar ON ar.account_id = au.account_id
+        GROUP BY au.account_id, tb.bucket_time
+      )
+      SELECT 
+        account_id,
+        bucket_time,
+        cumulative_output_tokens
+      FROM account_cumulative
+      ORDER BY account_id, bucket_time ASC
+    `
 
-        const miniSeries = seriesResult.rows.map(row => ({
-          time: row.bucket_time,
-          remaining: Math.max(0, tokenLimit - (parseInt(row.cumulative_output_tokens) || 0)),
-        }))
+    const seriesResult = await pool.query(timeSeriesQuery, [accountIds])
 
-        return {
-          ...account,
-          miniSeries,
-        }
+    // Group time series data by account
+    const seriesByAccount = new Map<string, Array<{ time: Date; remaining: number }>>()
+
+    for (const row of seriesResult.rows) {
+      const accountId = row.account_id
+      const remaining = Math.max(0, tokenLimit - (parseInt(row.cumulative_output_tokens) || 0))
+
+      if (!seriesByAccount.has(accountId)) {
+        seriesByAccount.set(accountId, [])
+      }
+
+      seriesByAccount.get(accountId)!.push({
+        time: row.bucket_time,
+        remaining: remaining,
       })
-    )
+    }
+
+    // Merge mini series data with accounts
+    const accountsWithSeries = accounts.map(account => ({
+      ...account,
+      miniSeries: seriesByAccount.get(account.accountId) || [],
+    }))
 
     return c.json({
       accounts: accountsWithSeries,

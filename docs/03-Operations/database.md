@@ -42,6 +42,9 @@ The main table storing all API requests and responses.
 | conversation_id             | UUID         | Groups messages into conversations           |
 | branch_id                   | VARCHAR(255) | Branch within conversation (default: 'main') |
 | message_count               | INTEGER      | Total messages in conversation               |
+| parent_task_request_id      | UUID         | Links sub-task requests to parent task       |
+| is_subtask                  | BOOLEAN      | Indicates if request is a sub-task           |
+| task_tool_invocation        | JSONB        | Task tool invocation details                 |
 | created_at                  | TIMESTAMPTZ  | Record creation timestamp                    |
 
 ### streaming_chunks
@@ -67,6 +70,8 @@ Stores individual chunks from streaming responses.
 - `idx_requests_model` - Filter by model
 - `idx_requests_request_type` - Filter by request type
 - `idx_requests_account_id` - Filter by account
+- `idx_requests_account_timestamp` - Account queries with time filtering
+- `idx_requests_request_id` - Fast request lookups
 
 ### Conversation Tracking Indexes
 
@@ -75,6 +80,14 @@ Stores individual chunks from streaming responses.
 - `idx_requests_conversation_branch` - Composite index
 - `idx_requests_current_hash` - Find by message hash
 - `idx_requests_parent_hash` - Find parent messages
+- `idx_requests_conversation_timestamp_id` - Window function optimization
+- `idx_requests_conversation_subtask` - Sub-task filtering and ordering
+
+### Sub-task Tracking Indexes
+
+- `idx_requests_parent_task_request_id` - Find sub-tasks by parent
+- `idx_requests_is_subtask` - Filter sub-task conversations
+- `idx_requests_task_tool_invocation_gin` - GIN index for Task tool queries
 
 ### Streaming Indexes
 
@@ -98,6 +111,16 @@ Messages are automatically linked into conversations using:
 - `parent_message_hash` - Hash of the previous message (null for first message)
 - `conversation_id` - UUID grouping all related messages
 - `branch_id` - Supports conversation branching when resuming from earlier points
+
+### Sub-task Tracking
+
+Sub-tasks spawned via Claude's Task tool are automatically detected and linked:
+
+- `parent_task_request_id` - Links sub-tasks to their parent request
+- `is_subtask` - Boolean flag for quick sub-task filtering
+- `task_tool_invocation` - Stores Task tool details (prompt, description, linked conversation)
+- Automatic linking based on prompt matching within 30-second window
+- GIN index enables efficient queries on JSONB task data
 
 ### Request Types
 
@@ -153,16 +176,84 @@ GROUP BY DATE(timestamp), account_id
 ORDER BY date DESC;
 ```
 
+### Sub-task Analysis
+
+```sql
+-- Find all sub-tasks for a parent conversation
+SELECT
+  ar.conversation_id,
+  ar.request_id,
+  ar.timestamp,
+  ar.model,
+  ar.total_tokens,
+  ti.task->>'prompt' as task_prompt
+FROM api_requests ar
+CROSS JOIN LATERAL jsonb_array_elements(ar.task_tool_invocation) AS ti(task)
+WHERE ar.conversation_id = 'parent-conversation-uuid'
+  AND ar.task_tool_invocation IS NOT NULL
+ORDER BY ar.timestamp;
+
+-- Count sub-tasks by parent
+SELECT
+  parent_task_request_id,
+  COUNT(*) as subtask_count,
+  SUM(total_tokens) as subtask_tokens
+FROM api_requests
+WHERE is_subtask = true
+GROUP BY parent_task_request_id;
+```
+
+## Schema Evolution
+
+### Migration System
+
+The database schema is managed through versioned migration scripts located in `scripts/db/migrations/`. Each migration is a TypeScript file that can be run independently with Bun.
+
+#### Running Migrations
+
+```bash
+# Run all migrations in order
+for file in scripts/db/migrations/*.ts; do
+  bun run "$file"
+done
+
+# Run a specific migration
+bun run scripts/db/migrations/003-add-subtask-tracking.ts
+```
+
+#### Available Migrations
+
+1. **000-init-database.ts** - Initial schema setup
+2. **001-add-conversation-tracking.ts** - Adds conversation tracking columns
+3. **002-optimize-conversation-indexes.ts** - Performance optimizations
+4. **003-add-subtask-tracking.ts** - Adds sub-task detection support
+5. **004-optimize-conversation-window-functions.ts** - Window function indexes
+6. **005-populate-account-ids.ts** - Populates account IDs from domain mappings
+
+See [ADR-012: Database Schema Evolution](../04-Architecture/ADRs/adr-012-database-schema-evolution.md) for details on the migration strategy.
+
+### Fresh Installation vs Upgrade
+
+- **Fresh Installation**: Run `scripts/init-database.sql` to create all tables with the latest schema
+- **Existing Installation**: Run migrations sequentially to upgrade the schema
+
+### Migration Safety
+
+All migrations are designed to be idempotent - they can be run multiple times safely without causing errors or data corruption.
+
 ## Migration Notes
 
 When upgrading from earlier versions:
 
 1. The `domain_telemetry` table has been removed - all token tracking now happens in `api_requests`
-2. The `account_id` column must be populated for existing records (see migration script)
+2. The `account_id` column must be populated for existing records (see migration 005)
 3. No separate `token_usage` table is created - despite what older docs might suggest
+4. Sub-task tracking columns were added in migration 003
+5. Performance indexes were added in migrations 002 and 004
 
 ## Database Maintenance
 
-- Indexes are automatically created during initialization
+- Indexes are automatically created during initialization and migrations
 - Consider partitioning `api_requests` by month for very high volume deployments
 - Regular VACUUM and ANALYZE recommended for optimal performance
+- Migrations run ANALYZE after bulk updates to maintain query performance
