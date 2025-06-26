@@ -12,6 +12,7 @@ Technical decisions are documented in `docs/ADRs/`. Key architectural decisions:
 
 - **ADR-001**: Example ADR
 - **ADR-012**: Database Schema Evolution Strategy - TypeScript migrations with init SQL
+- **ADR-013**: TypeScript Project References - Monorepo type checking solution
 
 **AI Assistant Directive**: When discussing architecture or making technical decisions, always reference relevant ADRs. If a new architectural decision is made during development, create or update an ADR to document it. This ensures all technical decisions have clear rationale and can be revisited if needed.
 
@@ -254,6 +255,11 @@ When `DEBUG=true`:
 - Run `bun run typecheck` before committing
 - Type checking is automatic during builds
 - Fix all type errors before deploying
+- **TypeScript Project References**: The monorepo uses TypeScript Project References for proper dependency management
+  - Automatically handles build order between packages
+  - Generates declaration files for cross-package imports
+  - Run `tsc --build` at the root to type check all packages
+  - See ADR-013 for details on this architectural decision
 
 **Test Sample Collection:**
 The proxy can collect real request samples for test development:

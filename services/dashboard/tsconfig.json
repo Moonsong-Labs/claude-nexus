@@ -12,7 +12,9 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowJs": true,
-    "noEmit": true,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
     "baseUrl": ".",
     "paths": {
       "@claude-nexus/shared/*": ["../../packages/shared/src/*"]

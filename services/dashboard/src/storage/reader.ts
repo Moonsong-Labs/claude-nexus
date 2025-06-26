@@ -23,6 +23,7 @@ interface ApiRequest {
   parent_task_request_id?: string
   is_subtask?: boolean
   task_tool_invocation?: any
+  body?: any
 }
 
 interface RequestDetails {
