@@ -47,17 +47,20 @@ class ConversationRebuilder {
   private conversationRoots: ConversationNode[] = []
   private dryRun: boolean
   private onlyOrphanConversations: boolean
+  private domainFilter: string | null
   private existingRequests: Map<string, Request> = new Map()
   private existingConversationRequests: Map<string, Request[]> = new Map()
 
   constructor(
     databaseUrl: string,
     dryRun: boolean = false,
-    onlyOrphanConversations: boolean = false
+    onlyOrphanConversations: boolean = false,
+    domainFilter: string | null = null
   ) {
     this.pool = new Pool({ connectionString: databaseUrl })
     this.dryRun = dryRun
     this.onlyOrphanConversations = onlyOrphanConversations
+    this.domainFilter = domainFilter
   }
 
   async rebuild() {
@@ -142,20 +145,35 @@ class ConversationRebuilder {
       FROM api_requests
       WHERE request_type IN ('inference')
     `
+    const queryParams: any[] = []
+
+    // Add domain filter if specified
+    if (this.domainFilter) {
+      queryParams.push(this.domainFilter)
+      query += ` AND domain = $${queryParams.length}`
+    }
 
     // Add filter for orphan requests if requested
     if (this.onlyOrphanConversations) {
       // First, find all conversation IDs that have at least one request with only 1 message
-      const conversationsWithSingleMessageQuery = `
+      let conversationsWithSingleMessageQuery = `
         SELECT DISTINCT conversation_id 
         FROM api_requests 
         WHERE request_type IN ('inference')
           AND conversation_id IS NOT NULL
           AND (message_count = 1 OR (message_count IS NULL AND jsonb_array_length(body->'messages') = 1))
       `
+      const orphanQueryParams: any[] = []
+
+      // Apply domain filter to the orphan check as well
+      if (this.domainFilter) {
+        orphanQueryParams.push(this.domainFilter)
+        conversationsWithSingleMessageQuery += ` AND domain = $${orphanQueryParams.length}`
+      }
 
       const conversationsWithSingleMessage = await this.pool.query(
-        conversationsWithSingleMessageQuery
+        conversationsWithSingleMessageQuery,
+        orphanQueryParams
       )
       const conversationIds = conversationsWithSingleMessage.rows.map(row => row.conversation_id)
 
@@ -173,7 +191,7 @@ class ConversationRebuilder {
 
     query += ' ORDER BY timestamp ASC'
 
-    const result = await this.pool.query(query)
+    const result = await this.pool.query(query, queryParams)
 
     // Process requests to compute missing hashes and message counts
     let messageCountsComputed = 0
@@ -655,7 +673,8 @@ class ConversationRebuilder {
       console.log('   (Statistics show current database state, not dry-run changes)')
     }
 
-    const stats = await this.pool.query(`
+    // Build stats query with optional domain filter
+    let statsQuery = `
       SELECT 
         COUNT(DISTINCT conversation_id) as total_conversations,
         COUNT(DISTINCT branch_id) as total_branches,
@@ -663,9 +682,18 @@ class ConversationRebuilder {
         COUNT(*) FILTER (WHERE branch_id != 'main') as branched_requests
       FROM api_requests
       WHERE conversation_id IS NOT NULL
-    `)
+    `
+    const statsParams: any[] = []
 
-    const domainStats = await this.pool.query(`
+    if (this.domainFilter) {
+      statsParams.push(this.domainFilter)
+      statsQuery += ` AND domain = $${statsParams.length}`
+    }
+
+    const stats = await this.pool.query(statsQuery, statsParams)
+
+    // Domain stats query
+    let domainStatsQuery = `
       SELECT 
         domain,
         COUNT(DISTINCT conversation_id) as conversations,
@@ -673,17 +701,37 @@ class ConversationRebuilder {
         COUNT(*) as requests
       FROM api_requests
       WHERE conversation_id IS NOT NULL
+    `
+    const domainStatsParams: any[] = []
+
+    if (this.domainFilter) {
+      domainStatsParams.push(this.domainFilter)
+      domainStatsQuery += ` AND domain = $${domainStatsParams.length}`
+    }
+
+    domainStatsQuery += `
       GROUP BY domain
       ORDER BY requests DESC
       LIMIT 10
-    `)
+    `
+
+    const domainStats = await this.pool.query(domainStatsQuery, domainStatsParams)
+
+    if (this.domainFilter) {
+      console.log(`   (Showing statistics for domain: ${this.domainFilter})`)
+    }
 
     console.log(`   Total conversations: ${stats.rows[0].total_conversations}`)
     console.log(`   Total branches: ${stats.rows[0].total_branches}`)
     console.log(`   Total requests with conversations: ${stats.rows[0].total_requests}`)
     console.log(`   Requests on non-main branches: ${stats.rows[0].branched_requests}`)
 
-    console.log('\n   Top domains by request count:')
+    if (this.domainFilter) {
+      console.log('\n   Domain statistics:')
+    } else {
+      console.log('\n   Top domains by request count:')
+    }
+
     for (const row of domainStats.rows) {
       console.log(
         `     ${row.domain}: ${row.conversations} conversations, ${row.branches} branches, ${row.requests} requests`
@@ -693,18 +741,57 @@ class ConversationRebuilder {
 }
 
 // Parse command line arguments
-function parseArgs(): { dryRun: boolean; onlyOrphanConversations: boolean } {
+function parseArgs(): {
+  dryRun: boolean
+  onlyOrphanConversations: boolean
+  domain: string | null
+  help: boolean
+} {
   const args = process.argv.slice(2)
+  const domainIndex = args.findIndex(arg => arg === '--domain')
+  const domain = domainIndex !== -1 && args[domainIndex + 1] ? args[domainIndex + 1] : null
+
   return {
     dryRun: args.includes('--dry-run'),
     onlyOrphanConversations: args.includes('--only-orphan-conversations'),
+    domain,
+    help: args.includes('--help') || args.includes('-h'),
   }
+}
+
+// Display help message
+function showHelp() {
+  console.log(`
+Usage: bun run scripts/db/rebuild-conversations.ts [options]
+
+Options:
+  --dry-run                   Run in dry-run mode (no database changes)
+  --only-orphan-conversations Only process orphan conversations
+  --domain <domain>           Filter by specific domain
+  --help, -h                  Show this help message
+
+Examples:
+  # Rebuild all conversations
+  bun run scripts/db/rebuild-conversations.ts
+
+  # Dry run for a specific domain
+  bun run scripts/db/rebuild-conversations.ts --dry-run --domain example.com
+
+  # Process only orphan conversations for a domain
+  bun run scripts/db/rebuild-conversations.ts --only-orphan-conversations --domain myapp.com
+`)
 }
 
 // Main execution
 async function main() {
+  const { dryRun, onlyOrphanConversations, domain, help } = parseArgs()
+
+  if (help) {
+    showHelp()
+    process.exit(0)
+  }
+
   const databaseUrl = process.env.DATABASE_URL
-  const { dryRun, onlyOrphanConversations } = parseArgs()
 
   if (!databaseUrl) {
     console.error('ERROR: DATABASE_URL environment variable is required')
@@ -731,6 +818,10 @@ async function main() {
     )
   }
 
+  if (domain) {
+    console.log(`🌐 Filtering by domain: ${domain}`)
+  }
+
   console.log('')
 
   // Add a confirmation prompt unless in dry run mode
@@ -743,7 +834,7 @@ async function main() {
     }
   }
 
-  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations)
+  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations, domain)
 
   try {
     await rebuilder.rebuild()
