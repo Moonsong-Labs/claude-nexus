@@ -148,13 +148,13 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
     }
 
     // Process each content block in order
-    msg.content.forEach((block: any, index: number) => {
+    msg.content.forEach((block: any) => {
       switch (block.type) {
         case 'text':
           contentParts.push(block.text)
           break
           
-        case 'tool_use':
+        case 'tool_use': {
           let toolContent = `**Tool Use: ${block.name || 'Unknown Tool'}**`
           if (block.id) {
             toolContent += ` (ID: ${block.id})`
@@ -168,8 +168,9 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
           }
           contentParts.push(toolContent)
           break
+        }
           
-        case 'tool_result':
+        case 'tool_result': {
           let resultContent = '**Tool Result**'
           if (block.tool_use_id) {
             resultContent += ` (ID: ${block.tool_use_id})`
@@ -194,6 +195,7 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
           }
           contentParts.push(resultContent)
           break
+        }
       }
     })
     
