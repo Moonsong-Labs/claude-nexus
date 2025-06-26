@@ -673,10 +673,10 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
         join(process.cwd(), '..', '..', 'scripts', 'init-database.sql'), // If running from services/proxy
         join(__dirname, '..', '..', '..', '..', 'scripts', 'init-database.sql'), // Relative to this file
       ]
-      
+
       let sqlContent: string | null = null
       let foundPath: string | null = null
-      
+
       for (const sqlPath of possiblePaths) {
         try {
           sqlContent = readFileSync(sqlPath, 'utf-8')
@@ -686,15 +686,15 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           // Continue to next path
         }
       }
-      
+
       if (!sqlContent || !foundPath) {
         throw new Error(
           'Could not find init-database.sql file. Tried paths: ' + possiblePaths.join(', ')
         )
       }
-      
+
       logger.info('Using init-database.sql from', { path: foundPath })
-      
+
       // Execute the SQL file
       await pool.query(sqlContent)
 

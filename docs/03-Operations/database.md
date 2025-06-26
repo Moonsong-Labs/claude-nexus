@@ -180,7 +180,7 @@ ORDER BY date DESC;
 
 ```sql
 -- Find all sub-tasks for a parent conversation
-SELECT 
+SELECT
   ar.conversation_id,
   ar.request_id,
   ar.timestamp,
@@ -194,7 +194,7 @@ WHERE ar.conversation_id = 'parent-conversation-uuid'
 ORDER BY ar.timestamp;
 
 -- Count sub-tasks by parent
-SELECT 
+SELECT
   parent_task_request_id,
   COUNT(*) as subtask_count,
   SUM(total_tokens) as subtask_tokens

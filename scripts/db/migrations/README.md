@@ -125,8 +125,8 @@ ADD COLUMN IF NOT EXISTS new_column VARCHAR(255);
 CREATE INDEX IF NOT EXISTS idx_name ON table(column);
 
 // Updating data conditionally
-UPDATE api_requests 
-SET column = value 
+UPDATE api_requests
+SET column = value
 WHERE column IS NULL;
 ```
 

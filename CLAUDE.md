@@ -303,11 +303,13 @@ Token usage is tracked directly in the `api_requests` table:
 ### Database Schema Evolution
 
 **Schema Management:**
+
 - Initial schema: `scripts/init-database.sql`
 - Migrations: `scripts/db/migrations/` (TypeScript files)
 - Auto-initialization: `writer.ts` uses init SQL file when tables don't exist
 
 **Running Migrations:**
+
 ```bash
 # Run a specific migration
 bun run scripts/db/migrations/001-add-conversation-tracking.ts
@@ -317,9 +319,10 @@ for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 ```
 
 **Available Migrations:**
+
 - 000: Initial database setup
 - 001: Add conversation tracking
-- 002: Optimize conversation indexes  
+- 002: Optimize conversation indexes
 - 003: Add sub-task tracking
 - 004: Optimize window function queries
 - 005: Populate account IDs
