@@ -28,7 +28,7 @@ export const layout = (title: string, content: any, additionalScripts: string = 
           --font-size: 13px;
           --line-height: 1.5;
           --color: #1e1e1e;
-          --background-color: #ffffff;
+          --background-color: #f9fafb;
           --string-color: #0a3069;
           --number-color: #098658;
           --boolean-color: #0969da;
@@ -36,7 +36,7 @@ export const layout = (title: string, content: any, additionalScripts: string = 
           --property-color: #953800;
           --preview-color: #6e7781;
           --highlight-color: #2f81f7;
-          --highlight-background: #f6f8fa;
+          --highlight-background: #e5e7eb;
           --border-color: #d1d9e0;
           --toolbar-background: #f6f8fa;
           --toolbar-color: #1f2328;
@@ -44,7 +44,7 @@ export const layout = (title: string, content: any, additionalScripts: string = 
           padding: 1rem;
           border-radius: 0.375rem;
           border: 1px solid var(--border-color);
-          background-color: #ffffff;
+          background-color: #f9fafb;
           overflow: auto;
         }
 
@@ -64,14 +64,10 @@ export const layout = (title: string, content: any, additionalScripts: string = 
             --border-color: #3e3e3e;
             --toolbar-background: #252526;
             --toolbar-color: #cccccc;
+            background-color: #1e1e1e;
           }
         }
 
-        /* Style the JSON viewer containers */
-        .section-content andypf-json-viewer {
-          background-color: #f9fafb;
-          border: 1px solid #e5e7eb;
-        }
 
         /* Ensure code blocks in these containers have light backgrounds */
         .hljs {
