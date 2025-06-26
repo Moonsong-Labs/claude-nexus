@@ -12,8 +12,10 @@ export class StorageAdapter {
   private requestIdMap: Map<string, { uuid: string; timestamp: number }> = new Map() // Map nanoid to UUID with timestamp
   private cleanupTimer: NodeJS.Timeout | null = null
   private isClosed: boolean = false
-  private readonly CLEANUP_INTERVAL_MS = Number(process.env.STORAGE_ADAPTER_CLEANUP_MS) || 5 * 60 * 1000 // 5 minutes
-  private readonly RETENTION_TIME_MS = Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
+  private readonly CLEANUP_INTERVAL_MS =
+    Number(process.env.STORAGE_ADAPTER_CLEANUP_MS) || 5 * 60 * 1000 // 5 minutes
+  private readonly RETENTION_TIME_MS =
+    Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
 
   constructor(pool: Pool) {
     this.writer = new StorageWriter(pool)
@@ -173,13 +175,16 @@ export class StorageAdapter {
       const mapping = this.requestIdMap.get(requestId)
       if (!mapping) {
         // This can happen if the request was cleaned up due to age
-        logger.debug('No UUID mapping found for request ID in storeStreamingChunk - may have been cleaned up', {
-          requestId,
-          metadata: {
-            mapSize: this.requestIdMap.size,
-            reason: 'likely_cleaned_up',
-          },
-        })
+        logger.debug(
+          'No UUID mapping found for request ID in storeStreamingChunk - may have been cleaned up',
+          {
+            requestId,
+            metadata: {
+              mapSize: this.requestIdMap.size,
+              reason: 'likely_cleaned_up',
+            },
+          }
+        )
         return
       }
       const uuid = mapping.uuid

@@ -80,18 +80,18 @@ async function optimizeConversationWindowFunctions() {
     const requiredIndexes = [
       'idx_requests_conversation_timestamp_id',
       'idx_requests_conversation_subtask',
-      'idx_requests_request_id'
+      'idx_requests_request_id',
     ]
 
-    const createdIndexes = indexesResult.rows.filter(row =>
-      requiredIndexes.includes(row.indexname)
-    )
+    const createdIndexes = indexesResult.rows.filter(row => requiredIndexes.includes(row.indexname))
 
     if (createdIndexes.length < requiredIndexes.length) {
       const missingIndexes = requiredIndexes.filter(
         idx => !createdIndexes.some(row => row.indexname === idx)
       )
-      throw new Error(`Not all expected indexes were created. Missing: ${missingIndexes.join(', ')}`)
+      throw new Error(
+        `Not all expected indexes were created. Missing: ${missingIndexes.join(', ')}`
+      )
     }
 
     console.log('All required indexes created successfully:')
@@ -127,7 +127,9 @@ async function optimizeConversationWindowFunctions() {
     await pool.query('COMMIT')
     console.log('\nConversation window function optimization completed successfully!')
     console.log('✅ All performance indexes created and table analyzed')
-    console.log('\nNote: The optimized query now uses window functions instead of correlated subqueries,')
+    console.log(
+      '\nNote: The optimized query now uses window functions instead of correlated subqueries,'
+    )
     console.log('which should significantly improve performance on large datasets.')
   } catch (error) {
     // Rollback on error

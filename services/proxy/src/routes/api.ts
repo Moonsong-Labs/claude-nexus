@@ -778,7 +778,7 @@ apiRoutes.get('/token-usage/accounts', async c => {
 
     // Fetch time series data for all accounts in a single query
     const accountIds = accounts.map(acc => acc.accountId)
-    
+
     const timeSeriesQuery = `
       WITH time_buckets AS (
         SELECT 
@@ -813,24 +813,24 @@ apiRoutes.get('/token-usage/accounts', async c => {
     `
 
     const seriesResult = await pool.query(timeSeriesQuery, [accountIds])
-    
+
     // Group time series data by account
-    const seriesByAccount = new Map<string, Array<{time: Date, remaining: number}>>()
-    
+    const seriesByAccount = new Map<string, Array<{ time: Date; remaining: number }>>()
+
     for (const row of seriesResult.rows) {
       const accountId = row.account_id
       const remaining = Math.max(0, tokenLimit - (parseInt(row.cumulative_output_tokens) || 0))
-      
+
       if (!seriesByAccount.has(accountId)) {
         seriesByAccount.set(accountId, [])
       }
-      
+
       seriesByAccount.get(accountId)!.push({
         time: row.bucket_time,
         remaining: remaining,
       })
     }
-    
+
     // Merge mini series data with accounts
     const accountsWithSeries = accounts.map(account => ({
       ...account,

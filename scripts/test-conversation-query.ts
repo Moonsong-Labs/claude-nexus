@@ -31,7 +31,9 @@ async function testConversationQuery() {
     `)
 
     if (indexResult.rows.length === 0) {
-      console.warn('⚠️  Performance indexes not found. Run migration 004-optimize-conversation-window-functions.ts first.')
+      console.warn(
+        '⚠️  Performance indexes not found. Run migration 004-optimize-conversation-window-functions.ts first.'
+      )
     } else {
       console.log('✅ Found performance indexes:')
       indexResult.rows.forEach(row => {
@@ -95,23 +97,27 @@ async function testConversationQuery() {
     console.log('\nQuery execution statistics:')
     console.log(`  - Total execution time: ${plan['Execution Time']}ms`)
     console.log(`  - Planning time: ${plan['Planning Time']}ms`)
-    
+
     // Extract key metrics
     const totalTime = plan['Execution Time'] + plan['Planning Time']
-    
+
     // Performance threshold
     const PERFORMANCE_THRESHOLD_MS = 1000
-    
+
     if (totalTime < PERFORMANCE_THRESHOLD_MS) {
-      console.log(`\n✅ Query performance is GOOD (${totalTime.toFixed(2)}ms < ${PERFORMANCE_THRESHOLD_MS}ms threshold)`)
+      console.log(
+        `\n✅ Query performance is GOOD (${totalTime.toFixed(2)}ms < ${PERFORMANCE_THRESHOLD_MS}ms threshold)`
+      )
     } else {
-      console.log(`\n⚠️  Query performance needs attention (${totalTime.toFixed(2)}ms > ${PERFORMANCE_THRESHOLD_MS}ms threshold)`)
+      console.log(
+        `\n⚠️  Query performance needs attention (${totalTime.toFixed(2)}ms > ${PERFORMANCE_THRESHOLD_MS}ms threshold)`
+      )
     }
 
     // Test the actual query execution
     console.log('\nExecuting actual query...')
     const startTime = Date.now()
-    
+
     const result = await pool.query(`
       WITH ranked_requests AS (
         SELECT 
@@ -157,11 +163,11 @@ async function testConversationQuery() {
       ORDER BY last_message_time DESC
       LIMIT 50
     `)
-    
+
     const executionTime = Date.now() - startTime
-    
+
     console.log(`\nQuery returned ${result.rows.length} conversations in ${executionTime}ms`)
-    
+
     // Show sample results
     if (result.rows.length > 0) {
       console.log('\nSample conversation data:')
@@ -177,7 +183,7 @@ async function testConversationQuery() {
 
     // Verify data integrity
     console.log('\nVerifying data integrity...')
-    
+
     // Check for conversations with multiple different parent_task_request_ids
     const integrityCheck = await pool.query(`
       SELECT 
@@ -189,16 +195,17 @@ async function testConversationQuery() {
       GROUP BY conversation_id
       HAVING COUNT(DISTINCT parent_task_request_id) > 1
     `)
-    
+
     if (integrityCheck.rows.length > 0) {
-      console.log(`\n⚠️  Found ${integrityCheck.rows.length} conversations with multiple parent_task_request_ids`)
+      console.log(
+        `\n⚠️  Found ${integrityCheck.rows.length} conversations with multiple parent_task_request_ids`
+      )
       console.log('   This is expected if conversations can have subtasks from different parents.')
     } else {
       console.log('✅ All subtask conversations have consistent parent_task_request_ids')
     }
 
     console.log('\n✅ Query optimization test completed successfully!')
-
   } catch (error) {
     console.error('Test failed:', error instanceof Error ? error.message : String(error))
     process.exit(1)

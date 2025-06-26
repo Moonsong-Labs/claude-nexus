@@ -63,8 +63,9 @@ setInterval(() => {
 - Changed parent_task_request_id selection to use first subtask in conversation for consistency
 
 **Performance Improvements**:
+
 - Eliminated N+1 pattern by computing all fields in a single pass
-- Reduced query complexity from O(n*m) to O(n log n)
+- Reduced query complexity from O(n\*m) to O(n log n)
 - Added proper indexes aligned with window function partitioning
 
 **Reference**: [PR #13 Review](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review)
@@ -80,12 +81,14 @@ setInterval(() => {
 **Resolution Date**: 2025-06-26
 
 **Fix Applied**:
+
 - Refactored to fetch all time series data in a single query
 - Used UNNEST with array parameter to process all accounts at once
 - Employed FILTER clause for conditional aggregation
 - Grouped results by account using Map for efficient lookup
 
 **Performance Improvement**:
+
 - Reduced database queries from N+1 to 1 (where N = number of accounts)
 - Significantly improved dashboard loading time for multiple accounts
 
@@ -240,6 +243,6 @@ Next Review: 2025-07-26
 ## Recent Grooming Progress
 
 - ✅ Fixed Memory Leak in StorageAdapter (HIGH priority)
-- ✅ Fixed N+1 Query in Conversations API (HIGH priority) 
+- ✅ Fixed N+1 Query in Conversations API (HIGH priority)
 - ✅ Fixed N+1 Query in Token Usage Time Series (MEDIUM priority)
 - ✅ Fixed console.log violations in TestSampleCollector
