@@ -20,7 +20,7 @@ export function hashMessage(message: ClaudeMessage): string {
 /**
  * Normalizes message content for consistent hashing
  * Handles both string and array content types
- * 
+ *
  * Important: This function deduplicates tool_use and tool_result items by their IDs
  * to handle cases where the Claude API might send duplicate messages. Only the first
  * occurrence of each unique tool_use ID or tool_result tool_use_id is included in

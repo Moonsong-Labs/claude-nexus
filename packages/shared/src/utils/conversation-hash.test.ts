@@ -12,21 +12,21 @@ describe('conversation-hash', () => {
             type: 'tool_use',
             id: 'toolu_01ABC',
             name: 'Task',
-            input: { prompt: 'Do something' }
+            input: { prompt: 'Do something' },
           },
           {
             type: 'tool_use',
             id: 'toolu_01ABC', // Duplicate ID
             name: 'Task',
-            input: { prompt: 'Do something' }
+            input: { prompt: 'Do something' },
           },
           {
             type: 'tool_use',
             id: 'toolu_02XYZ',
             name: 'Another',
-            input: { data: 'test' }
-          }
-        ]
+            input: { data: 'test' },
+          },
+        ],
       }
 
       const messageWithoutDuplicates: ClaudeMessage = {
@@ -36,21 +36,21 @@ describe('conversation-hash', () => {
             type: 'tool_use',
             id: 'toolu_01ABC',
             name: 'Task',
-            input: { prompt: 'Do something' }
+            input: { prompt: 'Do something' },
           },
           {
             type: 'tool_use',
             id: 'toolu_02XYZ',
             name: 'Another',
-            input: { data: 'test' }
-          }
-        ]
+            input: { data: 'test' },
+          },
+        ],
       }
 
       // Both should produce the same hash
       const hash1 = hashMessage(messageWithDuplicates)
       const hash2 = hashMessage(messageWithoutDuplicates)
-      
+
       expect(hash1).toBe(hash2)
     })
 
@@ -61,19 +61,19 @@ describe('conversation-hash', () => {
           {
             type: 'tool_result',
             tool_use_id: 'toolu_01ABC',
-            content: 'Result 1'
+            content: 'Result 1',
           },
           {
             type: 'tool_result',
             tool_use_id: 'toolu_01ABC', // Duplicate tool_use_id
-            content: 'Result 2'
+            content: 'Result 2',
           },
           {
             type: 'tool_result',
             tool_use_id: 'toolu_02XYZ',
-            content: 'Another result'
-          }
-        ]
+            content: 'Another result',
+          },
+        ],
       }
 
       const messageWithoutDuplicates: ClaudeMessage = {
@@ -82,20 +82,20 @@ describe('conversation-hash', () => {
           {
             type: 'tool_result',
             tool_use_id: 'toolu_01ABC',
-            content: 'Result 1'
+            content: 'Result 1',
           },
           {
             type: 'tool_result',
             tool_use_id: 'toolu_02XYZ',
-            content: 'Another result'
-          }
-        ]
+            content: 'Another result',
+          },
+        ],
       }
 
       // Both should produce the same hash
       const hash1 = hashMessage(messageWithDuplicates)
       const hash2 = hashMessage(messageWithoutDuplicates)
-      
+
       expect(hash1).toBe(hash2)
     })
 
@@ -108,26 +108,26 @@ describe('conversation-hash', () => {
             type: 'tool_use',
             id: 'toolu_01UEqF2pLX6enA7LDCaXr8No',
             name: 'Task',
-            input: { prompt: 'Search for something' }
+            input: { prompt: 'Search for something' },
           },
           {
             type: 'tool_use',
             id: 'toolu_01UEqF2pLX6enA7LDCaXr8No', // Duplicate
             name: 'Task',
-            input: { prompt: 'Search for something' }
+            input: { prompt: 'Search for something' },
           },
           { type: 'text', text: 'More text' },
           {
             type: 'tool_result',
             tool_use_id: 'toolu_01UEqF2pLX6enA7LDCaXr8No',
-            content: 'Found it'
+            content: 'Found it',
           },
           {
             type: 'tool_result',
             tool_use_id: 'toolu_01UEqF2pLX6enA7LDCaXr8No', // Duplicate
-            content: 'Found it again'
-          }
-        ]
+            content: 'Found it again',
+          },
+        ],
       }
 
       const messageWithoutDuplicates: ClaudeMessage = {
@@ -138,21 +138,21 @@ describe('conversation-hash', () => {
             type: 'tool_use',
             id: 'toolu_01UEqF2pLX6enA7LDCaXr8No',
             name: 'Task',
-            input: { prompt: 'Search for something' }
+            input: { prompt: 'Search for something' },
           },
           { type: 'text', text: 'More text' },
           {
             type: 'tool_result',
             tool_use_id: 'toolu_01UEqF2pLX6enA7LDCaXr8No',
-            content: 'Found it'
-          }
-        ]
+            content: 'Found it',
+          },
+        ],
       }
-      
+
       // Both should produce the same hash
       const hash1 = hashMessage(messageWithDuplicates)
       const hash2 = hashMessage(messageWithoutDuplicates)
-      
+
       expect(hash1).toBe(hash2)
     })
 
@@ -164,15 +164,15 @@ describe('conversation-hash', () => {
             type: 'tool_use',
             id: 'toolu_01ABC',
             name: 'Task',
-            input: { prompt: 'Do something' }
+            input: { prompt: 'Do something' },
           },
           {
             type: 'tool_use',
             id: 'toolu_01ABC', // Duplicate
             name: 'Task',
-            input: { prompt: 'Do something' }
-          }
-        ]
+            input: { prompt: 'Do something' },
+          },
+        ],
       }
 
       const messageWithoutDuplicates: ClaudeMessage = {
@@ -182,9 +182,9 @@ describe('conversation-hash', () => {
             type: 'tool_use',
             id: 'toolu_01ABC',
             name: 'Task',
-            input: { prompt: 'Do something' }
-          }
-        ]
+            input: { prompt: 'Do something' },
+          },
+        ],
       }
 
       const hash1 = hashMessage(messageWithDuplicates)
@@ -199,7 +199,7 @@ describe('conversation-hash', () => {
       const messages: ClaudeMessage[] = [
         {
           role: 'user',
-          content: 'Hello'
+          content: 'Hello',
         },
         {
           role: 'assistant',
@@ -208,15 +208,15 @@ describe('conversation-hash', () => {
               type: 'tool_use',
               id: 'toolu_01UEqF2pLX6enA7LDCaXr8No',
               name: 'Task',
-              input: { prompt: 'Search' }
+              input: { prompt: 'Search' },
             },
             {
               type: 'tool_use',
               id: 'toolu_01UEqF2pLX6enA7LDCaXr8No', // Duplicate
               name: 'Task',
-              input: { prompt: 'Search' }
-            }
-          ]
+              input: { prompt: 'Search' },
+            },
+          ],
         },
         {
           role: 'user',
@@ -224,16 +224,16 @@ describe('conversation-hash', () => {
             {
               type: 'tool_result',
               tool_use_id: 'toolu_01UEqF2pLX6enA7LDCaXr8No',
-              content: 'Result'
+              content: 'Result',
             },
             {
               type: 'tool_result',
               tool_use_id: 'toolu_01UEqF2pLX6enA7LDCaXr8No', // Duplicate
-              content: 'Result'
+              content: 'Result',
             },
-            { type: 'text', text: 'Continue' }
-          ]
-        }
+            { type: 'text', text: 'Continue' },
+          ],
+        },
       ]
 
       const { currentMessageHash, parentMessageHash } = extractMessageHashes(messages)
