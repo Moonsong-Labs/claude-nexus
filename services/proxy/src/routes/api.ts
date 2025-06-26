@@ -487,10 +487,10 @@ apiRoutes.get('/conversations', async c => {
           SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
           COUNT(DISTINCT branch_id) as branch_count,
           ARRAY_AGG(DISTINCT model) FILTER (WHERE model IS NOT NULL) as models_used,
-          MAX(CASE WHEN rn = 1 THEN request_id END) as latest_request_id,
+          (array_agg(request_id ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_request_id,
           BOOL_OR(is_subtask) as is_subtask,
           -- Get the parent_task_request_id from the first subtask in the conversation
-          MAX(CASE WHEN is_subtask = true AND subtask_rn = 1 THEN parent_task_request_id END) as parent_task_request_id,
+          (array_agg(parent_task_request_id ORDER BY subtask_rn) FILTER (WHERE is_subtask = true AND subtask_rn = 1))[1] as parent_task_request_id,
           COUNT(CASE WHEN is_subtask THEN 1 END) as subtask_message_count
         FROM ranked_requests
         GROUP BY conversation_id, domain, account_id
