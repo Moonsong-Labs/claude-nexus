@@ -609,57 +609,6 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 })
 
 /**
- * Helper to extract the last message content from a request
- */
-function getLastMessageContent(req: ConversationRequest): string {
-  try {
-    if (!req.body || !req.body.messages || !Array.isArray(req.body.messages)) {
-      return 'Request ID: ' + req.request_id
-    }
-
-    const messages = req.body.messages
-    if (messages.length === 0) {
-      return 'Request ID: ' + req.request_id
-    }
-
-    // Get the last message
-    const lastMessage = messages[messages.length - 1]
-
-    // Handle different message formats
-    if (typeof lastMessage.content === 'string') {
-      // Simple string content
-      const content = lastMessage.content.trim()
-      return content.length > 80 ? content.substring(0, 77) + '...' : content
-    } else if (Array.isArray(lastMessage.content)) {
-      // Array of content blocks
-      for (const block of lastMessage.content) {
-        if (block.type === 'text' && block.text) {
-          const content = block.text.trim()
-          return content.length > 80 ? content.substring(0, 77) + '...' : content
-        } else if (block.type === 'tool_use' && block.name) {
-          return `🔧 Tool: ${block.name}${block.input?.prompt ? ' - ' + block.input.prompt.substring(0, 50) + '...' : ''}`
-        } else if (block.type === 'tool_result' && block.tool_use_id) {
-          return `✅ Tool Result${block.content ? ': ' + (typeof block.content === 'string' ? block.content : JSON.stringify(block.content)).substring(0, 50) + '...' : ''}`
-        }
-      }
-    }
-
-    // Fallback to role-based description
-    if (lastMessage.role === 'assistant') {
-      return '🤖 Assistant response'
-    } else if (lastMessage.role === 'user') {
-      return '👤 User message'
-    } else if (lastMessage.role === 'system') {
-      return '⚙️ System message'
-    }
-
-    return 'Request ID: ' + req.request_id
-  } catch (error) {
-    return 'Request ID: ' + req.request_id
-  }
-}
-
-/**
  * Helper to render conversation messages
  */
 function renderConversationMessages(
@@ -721,8 +670,8 @@ function renderConversationMessages(
             </div>
             <div class="section-content" style="padding: 0.75rem 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="text-sm text-gray-700" style="flex: 1; margin-right: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  ${escapeHtml(getLastMessageContent(req))}
+                <div class="text-sm text-gray-500">
+                  Request ID: ${req.request_id}
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: center;">
                   ${
