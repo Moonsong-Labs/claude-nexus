@@ -666,16 +666,13 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       logger.info('Database tables not found, creating schema...')
 
       // Read and execute the init-database.sql file
-      // Check for environment variable first, then fall back to default paths
-      const envSqlPath = process.env.INIT_DATABASE_SQL_PATH
-      const possiblePaths = envSqlPath
-        ? [envSqlPath] // Use only the env-specified path if provided
-        : [
-            // Default paths for different execution contexts
-            join(process.cwd(), 'scripts', 'init-database.sql'),
-            join(process.cwd(), '..', '..', 'scripts', 'init-database.sql'), // If running from services/proxy
-            join(__dirname, '..', '..', '..', '..', 'scripts', 'init-database.sql'), // Relative to this file
-          ]
+      // In production, the working directory should be the project root
+      // In development, we might be running from various locations
+      const possiblePaths = [
+        join(process.cwd(), 'scripts', 'init-database.sql'),
+        join(process.cwd(), '..', '..', 'scripts', 'init-database.sql'), // If running from services/proxy
+        join(__dirname, '..', '..', '..', '..', 'scripts', 'init-database.sql'), // Relative to this file
+      ]
 
       let sqlContent: string | null = null
       let foundPath: string | null = null
@@ -691,20 +688,17 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       }
 
       if (!sqlContent || !foundPath) {
-        const errorMessage = envSqlPath
-          ? `Could not find init-database.sql file at environment-specified path: ${envSqlPath}`
-          : `Could not find init-database.sql file. Tried paths: ${possiblePaths.join(', ')}`
-        
         logger.error('Database initialization SQL file not found', {
           metadata: {
-            envPath: envSqlPath,
             triedPaths: possiblePaths,
             cwd: process.cwd(),
             dirname: __dirname,
           },
         })
         
-        throw new Error(errorMessage)
+        throw new Error(
+          'Could not find init-database.sql file. Tried paths: ' + possiblePaths.join(', ')
+        )
       }
 
       logger.info('Using init-database.sql from', { path: foundPath })
