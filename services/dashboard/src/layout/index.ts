@@ -13,6 +13,25 @@ export const layout = (title: string, content: any, additionalScripts: string = 
       <title>${title} - Claude Nexus Dashboard</title>
       <style>
         ${raw(dashboardStyles)}
+        
+        /* Ultra-dense JSON viewer styles injected globally */
+        andypf-json-viewer::part(json-viewer) {
+          font-size: 10px !important;
+          line-height: 1.1 !important;
+        }
+        
+        andypf-json-viewer::part(key) {
+          font-size: 10px !important;
+        }
+        
+        andypf-json-viewer::part(value) {
+          font-size: 10px !important;
+        }
+        
+        andypf-json-viewer::part(row) {
+          line-height: 1.1 !important;
+          padding: 0 !important;
+        }
       </style>
       <link
         rel="stylesheet"
@@ -21,12 +40,62 @@ export const layout = (title: string, content: any, additionalScripts: string = 
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/iife/index.js"></script>
       <style>
-        /* JSON Viewer styling */
+        /* JSON Viewer styling - Ultra Dense */
         andypf-json-viewer {
           display: block;
-          padding: 1rem;
-          border-radius: 0.375rem;
+          padding: 0.5rem;
+          border-radius: 0.25rem;
           overflow: auto;
+          margin-bottom: 0.125rem;
+          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+          font-size: 10px;
+          line-height: 1.2;
+          letter-spacing: -0.03em;
+          --json-viewer-indent: 12px;
+          --json-viewer-key-color: #1e40af;
+          --json-viewer-value-string-color: #059669;
+          --json-viewer-value-number-color: #dc2626;
+          --json-viewer-value-boolean-color: #7c3aed;
+          --json-viewer-value-null-color: #6b7280;
+          --json-viewer-property-color: #1e40af;
+          --json-viewer-bracket-color: #6b7280;
+          --json-viewer-comma-color: #6b7280;
+        }
+        
+        /* Compact view - reduce padding on containers */
+        #request-json-container andypf-json-viewer,
+        #response-json-container andypf-json-viewer {
+          padding: 0.25rem;
+          margin-bottom: 0;
+        }
+        
+        /* Make the overall section more compact */
+        #raw-view .section-content {
+          padding: 0.25rem;
+        }
+        
+        /* Reduce spacing between sections */
+        .section {
+          margin-bottom: 0.5rem;
+        }
+        
+        .section-header {
+          padding: 0.375rem 0.5rem;
+          font-size: 0.875rem;
+        }
+        
+        .section-content {
+          padding: 0.375rem;
+        }
+        
+        /* Dense view toggle buttons */
+        .view-toggle {
+          margin: 0.5rem 0;
+        }
+        
+        .view-toggle button {
+          padding: 0.25rem 0.75rem;
+          font-size: 0.8125rem;
         }
 
 

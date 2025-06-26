@@ -321,14 +321,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     Copy JSON
                   </button>
                 </div>
-                <div class="section-content">
-                  <andypf-json-viewer
-                    id="request-json"
-                    expand-icon-type="arrow"
-                    expanded="false"
-                    expand-level="2"
-                    theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
-                  ></andypf-json-viewer>
+                <div class="section-content" id="request-json-container">
+                  <!-- Will be populated by JavaScript with multiple viewers -->
                 </div>
               </div>
             `
@@ -346,14 +340,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     Copy JSON
                   </button>
                 </div>
-                <div class="section-content">
-                  <andypf-json-viewer
-                    id="response-json"
-                    expand-icon-type="arrow"
-                    expanded="false"
-                    expand-level="2"
-                    theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
-                  ></andypf-json-viewer>
+                <div class="section-content" id="response-json-container">
+                  <!-- Will be populated by JavaScript with multiple viewers -->
                 </div>
               </div>
             `
@@ -395,8 +383,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   <andypf-json-viewer
                     id="request-headers"
                     expand-icon-type="arrow"
-                    expanded="false"
-                    expand-level="2"
+                    expanded="true"
+                    expand-level="10"
                     theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
                   ></andypf-json-viewer>
                 </div>
@@ -411,8 +399,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   <andypf-json-viewer
                     id="response-headers"
                     expand-icon-type="arrow"
-                    expanded="false"
-                    expand-level="2"
+                    expanded="true"
+                    expand-level="10"
                     theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
                   ></andypf-json-viewer>
                 </div>
@@ -426,8 +414,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
             <andypf-json-viewer
               id="request-metadata"
               expand-icon-type="arrow"
-              expanded="false"
-              expand-level="2"
+              expanded="true"
+              expand-level="10"
               theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
             ></andypf-json-viewer>
           </div>
@@ -441,8 +429,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   <andypf-json-viewer
                     id="telemetry-data"
                     expand-icon-type="arrow"
-                    expanded="false"
-                    expand-level="2"
+                    expanded="true"
+                    expand-level="10"
                     theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
                   ></andypf-json-viewer>
                 </div>
@@ -568,6 +556,255 @@ requestDetailsRoutes.get('/request/:id', async c => {
         const telemetryData = getJsonData('telemetry-data-storage')
         const requestMetadata = getJsonData('metadata-storage')
 
+        // Function to collapse all messages except last 2
+        function collapseMessagesExceptLastTwo(viewer, data) {
+          if (
+            !viewer.shadowRoot ||
+            !data ||
+            !data.messages ||
+            !Array.isArray(data.messages) ||
+            data.messages.length <= 2
+          ) {
+            return
+          }
+
+          console.log('Attempting to collapse messages except last 2')
+          const dataRows = viewer.shadowRoot.querySelectorAll('.data-row')
+
+          // Find message item rows
+          const messageItemRows = []
+          dataRows.forEach(row => {
+            const keyElement = row.querySelector('.key.number')
+            if (keyElement) {
+              const keyText = keyElement.textContent.replace(/"/g, '')
+              const keyNum = parseInt(keyText)
+
+              // Check if this is a valid message index
+              if (!isNaN(keyNum) && keyNum >= 0 && keyNum < data.messages.length) {
+                // Simple check: if the parent has "messages" in its text
+                let parent = row.parentElement
+                while (parent && parent !== viewer.shadowRoot) {
+                  if (parent.textContent && parent.textContent.includes('"messages"')) {
+                    messageItemRows.push({
+                      index: keyNum,
+                      row: row,
+                    })
+                    break
+                  }
+                  parent = parent.parentElement
+                }
+              }
+            }
+          })
+
+          // Sort and collapse all except last 2
+          messageItemRows.sort((a, b) => a.index - b.index)
+          const toCollapse = messageItemRows.slice(0, -2)
+
+          console.log(
+            'Found ' + messageItemRows.length + ' messages, collapsing ' + toCollapse.length
+          )
+
+          toCollapse.forEach(item => {
+            const expandIcon = item.row.querySelector('.expand.icon.clickable')
+            if (expandIcon) {
+              expandIcon.click()
+              console.log('Collapsed message ' + item.index)
+            }
+          })
+        }
+
+        // Function to set up JSON viewer with selective collapse using MutationObserver
+        function setupJsonViewer(containerId, data, keysToCollapse = ['tools', 'system']) {
+          const container = document.getElementById(containerId)
+          if (!container || !data) return
+
+          container.innerHTML = '' // Clear existing content
+
+          // Add show-copy class to container to enable copy functionality
+          container.classList.add('show-copy')
+
+          // Create a single viewer for visual cohesion
+          const viewer = document.createElement('andypf-json-viewer')
+          viewer.setAttribute('expand-icon-type', 'arrow')
+          viewer.setAttribute('expanded', 'true')
+          viewer.setAttribute('expand-level', '10')
+          viewer.setAttribute('show-copy', 'true')
+          viewer.setAttribute(
+            'theme',
+            '{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+          )
+          viewer.data = data
+          container.appendChild(viewer)
+
+          // Use MutationObserver to detect when content is rendered and collapse specific keys
+          customElements.whenDefined('andypf-json-viewer').then(() => {
+            console.log('JSON viewer custom element defined for', containerId)
+
+            // Inject dense styles into shadow DOM
+            function injectDenseStyles() {
+              if (!viewer.shadowRoot) return
+
+              // Check if we already injected styles
+              if (viewer.shadowRoot.querySelector('#dense-styles')) return
+
+              const style = document.createElement('style')
+              style.id = 'dense-styles'
+              style.textContent =
+                /* Row and general spacing */
+                '.data-row { line-height: 1.2 !important; padding: 1px 0 !important; margin: 0 !important; } ' +
+                '.data-row .data-row { padding-left: 16px !important; margin-left: 4px !important; border-left: solid 1px var(--base02) !important; } ' +
+                '.key-value-wrapper { display: inline-flex !important; align-items: center !important; } ' +
+                '.key, .value, .property { font-size: 10px !important; line-height: 1.05 !important; } ' +
+                '.comma, .bracket { font-size: 10px !important; } ' +
+                /* Copy icon sizing and spacing */
+                '.copy.icon { width: 6px !important; height: 8px !important; margin-left: 6px !important; opacity: 0 !important; transition: opacity 0.2s !important; } ' +
+                '.key-value-wrapper:hover .copy.icon { opacity: 1 !important; } ' +
+                '.icon-wrapper:has(.copy.icon) { display: inline-flex !important; width: 20px !important; margin-left: 4px !important; flex-shrink: 0 !important; } ' +
+                '.copy.icon:before { width: 6px !important; height: 8px !important; } ' +
+                /* CSS Triangle Arrow sizing - override the border-based arrow */
+                '.expand-icon-arrow .expand.icon { ' +
+                'width: 0 !important; height: 0 !important; ' +
+                'border-left: solid 4px var(--base0E) !important; ' +
+                'border-top: solid 4px transparent !important; ' +
+                'border-bottom: solid 4px transparent !important; ' +
+                'margin-right: 4px !important; margin-left: 2px !important; ' +
+                '} ' +
+                '.expand-icon-arrow .expanded>.key-value-wrapper .expand.icon, ' +
+                '.expand-icon-arrow .expanded.icon.expand { ' +
+                'border-left-color: var(--base0D) !important; ' +
+                '} ' +
+                /* Square/Circle icon sizing */
+                '.expand-icon-square .expand.icon, .expand-icon-circle .expand.icon { ' +
+                'width: 7px !important; height: 7px !important; ' +
+                '} ' +
+                /* Icon wrapper spacing */
+                '.icon-wrapper { margin-right: 2px !important; }'
+              viewer.shadowRoot.appendChild(style)
+            }
+
+            // Function to collapse specific keys by clicking on the SVG expand/collapse icons
+            function collapseSpecificKeys() {
+              if (!viewer.shadowRoot) {
+                console.log('No shadowRoot yet, waiting...')
+                return false
+              }
+
+              console.log('Checking for keys to collapse in', containerId)
+              let collapsedCount = 0
+
+              // Strategy: Find all .data-row elements that contain our target keys
+              const dataRows = viewer.shadowRoot.querySelectorAll('.data-row')
+              console.log('Found ' + dataRows.length + ' .data-row elements')
+
+              dataRows.forEach((row, index) => {
+                const rowText = row.textContent || ''
+
+                keysToCollapse.forEach(keyToCollapse => {
+                  // Check if this row contains our target key
+                  // The key format in the viewer is usually "keyname":
+                  if (
+                    rowText.includes('"' + keyToCollapse + '":') ||
+                    rowText.includes(keyToCollapse + ':')
+                  ) {
+                    console.log('Found "' + keyToCollapse + '" in row ' + index)
+
+                    // Look for the expand icon within this row - it has class "expand icon clickable"
+                    const expandIcon = row.querySelector('.expand.icon.clickable')
+                    if (expandIcon) {
+                      console.log('  Found expand icon, clicking it')
+                      expandIcon.click()
+                      collapsedCount++
+                    } else {
+                      // Also try looking for SVG
+                      const svg = row.querySelector('svg')
+                      if (svg) {
+                        console.log('  Found SVG icon, clicking it')
+                        svg.click()
+                        collapsedCount++
+                      }
+                    }
+                  }
+                })
+              })
+
+              // Alternative approach if no data rows found or no success
+              if (collapsedCount === 0 && dataRows.length === 0) {
+                console.log('No .data-row elements found, trying alternative approach')
+
+                // Find all elements and check their content more carefully
+                const allElements = viewer.shadowRoot.querySelectorAll('*')
+
+                allElements.forEach(el => {
+                  const text = (el.textContent || '').trim()
+
+                  keysToCollapse.forEach(keyToCollapse => {
+                    // Look for exact key match
+                    if (
+                      text === '"' + keyToCollapse + '":' ||
+                      text === keyToCollapse + ':' ||
+                      text === '"' + keyToCollapse + '"' ||
+                      text === keyToCollapse
+                    ) {
+                      console.log('Found exact match for "' + keyToCollapse + '"')
+
+                      // Find the nearest SVG icon by traversing up the DOM
+                      let target = el.parentElement
+                      let attempts = 0
+
+                      while (target && attempts < 5) {
+                        // Check if this element contains an SVG
+                        const svg = target.querySelector('svg')
+                        if (svg) {
+                          console.log('  Found SVG in ancestor, clicking')
+                          svg.click()
+                          collapsedCount++
+                          break
+                        }
+
+                        // Check siblings for SVG
+                        const siblings = Array.from(target.children)
+                        for (let sibling of siblings) {
+                          if (sibling.tagName === 'SVG' || sibling.querySelector('svg')) {
+                            console.log('  Found SVG in sibling, clicking')
+                            const svgToClick =
+                              sibling.tagName === 'SVG' ? sibling : sibling.querySelector('svg')
+                            svgToClick.click()
+                            collapsedCount++
+                            break
+                          }
+                        }
+
+                        target = target.parentElement
+                        attempts++
+                      }
+                    }
+                  })
+                })
+              }
+
+              console.log('Collapsed ' + collapsedCount + ' keys')
+              return collapsedCount > 0
+            }
+
+            // Start observing the shadow root for changes
+            if (viewer.shadowRoot) {
+              // Inject dense styles first
+              injectDenseStyles()
+              collapseSpecificKeys()
+              
+              // Also collapse messages except last 2 with a slight delay
+              setTimeout(() => {
+                if (containerId === 'request-json-container' || containerId === 'response-json-container') {
+                  collapseMessagesExceptLastTwo(viewer, data)
+                }
+              }, 200)
+            } else {
+              console.log('No shadow root available yet')
+            }
+          })
+        }
+
         function showView(view) {
           const conversationView = document.getElementById('conversation-view')
           const rawView = document.getElementById('raw-view')
@@ -589,25 +826,9 @@ requestDetailsRoutes.get('/request/:id', async c => {
             rawView.classList.remove('hidden')
             buttons[1].classList.add('active')
 
-            // Render JSON using andypf-json-viewer when switching to raw view
-            // Small delay to ensure custom element is ready
-            setTimeout(() => {
-              // Parse and render request body
-              if (requestData) {
-                const requestViewer = document.getElementById('request-json')
-                if (requestViewer) {
-                  requestViewer.data = requestData
-                }
-              }
-
-              // Parse and render response body
-              if (responseData) {
-                const responseViewer = document.getElementById('response-json')
-                if (responseViewer) {
-                  responseViewer.data = responseData
-                }
-              }
-            }, 100)
+            // Use the new approach with MutationObserver for selective collapse
+            setupJsonViewer('request-json-container', requestData)
+            setupJsonViewer('response-json-container', responseData)
 
             // Parse and render streaming chunks
             streamingChunks.forEach((chunk, i) => {
@@ -618,9 +839,13 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   // Create a andypf-json-viewer element for each chunk
                   const viewer = document.createElement('andypf-json-viewer')
                   viewer.setAttribute('expand-icon-type', 'arrow')
-                  viewer.setAttribute('expanded', 'false')
+                  viewer.setAttribute('expanded', 'true')
                   viewer.setAttribute('expand-level', '2')
-                  viewer.setAttribute('theme', '{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}')
+                  viewer.setAttribute('show-copy', 'true')
+                  viewer.setAttribute(
+                    'theme',
+                    '{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
+                  )
                   viewer.data = chunkData
                   chunkContainer.innerHTML = ''
                   chunkContainer.appendChild(viewer)
@@ -707,23 +932,11 @@ requestDetailsRoutes.get('/request/:id', async c => {
         // Initialize syntax highlighting and JSON viewers
         document.addEventListener('DOMContentLoaded', function () {
           hljs.highlightAll()
-          
+
           // Initialize JSON viewers on page load if raw view is active
           if (!document.getElementById('raw-view').classList.contains('hidden')) {
-            setTimeout(() => {
-              if (requestData) {
-                const requestViewer = document.getElementById('request-json')
-                if (requestViewer) {
-                  requestViewer.data = requestData
-                }
-              }
-              if (responseData) {
-                const responseViewer = document.getElementById('response-json')
-                if (responseViewer) {
-                  responseViewer.data = responseData
-                }
-              }
-            }, 100)
+            setupJsonViewer('request-json-container', requestData)
+            setupJsonViewer('response-json-container', responseData)
           }
         })
       </script>
