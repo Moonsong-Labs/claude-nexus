@@ -322,12 +322,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   </button>
                 </div>
                 <div class="section-content">
-                  <json-viewer
+                  <andypf-andypf-json-viewer
                     id="request-json"
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
-                  ></json-viewer>
+                  ></andypf-andypf-json-viewer>
                 </div>
               </div>
             `
@@ -346,12 +346,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   </button>
                 </div>
                 <div class="section-content">
-                  <json-viewer
+                  <andypf-json-viewer
                     id="response-json"
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
-                  ></json-viewer>
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
@@ -390,12 +390,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Request Headers</div>
                 <div class="section-content">
-                  <json-viewer
+                  <andypf-json-viewer
                     id="request-headers"
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
-                  ></json-viewer>
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
@@ -405,12 +405,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Response Headers</div>
                 <div class="section-content">
-                  <json-viewer
+                  <andypf-json-viewer
                     id="response-headers"
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
-                  ></json-viewer>
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
@@ -419,12 +419,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
         <div class="section">
           <div class="section-header">Request Metadata</div>
           <div class="section-content">
-            <json-viewer
+            <andypf-json-viewer
               id="request-metadata"
               expand-icon-type="arrow"
               expanded="false"
               expand-level="2"
-            ></json-viewer>
+            ></andypf-json-viewer>
           </div>
         </div>
 
@@ -433,12 +433,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Telemetry & Performance</div>
                 <div class="section-content">
-                  <json-viewer
+                  <andypf-json-viewer
                     id="telemetry-data"
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
-                  ></json-viewer>
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
@@ -583,7 +583,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
             rawView.classList.remove('hidden')
             buttons[1].classList.add('active')
 
-            // Render JSON using json-viewer when switching to raw view
+            // Render JSON using andypf-json-viewer when switching to raw view
             // Parse and render request body
             if (requestData) {
               const requestViewer = document.getElementById('request-json')
@@ -606,8 +606,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
               if (chunkContainer) {
                 try {
                   const chunkData = JSON.parse(chunk.data)
-                  // Create a json-viewer element for each chunk
-                  const viewer = document.createElement('json-viewer')
+                  // Create a andypf-json-viewer element for each chunk
+                  const viewer = document.createElement('andypf-json-viewer')
                   viewer.setAttribute('expand-icon-type', 'arrow')
                   viewer.setAttribute('expanded', 'false')
                   viewer.setAttribute('expand-level', '2')
@@ -624,7 +624,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
             headersView.classList.remove('hidden')
             buttons[2].classList.add('active')
 
-            // Render headers and metadata using json-viewer
+            // Render headers and metadata using andypf-json-viewer
             // Render request headers
             if (requestHeaders) {
               const requestHeadersViewer = document.getElementById('request-headers')
