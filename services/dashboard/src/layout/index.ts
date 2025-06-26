@@ -19,40 +19,49 @@ export const layout = (title: string, content: any, additionalScripts: string = 
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"
       />
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/renderjson@1.4.0/renderjson.min.js"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.js"></script>
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.css">
       <style>
-        /* RenderJSON light theme styles */
-        .renderjson a {
-          text-decoration: none;
+        /* JSON Viewer VSCode-like theme styles */
+        json-viewer {
+          --font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+          --font-size: 13px;
+          --line-height: 1.5;
+          --color: #1e1e1e;
+          --background-color: #ffffff;
+          --string-color: #0a3069;
+          --number-color: #098658;
+          --boolean-color: #0969da;
+          --null-color: #6e7781;
+          --property-color: #953800;
+          --preview-color: #6e7781;
+          --highlight-color: #2f81f7;
+          --highlight-background: #f6f8fa;
+          --border-color: #d1d9e0;
+          --toolbar-background: #f6f8fa;
+          --toolbar-color: #1f2328;
+          padding: 1rem;
+          border-radius: 0.375rem;
+          border: 1px solid var(--border-color);
         }
-        .renderjson .disclosure {
-          color: #6b7280;
-          font-size: 125%;
-        }
-        .renderjson .syntax {
-          color: #6b7280;
-        }
-        .renderjson .string {
-          color: #059669;
-        }
-        .renderjson .number {
-          color: #dc2626;
-        }
-        .renderjson .boolean {
-          color: #2563eb;
-        }
-        .renderjson .key {
-          color: #111827;
-          font-weight: 500;
-        }
-        .renderjson .keyword {
-          color: #7c3aed;
-        }
-        .renderjson .object.syntax {
-          color: #6b7280;
-        }
-        .renderjson .array.syntax {
-          color: #6b7280;
+        
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+          json-viewer {
+            --color: #cccccc;
+            --background-color: #1e1e1e;
+            --string-color: #ce9178;
+            --number-color: #b5cea8;
+            --boolean-color: #569cd6;
+            --null-color: #808080;
+            --property-color: #9cdcfe;
+            --preview-color: #808080;
+            --highlight-color: #569cd6;
+            --highlight-background: #264f78;
+            --border-color: #3e3e3e;
+            --toolbar-background: #252526;
+            --toolbar-color: #cccccc;
+          }
         }
 
         /* Override any dark backgrounds from highlight.js */

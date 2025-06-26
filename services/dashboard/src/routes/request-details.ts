@@ -322,10 +322,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   </button>
                 </div>
                 <div class="section-content">
-                  <div
+                  <json-viewer
                     id="request-json"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="false"
+                    expand-level="2"
+                  ></json-viewer>
                 </div>
               </div>
             `
@@ -344,10 +346,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   </button>
                 </div>
                 <div class="section-content">
-                  <div
+                  <json-viewer
                     id="response-json"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="false"
+                    expand-level="2"
+                  ></json-viewer>
                 </div>
               </div>
             `
@@ -386,10 +390,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Request Headers</div>
                 <div class="section-content">
-                  <div
+                  <json-viewer
                     id="request-headers"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="false"
+                    expand-level="2"
+                  ></json-viewer>
                 </div>
               </div>
             `
@@ -399,10 +405,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Response Headers</div>
                 <div class="section-content">
-                  <div
+                  <json-viewer
                     id="response-headers"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="false"
+                    expand-level="2"
+                  ></json-viewer>
                 </div>
               </div>
             `
@@ -411,10 +419,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
         <div class="section">
           <div class="section-header">Request Metadata</div>
           <div class="section-content">
-            <div
+            <json-viewer
               id="request-metadata"
-              style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-            ></div>
+              expand-icon-type="arrow"
+              expanded="false"
+              expand-level="2"
+            ></json-viewer>
           </div>
         </div>
 
@@ -423,10 +433,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
               <div class="section">
                 <div class="section-header">Telemetry & Performance</div>
                 <div class="section-content">
-                  <div
+                  <json-viewer
                     id="telemetry-data"
-                    style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;"
-                  ></div>
+                    expand-icon-type="arrow"
+                    expanded="false"
+                    expand-level="2"
+                  ></json-viewer>
                 </div>
               </div>
             `
@@ -571,100 +583,75 @@ requestDetailsRoutes.get('/request/:id', async c => {
             rawView.classList.remove('hidden')
             buttons[1].classList.add('active')
 
-            // Render JSON using RenderJSON when switching to raw view
-            if (typeof renderjson !== 'undefined') {
-              // Configure RenderJSON
-              renderjson.set_max_string_length(200) // Truncate very long strings
-              renderjson.set_sort_objects(true) // Sort object keys
-
-              // Parse and render request body
-              if (requestData && document.getElementById('request-json')) {
-                const requestContainer = document.getElementById('request-json')
-                requestContainer.innerHTML = ''
-                try {
-                  requestContainer.appendChild(renderjson.set_show_to_level('all')(requestData))
-                } catch (e) {
-                  console.error('Failed to render request data:', e)
-                }
-              }
-
-              // Parse and render response body
-              if (responseData && document.getElementById('response-json')) {
-                const responseContainer = document.getElementById('response-json')
-                responseContainer.innerHTML = ''
-                try {
-                  responseContainer.appendChild(renderjson.set_show_to_level('all')(responseData))
-                } catch (e) {
-                  console.error('Failed to render response data:', e)
-                }
-              }
-
-              // Parse and render streaming chunks
-              try {
-                streamingChunks.forEach((chunk, i) => {
-                  const chunkContainer = document.getElementById('chunk-' + i)
-                  if (chunkContainer) {
-                    chunkContainer.innerHTML = ''
-                    try {
-                      const chunkData = JSON.parse(chunk.data)
-                      chunkContainer.appendChild(renderjson.set_show_to_level('all')(chunkData))
-                    } catch (e) {
-                      // If not valid JSON, display as text
-                      chunkContainer.textContent = chunk.data
-                    }
-                  }
-                })
-              } catch (e) {
-                console.error('Failed to parse chunks:', e)
+            // Render JSON using json-viewer when switching to raw view
+            // Parse and render request body
+            if (requestData) {
+              const requestViewer = document.getElementById('request-json')
+              if (requestViewer) {
+                requestViewer.data = requestData
               }
             }
+
+            // Parse and render response body
+            if (responseData) {
+              const responseViewer = document.getElementById('response-json')
+              if (responseViewer) {
+                responseViewer.data = responseData
+              }
+            }
+
+            // Parse and render streaming chunks
+            streamingChunks.forEach((chunk, i) => {
+              const chunkContainer = document.getElementById('chunk-' + i)
+              if (chunkContainer) {
+                try {
+                  const chunkData = JSON.parse(chunk.data)
+                  // Create a json-viewer element for each chunk
+                  const viewer = document.createElement('json-viewer')
+                  viewer.setAttribute('expand-icon-type', 'arrow')
+                  viewer.setAttribute('expanded', 'false')
+                  viewer.setAttribute('expand-level', '2')
+                  viewer.data = chunkData
+                  chunkContainer.innerHTML = ''
+                  chunkContainer.appendChild(viewer)
+                } catch (e) {
+                  // If not valid JSON, display as text
+                  chunkContainer.textContent = chunk.data
+                }
+              }
+            })
           } else if (view === 'headers') {
             headersView.classList.remove('hidden')
             buttons[2].classList.add('active')
 
-            // Render headers and metadata using RenderJSON
-            if (typeof renderjson !== 'undefined') {
-              renderjson.set_max_string_length(200)
-              renderjson.set_sort_objects(true)
-
-              // Render request headers
-              if (requestHeaders && document.getElementById('request-headers')) {
-                const container = document.getElementById('request-headers')
-                container.innerHTML = ''
-                try {
-                  container.appendChild(renderjson.set_show_to_level('all')(requestHeaders))
-                } catch (e) {
-                  console.error('Failed to render request headers:', e)
-                }
+            // Render headers and metadata using json-viewer
+            // Render request headers
+            if (requestHeaders) {
+              const requestHeadersViewer = document.getElementById('request-headers')
+              if (requestHeadersViewer) {
+                requestHeadersViewer.data = requestHeaders
               }
+            }
 
-              // Render response headers
-              if (responseHeaders && document.getElementById('response-headers')) {
-                const container = document.getElementById('response-headers')
-                container.innerHTML = ''
-                try {
-                  container.appendChild(renderjson.set_show_to_level('all')(responseHeaders))
-                } catch (e) {
-                  console.error('Failed to render response headers:', e)
-                }
+            // Render response headers
+            if (responseHeaders) {
+              const responseHeadersViewer = document.getElementById('response-headers')
+              if (responseHeadersViewer) {
+                responseHeadersViewer.data = responseHeaders
               }
+            }
 
-              // Render request metadata
-              const metadataContainer = document.getElementById('request-metadata')
-              if (metadataContainer) {
-                metadataContainer.innerHTML = ''
-                metadataContainer.appendChild(renderjson.set_show_to_level('all')(requestMetadata))
-              }
+            // Render request metadata
+            const metadataViewer = document.getElementById('request-metadata')
+            if (metadataViewer && requestMetadata) {
+              metadataViewer.data = requestMetadata
+            }
 
-              // Render telemetry data
-              if (telemetryData && document.getElementById('telemetry-data')) {
-                const container = document.getElementById('telemetry-data')
-                container.innerHTML = ''
-                try {
-                  container.appendChild(renderjson.set_show_to_level('all')(telemetryData))
-                } catch (e) {
-                  console.error('Failed to render telemetry data:', e)
-                }
+            // Render telemetry data
+            if (telemetryData) {
+              const telemetryViewer = document.getElementById('telemetry-data')
+              if (telemetryViewer) {
+                telemetryViewer.data = telemetryData
               }
             }
           }
