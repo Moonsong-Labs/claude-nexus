@@ -327,6 +327,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
+                    theme='{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}'
                   ></andypf-json-viewer>
                 </div>
               </div>
@@ -351,6 +352,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
+                    theme='{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}'
                   ></andypf-json-viewer>
                 </div>
               </div>
@@ -395,6 +397,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
+                    theme='{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}'
                   ></andypf-json-viewer>
                 </div>
               </div>
@@ -410,6 +413,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
+                    theme='{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}'
                   ></andypf-json-viewer>
                 </div>
               </div>
@@ -424,6 +428,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
               expand-icon-type="arrow"
               expanded="false"
               expand-level="2"
+              theme='{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}'
             ></andypf-json-viewer>
           </div>
         </div>
@@ -438,6 +443,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
+                    theme='{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}'
                   ></andypf-json-viewer>
                 </div>
               </div>
@@ -614,6 +620,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   viewer.setAttribute('expand-icon-type', 'arrow')
                   viewer.setAttribute('expanded', 'false')
                   viewer.setAttribute('expand-level', '2')
+                  viewer.setAttribute('theme', '{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}')
                   viewer.data = chunkData
                   chunkContainer.innerHTML = ''
                   chunkContainer.appendChild(viewer)

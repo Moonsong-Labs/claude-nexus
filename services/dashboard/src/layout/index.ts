@@ -21,51 +21,12 @@ export const layout = (title: string, content: any, additionalScripts: string = 
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/iife/index.js"></script>
       <style>
-        /* JSON Viewer VSCode-like theme styles */
+        /* JSON Viewer styling */
         andypf-json-viewer {
-          --font-family:
-            'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-          --font-size: 13px;
-          --line-height: 1.5;
-          --color: #1e1e1e;
-          --background-color: #f9fafb;
-          --string-color: #0a3069;
-          --number-color: #098658;
-          --boolean-color: #0969da;
-          --null-color: #6e7781;
-          --property-color: #953800;
-          --preview-color: #6e7781;
-          --highlight-color: #2f81f7;
-          --highlight-background: #e5e7eb;
-          --border-color: #d1d9e0;
-          --toolbar-background: #f6f8fa;
-          --toolbar-color: #1f2328;
           display: block;
           padding: 1rem;
           border-radius: 0.375rem;
-          border: 1px solid var(--border-color);
-          background-color: #f9fafb;
           overflow: auto;
-        }
-
-        /* Dark mode support */
-        @media (prefers-color-scheme: dark) {
-          andypf-json-viewer {
-            --color: #cccccc;
-            --background-color: #1e1e1e;
-            --string-color: #ce9178;
-            --number-color: #b5cea8;
-            --boolean-color: #569cd6;
-            --null-color: #808080;
-            --property-color: #9cdcfe;
-            --preview-color: #808080;
-            --highlight-color: #569cd6;
-            --highlight-background: #264f78;
-            --border-color: #3e3e3e;
-            --toolbar-background: #252526;
-            --toolbar-color: #cccccc;
-            background-color: #1e1e1e;
-          }
         }
 
 
