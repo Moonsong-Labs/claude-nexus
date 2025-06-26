@@ -792,10 +792,13 @@ requestDetailsRoutes.get('/request/:id', async c => {
               // Inject dense styles first
               injectDenseStyles()
               collapseSpecificKeys()
-              
+
               // Also collapse messages except last 2 with a slight delay
               setTimeout(() => {
-                if (containerId === 'request-json-container' || containerId === 'response-json-container') {
+                if (
+                  containerId === 'request-json-container' ||
+                  containerId === 'response-json-container'
+                ) {
                   collapseMessagesExceptLastTwo(viewer, data)
                 }
               }, 200)

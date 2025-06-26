@@ -12,22 +12,24 @@ export const layout = (title: string, content: any, additionalScripts: string = 
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>${title} - Claude Nexus Dashboard</title>
       <style>
-        ${raw(dashboardStyles)}
+        ${raw(
+          dashboardStyles
+        )}
         
         /* Ultra-dense JSON viewer styles injected globally */
         andypf-json-viewer::part(json-viewer) {
           font-size: 10px !important;
           line-height: 1.1 !important;
         }
-        
+
         andypf-json-viewer::part(key) {
           font-size: 10px !important;
         }
-        
+
         andypf-json-viewer::part(value) {
           font-size: 10px !important;
         }
-        
+
         andypf-json-viewer::part(row) {
           line-height: 1.1 !important;
           padding: 0 !important;
@@ -61,43 +63,42 @@ export const layout = (title: string, content: any, additionalScripts: string = 
           --json-viewer-bracket-color: #6b7280;
           --json-viewer-comma-color: #6b7280;
         }
-        
+
         /* Compact view - reduce padding on containers */
         #request-json-container andypf-json-viewer,
         #response-json-container andypf-json-viewer {
           padding: 0.25rem;
           margin-bottom: 0;
         }
-        
+
         /* Make the overall section more compact */
         #raw-view .section-content {
           padding: 0.25rem;
         }
-        
+
         /* Reduce spacing between sections */
         .section {
           margin-bottom: 0.5rem;
         }
-        
+
         .section-header {
           padding: 0.375rem 0.5rem;
           font-size: 0.875rem;
         }
-        
+
         .section-content {
           padding: 0.375rem;
         }
-        
+
         /* Dense view toggle buttons */
         .view-toggle {
           margin: 0.5rem 0;
         }
-        
+
         .view-toggle button {
           padding: 0.25rem 0.75rem;
           font-size: 0.8125rem;
         }
-
 
         /* Ensure code blocks in these containers have light backgrounds */
         .hljs {
