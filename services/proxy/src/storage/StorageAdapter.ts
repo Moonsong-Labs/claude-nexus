@@ -275,7 +275,17 @@ export class StorageAdapter {
     }
 
     this.cleanupTimer = setTimeout(() => {
-      this.cleanupOrphanedEntries()
+      try {
+        this.cleanupOrphanedEntries()
+      } catch (error) {
+        logger.error('Error during cleanup of orphaned entries', {
+          metadata: {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+        })
+        // Continue scheduling despite errors to prevent the cleanup from stopping
+      }
       this.scheduleNextCleanup()
     }, this.CLEANUP_INTERVAL_MS)
   }
@@ -289,36 +299,49 @@ export class StorageAdapter {
     let cleanedCount = 0
     const initialSize = this.requestIdMap.size
 
-    for (const [requestId, mapping] of this.requestIdMap.entries()) {
-      if (now - mapping.timestamp > this.RETENTION_TIME_MS) {
-        this.requestIdMap.delete(requestId)
-        cleanedCount++
+    try {
+      for (const [requestId, mapping] of this.requestIdMap.entries()) {
+        if (now - mapping.timestamp > this.RETENTION_TIME_MS) {
+          this.requestIdMap.delete(requestId)
+          cleanedCount++
+        }
       }
-    }
 
-    const durationMs = Date.now() - startTime
+      const durationMs = Date.now() - startTime
 
-    // Always log metrics for observability
-    logger.info('Storage adapter cleanup cycle completed', {
-      metadata: {
-        cleanedCount,
-        initialSize,
-        currentSize: this.requestIdMap.size,
-        durationMs,
-        retentionTimeMs: this.RETENTION_TIME_MS,
-        cleanupIntervalMs: this.CLEANUP_INTERVAL_MS,
-      },
-    })
-
-    // Warn if cleanup is taking too long
-    if (durationMs > 100) {
-      logger.warn('Storage adapter cleanup took longer than expected', {
+      // Always log metrics for observability
+      logger.info('Storage adapter cleanup cycle completed', {
         metadata: {
+          cleanedCount,
+          initialSize,
+          currentSize: this.requestIdMap.size,
           durationMs,
-          mapSize: initialSize,
+          retentionTimeMs: this.RETENTION_TIME_MS,
+          cleanupIntervalMs: this.CLEANUP_INTERVAL_MS,
+        },
+      })
+
+      // Warn if cleanup is taking too long
+      if (durationMs > 100) {
+        logger.warn('Storage adapter cleanup took longer than expected', {
+          metadata: {
+            durationMs,
+            mapSize: initialSize,
+            cleanedCount,
+          },
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to complete cleanup of orphaned entries', {
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          initialSize,
           cleanedCount,
         },
       })
+      // Re-throw to ensure the error is handled by the caller
+      throw error
     }
   }
 

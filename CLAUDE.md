@@ -239,6 +239,7 @@ When `DEBUG=true`:
 - `STORAGE_ADAPTER_CLEANUP_MS` - Interval for cleaning up orphaned request ID mappings in milliseconds (default: 300000 / 5 minutes)
 - `STORAGE_ADAPTER_RETENTION_MS` - Retention time for request ID mappings in milliseconds (default: 3600000 / 1 hour)
 - `API_KEY_SALT` - Salt for hashing API keys in database (default: 'claude-nexus-proxy-default-salt')
+- `INIT_DATABASE_SQL_PATH` - Custom path to init-database.sql file (default: auto-detected from multiple locations)
 
 ## Important Notes
 
