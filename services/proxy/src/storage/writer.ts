@@ -695,7 +695,7 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
             dirname: __dirname,
           },
         })
-        
+
         throw new Error(
           'Could not find init-database.sql file. Tried paths: ' + possiblePaths.join(', ')
         )
