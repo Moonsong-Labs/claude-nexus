@@ -2,6 +2,10 @@
 /**
  * Script to retroactively compute conversation IDs and branches from existing requests
  * This analyzes message hashes to rebuild conversation relationships
+ *
+ * Important: This script now preserves existing conversation IDs when the linkage
+ * hasn't changed. Only requests whose parent-child relationships have changed will
+ * receive new conversation IDs.
  */
 
 import { Pool } from 'pg'
@@ -43,15 +47,20 @@ class ConversationRebuilder {
   private conversationRoots: ConversationNode[] = []
   private dryRun: boolean
   private onlyOrphanConversations: boolean
+  private domainFilter: string | null
+  private existingRequests: Map<string, Request> = new Map()
+  private existingConversationRequests: Map<string, Request[]> = new Map()
 
   constructor(
     databaseUrl: string,
     dryRun: boolean = false,
-    onlyOrphanConversations: boolean = false
+    onlyOrphanConversations: boolean = false,
+    domainFilter: string | null = null
   ) {
     this.pool = new Pool({ connectionString: databaseUrl })
     this.dryRun = dryRun
     this.onlyOrphanConversations = onlyOrphanConversations
+    this.domainFilter = domainFilter
   }
 
   async rebuild() {
@@ -85,7 +94,25 @@ class ConversationRebuilder {
       // Step 4: Assign conversation IDs and detect branches
       console.log('\n4. Assigning conversation IDs and detecting branches...')
       const updates = this.assignConversationsAndBranches(trees)
+
+      // Count how many conversation IDs were preserved
+      const preservedConversations = new Set<string>()
+      const changedConversations = new Set<string>()
+
+      for (const update of updates) {
+        const existing = this.existingRequests.get(update.request_id)
+        if (existing?.conversation_id) {
+          if (existing.conversation_id === update.conversation_id) {
+            preservedConversations.add(update.conversation_id)
+          } else {
+            changedConversations.add(existing.conversation_id)
+          }
+        }
+      }
+
       console.log(`   Prepared ${updates.length} updates`)
+      console.log(`   Preserved ${preservedConversations.size} existing conversation IDs`)
+      console.log(`   Changed ${changedConversations.size} conversation IDs due to linkage changes`)
 
       // Step 5: Update database
       console.log('\n5. Updating database...')
@@ -118,20 +145,35 @@ class ConversationRebuilder {
       FROM api_requests
       WHERE request_type IN ('inference')
     `
+    const queryParams: any[] = []
+
+    // Add domain filter if specified
+    if (this.domainFilter) {
+      queryParams.push(this.domainFilter)
+      query += ` AND domain = $${queryParams.length}`
+    }
 
     // Add filter for orphan requests if requested
     if (this.onlyOrphanConversations) {
       // First, find all conversation IDs that have at least one request with only 1 message
-      const conversationsWithSingleMessageQuery = `
+      let conversationsWithSingleMessageQuery = `
         SELECT DISTINCT conversation_id 
         FROM api_requests 
         WHERE request_type IN ('inference')
           AND conversation_id IS NOT NULL
           AND (message_count = 1 OR (message_count IS NULL AND jsonb_array_length(body->'messages') = 1))
       `
+      const orphanQueryParams: any[] = []
+
+      // Apply domain filter to the orphan check as well
+      if (this.domainFilter) {
+        orphanQueryParams.push(this.domainFilter)
+        conversationsWithSingleMessageQuery += ` AND domain = $${orphanQueryParams.length}`
+      }
 
       const conversationsWithSingleMessage = await this.pool.query(
-        conversationsWithSingleMessageQuery
+        conversationsWithSingleMessageQuery,
+        orphanQueryParams
       )
       const conversationIds = conversationsWithSingleMessage.rows.map(row => row.conversation_id)
 
@@ -149,12 +191,23 @@ class ConversationRebuilder {
 
     query += ' ORDER BY timestamp ASC'
 
-    const result = await this.pool.query(query)
+    const result = await this.pool.query(query, queryParams)
 
     // Process requests to compute missing hashes and message counts
     let messageCountsComputed = 0
     const processedRequests = result.rows.map(row => {
       const request = { ...row }
+
+      // Store original request data for comparison
+      this.existingRequests.set(request.request_id, { ...request })
+
+      // Build index of existing conversations
+      if (request.conversation_id) {
+        if (!this.existingConversationRequests.has(request.conversation_id)) {
+          this.existingConversationRequests.set(request.conversation_id, [])
+        }
+        this.existingConversationRequests.get(request.conversation_id)!.push(request)
+      }
 
       // If hashes are missing but we have a body with messages, compute them
       if (request.body?.messages) {
@@ -279,6 +332,78 @@ class ConversationRebuilder {
     return validCandidates[0]
   }
 
+  private findExistingConversationId(root: ConversationNode): string | null {
+    // Get the existing request data
+    const existingRequest = this.existingRequests.get(root.request_id)
+    if (!existingRequest?.conversation_id) {
+      return null
+    }
+
+    // Get all requests in the existing conversation
+    const existingConvRequests =
+      this.existingConversationRequests.get(existingRequest.conversation_id) || []
+
+    // Build a set of all request IDs in the current tree
+    const currentTreeRequestIds = new Set<string>()
+    this.collectTreeRequestIds(root, currentTreeRequestIds)
+
+    // Check if the conversation has the same requests
+    const existingConvRequestIds = new Set(existingConvRequests.map(r => r.request_id))
+
+    // If the sets are identical, the conversation structure hasn't changed
+    if (
+      currentTreeRequestIds.size === existingConvRequestIds.size &&
+      [...currentTreeRequestIds].every(id => existingConvRequestIds.has(id))
+    ) {
+      // Verify parent-child relationships are the same
+      if (this.verifyConversationStructure(root, existingRequest.conversation_id)) {
+        return existingRequest.conversation_id
+      }
+    }
+
+    return null
+  }
+
+  private collectTreeRequestIds(node: ConversationNode, requestIds: Set<string>) {
+    requestIds.add(node.request_id)
+    for (const child of node.children) {
+      this.collectTreeRequestIds(child, requestIds)
+    }
+  }
+
+  private verifyConversationStructure(root: ConversationNode, conversationId: string): boolean {
+    // Get all requests in the existing conversation
+    const existingRequests = this.existingConversationRequests.get(conversationId) || []
+    const existingByRequestId = new Map(existingRequests.map(r => [r.request_id, r]))
+
+    // Verify each node has the same parent-child relationships
+    return this.verifyNodeStructure(root, existingByRequestId)
+  }
+
+  private verifyNodeStructure(
+    node: ConversationNode,
+    existingByRequestId: Map<string, Request>
+  ): boolean {
+    const existing = existingByRequestId.get(node.request_id)
+    if (!existing) {
+      return false
+    }
+
+    // Check if parent hash matches
+    if (node.parent_message_hash !== existing.parent_message_hash) {
+      return false
+    }
+
+    // Recursively check all children
+    for (const child of node.children) {
+      if (!this.verifyNodeStructure(child, existingByRequestId)) {
+        return false
+      }
+    }
+
+    return true
+  }
+
   private assignConversationsAndBranches(trees: ConversationNode[]): Array<{
     request_id: string
     conversation_id: string
@@ -297,8 +422,18 @@ class ConversationRebuilder {
     }> = []
 
     for (const root of trees) {
-      const conversationId = randomUUID()
-      this.traverseAndAssign(root, conversationId, 'main', new Map(), updates)
+      // Check if this conversation already exists and has the same structure
+      const existingConvId = this.findExistingConversationId(root)
+      const conversationId = existingConvId || randomUUID()
+
+      this.traverseAndAssign(
+        root,
+        conversationId,
+        'main',
+        new Map(),
+        updates,
+        existingConvId !== null
+      )
     }
 
     return updates
@@ -316,27 +451,42 @@ class ConversationRebuilder {
       current_message_hash?: string
       parent_message_hash?: string
       message_count?: number
-    }>
+    }>,
+    isExistingConversation: boolean = false
   ) {
-    // Assign conversation and branch to this node
-    const update: any = {
-      request_id: node.request_id,
-      conversation_id: conversationId,
-      branch_id: branchId,
-    }
+    // Get existing request data
+    const existing = this.existingRequests.get(node.request_id)
 
-    // Include hashes if they exist
-    if (node.current_message_hash) {
-      update.current_message_hash = node.current_message_hash
-    }
-    if (node.parent_message_hash) {
-      update.parent_message_hash = node.parent_message_hash
-    }
-    if (node.message_count !== null && node.message_count !== undefined) {
-      update.message_count = node.message_count
-    }
+    // Check if we need to update this request
+    const needsUpdate =
+      !existing ||
+      existing.conversation_id !== conversationId ||
+      existing.branch_id !== branchId ||
+      existing.current_message_hash !== node.current_message_hash ||
+      existing.parent_message_hash !== node.parent_message_hash ||
+      existing.message_count !== node.message_count
 
-    updates.push(update)
+    if (needsUpdate) {
+      // Only create update if something has changed
+      const update: any = {
+        request_id: node.request_id,
+        conversation_id: conversationId,
+        branch_id: branchId,
+      }
+
+      // Include hashes if they exist
+      if (node.current_message_hash) {
+        update.current_message_hash = node.current_message_hash
+      }
+      if (node.parent_message_hash) {
+        update.parent_message_hash = node.parent_message_hash
+      }
+      if (node.message_count !== null && node.message_count !== undefined) {
+        update.message_count = node.message_count
+      }
+
+      updates.push(update)
+    }
 
     // Check if this node creates a branch point
     if (node.children.length > 1) {
@@ -351,7 +501,14 @@ class ConversationRebuilder {
       )
 
       // First child continues on the same branch
-      this.traverseAndAssign(sortedChildren[0], conversationId, branchId, branchPoints, updates)
+      this.traverseAndAssign(
+        sortedChildren[0],
+        conversationId,
+        branchId,
+        branchPoints,
+        updates,
+        isExistingConversation
+      )
 
       // Other children get new branches
       for (let i = 1; i < sortedChildren.length; i++) {
@@ -361,12 +518,20 @@ class ConversationRebuilder {
           conversationId,
           newBranchId,
           branchPoints,
-          updates
+          updates,
+          isExistingConversation
         )
       }
     } else if (node.children.length === 1) {
       // Single child continues on the same branch
-      this.traverseAndAssign(node.children[0], conversationId, branchId, branchPoints, updates)
+      this.traverseAndAssign(
+        node.children[0],
+        conversationId,
+        branchId,
+        branchPoints,
+        updates,
+        isExistingConversation
+      )
     }
     // If no children, traversal ends here
   }
@@ -398,8 +563,13 @@ class ConversationRebuilder {
       if (updates.length > 0) {
         console.log('\n   Sample of changes (first 5):')
         updates.slice(0, 5).forEach(update => {
+          const existing = this.existingRequests.get(update.request_id)
+          const isPreserved = existing?.conversation_id === update.conversation_id
+
           console.log(`     Request ${update.request_id}:`)
-          console.log(`       - conversation_id: ${update.conversation_id}`)
+          console.log(
+            `       - conversation_id: ${update.conversation_id} ${isPreserved ? '(preserved)' : existing?.conversation_id ? `(was: ${existing.conversation_id})` : '(new)'}`
+          )
           console.log(`       - branch_id: ${update.branch_id}`)
           if (update.current_message_hash) {
             console.log(
@@ -503,7 +673,8 @@ class ConversationRebuilder {
       console.log('   (Statistics show current database state, not dry-run changes)')
     }
 
-    const stats = await this.pool.query(`
+    // Build stats query with optional domain filter
+    let statsQuery = `
       SELECT 
         COUNT(DISTINCT conversation_id) as total_conversations,
         COUNT(DISTINCT branch_id) as total_branches,
@@ -511,9 +682,18 @@ class ConversationRebuilder {
         COUNT(*) FILTER (WHERE branch_id != 'main') as branched_requests
       FROM api_requests
       WHERE conversation_id IS NOT NULL
-    `)
+    `
+    const statsParams: any[] = []
 
-    const domainStats = await this.pool.query(`
+    if (this.domainFilter) {
+      statsParams.push(this.domainFilter)
+      statsQuery += ` AND domain = $${statsParams.length}`
+    }
+
+    const stats = await this.pool.query(statsQuery, statsParams)
+
+    // Domain stats query
+    let domainStatsQuery = `
       SELECT 
         domain,
         COUNT(DISTINCT conversation_id) as conversations,
@@ -521,17 +701,37 @@ class ConversationRebuilder {
         COUNT(*) as requests
       FROM api_requests
       WHERE conversation_id IS NOT NULL
+    `
+    const domainStatsParams: any[] = []
+
+    if (this.domainFilter) {
+      domainStatsParams.push(this.domainFilter)
+      domainStatsQuery += ` AND domain = $${domainStatsParams.length}`
+    }
+
+    domainStatsQuery += `
       GROUP BY domain
       ORDER BY requests DESC
       LIMIT 10
-    `)
+    `
+
+    const domainStats = await this.pool.query(domainStatsQuery, domainStatsParams)
+
+    if (this.domainFilter) {
+      console.log(`   (Showing statistics for domain: ${this.domainFilter})`)
+    }
 
     console.log(`   Total conversations: ${stats.rows[0].total_conversations}`)
     console.log(`   Total branches: ${stats.rows[0].total_branches}`)
     console.log(`   Total requests with conversations: ${stats.rows[0].total_requests}`)
     console.log(`   Requests on non-main branches: ${stats.rows[0].branched_requests}`)
 
-    console.log('\n   Top domains by request count:')
+    if (this.domainFilter) {
+      console.log('\n   Domain statistics:')
+    } else {
+      console.log('\n   Top domains by request count:')
+    }
+
     for (const row of domainStats.rows) {
       console.log(
         `     ${row.domain}: ${row.conversations} conversations, ${row.branches} branches, ${row.requests} requests`
@@ -541,18 +741,57 @@ class ConversationRebuilder {
 }
 
 // Parse command line arguments
-function parseArgs(): { dryRun: boolean; onlyOrphanConversations: boolean } {
+function parseArgs(): {
+  dryRun: boolean
+  onlyOrphanConversations: boolean
+  domain: string | null
+  help: boolean
+} {
   const args = process.argv.slice(2)
+  const domainIndex = args.findIndex(arg => arg === '--domain')
+  const domain = domainIndex !== -1 && args[domainIndex + 1] ? args[domainIndex + 1] : null
+
   return {
     dryRun: args.includes('--dry-run'),
     onlyOrphanConversations: args.includes('--only-orphan-conversations'),
+    domain,
+    help: args.includes('--help') || args.includes('-h'),
   }
+}
+
+// Display help message
+function showHelp() {
+  console.log(`
+Usage: bun run scripts/db/rebuild-conversations.ts [options]
+
+Options:
+  --dry-run                   Run in dry-run mode (no database changes)
+  --only-orphan-conversations Only process orphan conversations
+  --domain <domain>           Filter by specific domain
+  --help, -h                  Show this help message
+
+Examples:
+  # Rebuild all conversations
+  bun run scripts/db/rebuild-conversations.ts
+
+  # Dry run for a specific domain
+  bun run scripts/db/rebuild-conversations.ts --dry-run --domain example.com
+
+  # Process only orphan conversations for a domain
+  bun run scripts/db/rebuild-conversations.ts --only-orphan-conversations --domain myapp.com
+`)
 }
 
 // Main execution
 async function main() {
+  const { dryRun, onlyOrphanConversations, domain, help } = parseArgs()
+
+  if (help) {
+    showHelp()
+    process.exit(0)
+  }
+
   const databaseUrl = process.env.DATABASE_URL
-  const { dryRun, onlyOrphanConversations } = parseArgs()
 
   if (!databaseUrl) {
     console.error('ERROR: DATABASE_URL environment variable is required')
@@ -579,6 +818,10 @@ async function main() {
     )
   }
 
+  if (domain) {
+    console.log(`🌐 Filtering by domain: ${domain}`)
+  }
+
   console.log('')
 
   // Add a confirmation prompt unless in dry run mode
@@ -591,7 +834,7 @@ async function main() {
     }
   }
 
-  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations)
+  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations, domain)
 
   try {
     await rebuilder.rebuild()

@@ -138,7 +138,8 @@ The proxy automatically tracks conversations and detects branches using message 
 - String content and array content are normalized to produce consistent hashes
 - Example: `"hello"` and `[{type: "text", text: "hello"}]` produce the same hash
 - **System reminders are filtered out**: Content items starting with `<system-reminder>` are ignored during hashing
-- This ensures conversations link correctly regardless of content format or system reminder presence
+- **Duplicate messages are deduplicated**: When tool_use or tool_result messages have duplicate IDs, only the first occurrence is included in the hash
+- This ensures conversations link correctly regardless of content format, system reminder presence, or duplicate messages from the Claude API
 
 **API Endpoints:**
 
