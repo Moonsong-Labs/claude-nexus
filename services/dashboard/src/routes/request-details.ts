@@ -584,21 +584,24 @@ requestDetailsRoutes.get('/request/:id', async c => {
             buttons[1].classList.add('active')
 
             // Render JSON using andypf-json-viewer when switching to raw view
-            // Parse and render request body
-            if (requestData) {
-              const requestViewer = document.getElementById('request-json')
-              if (requestViewer) {
-                requestViewer.data = requestData
+            // Small delay to ensure custom element is ready
+            setTimeout(() => {
+              // Parse and render request body
+              if (requestData) {
+                const requestViewer = document.getElementById('request-json')
+                if (requestViewer) {
+                  requestViewer.data = requestData
+                }
               }
-            }
 
-            // Parse and render response body
-            if (responseData) {
-              const responseViewer = document.getElementById('response-json')
-              if (responseViewer) {
-                responseViewer.data = responseData
+              // Parse and render response body
+              if (responseData) {
+                const responseViewer = document.getElementById('response-json')
+                if (responseViewer) {
+                  responseViewer.data = responseData
+                }
               }
-            }
+            }, 100)
 
             // Parse and render streaming chunks
             streamingChunks.forEach((chunk, i) => {
@@ -625,35 +628,37 @@ requestDetailsRoutes.get('/request/:id', async c => {
             buttons[2].classList.add('active')
 
             // Render headers and metadata using andypf-json-viewer
-            // Render request headers
-            if (requestHeaders) {
-              const requestHeadersViewer = document.getElementById('request-headers')
-              if (requestHeadersViewer) {
-                requestHeadersViewer.data = requestHeaders
+            setTimeout(() => {
+              // Render request headers
+              if (requestHeaders) {
+                const requestHeadersViewer = document.getElementById('request-headers')
+                if (requestHeadersViewer) {
+                  requestHeadersViewer.data = requestHeaders
+                }
               }
-            }
 
-            // Render response headers
-            if (responseHeaders) {
-              const responseHeadersViewer = document.getElementById('response-headers')
-              if (responseHeadersViewer) {
-                responseHeadersViewer.data = responseHeaders
+              // Render response headers
+              if (responseHeaders) {
+                const responseHeadersViewer = document.getElementById('response-headers')
+                if (responseHeadersViewer) {
+                  responseHeadersViewer.data = responseHeaders
+                }
               }
-            }
 
-            // Render request metadata
-            const metadataViewer = document.getElementById('request-metadata')
-            if (metadataViewer && requestMetadata) {
-              metadataViewer.data = requestMetadata
-            }
-
-            // Render telemetry data
-            if (telemetryData) {
-              const telemetryViewer = document.getElementById('telemetry-data')
-              if (telemetryViewer) {
-                telemetryViewer.data = telemetryData
+              // Render request metadata
+              const metadataViewer = document.getElementById('request-metadata')
+              if (metadataViewer && requestMetadata) {
+                metadataViewer.data = requestMetadata
               }
-            }
+
+              // Render telemetry data
+              if (telemetryData) {
+                const telemetryViewer = document.getElementById('telemetry-data')
+                if (telemetryViewer) {
+                  telemetryViewer.data = telemetryData
+                }
+              }
+            }, 100)
           }
         }
 
@@ -692,9 +697,27 @@ requestDetailsRoutes.get('/request/:id', async c => {
           }
         }
 
-        // Initialize syntax highlighting
+        // Initialize syntax highlighting and JSON viewers
         document.addEventListener('DOMContentLoaded', function () {
           hljs.highlightAll()
+          
+          // Initialize JSON viewers on page load if raw view is active
+          if (!document.getElementById('raw-view').classList.contains('hidden')) {
+            setTimeout(() => {
+              if (requestData) {
+                const requestViewer = document.getElementById('request-json')
+                if (requestViewer) {
+                  requestViewer.data = requestData
+                }
+              }
+              if (responseData) {
+                const responseViewer = document.getElementById('response-json')
+                if (responseViewer) {
+                  responseViewer.data = responseData
+                }
+              }
+            }, 100)
+          }
         })
       </script>
     `
