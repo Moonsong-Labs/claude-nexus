@@ -308,10 +308,13 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Calculate stats
     const totalDuration =
       new Date(conversation.last_message).getTime() - new Date(conversation.first_message).getTime()
-    
+
     // Calculate AI inference time (sum of all request durations)
-    const totalInferenceTime = conversation.requests.reduce((sum, req) => sum + (req.duration_ms || 0), 0)
-    
+    const totalInferenceTime = conversation.requests.reduce(
+      (sum, req) => sum + (req.duration_ms || 0),
+      0
+    )
+
     const branchStats = conversation.branches.reduce(
       (acc, branch) => {
         const branchRequests = conversation.requests.filter(r => (r.branch_id || 'main') === branch)
