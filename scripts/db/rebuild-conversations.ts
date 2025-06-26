@@ -2,6 +2,10 @@
 /**
  * Script to retroactively compute conversation IDs and branches from existing requests
  * This analyzes message hashes to rebuild conversation relationships
+ *
+ * Important: This script now preserves existing conversation IDs when the linkage
+ * hasn't changed. Only requests whose parent-child relationships have changed will
+ * receive new conversation IDs.
  */
 
 import { Pool } from 'pg'
@@ -43,6 +47,8 @@ class ConversationRebuilder {
   private conversationRoots: ConversationNode[] = []
   private dryRun: boolean
   private onlyOrphanConversations: boolean
+  private existingRequests: Map<string, Request> = new Map()
+  private existingConversationRequests: Map<string, Request[]> = new Map()
 
   constructor(
     databaseUrl: string,
@@ -85,7 +91,25 @@ class ConversationRebuilder {
       // Step 4: Assign conversation IDs and detect branches
       console.log('\n4. Assigning conversation IDs and detecting branches...')
       const updates = this.assignConversationsAndBranches(trees)
+
+      // Count how many conversation IDs were preserved
+      const preservedConversations = new Set<string>()
+      const changedConversations = new Set<string>()
+
+      for (const update of updates) {
+        const existing = this.existingRequests.get(update.request_id)
+        if (existing?.conversation_id) {
+          if (existing.conversation_id === update.conversation_id) {
+            preservedConversations.add(update.conversation_id)
+          } else {
+            changedConversations.add(existing.conversation_id)
+          }
+        }
+      }
+
       console.log(`   Prepared ${updates.length} updates`)
+      console.log(`   Preserved ${preservedConversations.size} existing conversation IDs`)
+      console.log(`   Changed ${changedConversations.size} conversation IDs due to linkage changes`)
 
       // Step 5: Update database
       console.log('\n5. Updating database...')
@@ -155,6 +179,17 @@ class ConversationRebuilder {
     let messageCountsComputed = 0
     const processedRequests = result.rows.map(row => {
       const request = { ...row }
+
+      // Store original request data for comparison
+      this.existingRequests.set(request.request_id, { ...request })
+
+      // Build index of existing conversations
+      if (request.conversation_id) {
+        if (!this.existingConversationRequests.has(request.conversation_id)) {
+          this.existingConversationRequests.set(request.conversation_id, [])
+        }
+        this.existingConversationRequests.get(request.conversation_id)!.push(request)
+      }
 
       // If hashes are missing but we have a body with messages, compute them
       if (request.body?.messages) {
@@ -279,6 +314,78 @@ class ConversationRebuilder {
     return validCandidates[0]
   }
 
+  private findExistingConversationId(root: ConversationNode): string | null {
+    // Get the existing request data
+    const existingRequest = this.existingRequests.get(root.request_id)
+    if (!existingRequest?.conversation_id) {
+      return null
+    }
+
+    // Get all requests in the existing conversation
+    const existingConvRequests =
+      this.existingConversationRequests.get(existingRequest.conversation_id) || []
+
+    // Build a set of all request IDs in the current tree
+    const currentTreeRequestIds = new Set<string>()
+    this.collectTreeRequestIds(root, currentTreeRequestIds)
+
+    // Check if the conversation has the same requests
+    const existingConvRequestIds = new Set(existingConvRequests.map(r => r.request_id))
+
+    // If the sets are identical, the conversation structure hasn't changed
+    if (
+      currentTreeRequestIds.size === existingConvRequestIds.size &&
+      [...currentTreeRequestIds].every(id => existingConvRequestIds.has(id))
+    ) {
+      // Verify parent-child relationships are the same
+      if (this.verifyConversationStructure(root, existingRequest.conversation_id)) {
+        return existingRequest.conversation_id
+      }
+    }
+
+    return null
+  }
+
+  private collectTreeRequestIds(node: ConversationNode, requestIds: Set<string>) {
+    requestIds.add(node.request_id)
+    for (const child of node.children) {
+      this.collectTreeRequestIds(child, requestIds)
+    }
+  }
+
+  private verifyConversationStructure(root: ConversationNode, conversationId: string): boolean {
+    // Get all requests in the existing conversation
+    const existingRequests = this.existingConversationRequests.get(conversationId) || []
+    const existingByRequestId = new Map(existingRequests.map(r => [r.request_id, r]))
+
+    // Verify each node has the same parent-child relationships
+    return this.verifyNodeStructure(root, existingByRequestId)
+  }
+
+  private verifyNodeStructure(
+    node: ConversationNode,
+    existingByRequestId: Map<string, Request>
+  ): boolean {
+    const existing = existingByRequestId.get(node.request_id)
+    if (!existing) {
+      return false
+    }
+
+    // Check if parent hash matches
+    if (node.parent_message_hash !== existing.parent_message_hash) {
+      return false
+    }
+
+    // Recursively check all children
+    for (const child of node.children) {
+      if (!this.verifyNodeStructure(child, existingByRequestId)) {
+        return false
+      }
+    }
+
+    return true
+  }
+
   private assignConversationsAndBranches(trees: ConversationNode[]): Array<{
     request_id: string
     conversation_id: string
@@ -297,8 +404,18 @@ class ConversationRebuilder {
     }> = []
 
     for (const root of trees) {
-      const conversationId = randomUUID()
-      this.traverseAndAssign(root, conversationId, 'main', new Map(), updates)
+      // Check if this conversation already exists and has the same structure
+      const existingConvId = this.findExistingConversationId(root)
+      const conversationId = existingConvId || randomUUID()
+
+      this.traverseAndAssign(
+        root,
+        conversationId,
+        'main',
+        new Map(),
+        updates,
+        existingConvId !== null
+      )
     }
 
     return updates
@@ -316,27 +433,42 @@ class ConversationRebuilder {
       current_message_hash?: string
       parent_message_hash?: string
       message_count?: number
-    }>
+    }>,
+    isExistingConversation: boolean = false
   ) {
-    // Assign conversation and branch to this node
-    const update: any = {
-      request_id: node.request_id,
-      conversation_id: conversationId,
-      branch_id: branchId,
-    }
+    // Get existing request data
+    const existing = this.existingRequests.get(node.request_id)
 
-    // Include hashes if they exist
-    if (node.current_message_hash) {
-      update.current_message_hash = node.current_message_hash
-    }
-    if (node.parent_message_hash) {
-      update.parent_message_hash = node.parent_message_hash
-    }
-    if (node.message_count !== null && node.message_count !== undefined) {
-      update.message_count = node.message_count
-    }
+    // Check if we need to update this request
+    const needsUpdate =
+      !existing ||
+      existing.conversation_id !== conversationId ||
+      existing.branch_id !== branchId ||
+      existing.current_message_hash !== node.current_message_hash ||
+      existing.parent_message_hash !== node.parent_message_hash ||
+      existing.message_count !== node.message_count
 
-    updates.push(update)
+    if (needsUpdate) {
+      // Only create update if something has changed
+      const update: any = {
+        request_id: node.request_id,
+        conversation_id: conversationId,
+        branch_id: branchId,
+      }
+
+      // Include hashes if they exist
+      if (node.current_message_hash) {
+        update.current_message_hash = node.current_message_hash
+      }
+      if (node.parent_message_hash) {
+        update.parent_message_hash = node.parent_message_hash
+      }
+      if (node.message_count !== null && node.message_count !== undefined) {
+        update.message_count = node.message_count
+      }
+
+      updates.push(update)
+    }
 
     // Check if this node creates a branch point
     if (node.children.length > 1) {
@@ -351,7 +483,14 @@ class ConversationRebuilder {
       )
 
       // First child continues on the same branch
-      this.traverseAndAssign(sortedChildren[0], conversationId, branchId, branchPoints, updates)
+      this.traverseAndAssign(
+        sortedChildren[0],
+        conversationId,
+        branchId,
+        branchPoints,
+        updates,
+        isExistingConversation
+      )
 
       // Other children get new branches
       for (let i = 1; i < sortedChildren.length; i++) {
@@ -361,12 +500,20 @@ class ConversationRebuilder {
           conversationId,
           newBranchId,
           branchPoints,
-          updates
+          updates,
+          isExistingConversation
         )
       }
     } else if (node.children.length === 1) {
       // Single child continues on the same branch
-      this.traverseAndAssign(node.children[0], conversationId, branchId, branchPoints, updates)
+      this.traverseAndAssign(
+        node.children[0],
+        conversationId,
+        branchId,
+        branchPoints,
+        updates,
+        isExistingConversation
+      )
     }
     // If no children, traversal ends here
   }
@@ -398,8 +545,13 @@ class ConversationRebuilder {
       if (updates.length > 0) {
         console.log('\n   Sample of changes (first 5):')
         updates.slice(0, 5).forEach(update => {
+          const existing = this.existingRequests.get(update.request_id)
+          const isPreserved = existing?.conversation_id === update.conversation_id
+
           console.log(`     Request ${update.request_id}:`)
-          console.log(`       - conversation_id: ${update.conversation_id}`)
+          console.log(
+            `       - conversation_id: ${update.conversation_id} ${isPreserved ? '(preserved)' : existing?.conversation_id ? `(was: ${existing.conversation_id})` : '(new)'}`
+          )
           console.log(`       - branch_id: ${update.branch_id}`)
           if (update.current_message_hash) {
             console.log(
