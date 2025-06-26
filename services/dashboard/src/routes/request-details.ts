@@ -322,12 +322,12 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   </button>
                 </div>
                 <div class="section-content">
-                  <andypf-andypf-json-viewer
+                  <andypf-json-viewer
                     id="request-json"
                     expand-icon-type="arrow"
                     expanded="false"
                     expand-level="2"
-                  ></andypf-andypf-json-viewer>
+                  ></andypf-json-viewer>
                 </div>
               </div>
             `
