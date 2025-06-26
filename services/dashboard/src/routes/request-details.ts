@@ -428,7 +428,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
               expand-icon-type="arrow"
               expanded="false"
               expand-level="2"
-              theme='{"base00": "#f9fafb", "base02": "#e5e7eb", "base05": "#374151", "base07": "#1f2937"}'
+              theme='{"base00": "#f9fafb", "base01": "#f3f4f6", "base02": "#e5e7eb", "base03": "#d1d5db", "base04": "#9ca3af", "base05": "#374151", "base06": "#1f2937", "base07": "#111827", "base08": "#ef4444", "base09": "#f97316", "base0A": "#eab308", "base0B": "#22c55e", "base0C": "#06b6d4", "base0D": "#3b82f6", "base0E": "#8b5cf6", "base0F": "#ec4899"}'
             ></andypf-json-viewer>
           </div>
         </div>
