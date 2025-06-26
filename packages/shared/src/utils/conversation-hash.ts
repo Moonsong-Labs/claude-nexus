@@ -20,6 +20,11 @@ export function hashMessage(message: ClaudeMessage): string {
 /**
  * Normalizes message content for consistent hashing
  * Handles both string and array content types
+ * 
+ * Important: This function deduplicates tool_use and tool_result items by their IDs
+ * to handle cases where the Claude API might send duplicate messages. Only the first
+ * occurrence of each unique tool_use ID or tool_result tool_use_id is included in
+ * the hash computation.
  */
 function normalizeMessageContent(content: string | any[]): string {
   if (typeof content === 'string') {
@@ -38,8 +43,29 @@ function normalizeMessageContent(content: string | any[]): string {
     return true
   })
 
+  // Deduplicate tool_use and tool_result items by their IDs
+  const seenToolUseIds = new Set<string>()
+  const seenToolResultIds = new Set<string>()
+  const dedupedContent = filteredContent.filter(item => {
+    if (item.type === 'tool_use' && item.id) {
+      if (seenToolUseIds.has(item.id)) {
+        return false // Skip duplicate
+      }
+      seenToolUseIds.add(item.id)
+      return true
+    }
+    if (item.type === 'tool_result' && item.tool_use_id) {
+      if (seenToolResultIds.has(item.tool_use_id)) {
+        return false // Skip duplicate
+      }
+      seenToolResultIds.add(item.tool_use_id)
+      return true
+    }
+    return true // Keep all other types
+  })
+
   // DO NOT sort - preserve the original order as it's semantically important
-  return filteredContent
+  return dedupedContent
     .map((item, index) => {
       // Extract only the essential fields, ignoring cache_control and other metadata
       switch (item.type) {
