@@ -140,12 +140,12 @@ export class TestSampleCollector {
       // Clean up from pending samples
       this.pendingSamples.delete(sampleId)
 
-      const logger = {
-        debug: (message: string) => console.log(`[DEBUG] ${message}`),
-      }
+      // Use proper logger instead of console.log
+      const logger = getRequestLogger(c)
       logger.debug(`Test sample completed with response: ${pendingSample.filename}`)
     } catch (error) {
-      console.error('Failed to update test sample with response', error)
+      const logger = getRequestLogger(c)
+      logger.error('Failed to update test sample with response', { error })
     }
   }
 

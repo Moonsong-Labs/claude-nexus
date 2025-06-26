@@ -235,6 +235,8 @@ When `DEBUG=true`:
 - `SLOW_QUERY_THRESHOLD_MS` - Threshold in milliseconds for logging slow SQL queries (default: 5000)
 - `CLAUDE_API_TIMEOUT` - Timeout for Claude API requests in milliseconds (default: 600000 / 10 minutes)
 - `PROXY_SERVER_TIMEOUT` - Server-level timeout in milliseconds (default: 660000 / 11 minutes)
+- `STORAGE_ADAPTER_CLEANUP_MS` - Interval for cleaning up orphaned request ID mappings in milliseconds (default: 300000 / 5 minutes)
+- `STORAGE_ADAPTER_RETENTION_MS` - Retention time for request ID mappings in milliseconds (default: 3600000 / 1 hour)
 
 ## Important Notes
 
@@ -408,3 +410,9 @@ curl "http://localhost:3000/api/token-usage/daily?accountId=acc_f9e1c2d3b4a5&agg
 curl "http://localhost:3000/api/conversations?accountId=acc_f9e1c2d3b4a5" \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
+
+## Maintenance
+
+### Grooming
+
+The process of `grooming` is used to keep a clean repository. It should be performed regularly and rely on [GROOMING.md](GROOMING.md)
