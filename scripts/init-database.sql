@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS api_requests (
     conversation_id UUID,
     branch_id VARCHAR(255) DEFAULT 'main',
     message_count INTEGER DEFAULT 0,
+    parent_task_request_id UUID REFERENCES api_requests(request_id),
+    is_subtask BOOLEAN DEFAULT false,
+    task_tool_invocation JSONB,
     account_id VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -62,6 +65,18 @@ CREATE INDEX IF NOT EXISTS idx_requests_parent_hash ON api_requests(parent_messa
 CREATE INDEX IF NOT EXISTS idx_requests_current_hash ON api_requests(current_message_hash);
 CREATE INDEX IF NOT EXISTS idx_requests_account_id ON api_requests(account_id);
 
+-- Performance indexes for window function queries (from migration 004)
+CREATE INDEX IF NOT EXISTS idx_requests_conversation_timestamp_id 
+ON api_requests(conversation_id, timestamp DESC, request_id DESC) 
+WHERE conversation_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_requests_conversation_subtask 
+ON api_requests(conversation_id, is_subtask, timestamp ASC, request_id ASC) 
+WHERE conversation_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_requests_request_id 
+ON api_requests(request_id);
+
 -- Create indexes for streaming_chunks
 CREATE INDEX IF NOT EXISTS idx_chunks_request_id ON streaming_chunks(request_id);
 
@@ -71,4 +86,7 @@ COMMENT ON COLUMN api_requests.parent_message_hash IS 'SHA-256 hash of the previ
 COMMENT ON COLUMN api_requests.conversation_id IS 'UUID grouping related messages into conversations';
 COMMENT ON COLUMN api_requests.branch_id IS 'Branch identifier within a conversation (defaults to main)';
 COMMENT ON COLUMN api_requests.message_count IS 'Total number of messages in the conversation up to this request';
+COMMENT ON COLUMN api_requests.parent_task_request_id IS 'Links sub-task requests to their parent task';
+COMMENT ON COLUMN api_requests.is_subtask IS 'Boolean flag indicating if a request is a sub-task';
+COMMENT ON COLUMN api_requests.task_tool_invocation IS 'JSONB array storing Task tool invocations';
 COMMENT ON COLUMN api_requests.account_id IS 'Account identifier from credential file for per-account tracking';

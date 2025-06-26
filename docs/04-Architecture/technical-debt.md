@@ -150,22 +150,34 @@ setInterval(() => {
 - Implement proper error logging
 - Add error recovery mechanisms
 
-### 7. Database Migration Strategy
+### 7. ✅ Database Migration Strategy [RESOLVED]
 
-**Location**: `services/proxy/src/db/migrations/`
+**Location**: `scripts/db/migrations/`
 
 **Issue**: Manual migration execution without version tracking.
 
-**Impact**:
+**Resolution Date**: 2025-06-26
 
-- Risk of missed migrations
-- No rollback capability
+**Fix Applied**:
 
-**Remediation**:
+- Standardized on TypeScript migration scripts with numeric ordering
+- Created comprehensive `init-database.sql` for fresh installations
+- Updated `writer.ts` to use init SQL file instead of inline table creation
+- Documented migration patterns and best practices
+- All migrations are idempotent (safe to run multiple times)
 
-- Implement proper migration tool (e.g., Knex, Prisma)
-- Add migration version tracking
-- Create rollback scripts
+**Improvements**:
+
+- Consistent schema management approach
+- Clear migration ordering with numeric prefixes
+- TypeScript provides type safety and better tooling
+- See ADR-012 for detailed architecture decision
+
+**Future Enhancements** (Nice to have):
+
+- Migration version tracking table
+- Automated migration runner
+- Rollback capability
 
 ### 8. API Response Caching
 
@@ -246,3 +258,6 @@ Next Review: 2025-07-26
 - ✅ Fixed N+1 Query in Conversations API (HIGH priority)
 - ✅ Fixed N+1 Query in Token Usage Time Series (MEDIUM priority)
 - ✅ Fixed console.log violations in TestSampleCollector
+- ✅ Resolved Database Migration Strategy (LOW priority)
+- ✅ Fixed critical data privacy issues in TestSampleCollector
+- ✅ Consolidated database schema management
