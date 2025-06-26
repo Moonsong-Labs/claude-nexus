@@ -556,63 +556,6 @@ requestDetailsRoutes.get('/request/:id', async c => {
         const telemetryData = getJsonData('telemetry-data-storage')
         const requestMetadata = getJsonData('metadata-storage')
 
-        // Function to collapse all messages except last 2
-        function collapseMessagesExceptLastTwo(viewer, data) {
-          if (
-            !viewer.shadowRoot ||
-            !data ||
-            !data.messages ||
-            !Array.isArray(data.messages) ||
-            data.messages.length <= 2
-          ) {
-            return
-          }
-
-          console.log('Attempting to collapse messages except last 2')
-          const dataRows = viewer.shadowRoot.querySelectorAll('.data-row')
-
-          // Find message item rows
-          const messageItemRows = []
-          dataRows.forEach(row => {
-            const keyElement = row.querySelector('.key.number')
-            if (keyElement) {
-              const keyText = keyElement.textContent.replace(/"/g, '')
-              const keyNum = parseInt(keyText)
-
-              // Check if this is a valid message index
-              if (!isNaN(keyNum) && keyNum >= 0 && keyNum < data.messages.length) {
-                // Simple check: if the parent has "messages" in its text
-                let parent = row.parentElement
-                while (parent && parent !== viewer.shadowRoot) {
-                  if (parent.textContent && parent.textContent.includes('"messages"')) {
-                    messageItemRows.push({
-                      index: keyNum,
-                      row: row,
-                    })
-                    break
-                  }
-                  parent = parent.parentElement
-                }
-              }
-            }
-          })
-
-          // Sort and collapse all except last 2
-          messageItemRows.sort((a, b) => a.index - b.index)
-          const toCollapse = messageItemRows.slice(0, -2)
-
-          console.log(
-            'Found ' + messageItemRows.length + ' messages, collapsing ' + toCollapse.length
-          )
-
-          toCollapse.forEach(item => {
-            const expandIcon = item.row.querySelector('.expand.icon.clickable')
-            if (expandIcon) {
-              expandIcon.click()
-              console.log('Collapsed message ' + item.index)
-            }
-          })
-        }
 
         // Function to set up JSON viewer with selective collapse using MutationObserver
         function setupJsonViewer(containerId, data, keysToCollapse = ['tools', 'system']) {
@@ -639,7 +582,6 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
           // Use MutationObserver to detect when content is rendered and collapse specific keys
           customElements.whenDefined('andypf-json-viewer').then(() => {
-            console.log('JSON viewer custom element defined for', containerId)
 
             // Inject dense styles into shadow DOM
             function injectDenseStyles() {
@@ -686,104 +628,37 @@ requestDetailsRoutes.get('/request/:id', async c => {
             // Function to collapse specific keys by clicking on the SVG expand/collapse icons
             function collapseSpecificKeys() {
               if (!viewer.shadowRoot) {
-                console.log('No shadowRoot yet, waiting...')
                 return false
               }
 
-              console.log('Checking for keys to collapse in', containerId)
               let collapsedCount = 0
 
               // Strategy: Find all .data-row elements that contain our target keys
               const dataRows = viewer.shadowRoot.querySelectorAll('.data-row')
-              console.log('Found ' + dataRows.length + ' .data-row elements')
 
               dataRows.forEach((row, index) => {
-                const rowText = row.textContent || ''
+                // Look for the key element specifically, not just text content
+                const keyElement = row.querySelector('.key')
+                if (!keyElement) return
 
+                const keyText = keyElement.textContent || ''
+                
                 keysToCollapse.forEach(keyToCollapse => {
-                  // Check if this row contains our target key
-                  // The key format in the viewer is usually "keyname":
+                  // Check if this key element exactly matches our target
                   if (
-                    rowText.includes('"' + keyToCollapse + '":') ||
-                    rowText.includes(keyToCollapse + ':')
+                    keyText === '"' + keyToCollapse + '"' ||
+                    keyText === keyToCollapse
                   ) {
-                    console.log('Found "' + keyToCollapse + '" in row ' + index)
-
                     // Look for the expand icon within this row - it has class "expand icon clickable"
                     const expandIcon = row.querySelector('.expand.icon.clickable')
                     if (expandIcon) {
-                      console.log('  Found expand icon, clicking it')
                       expandIcon.click()
                       collapsedCount++
-                    } else {
-                      // Also try looking for SVG
-                      const svg = row.querySelector('svg')
-                      if (svg) {
-                        console.log('  Found SVG icon, clicking it')
-                        svg.click()
-                        collapsedCount++
-                      }
                     }
                   }
                 })
               })
 
-              // Alternative approach if no data rows found or no success
-              if (collapsedCount === 0 && dataRows.length === 0) {
-                console.log('No .data-row elements found, trying alternative approach')
-
-                // Find all elements and check their content more carefully
-                const allElements = viewer.shadowRoot.querySelectorAll('*')
-
-                allElements.forEach(el => {
-                  const text = (el.textContent || '').trim()
-
-                  keysToCollapse.forEach(keyToCollapse => {
-                    // Look for exact key match
-                    if (
-                      text === '"' + keyToCollapse + '":' ||
-                      text === keyToCollapse + ':' ||
-                      text === '"' + keyToCollapse + '"' ||
-                      text === keyToCollapse
-                    ) {
-                      console.log('Found exact match for "' + keyToCollapse + '"')
-
-                      // Find the nearest SVG icon by traversing up the DOM
-                      let target = el.parentElement
-                      let attempts = 0
-
-                      while (target && attempts < 5) {
-                        // Check if this element contains an SVG
-                        const svg = target.querySelector('svg')
-                        if (svg) {
-                          console.log('  Found SVG in ancestor, clicking')
-                          svg.click()
-                          collapsedCount++
-                          break
-                        }
-
-                        // Check siblings for SVG
-                        const siblings = Array.from(target.children)
-                        for (let sibling of siblings) {
-                          if (sibling.tagName === 'SVG' || sibling.querySelector('svg')) {
-                            console.log('  Found SVG in sibling, clicking')
-                            const svgToClick =
-                              sibling.tagName === 'SVG' ? sibling : sibling.querySelector('svg')
-                            svgToClick.click()
-                            collapsedCount++
-                            break
-                          }
-                        }
-
-                        target = target.parentElement
-                        attempts++
-                      }
-                    }
-                  })
-                })
-              }
-
-              console.log('Collapsed ' + collapsedCount + ' keys')
               return collapsedCount > 0
             }
 
@@ -791,19 +666,11 @@ requestDetailsRoutes.get('/request/:id', async c => {
             if (viewer.shadowRoot) {
               // Inject dense styles first
               injectDenseStyles()
-              collapseSpecificKeys()
-
-              // Also collapse messages except last 2 with a slight delay
+              
+              // Collapse specific keys after a short delay to ensure DOM is ready
               setTimeout(() => {
-                if (
-                  containerId === 'request-json-container' ||
-                  containerId === 'response-json-container'
-                ) {
-                  collapseMessagesExceptLastTwo(viewer, data)
-                }
-              }, 200)
-            } else {
-              console.log('No shadow root available yet')
+                collapseSpecificKeys()
+              }, 100)
             }
           })
         }
