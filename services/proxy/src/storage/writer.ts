@@ -682,7 +682,7 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
           sqlContent = readFileSync(sqlPath, 'utf-8')
           foundPath = sqlPath
           break
-        } catch (error) {
+        } catch {
           // Continue to next path
         }
       }
