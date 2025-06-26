@@ -40,9 +40,12 @@ export const layout = (title: string, content: any, additionalScripts: string = 
           --border-color: #d1d9e0;
           --toolbar-background: #f6f8fa;
           --toolbar-color: #1f2328;
+          display: block;
           padding: 1rem;
           border-radius: 0.375rem;
           border: 1px solid var(--border-color);
+          background-color: #ffffff;
+          overflow: auto;
         }
 
         /* Dark mode support */
@@ -64,30 +67,10 @@ export const layout = (title: string, content: any, additionalScripts: string = 
           }
         }
 
-        /* Override any dark backgrounds from highlight.js */
-        #request-json,
-        #response-json,
-        #request-headers,
-        #response-headers,
-        #request-metadata,
-        #telemetry-data {
-          background-color: #f3f4f6 !important;
-        }
-
-        #request-json pre,
-        #response-json pre,
-        #request-headers pre,
-        #response-headers pre,
-        #request-metadata pre,
-        #telemetry-data pre,
-        #request-json code,
-        #response-json code,
-        #request-headers code,
-        #response-headers code,
-        #request-metadata code,
-        #telemetry-data code {
-          background-color: transparent !important;
-          color: #1f2937 !important;
+        /* Style the JSON viewer containers */
+        .section-content andypf-json-viewer {
+          background-color: #f9fafb;
+          border: 1px solid #e5e7eb;
         }
 
         /* Ensure code blocks in these containers have light backgrounds */
