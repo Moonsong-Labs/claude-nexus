@@ -556,7 +556,6 @@ requestDetailsRoutes.get('/request/:id', async c => {
         const telemetryData = getJsonData('telemetry-data-storage')
         const requestMetadata = getJsonData('metadata-storage')
 
-
         // Function to set up JSON viewer with selective collapse using MutationObserver
         function setupJsonViewer(containerId, data, keysToCollapse = ['tools', 'system']) {
           const container = document.getElementById(containerId)
@@ -582,7 +581,6 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
           // Use MutationObserver to detect when content is rendered and collapse specific keys
           customElements.whenDefined('andypf-json-viewer').then(() => {
-
             // Inject dense styles into shadow DOM
             function injectDenseStyles() {
               if (!viewer.shadowRoot) return
@@ -642,13 +640,10 @@ requestDetailsRoutes.get('/request/:id', async c => {
                 if (!keyElement) return
 
                 const keyText = keyElement.textContent || ''
-                
+
                 keysToCollapse.forEach(keyToCollapse => {
                   // Check if this key element exactly matches our target
-                  if (
-                    keyText === '"' + keyToCollapse + '"' ||
-                    keyText === keyToCollapse
-                  ) {
+                  if (keyText === '"' + keyToCollapse + '"' || keyText === keyToCollapse) {
                     // Look for the expand icon within this row - it has class "expand icon clickable"
                     const expandIcon = row.querySelector('.expand.icon.clickable')
                     if (expandIcon) {
@@ -666,7 +661,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
             if (viewer.shadowRoot) {
               // Inject dense styles first
               injectDenseStyles()
-              
+
               // Collapse specific keys after a short delay to ensure DOM is ready
               setTimeout(() => {
                 collapseSpecificKeys()
