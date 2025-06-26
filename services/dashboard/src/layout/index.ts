@@ -19,12 +19,19 @@ export const layout = (title: string, content: any, additionalScripts: string = 
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"
       />
       <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.js"></script>
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.css">
+      <script
+        type="module"
+        src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.js"
+      ></script>
+      <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@3.2.2/dist/json-viewer.css"
+      />
       <style>
         /* JSON Viewer VSCode-like theme styles */
         json-viewer {
-          --font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+          --font-family:
+            'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
           --font-size: 13px;
           --line-height: 1.5;
           --color: #1e1e1e;
@@ -44,7 +51,7 @@ export const layout = (title: string, content: any, additionalScripts: string = 
           border-radius: 0.375rem;
           border: 1px solid var(--border-color);
         }
-        
+
         /* Dark mode support */
         @media (prefers-color-scheme: dark) {
           json-viewer {
