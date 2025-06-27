@@ -65,6 +65,8 @@ The script filters EC2 instances based on the `env` tag:
   - Optional `env` tag with value `prod` or `staging`
   - Git repository cloned at `~/claude-nexus-proxy` on each server
   - Git access configured (for pulling from origin/main)
+  - `.env` file located at `~/.env` (in user's home directory)
+  - `credentials` directory at `~/credentials` (if using credential files)
 
 ### update-proxy.sh
 

@@ -22,6 +22,20 @@ Each environment is isolated and can be managed independently using the `manage-
   - Inbound: SSH (22), HTTP (3000), Dashboard (3001)
   - Outbound: All traffic (for Claude API access)
 
+### File Structure
+
+Each EC2 instance should have the following structure in the ubuntu user's home directory:
+
+```
+/home/ubuntu/
+├── .env                          # Environment configuration
+├── claude-nexus-proxy/           # Git repository
+│   └── scripts/ops/              # Operational scripts
+├── credentials/                  # Domain credential files
+│   ├── domain1.com.credentials.json
+│   └── domain2.com.credentials.json
+```
+
 ### Required AWS Tags
 
 Each EC2 instance must be tagged appropriately:
@@ -57,7 +71,12 @@ resource "aws_instance" "nexus_proxy_prod" {
     git clone https://github.com/yourusername/claude-nexus-proxy.git /home/ubuntu/claude-nexus-proxy
     chown -R ubuntu:ubuntu /home/ubuntu/claude-nexus-proxy
     
-    # Setup will be completed by ops scripts
+    # Create required directories
+    mkdir -p /home/ubuntu/credentials
+    chown ubuntu:ubuntu /home/ubuntu/credentials
+    
+    # Note: .env file should be placed at /home/ubuntu/.env
+    # Note: credentials should be placed in /home/ubuntu/credentials/
   EOF
 }
 
