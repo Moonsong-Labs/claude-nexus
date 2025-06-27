@@ -104,7 +104,7 @@ async function optimizeConversationWindowFunctions() {
     const statsResult = await pool.query(`
       SELECT 
         schemaname,
-        tablename,
+        relname,
         n_live_tup as row_count,
         n_dead_tup as dead_rows,
         last_vacuum,
@@ -112,7 +112,7 @@ async function optimizeConversationWindowFunctions() {
         last_analyze,
         last_autoanalyze
       FROM pg_stat_user_tables
-      WHERE tablename = 'api_requests'
+      WHERE relname = 'api_requests'
     `)
 
     if (statsResult.rows.length > 0) {
