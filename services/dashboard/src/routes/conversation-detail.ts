@@ -25,9 +25,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
   const storageService = container.getStorageService()
 
   try {
-    // Get all conversations to find the one we want
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    // Get the specific conversation by ID - optimized query
+    const conversation = await storageService.getConversationById(conversationId)
 
     if (!conversation) {
       return c.html(html`
@@ -566,8 +565,7 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
   const storageService = container.getStorageService()
 
   try {
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    const conversation = await storageService.getConversationById(conversationId)
 
     if (!conversation) {
       return c.html(html`<div class="error-banner">Conversation not found</div>`)
