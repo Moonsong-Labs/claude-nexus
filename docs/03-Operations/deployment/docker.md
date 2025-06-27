@@ -4,6 +4,8 @@ This guide covers deploying Claude Nexus Proxy to production environments.
 
 ## Deployment Options
 
+> **Note**: For AWS EC2 deployment with staging/production environments, see [AWS Infrastructure Guide](./aws-infrastructure.md).
+
 ### 1. Docker (Recommended)
 
 The project provides optimized Docker images for each service.

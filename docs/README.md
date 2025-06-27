@@ -28,6 +28,7 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 - [Deployment](./03-Operations/deployment/)
   - [Docker](./03-Operations/deployment/docker.md) - Docker deployment guide
   - [Docker Compose](./03-Operations/deployment/docker-compose.md) - Full stack deployment
+  - [AWS Infrastructure](./03-Operations/deployment/aws-infrastructure.md) - Multi-environment AWS deployment
 - [Security](./03-Operations/security.md) - Security best practices and hardening
 - [Database](./03-Operations/database.md) - Database setup and maintenance
 - [Monitoring](./03-Operations/monitoring.md) - Metrics, alerts, and observability

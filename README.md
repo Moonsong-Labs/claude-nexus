@@ -183,6 +183,25 @@ See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.
 
 ## Deployment
 
+### Environments
+
+Claude Nexus Proxy supports deployment to multiple environments:
+
+- **Production (`prod`)** - Live production services
+- **Staging (`staging`)** - Pre-production testing environment
+
+For AWS EC2 deployments, use the `manage-nexus-proxies.sh` script with environment filtering:
+
+```bash
+# Deploy to production servers only
+./scripts/ops/manage-nexus-proxies.sh --env prod up
+
+# Check staging server status
+./scripts/ops/manage-nexus-proxies.sh --env staging status
+```
+
+See [AWS Infrastructure Guide](docs/03-Operations/deployment/aws-infrastructure.md) for detailed multi-environment setup.
+
 ### Docker
 
 #### Using Pre-built Images (Default)
