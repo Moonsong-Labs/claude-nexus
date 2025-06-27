@@ -25,9 +25,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
   const storageService = container.getStorageService()
 
   try {
-    // Get all conversations to find the one we want
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    // Get the specific conversation by ID - optimized query
+    const conversation = await storageService.getConversationById(conversationId)
 
     if (!conversation) {
       return c.html(html`
@@ -566,8 +565,7 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
   const storageService = container.getStorageService()
 
   try {
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    const conversation = await storageService.getConversationById(conversationId)
 
     if (!conversation) {
       return c.html(html`<div class="error-banner">Conversation not found</div>`)
@@ -613,6 +611,38 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
  */
 function getLastMessageContent(req: ConversationRequest): string {
   try {
+    // Check if we have the optimized last_message field
+    if (req.body && req.body.last_message) {
+      const lastMessage = req.body.last_message
+
+      // Handle the last message directly
+      if (typeof lastMessage.content === 'string') {
+        const content = lastMessage.content.trim()
+        return content.length > 80 ? content.substring(0, 77) + '...' : content
+      } else if (Array.isArray(lastMessage.content)) {
+        for (const block of lastMessage.content) {
+          if (block.type === 'text' && block.text) {
+            const content = block.text.trim()
+            return content.length > 80 ? content.substring(0, 77) + '...' : content
+          } else if (block.type === 'tool_use' && block.name) {
+            return `🔧 Tool: ${block.name}${block.input?.prompt ? ' - ' + block.input.prompt.substring(0, 50) + '...' : ''}`
+          } else if (block.type === 'tool_result' && block.tool_use_id) {
+            return `✅ Tool Result${block.content ? ': ' + (typeof block.content === 'string' ? block.content : JSON.stringify(block.content)).substring(0, 50) + '...' : ''}`
+          }
+        }
+      }
+
+      // Fallback to role-based description
+      if (lastMessage.role === 'assistant') {
+        return '🤖 Assistant response'
+      } else if (lastMessage.role === 'user') {
+        return '👤 User message'
+      } else if (lastMessage.role === 'system') {
+        return '⚙️ System message'
+      }
+    }
+
+    // Legacy fallback for old data structure
     if (!req.body || !req.body.messages || !Array.isArray(req.body.messages)) {
       return 'Request ID: ' + req.request_id
     }
@@ -688,10 +718,18 @@ function renderConversationMessages(
             return `
           <div class="section" id="message-${req.request_id}">
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0.625rem 1rem;">
-              <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="font-size: 0.875rem; color: #6b7280;">
                   ${new Date(req.timestamp).toLocaleString()}
                 </span>
+                <a href="/dashboard/request/${req.request_id}" 
+                   class="request-id-link"
+                   style="font-size: 0.75rem; color: #3b82f6; text-decoration: none; font-family: monospace; border: 1px solid #e5e7eb; padding: 0.125rem 0.375rem; border-radius: 0.25rem; background: #f9fafb; transition: all 0.2s; display: inline-block;"
+                   onmouseover="this.style.backgroundColor='#3b82f6'; this.style.color='white'; this.style.borderColor='#3b82f6';"
+                   onmouseout="this.style.backgroundColor='#f9fafb'; this.style.color='#3b82f6'; this.style.borderColor='#e5e7eb';"
+                   title="Click to view request details">
+                  ${req.request_id}
+                </a>
                 ${
                   branch !== 'main'
                     ? `
@@ -739,9 +777,6 @@ function renderConversationMessages(
                         </button>`
                       : ''
                   }
-                  <a href="/dashboard/request/${req.request_id}" class="text-sm text-blue-600">
-                    View details →
-                  </a>
                 </div>
               </div>
               ${
