@@ -718,10 +718,18 @@ function renderConversationMessages(
             return `
           <div class="section" id="message-${req.request_id}">
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0.625rem 1rem;">
-              <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="font-size: 0.875rem; color: #6b7280;">
                   ${new Date(req.timestamp).toLocaleString()}
                 </span>
+                <a href="/dashboard/request/${req.request_id}" 
+                   class="request-id-link"
+                   style="font-size: 0.75rem; color: #9ca3af; text-decoration: none; font-family: monospace; transition: color 0.2s;"
+                   onmouseover="this.style.color='#3b82f6'; this.style.textDecoration='underline';"
+                   onmouseout="this.style.color='#9ca3af'; this.style.textDecoration='none';"
+                   title="View request details">
+                  ${req.request_id}
+                </a>
                 ${
                   branch !== 'main'
                     ? `
@@ -769,9 +777,6 @@ function renderConversationMessages(
                         </button>`
                       : ''
                   }
-                  <a href="/dashboard/request/${req.request_id}" class="text-sm text-blue-600">
-                    View details →
-                  </a>
                 </div>
               </div>
               ${
