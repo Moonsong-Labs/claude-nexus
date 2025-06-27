@@ -9,26 +9,31 @@ This directory contains operational scripts for managing Claude Nexus Proxy depl
 Manages Claude Nexus Proxy Docker containers across all EC2 instances tagged with "Nexus Proxy" in their name.
 
 **Features:**
+
 - Automatically discovers EC2 instances using AWS CLI
 - Supports environment-based filtering using AWS tags
 - Executes commands in parallel across multiple servers
 - Provides colored output for better visibility
 
 **Usage:**
+
 ```bash
 ./manage-nexus-proxies.sh [--env {prod|staging}] {up|down|status} [server-name]
 ```
 
 **Commands:**
+
 - `up` - Start/update the claude-nexus-proxy container
-- `down` - Stop the claude-nexus-proxy container  
+- `down` - Stop the claude-nexus-proxy container
 - `status` - Check container status
 
 **Options:**
+
 - `--env {prod|staging}` - Filter servers by environment tag (optional)
 - `server-name` - Target specific server (optional)
 
 **Examples:**
+
 ```bash
 # Check status on all servers
 ./manage-nexus-proxies.sh status
@@ -45,11 +50,13 @@ Manages Claude Nexus Proxy Docker containers across all EC2 instances tagged wit
 
 **Environment Tags:**
 The script filters EC2 instances based on the `env` tag:
+
 - `env=prod` - Production servers (displayed in RED)
 - `env=staging` - Staging servers (displayed in YELLOW)
 - No tag or unknown value - Displayed as "unknown"
 
 **Requirements:**
+
 - AWS CLI configured with appropriate credentials
 - SSH access to EC2 instances as `ubuntu` user
 - EC2 instances must have:
@@ -61,15 +68,18 @@ The script filters EC2 instances based on the `env` tag:
 Updates Claude Nexus Proxy Docker containers to a specific version.
 
 **Usage:**
+
 ```bash
 ./update-proxy.sh <version> [service]
 ```
 
 **Arguments:**
+
 - `version` - Docker image version (e.g., `v8`, `latest`)
 - `service` - Optional: `proxy` or `dashboard` (defaults to both)
 
 **Examples:**
+
 ```bash
 # Update both services to latest
 ./update-proxy.sh latest
@@ -89,6 +99,7 @@ For the `manage-nexus-proxies.sh` script to work properly, EC2 instances must be
 2. **env Tag** (Optional): Should be either "prod" or "staging" for environment filtering
 
 Example AWS tags:
+
 ```
 Name: "Nexus Proxy Server 1"
 env: "prod"
