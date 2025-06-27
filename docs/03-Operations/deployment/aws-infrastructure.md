@@ -18,7 +18,7 @@ Each environment is isolated and can be managed independently using the `manage-
 - **OS**: Ubuntu 20.04 LTS or later
 - **Instance Type**: t3.medium or larger (minimum 2 vCPU, 4GB RAM)
 - **Storage**: 20GB+ EBS volume
-- **Security Groups**: 
+- **Security Groups**:
   - Inbound: SSH (22), HTTP (3000), Dashboard (3001)
   - Outbound: All traffic (for Claude API access)
 
@@ -41,6 +41,7 @@ Each EC2 instance should have the following structure in the ubuntu user's home 
 Each EC2 instance must be tagged appropriately:
 
 1. **Name Tag** (Required)
+
    - Must contain "Nexus Proxy" (case-insensitive)
    - Example: `"Nexus Proxy Production Server 1"`
 
@@ -55,26 +56,26 @@ resource "aws_instance" "nexus_proxy_prod" {
   count         = 3
   ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04
   instance_type = "t3.medium"
-  
+
   tags = {
     Name = "Nexus Proxy Production ${count.index + 1}"
     env  = "prod"
     Type = "proxy"
   }
-  
+
   user_data = <<-EOF
     #!/bin/bash
     # Install Docker
     curl -fsSL https://get.docker.com | bash
-    
+
     # Clone repository
     git clone https://github.com/yourusername/claude-nexus-proxy.git /home/ubuntu/claude-nexus-proxy
     chown -R ubuntu:ubuntu /home/ubuntu/claude-nexus-proxy
-    
+
     # Create required directories
     mkdir -p /home/ubuntu/credentials
     chown ubuntu:ubuntu /home/ubuntu/credentials
-    
+
     # Note: .env file should be placed at /home/ubuntu/.env
     # Note: credentials should be placed in /home/ubuntu/credentials/
   EOF
@@ -84,13 +85,13 @@ resource "aws_instance" "nexus_proxy_staging" {
   count         = 2
   ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04
   instance_type = "t3.small"
-  
+
   tags = {
     Name = "Nexus Proxy Staging ${count.index + 1}"
     env  = "staging"
     Type = "proxy"
   }
-  
+
   user_data = "${file("user-data.sh")}"
 }
 ```
@@ -120,10 +121,12 @@ The `manage-nexus-proxies.sh` script provides environment-aware operations:
 Each environment should have:
 
 1. **Separate Databases**
+
    - Production: High-availability RDS instance
    - Staging: Smaller RDS instance or containerized PostgreSQL
 
 2. **Separate Credentials**
+
    - Use different Claude API keys for each environment
    - Store in separate credential files
 
@@ -208,10 +211,7 @@ Create environment-specific IAM roles:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeTags"
-      ],
+      "Action": ["ec2:DescribeInstances", "ec2:DescribeTags"],
       "Resource": "*",
       "Condition": {
         "StringEquals": {
