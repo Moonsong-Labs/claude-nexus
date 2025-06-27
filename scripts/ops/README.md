@@ -12,6 +12,7 @@ Manages Claude Nexus Proxy Docker containers across all EC2 instances tagged wit
 
 - Automatically discovers EC2 instances using AWS CLI
 - Supports environment-based filtering using AWS tags
+- **Automatically pulls latest code before updates** (git pull)
 - Executes commands in parallel across multiple servers
 - Provides colored output for better visibility
 
@@ -23,7 +24,7 @@ Manages Claude Nexus Proxy Docker containers across all EC2 instances tagged wit
 
 **Commands:**
 
-- `up` - Start/update the claude-nexus-proxy container
+- `up` - Pull latest code (git pull) and start/update the claude-nexus-proxy container
 - `down` - Stop the claude-nexus-proxy container
 - `status` - Check container status
 
@@ -62,6 +63,8 @@ The script filters EC2 instances based on the `env` tag:
 - EC2 instances must have:
   - "Nexus Proxy" in their Name tag
   - Optional `env` tag with value `prod` or `staging`
+  - Git repository cloned at `~/claude-nexus-proxy` on each server
+  - Git access configured (for pulling from origin/main)
 
 ### update-proxy.sh
 

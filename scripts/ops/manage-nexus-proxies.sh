@@ -98,6 +98,25 @@ fi
 # Global variable for instances
 declare -g INSTANCES=""
 
+# Function to pull latest code on remote server
+pull_latest_code() {
+    local ip=$1
+    local name=$2
+    
+    echo -e "${BLUE}Pulling latest code on $name...${NC}"
+    
+    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
+        "cd ~/claude-nexus-proxy && git pull origin main" 2>&1
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Code updated successfully${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}⚠ Warning: Could not pull latest code (continuing anyway)${NC}"
+        return 1
+    fi
+}
+
 # Function to fetch EC2 instances
 fetch_ec2_instances() {
     local env_display=""
@@ -180,8 +199,19 @@ execute_on_server_async() {
         
         case $cmd in
             "up")
+                # Pull latest code before updating
                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-                    "./claude-nexus-proxy/scripts/update-proxy.sh latest proxy" 2>&1
+                    "cd ~/claude-nexus-proxy && git pull origin main" 2>&1
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}✓ Code updated${NC}"
+                else
+                    echo -e "${YELLOW}⚠ Could not pull latest code (continuing)${NC}"
+                fi
+                
+                # Now run the update script
+                ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
+                    "cd ~/claude-nexus-proxy && ./scripts/ops/update-proxy.sh latest proxy" 2>&1
                 ;;
             "down")
                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
@@ -222,8 +252,19 @@ execute_on_server() {
     
     case $cmd in
         "up")
+            # Pull latest code before updating
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-                "cd ~/claude-nexus-proxy && ./scripts/update-proxy.sh latest proxy" 2>&1
+                "cd ~/claude-nexus-proxy && git pull origin main" 2>&1
+            
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✓ Code updated${NC}"
+            else
+                echo -e "${YELLOW}⚠ Could not pull latest code (continuing)${NC}"
+            fi
+            
+            # Now run the update script
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
+                "cd ~/claude-nexus-proxy && ./scripts/ops/update-proxy.sh latest proxy" 2>&1
             ;;
         "down")
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
