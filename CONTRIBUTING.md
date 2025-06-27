@@ -21,9 +21,20 @@ See [Development Guide](docs/DEVELOPMENT.md) for detailed setup instructions.
 Quick start:
 
 ```bash
-bun install
+bun install  # This also installs git pre-commit hooks
 bun run dev
 ```
+
+### Git Pre-commit Hooks
+
+The project uses Husky for automated pre-commit checks. These are installed automatically when you run `bun install`.
+
+**Pre-commit checks include:**
+
+- ESLint for code quality (with automatic fixes)
+- Prettier for code formatting (with automatic fixes)
+
+**Note:** TypeScript type checking is not included in pre-commit hooks for performance reasons but will run in CI.
 
 ## Pull Request Process
 

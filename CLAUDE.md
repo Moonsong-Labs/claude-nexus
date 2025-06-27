@@ -71,6 +71,26 @@ bun run dev:dashboard  # Port 3001
 bun run build
 ```
 
+### Git Pre-commit Hooks
+
+The project uses Husky and lint-staged for automated code quality checks:
+
+```bash
+# Pre-commit hooks are automatically installed via postinstall script
+bun install
+
+# Manual hook installation (if needed)
+bunx husky init
+```
+
+**Pre-commit checks:**
+
+- ESLint fixes for TypeScript/JavaScript files
+- Prettier formatting for all supported file types
+- Automatic fixes are applied when possible
+
+**Note:** TypeScript type checking is not included in pre-commit hooks for performance reasons. Type checking runs in CI/CD pipeline.
+
 ## Docker Deployment
 
 The project uses **separate Docker images** for each service:
