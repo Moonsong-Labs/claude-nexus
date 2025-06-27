@@ -724,10 +724,10 @@ function renderConversationMessages(
                 </span>
                 <a href="/dashboard/request/${req.request_id}" 
                    class="request-id-link"
-                   style="font-size: 0.75rem; color: #9ca3af; text-decoration: none; font-family: monospace; transition: color 0.2s;"
-                   onmouseover="this.style.color='#3b82f6'; this.style.textDecoration='underline';"
-                   onmouseout="this.style.color='#9ca3af'; this.style.textDecoration='none';"
-                   title="View request details">
+                   style="font-size: 0.75rem; color: #3b82f6; text-decoration: none; font-family: monospace; border: 1px solid #e5e7eb; padding: 0.125rem 0.375rem; border-radius: 0.25rem; background: #f9fafb; transition: all 0.2s; display: inline-block;"
+                   onmouseover="this.style.backgroundColor='#3b82f6'; this.style.color='white'; this.style.borderColor='#3b82f6';"
+                   onmouseout="this.style.backgroundColor='#f9fafb'; this.style.color='#3b82f6'; this.style.borderColor='#e5e7eb';"
+                   title="Click to view request details">
                   ${req.request_id}
                 </a>
                 ${
