@@ -434,7 +434,13 @@ export class StorageReader {
              input_tokens, output_tokens, total_tokens, duration_ms,
              error, request_type, tool_call_count, conversation_id,
              current_message_hash, parent_message_hash, branch_id, message_count,
-             parent_task_request_id, is_subtask, task_tool_invocation, body
+             parent_task_request_id, is_subtask, task_tool_invocation,
+             CASE 
+               WHEN body -> 'messages' IS NOT NULL AND jsonb_array_length(body -> 'messages') > 0 THEN
+                 body -> 'messages' -> -1
+               ELSE 
+                 NULL
+             END as last_message
            FROM api_requests 
            WHERE domain = $1 AND conversation_id = ANY($2::uuid[])
            ORDER BY conversation_id, timestamp ASC`
@@ -443,7 +449,13 @@ export class StorageReader {
              input_tokens, output_tokens, total_tokens, duration_ms,
              error, request_type, tool_call_count, conversation_id,
              current_message_hash, parent_message_hash, branch_id, message_count,
-             parent_task_request_id, is_subtask, task_tool_invocation, body
+             parent_task_request_id, is_subtask, task_tool_invocation,
+             CASE 
+               WHEN body -> 'messages' IS NOT NULL AND jsonb_array_length(body -> 'messages') > 0 THEN
+                 body -> 'messages' -> -1
+               ELSE 
+                 NULL
+             END as last_message
            FROM api_requests 
            WHERE conversation_id = ANY($1::uuid[])
            ORDER BY conversation_id, timestamp ASC`
@@ -478,7 +490,7 @@ export class StorageReader {
           parent_task_request_id: row.parent_task_request_id,
           is_subtask: row.is_subtask,
           task_tool_invocation: row.task_tool_invocation,
-          body: row.body,
+          body: { last_message: row.last_message },
         }
 
         if (!requestsByConversation[row.conversation_id]) {

@@ -613,6 +613,38 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
  */
 function getLastMessageContent(req: ConversationRequest): string {
   try {
+    // Check if we have the optimized last_message field
+    if (req.body && req.body.last_message) {
+      const lastMessage = req.body.last_message
+
+      // Handle the last message directly
+      if (typeof lastMessage.content === 'string') {
+        const content = lastMessage.content.trim()
+        return content.length > 80 ? content.substring(0, 77) + '...' : content
+      } else if (Array.isArray(lastMessage.content)) {
+        for (const block of lastMessage.content) {
+          if (block.type === 'text' && block.text) {
+            const content = block.text.trim()
+            return content.length > 80 ? content.substring(0, 77) + '...' : content
+          } else if (block.type === 'tool_use' && block.name) {
+            return `🔧 Tool: ${block.name}${block.input?.prompt ? ' - ' + block.input.prompt.substring(0, 50) + '...' : ''}`
+          } else if (block.type === 'tool_result' && block.tool_use_id) {
+            return `✅ Tool Result${block.content ? ': ' + (typeof block.content === 'string' ? block.content : JSON.stringify(block.content)).substring(0, 50) + '...' : ''}`
+          }
+        }
+      }
+
+      // Fallback to role-based description
+      if (lastMessage.role === 'assistant') {
+        return '🤖 Assistant response'
+      } else if (lastMessage.role === 'user') {
+        return '👤 User message'
+      } else if (lastMessage.role === 'system') {
+        return '⚙️ System message'
+      }
+    }
+
+    // Legacy fallback for old data structure
     if (!req.body || !req.body.messages || !Array.isArray(req.body.messages)) {
       return 'Request ID: ' + req.request_id
     }
