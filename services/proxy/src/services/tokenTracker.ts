@@ -1,4 +1,4 @@
-interface DomainTokenStats {
+export interface DomainTokenStats {
   inputTokens: number
   outputTokens: number
   requestCount: number

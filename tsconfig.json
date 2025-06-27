@@ -18,5 +18,11 @@
     "types": [
       "bun-types" // add Bun global
     ]
-  }
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./services/dashboard" },
+    { "path": "./services/proxy" }
+  ]
 }
