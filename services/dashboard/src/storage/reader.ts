@@ -575,7 +575,7 @@ export class StorageReader {
 
       const conversationRow = conversationRows[0]
 
-      // Now get all requests for this conversation with optimized last_message
+      // Now get all requests for this conversation with optimized last_message and response_body
       const requestsQuery = `
         SELECT 
           request_id, domain, timestamp, model, 
@@ -583,6 +583,7 @@ export class StorageReader {
           error, request_type, tool_call_count, conversation_id,
           current_message_hash, parent_message_hash, branch_id, message_count,
           parent_task_request_id, is_subtask, task_tool_invocation,
+          response_body,
           CASE 
             WHEN body -> 'messages' IS NOT NULL AND jsonb_array_length(body -> 'messages') > 0 THEN
               body -> 'messages' -> -1
