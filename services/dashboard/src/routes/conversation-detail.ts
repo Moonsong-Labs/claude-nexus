@@ -25,9 +25,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
   const storageService = container.getStorageService()
 
   try {
-    // Get all conversations to find the one we want
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    // Use the optimized method to get a single conversation
+    const conversation = await storageService.getConversationById(conversationId)
 
     if (!conversation) {
       return c.html(html`
@@ -35,47 +34,58 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       `)
     }
 
-    // Fetch sub-tasks for requests that have task invocations
-    const subtasksMap = new Map<string, any[]>()
+    // Collect all request IDs that have task invocations
+    const requestIdsWithTasks: string[] = []
     for (const req of conversation.requests) {
       if (
         req.task_tool_invocation &&
         Array.isArray(req.task_tool_invocation) &&
         req.task_tool_invocation.length > 0
       ) {
-        const subtasks = await storageService.getSubtasksForRequest(req.request_id)
-        if (subtasks.length > 0) {
-          // Group sub-tasks by their conversation ID
-          const subtasksByConversation = subtasks.reduce(
-            (acc, subtask) => {
-              const convId = subtask.conversation_id || 'unknown'
-              if (!acc[convId]) {
-                acc[convId] = []
-              }
-              acc[convId].push(subtask)
-              return acc
-            },
-            {} as Record<string, any[]>
-          )
+        requestIdsWithTasks.push(req.request_id)
+      }
+    }
 
-          // Link sub-task conversations to task invocations
-          const enrichedInvocations = req.task_tool_invocation.map((invocation: any) => {
-            // Find matching sub-task conversation by checking first message content
-            for (const [convId, convSubtasks] of Object.entries(subtasksByConversation)) {
-              // Check if any subtask in this conversation matches the invocation prompt
-              const matches = convSubtasks.some(st => {
-                // This is a simplified check - you might need more sophisticated matching
-                return st.is_subtask && st.parent_task_request_id === req.request_id
-              })
-              if (matches) {
-                return { ...invocation, linked_conversation_id: convId }
-              }
+    // Batch fetch all sub-tasks in a single query
+    const subtasksByParent = await storageService.getSubtasksForRequests(requestIdsWithTasks)
+    
+    // Transform to the expected format
+    const subtasksMap = new Map<string, any[]>()
+    for (const [parentId, subtasks] of subtasksByParent) {
+      if (subtasks.length > 0) {
+        const req = conversation.requests.find(r => r.request_id === parentId)
+        if (!req || !req.task_tool_invocation) continue
+
+        // Group sub-tasks by their conversation ID
+        const subtasksByConversation = subtasks.reduce(
+          (acc, subtask) => {
+            const convId = subtask.conversation_id || 'unknown'
+            if (!acc[convId]) {
+              acc[convId] = []
             }
-            return invocation
-          })
+            acc[convId].push(subtask)
+            return acc
+          },
+          {} as Record<string, any[]>
+        )
 
-          subtasksMap.set(req.request_id, enrichedInvocations)
-        }
+        // Link sub-task conversations to task invocations
+        const enrichedInvocations = req.task_tool_invocation.map((invocation: any) => {
+          // Find matching sub-task conversation by checking first message content
+          for (const [convId, convSubtasks] of Object.entries(subtasksByConversation)) {
+            // Check if any subtask in this conversation matches the invocation prompt
+            const matches = convSubtasks.some(st => {
+              // This is a simplified check - you might need more sophisticated matching
+              return st.is_subtask && st.parent_task_request_id === req.request_id
+            })
+            if (matches) {
+              return { ...invocation, linked_conversation_id: convId }
+            }
+          }
+          return invocation
+        })
+
+        subtasksMap.set(req.request_id, enrichedInvocations)
       }
     }
 
@@ -199,7 +209,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
         // If we still don't have a linked conversation, try to find it from sub-tasks
         if (!linkedConversationId) {
-          const subtasks = await storageService.getSubtasksForRequest(req.request_id)
+          const subtasks = subtasksByParent.get(req.request_id) || []
           if (subtasks.length > 0 && subtasks[0].conversation_id) {
             linkedConversationId = subtasks[0].conversation_id
           }
@@ -371,8 +381,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // First, get the actual count of sub-task requests linked to this conversation
     let totalSubtasksSpawned = 0
 
-    // Get request IDs that have task invocations
-    const requestIdsWithTasks = conversation.requests
+    // Get request IDs that have task invocations (for counting)
+    const requestIdsForCounting = conversation.requests
       .filter(
         req =>
           req.task_tool_invocation &&
@@ -381,9 +391,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       )
       .map(req => req.request_id)
 
-    if (requestIdsWithTasks.length > 0) {
+    if (requestIdsForCounting.length > 0) {
       // Count actual sub-tasks linked to these requests
-      totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsWithTasks)
+      totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsForCounting)
     }
 
     // Calculate stats for selected branch or total
@@ -566,8 +576,7 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
   const storageService = container.getStorageService()
 
   try {
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    const conversation = await storageService.getConversationById(conversationId)
 
     if (!conversation) {
       return c.html(html`<div class="error-banner">Conversation not found</div>`)

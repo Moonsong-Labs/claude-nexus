@@ -818,6 +818,188 @@ export class StorageReader {
   }
 
   /**
+   * Get a single conversation by ID with all its requests
+   * Optimized version that fetches only what's needed
+   */
+  async getConversationById(conversationId: string): Promise<{
+    conversation_id: string
+    message_count: number
+    first_message: Date
+    last_message: Date
+    total_tokens: number
+    branches: string[]
+    requests: ApiRequest[]
+  } | null> {
+    const cacheKey = `conversation:${conversationId}`
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+
+    // Only use cache if TTL > 0
+    if (cacheTTL > 0) {
+      const cached = this.cache.get<any>(cacheKey)
+      if (cached) {
+        return cached
+      }
+    }
+
+    try {
+      // First get conversation metadata
+      const conversationQuery = `
+        SELECT 
+          conversation_id,
+          MAX(message_count) as message_count,
+          MIN(timestamp) as first_message,
+          MAX(timestamp) as last_message,
+          SUM(total_tokens) as total_tokens,
+          array_agg(DISTINCT branch_id) FILTER (WHERE branch_id IS NOT NULL) as branches
+        FROM api_requests
+        WHERE conversation_id = $1
+        GROUP BY conversation_id
+      `
+      
+      const conversationRows = await this.executeQuery<any>(
+        conversationQuery,
+        [conversationId],
+        'getConversationById-metadata'
+      )
+
+      if (conversationRows.length === 0) {
+        return null
+      }
+
+      const conversationData = conversationRows[0]
+
+      // Now get all requests for this conversation
+      const requestsQuery = `
+        SELECT 
+          request_id, domain, timestamp, model, 
+          input_tokens, output_tokens, total_tokens, duration_ms,
+          error, request_type, tool_call_count, conversation_id,
+          current_message_hash, parent_message_hash, branch_id, message_count,
+          parent_task_request_id, is_subtask, task_tool_invocation, body
+        FROM api_requests 
+        WHERE conversation_id = $1
+        ORDER BY timestamp ASC
+      `
+
+      const requestsRows = await this.executeQuery<any>(
+        requestsQuery,
+        [conversationId],
+        'getConversationById-requests'
+      )
+
+      const requests: ApiRequest[] = requestsRows.map(row => ({
+        request_id: row.request_id,
+        domain: row.domain,
+        timestamp: row.timestamp,
+        model: row.model,
+        input_tokens: row.input_tokens || 0,
+        output_tokens: row.output_tokens || 0,
+        total_tokens: row.total_tokens || 0,
+        duration_ms: row.duration_ms || 0,
+        error: row.error,
+        request_type: row.request_type,
+        tool_call_count: row.tool_call_count || 0,
+        conversation_id: row.conversation_id,
+        current_message_hash: row.current_message_hash,
+        parent_message_hash: row.parent_message_hash,
+        branch_id: row.branch_id,
+        message_count: row.message_count || 0,
+        parent_task_request_id: row.parent_task_request_id,
+        is_subtask: row.is_subtask,
+        task_tool_invocation: row.task_tool_invocation,
+        body: row.body,
+      }))
+
+      const conversation = {
+        conversation_id: conversationData.conversation_id,
+        message_count: parseInt(conversationData.message_count),
+        first_message: new Date(conversationData.first_message),
+        last_message: new Date(conversationData.last_message),
+        total_tokens: parseInt(conversationData.total_tokens),
+        branches: conversationData.branches || [],
+        requests: requests,
+      }
+
+      // Only cache if TTL > 0
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, conversation)
+      }
+
+      return conversation
+    } catch (error) {
+      logger.error('Failed to get conversation by ID', {
+        metadata: {
+          conversationId,
+          error: getErrorMessage(error),
+        }
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Get sub-tasks for multiple requests in a single query
+   * Batched version to avoid N+1 queries
+   */
+  async getSubtasksForRequests(requestIds: string[]): Promise<Map<string, ApiRequest[]>> {
+    if (requestIds.length === 0) {
+      return new Map()
+    }
+
+    try {
+      const query = `
+        SELECT * FROM api_requests 
+        WHERE parent_task_request_id = ANY($1::uuid[])
+        ORDER BY parent_task_request_id, timestamp ASC
+      `
+
+      const rows = await this.executeQuery<any>(query, [requestIds], 'getSubtasksForRequests-batch')
+
+      // Group by parent request ID
+      const subtasksByParent = new Map<string, ApiRequest[]>()
+      
+      rows.forEach(row => {
+        const parentId = row.parent_task_request_id
+        if (!subtasksByParent.has(parentId)) {
+          subtasksByParent.set(parentId, [])
+        }
+        
+        subtasksByParent.get(parentId)!.push({
+          request_id: row.request_id,
+          domain: row.domain,
+          timestamp: row.timestamp,
+          model: row.model,
+          input_tokens: row.input_tokens || 0,
+          output_tokens: row.output_tokens || 0,
+          total_tokens: row.total_tokens || 0,
+          duration_ms: row.duration_ms || 0,
+          error: row.error,
+          request_type: row.request_type,
+          tool_call_count: row.tool_call_count || 0,
+          conversation_id: row.conversation_id,
+          current_message_hash: row.current_message_hash,
+          parent_message_hash: row.parent_message_hash,
+          branch_id: row.branch_id,
+          message_count: row.message_count,
+          parent_task_request_id: row.parent_task_request_id,
+          is_subtask: row.is_subtask,
+          task_tool_invocation: row.task_tool_invocation,
+        })
+      })
+
+      return subtasksByParent
+    } catch (error) {
+      logger.error('Failed to get sub-tasks for requests', {
+        metadata: {
+          requestCount: requestIds.length,
+          error: getErrorMessage(error),
+        },
+      })
+      return new Map()
+    }
+  }
+
+  /**
    * Clear cache
    */
   clearCache(): void {

@@ -13,7 +13,9 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "composite": true
+    "composite": true,
+    "emitDeclarationOnly": false,
+    "noEmit": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
