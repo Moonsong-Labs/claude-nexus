@@ -130,6 +130,8 @@ We will implement **TypeScript Project References** to properly handle the monor
 
 This change maintains compatibility with Bun's runtime while leveraging TypeScript's built-in features for better monorepo support. The solution was recommended through a consensus workflow with multiple AI models, all of which strongly endorsed this approach over alternatives like removing type checking entirely.
 
+**Initial Setup Note**: After pulling this change, developers need to run `bun run build:shared` or `npx tsc --build` once to generate the initial declaration files. This is only required for the first build after switching to project references.
+
 ---
 
 Date: 2025-06-26
