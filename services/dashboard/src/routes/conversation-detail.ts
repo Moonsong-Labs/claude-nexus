@@ -442,34 +442,38 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       <!-- Stats Grid -->
       <div class="conversation-stats-grid">
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Messages</div>
-          <div class="conversation-stat-value">${displayStats.messageCount}</div>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch' : 'Total'} Messages:</span
+          >
+          <span class="conversation-stat-value">${displayStats.messageCount}</span>
         </div>
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">
-            ${selectedBranch ? 'Branch' : 'Total'} Sub-tasks
-          </div>
-          <div class="conversation-stat-value">${displayStats.totalSubtasks}</div>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch' : 'Total'} Sub-tasks:</span
+          >
+          <span class="conversation-stat-value">${displayStats.totalSubtasks}</span>
         </div>
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Tokens</div>
-          <div class="conversation-stat-value">${displayStats.totalTokens.toLocaleString()}</div>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch' : 'Total'} Tokens:</span
+          >
+          <span class="conversation-stat-value">${displayStats.totalTokens.toLocaleString()}</span>
         </div>
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">
-            ${selectedBranch ? 'Branch Requests' : 'Branches'}
-          </div>
-          <div class="conversation-stat-value">
-            ${selectedBranch ? displayStats.requestCount : displayStats.branchCount}
-          </div>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch Requests' : 'Branches'}:</span
+          >
+          <span class="conversation-stat-value"
+            >${selectedBranch ? displayStats.requestCount : displayStats.branchCount}</span
+          >
         </div>
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">Duration</div>
-          <div class="conversation-stat-value">${formatDuration(displayStats.duration)}</div>
+          <span class="conversation-stat-label">Duration:</span>
+          <span class="conversation-stat-value">${formatDuration(displayStats.duration)}</span>
         </div>
         <div class="conversation-stat-card">
-          <div class="conversation-stat-label">AI Inference Time</div>
-          <div class="conversation-stat-value">${formatDuration(displayStats.inferenceTime)}</div>
+          <span class="conversation-stat-label">AI Inference:</span>
+          <span class="conversation-stat-value">${formatDuration(displayStats.inferenceTime)}</span>
         </div>
       </div>
 

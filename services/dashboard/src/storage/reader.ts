@@ -642,8 +642,10 @@ export class StorageReader {
       return conversation
     } catch (error) {
       logger.error('Failed to get conversation by ID', {
-        conversationId,
-        error: getErrorMessage(error),
+        metadata: {
+          conversationId,
+          error: getErrorMessage(error),
+        },
       })
       throw error
     }
