@@ -25,14 +25,24 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
   const storageService = container.getStorageService()
 
   try {
-    // Get all conversations to find the one we want
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    // Use optimized query to get specific conversation
+    const requests = await storageService.getConversationById(conversationId)
 
-    if (!conversation) {
+    if (!requests || requests.length === 0) {
       return c.html(html`
         <div class="error-banner"><strong>Error:</strong> Conversation not found</div>
       `)
+    }
+
+    // Build conversation object from requests
+    const conversation = {
+      conversation_id: conversationId,
+      requests: requests,
+      first_message: requests[0].timestamp,
+      last_message: requests[requests.length - 1].timestamp,
+      message_count: Math.max(...requests.map(r => r.message_count || 0)),
+      total_tokens: requests.reduce((sum, r) => sum + r.total_tokens, 0),
+      branches: [...new Set(requests.map(r => r.branch_id || 'main'))],
     }
 
     // Fetch sub-tasks for requests that have task invocations
@@ -491,11 +501,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             .map(([branch, stats]) => {
               const color = getBranchColor(branch)
               const isActive = selectedBranch === branch
+              const branchStat = stats as { count: number; tokens: number; requests: number; firstMessage: number; lastMessage: number }
               return `
             <a href="/dashboard/conversation/${conversationId}?branch=${branch}"
                class="branch-chip ${isActive ? 'branch-chip-active' : ''}"
                style="${branch !== 'main' ? `background: ${color}20; color: ${color}; border-color: ${color};` : 'background: #f3f4f6; color: #4b5563; border-color: #e5e7eb;'}${isActive ? ' font-weight: 600;' : ''}">
-              ${branch} (${stats.count} messages, ${formatNumber(stats.tokens)} tokens)
+              ${branch} (${branchStat.count} messages, ${formatNumber(branchStat.tokens)} tokens)
             </a>
           `
             })
@@ -566,11 +577,16 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
   const storageService = container.getStorageService()
 
   try {
-    const conversations = await storageService.getConversations(undefined, 1000)
-    const conversation = conversations.find(conv => conv.conversation_id === conversationId)
+    const requests = await storageService.getConversationById(conversationId)
 
-    if (!conversation) {
+    if (!requests || requests.length === 0) {
       return c.html(html`<div class="error-banner">Conversation not found</div>`)
+    }
+
+    const conversation = {
+      conversation_id: conversationId,
+      requests: requests,
+      branches: [...new Set(requests.map(r => r.branch_id || 'main'))],
     }
 
     let filteredRequests = conversation.requests
@@ -722,7 +738,7 @@ function renderConversationMessages(
             <div class="section-content" style="padding: 0.75rem 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="text-sm text-gray-700" style="flex: 1; margin-right: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  ${escapeHtml(getLastMessageContent(req))}
+                  ${escapeHtml(req.last_message_preview || getLastMessageContent(req))}
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: center;">
                   ${

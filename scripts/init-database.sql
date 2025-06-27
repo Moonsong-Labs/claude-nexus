@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS api_requests (
     is_subtask BOOLEAN DEFAULT false,
     task_tool_invocation JSONB,
     account_id VARCHAR(255),
+    last_message_preview TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -90,3 +91,4 @@ COMMENT ON COLUMN api_requests.parent_task_request_id IS 'Links sub-task request
 COMMENT ON COLUMN api_requests.is_subtask IS 'Boolean flag indicating if a request is a sub-task';
 COMMENT ON COLUMN api_requests.task_tool_invocation IS 'JSONB array storing Task tool invocations';
 COMMENT ON COLUMN api_requests.account_id IS 'Account identifier from credential file for per-account tracking';
+COMMENT ON COLUMN api_requests.last_message_preview IS 'Preview of the last message in the request (first 100 characters)';

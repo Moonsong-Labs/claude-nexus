@@ -141,13 +141,16 @@ export class StorageWriter {
         }
       }
 
+      // Extract the last message preview
+      const lastMessagePreview = this.extractLastMessagePreview(request.body)
+
       const query = `
         INSERT INTO api_requests (
           request_id, domain, account_id, timestamp, method, path, headers, body, 
           api_key_hash, model, request_type, current_message_hash, 
           parent_message_hash, conversation_id, branch_id, message_count,
-          parent_task_request_id, is_subtask, task_tool_invocation
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          parent_task_request_id, is_subtask, task_tool_invocation, last_message_preview
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -171,6 +174,7 @@ export class StorageWriter {
         parentTaskRequestId || null,
         isSubtask,
         request.taskToolInvocation ? JSON.stringify(request.taskToolInvocation) : null,
+        lastMessagePreview,
       ]
 
       await this.pool.query(query, values)
@@ -569,6 +573,49 @@ export class StorageWriter {
     }
 
     return null
+  }
+
+  /**
+   * Extract preview text from the last message in the request
+   */
+  private extractLastMessagePreview(requestBody: any): string {
+    try {
+      if (!requestBody || !requestBody.messages || !Array.isArray(requestBody.messages) || requestBody.messages.length === 0) {
+        return ''
+      }
+
+      const lastMessage = requestBody.messages[requestBody.messages.length - 1]
+      if (!lastMessage) {
+        return ''
+      }
+
+      let content = ''
+      
+      // Handle string content
+      if (typeof lastMessage.content === 'string') {
+        content = lastMessage.content
+      }
+      // Handle array content
+      else if (Array.isArray(lastMessage.content)) {
+        // Look for the first text content
+        for (const item of lastMessage.content) {
+          if (item.type === 'text' && item.text) {
+            content = item.text
+            break
+          }
+        }
+      }
+
+      // Truncate to 100 characters
+      return content.substring(0, 100)
+    } catch (error) {
+      logger.error('Failed to extract last message preview', {
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return ''
+    }
   }
 
   /**

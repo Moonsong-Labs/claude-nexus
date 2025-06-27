@@ -785,6 +785,123 @@ export class StorageReader {
   }
 
   /**
+   * Get a single conversation by ID with optimized query
+   */
+  async getConversationById(conversationId: string): Promise<any[]> {
+    const cacheKey = `conversation:${conversationId}`
+    const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
+
+    if (cacheTTL > 0) {
+      const cached = this.cache.get<any[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
+    }
+
+    try {
+      // Optimized query that excludes heavy body and response_body fields
+      // and uses the new last_message_preview column
+      const query = `
+        SELECT 
+          request_id,
+          timestamp,
+          request_type,
+          domain,
+          model,
+          input_tokens,
+          output_tokens,
+          total_tokens,
+          conversation_id,
+          message_count,
+          parent_message_hash,
+          current_message_hash,
+          branch_id,
+          parent_task_request_id,
+          is_subtask,
+          task_tool_invocation,
+          account_id,
+          last_message_preview,
+          error,
+          duration_ms,
+          first_chunk_ms,
+          anthropic_request_id,
+          cache_creation_input_tokens,
+          cache_read_input_tokens
+        FROM api_requests
+        WHERE conversation_id = $1
+        ORDER BY timestamp ASC
+      `
+
+      const requests = await this.executeQuery<any>(
+        query,
+        [conversationId],
+        'getConversationById'
+      )
+
+      // For requests with task invocations, batch load sub-tasks
+      const parentRequestIds = requests
+        .filter(r => r.task_tool_invocation && r.task_tool_invocation.length > 0)
+        .map(r => r.request_id)
+
+      if (parentRequestIds.length > 0) {
+        const subTasksQuery = `
+          SELECT 
+            parent_task_request_id,
+            COUNT(*) as subtask_count,
+            array_agg(
+              jsonb_build_object(
+                'request_id', request_id,
+                'conversation_id', conversation_id,
+                'timestamp', timestamp,
+                'model', model,
+                'total_tokens', total_tokens
+              ) ORDER BY timestamp
+            ) as subtasks
+          FROM api_requests
+          WHERE parent_task_request_id = ANY($1::uuid[])
+          GROUP BY parent_task_request_id
+        `
+
+        const subTaskResults = await this.executeQuery<any>(
+          subTasksQuery,
+          [parentRequestIds],
+          'getSubTasksForConversation'
+        )
+
+        // Create a map for easy lookup
+        const subTaskMap = new Map(
+          subTaskResults.map(row => [row.parent_task_request_id, row])
+        )
+
+        // Attach sub-task info to parent requests
+        requests.forEach(request => {
+          if (request.task_tool_invocation && request.task_tool_invocation.length > 0) {
+            const subTaskInfo = subTaskMap.get(request.request_id)
+            if (subTaskInfo) {
+              request.subtask_count = subTaskInfo.subtask_count
+              request.subtasks = subTaskInfo.subtasks
+            }
+          }
+        })
+      }
+
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, requests, cacheTTL)
+      }
+
+      return requests
+    } catch (error) {
+      logger.error('Failed to get conversation by ID', {
+        metadata: {
+          conversationId,
+          error: getErrorMessage(error),
+        },
+      })
+      return []
+    }
+  }
+
+  /**
    * Count sub-tasks for given parent request IDs
    */
   async countSubtasksForRequests(parentRequestIds: string[]): Promise<number> {

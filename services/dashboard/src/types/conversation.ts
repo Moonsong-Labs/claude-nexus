@@ -23,6 +23,7 @@ export interface ConversationRequest {
   is_subtask?: boolean
   task_tool_invocation?: any
   body?: any
+  last_message_preview?: string
 }
 
 export interface ConversationSummary {
