@@ -14,6 +14,7 @@ export interface ConversationRequest {
   request_tokens?: number
   response_tokens?: number
   duration?: number
+  duration_ms?: number
   hasToolUse?: boolean
   hasToolResult?: boolean
   messageTypeSummary?: string[]

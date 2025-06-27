@@ -308,6 +308,13 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Calculate stats
     const totalDuration =
       new Date(conversation.last_message).getTime() - new Date(conversation.first_message).getTime()
+
+    // Calculate AI inference time (sum of all request durations)
+    const totalInferenceTime = conversation.requests.reduce(
+      (sum, req) => sum + (req.duration_ms || 0),
+      0
+    )
+
     const branchStats = conversation.branches.reduce(
       (acc, branch) => {
         const branchRequests = conversation.requests.filter(r => (r.branch_id || 'main') === branch)
@@ -387,6 +394,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const totalTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
       const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
       const duration = timestamps.length > 0 ? Math.max(...timestamps) - Math.min(...timestamps) : 0
+      const inferenceTime = filteredRequests.reduce((sum, req) => sum + (req.duration_ms || 0), 0)
 
       // Calculate sub-tasks for filtered branch
       let branchSubtasks = 0
@@ -408,6 +416,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         totalTokens: totalTokens,
         branchCount: 1,
         duration: duration,
+        inferenceTime: inferenceTime,
         requestCount: filteredRequests.length,
         totalSubtasks: branchSubtasks,
       }
@@ -418,6 +427,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         totalTokens: conversation.total_tokens,
         branchCount: Object.keys(branchStats).length,
         duration: totalDuration,
+        inferenceTime: totalInferenceTime,
         requestCount: conversation.requests.length,
         totalSubtasks: totalSubtasksSpawned,
       }
@@ -457,6 +467,10 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <div class="conversation-stat-card">
           <div class="conversation-stat-label">Duration</div>
           <div class="conversation-stat-value">${formatDuration(displayStats.duration)}</div>
+        </div>
+        <div class="conversation-stat-card">
+          <div class="conversation-stat-label">AI Inference Time</div>
+          <div class="conversation-stat-value">${formatDuration(displayStats.inferenceTime)}</div>
         </div>
       </div>
 
@@ -650,6 +664,7 @@ function renderConversationMessages(
               <div style="display: flex; gap: 0.75rem; align-items: center;">
                 <span class="text-sm text-gray-600">${req.message_count || 0} messages</span>
                 <span class="text-sm text-gray-600">${formatNumber(req.total_tokens)} tokens</span>
+                ${req.duration_ms ? `<span class="text-sm text-gray-600">${formatDuration(req.duration_ms)}</span>` : ''}
                 ${req.error ? '<span style="color: #ef4444; font-size: 0.875rem;">Error</span>' : ''}
               </div>
             </div>
