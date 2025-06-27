@@ -443,20 +443,30 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       <!-- Stats Grid -->
       <div class="conversation-stats-grid">
         <div class="conversation-stat-card">
-          <span class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Messages:</span>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch' : 'Total'} Messages:</span
+          >
           <span class="conversation-stat-value">${displayStats.messageCount}</span>
         </div>
         <div class="conversation-stat-card">
-          <span class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Sub-tasks:</span>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch' : 'Total'} Sub-tasks:</span
+          >
           <span class="conversation-stat-value">${displayStats.totalSubtasks}</span>
         </div>
         <div class="conversation-stat-card">
-          <span class="conversation-stat-label">${selectedBranch ? 'Branch' : 'Total'} Tokens:</span>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch' : 'Total'} Tokens:</span
+          >
           <span class="conversation-stat-value">${displayStats.totalTokens.toLocaleString()}</span>
         </div>
         <div class="conversation-stat-card">
-          <span class="conversation-stat-label">${selectedBranch ? 'Branch Requests' : 'Branches'}:</span>
-          <span class="conversation-stat-value">${selectedBranch ? displayStats.requestCount : displayStats.branchCount}</span>
+          <span class="conversation-stat-label"
+            >${selectedBranch ? 'Branch Requests' : 'Branches'}:</span
+          >
+          <span class="conversation-stat-value"
+            >${selectedBranch ? displayStats.requestCount : displayStats.branchCount}</span
+          >
         </div>
         <div class="conversation-stat-card">
           <span class="conversation-stat-label">Duration:</span>
