@@ -147,8 +147,39 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
       toolId = toolResultBlocks[0].tool_use_id || ''
     }
 
-    // Process each content block in order
-    msg.content.forEach((block: any) => {
+    // Filter out system-reminder content items and deduplicate tool_use/tool_result by ID
+    const seenToolUseIds = new Set<string>()
+    const seenToolResultIds = new Set<string>()
+    
+    const filteredContent = msg.content.filter((item: any) => {
+      // Skip text items that start with <system-reminder>
+      if (item.type === 'text' && typeof item.text === 'string') {
+        if (item.text.trim().startsWith('<system-reminder>')) {
+          return false
+        }
+      }
+      
+      // Deduplicate tool_use items by ID
+      if (item.type === 'tool_use' && item.id) {
+        if (seenToolUseIds.has(item.id)) {
+          return false // Skip duplicate
+        }
+        seenToolUseIds.add(item.id)
+      }
+      
+      // Deduplicate tool_result items by tool_use_id
+      if (item.type === 'tool_result' && item.tool_use_id) {
+        if (seenToolResultIds.has(item.tool_use_id)) {
+          return false // Skip duplicate
+        }
+        seenToolResultIds.add(item.tool_use_id)
+      }
+      
+      return true
+    })
+
+    // Process each filtered content block in order
+    filteredContent.forEach((block: any) => {
       switch (block.type) {
         case 'text':
           contentParts.push(block.text)

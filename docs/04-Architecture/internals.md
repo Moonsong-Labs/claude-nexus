@@ -602,10 +602,41 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
   // 2. Array content with multiple blocks (text, tool_use, tool_result)
 
   if (Array.isArray(msg.content)) {
-    // Process ALL content blocks in order
-    const contentParts: string[] = []
+    // Filter out system-reminder content items and deduplicate tool_use/tool_result by ID
+    const seenToolUseIds = new Set<string>()
+    const seenToolResultIds = new Set<string>()
+    
+    const filteredContent = msg.content.filter((item: any) => {
+      // Skip text items that start with <system-reminder>
+      if (item.type === 'text' && typeof item.text === 'string') {
+        if (item.text.trim().startsWith('<system-reminder>')) {
+          return false
+        }
+      }
+      
+      // Deduplicate tool_use items by ID
+      if (item.type === 'tool_use' && item.id) {
+        if (seenToolUseIds.has(item.id)) {
+          return false // Skip duplicate
+        }
+        seenToolUseIds.add(item.id)
+      }
+      
+      // Deduplicate tool_result items by tool_use_id
+      if (item.type === 'tool_result' && item.tool_use_id) {
+        if (seenToolResultIds.has(item.tool_use_id)) {
+          return false // Skip duplicate
+        }
+        seenToolResultIds.add(item.tool_use_id)
+      }
+      
+      return true
+    })
 
-    msg.content.forEach((block: any) => {
+    // Process each filtered content block in order
+    const contentParts: string[] = []
+    
+    filteredContent.forEach((block: any) => {
       switch (block.type) {
         case 'text':
           contentParts.push(block.text)
@@ -640,10 +671,12 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
 #### Key Features
 
 1. **Multiple Tool Display**: Messages containing multiple `tool_use` or `tool_result` blocks are fully rendered
-2. **Visual Separation**: Horizontal rules (`---`) separate different content blocks for readability
-3. **Order Preservation**: Content blocks are processed and displayed in their original order
-4. **Backward Compatibility**: Single tool messages continue to work without changes
-5. **Rich Formatting**: Tool inputs/outputs are displayed as formatted JSON code blocks
+2. **Duplicate Filtering**: Duplicate tool_use and tool_result blocks with the same ID are automatically filtered out
+3. **System Reminder Filtering**: Text blocks starting with `<system-reminder>` are hidden from display
+4. **Visual Separation**: Horizontal rules (`---`) separate different content blocks for readability
+5. **Order Preservation**: Content blocks are processed and displayed in their original order
+6. **Backward Compatibility**: Single tool messages continue to work without changes
+7. **Rich Formatting**: Tool inputs/outputs are displayed as formatted JSON code blocks
 
 #### Message Metadata
 
