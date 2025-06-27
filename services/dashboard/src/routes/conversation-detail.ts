@@ -54,7 +54,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     for (const [parentId, subtasks] of subtasksByParent) {
       if (subtasks.length > 0) {
         const req = conversation.requests.find(r => r.request_id === parentId)
-        if (!req || !req.task_tool_invocation) continue
+        if (!req || !req.task_tool_invocation) {
+          continue
+        }
 
         // Group sub-tasks by their conversation ID
         const subtasksByConversation = subtasks.reduce(
