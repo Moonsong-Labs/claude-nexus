@@ -654,7 +654,7 @@ function getLastMessageContent(req: ConversationRequest): string {
     }
 
     return 'Request ID: ' + req.request_id
-  } catch (error) {
+  } catch (_error) {
     return 'Request ID: ' + req.request_id
   }
 }
