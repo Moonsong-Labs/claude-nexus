@@ -48,7 +48,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
     // Batch fetch all sub-tasks in a single query
     const subtasksByParent = await storageService.getSubtasksForRequests(requestIdsWithTasks)
-    
+
     // Transform to the expected format
     const subtasksMap = new Map<string, any[]>()
     for (const [parentId, subtasks] of subtasksByParent) {

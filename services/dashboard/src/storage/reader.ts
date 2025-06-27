@@ -855,7 +855,7 @@ export class StorageReader {
         WHERE conversation_id = $1
         GROUP BY conversation_id
       `
-      
+
       const conversationRows = await this.executeQuery<any>(
         conversationQuery,
         [conversationId],
@@ -931,7 +931,7 @@ export class StorageReader {
         metadata: {
           conversationId,
           error: getErrorMessage(error),
-        }
+        },
       })
       throw error
     }
@@ -957,13 +957,13 @@ export class StorageReader {
 
       // Group by parent request ID
       const subtasksByParent = new Map<string, ApiRequest[]>()
-      
+
       rows.forEach(row => {
         const parentId = row.parent_task_request_id
         if (!subtasksByParent.has(parentId)) {
           subtasksByParent.set(parentId, [])
         }
-        
+
         subtasksByParent.get(parentId)!.push({
           request_id: row.request_id,
           domain: row.domain,
