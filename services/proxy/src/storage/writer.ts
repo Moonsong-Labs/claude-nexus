@@ -580,7 +580,12 @@ export class StorageWriter {
    */
   private extractLastMessagePreview(requestBody: any): string {
     try {
-      if (!requestBody || !requestBody.messages || !Array.isArray(requestBody.messages) || requestBody.messages.length === 0) {
+      if (
+        !requestBody ||
+        !requestBody.messages ||
+        !Array.isArray(requestBody.messages) ||
+        requestBody.messages.length === 0
+      ) {
         return ''
       }
 
@@ -590,7 +595,7 @@ export class StorageWriter {
       }
 
       let content = ''
-      
+
       // Handle string content
       if (typeof lastMessage.content === 'string') {
         content = lastMessage.content

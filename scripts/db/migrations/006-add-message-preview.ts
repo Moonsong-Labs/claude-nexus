@@ -2,50 +2,51 @@
 
 /**
  * Migration 006: Add last_message_preview column
- * 
+ *
  * Adds a last_message_preview column to api_requests table to optimize
  * conversation detail page performance by avoiding loading full message bodies.
  */
 
-import { Pool } from "pg";
+import { Pool } from 'pg'
 
 async function runMigration() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL
   if (!connectionString) {
-    throw new Error("DATABASE_URL environment variable is required");
+    throw new Error('DATABASE_URL environment variable is required')
   }
 
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({ connectionString })
 
   try {
-    console.log("Starting migration 006: Add last_message_preview column...");
+    console.log('Starting migration 006: Add last_message_preview column...')
 
     // Start transaction
-    await pool.query("BEGIN");
+    await pool.query('BEGIN')
 
     // Add the new column
-    console.log("Adding last_message_preview column...");
+    console.log('Adding last_message_preview column...')
     await pool.query(`
       ALTER TABLE api_requests
       ADD COLUMN IF NOT EXISTS last_message_preview TEXT
-    `);
+    `)
 
     // Add index for efficient queries on conversation_id with the new column
-    console.log("Adding index for conversation queries...");
+    console.log('Adding index for conversation queries...')
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_api_requests_conversation_preview
       ON api_requests(conversation_id, created_at DESC)
       WHERE conversation_id IS NOT NULL
-    `);
+    `)
 
     // Backfill existing data in batches
-    console.log("Backfilling existing data...");
-    const batchSize = 1000;
-    let offset = 0;
-    let processedCount = 0;
+    console.log('Backfilling existing data...')
+    const batchSize = 1000
+    let offset = 0
+    let processedCount = 0
 
     while (true) {
-      const result = await pool.query(`
+      const result = await pool.query(
+        `
         UPDATE api_requests
         SET last_message_preview = (
           CASE 
@@ -80,37 +81,38 @@ async function runMigration() {
           LIMIT $1
           OFFSET $2
         )
-      `, [batchSize, offset]);
+      `,
+        [batchSize, offset]
+      )
 
-      const updatedRows = result.rowCount || 0;
-      processedCount += updatedRows;
+      const updatedRows = result.rowCount || 0
+      processedCount += updatedRows
 
       if (updatedRows === 0) {
-        break;
+        break
       }
 
-      console.log(`Processed ${processedCount} records...`);
-      offset += batchSize;
+      console.log(`Processed ${processedCount} records...`)
+      offset += batchSize
 
       // Small delay to avoid overwhelming the database
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 100))
     }
 
-    console.log(`Backfill completed. Total records updated: ${processedCount}`);
+    console.log(`Backfill completed. Total records updated: ${processedCount}`)
 
     // Commit transaction
-    await pool.query("COMMIT");
-    console.log("Migration 006 completed successfully!");
-
+    await pool.query('COMMIT')
+    console.log('Migration 006 completed successfully!')
   } catch (error) {
     // Rollback on error
-    await pool.query("ROLLBACK");
-    console.error("Migration 006 failed:", error);
-    throw error;
+    await pool.query('ROLLBACK')
+    console.error('Migration 006 failed:', error)
+    throw error
   } finally {
-    await pool.end();
+    await pool.end()
   }
 }
 
 // Run the migration
-runMigration().catch(console.error);
+runMigration().catch(console.error)

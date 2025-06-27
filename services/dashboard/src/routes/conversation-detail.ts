@@ -501,7 +501,13 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             .map(([branch, stats]) => {
               const color = getBranchColor(branch)
               const isActive = selectedBranch === branch
-              const branchStat = stats as { count: number; tokens: number; requests: number; firstMessage: number; lastMessage: number }
+              const branchStat = stats as {
+                count: number
+                tokens: number
+                requests: number
+                firstMessage: number
+                lastMessage: number
+              }
               return `
             <a href="/dashboard/conversation/${conversationId}?branch=${branch}"
                class="branch-chip ${isActive ? 'branch-chip-active' : ''}"

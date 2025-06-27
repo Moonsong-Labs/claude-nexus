@@ -832,11 +832,7 @@ export class StorageReader {
         ORDER BY timestamp ASC
       `
 
-      const requests = await this.executeQuery<any>(
-        query,
-        [conversationId],
-        'getConversationById'
-      )
+      const requests = await this.executeQuery<any>(query, [conversationId], 'getConversationById')
 
       // For requests with task invocations, batch load sub-tasks
       const parentRequestIds = requests
@@ -869,9 +865,7 @@ export class StorageReader {
         )
 
         // Create a map for easy lookup
-        const subTaskMap = new Map(
-          subTaskResults.map(row => [row.parent_task_request_id, row])
-        )
+        const subTaskMap = new Map(subTaskResults.map(row => [row.parent_task_request_id, row]))
 
         // Attach sub-task info to parent requests
         requests.forEach(request => {
