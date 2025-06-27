@@ -703,6 +703,9 @@ function renderConversationMessages(
                 <span style="font-size: 0.875rem; color: #6b7280;">
                   ${new Date(req.timestamp).toLocaleString()}
                 </span>
+                <span style="font-size: 0.75rem; color: #9ca3af; margin-left: 0.5rem;">
+                  ${req.request_id}
+                </span>
                 ${
                   branch !== 'main'
                     ? `
