@@ -539,29 +539,57 @@ export const dashboardStyles = `
 
   /* Conversation detail styles */
   .conversation-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
   }
 
   .conversation-stat-card {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 0.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    flex: 1 1 auto;
+    min-width: 140px;
+    padding: 0.875rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .conversation-stat-card:last-child {
+    border-right: none;
   }
 
   .conversation-stat-label {
     font-size: 0.875rem;
     color: #6b7280;
-    margin-bottom: 0.5rem;
+    white-space: nowrap;
   }
 
   .conversation-stat-value {
-    font-size: 1.5rem;
+    font-size: 1.125rem;
     font-weight: 600;
     color: #111827;
+    margin-left: auto;
+  }
+
+  @media (max-width: 768px) {
+    .conversation-stats-grid {
+      flex-direction: column;
+    }
+    
+    .conversation-stat-card {
+      border-right: none;
+      border-bottom: 1px solid #e5e7eb;
+      min-width: 100%;
+    }
+    
+    .conversation-stat-card:last-child {
+      border-bottom: none;
+    }
   }
 
   /* Branch filter styles */
