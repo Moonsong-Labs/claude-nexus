@@ -160,6 +160,9 @@ The proxy automatically tracks conversations and detects branches using message 
 - **Branch Visualization** - Blue nodes indicate branch points
 - **Branch Labels** - Non-main branches are labeled with their branch ID
 - **Conversation Grouping** - All related requests grouped under one conversation
+- **Multiple Tool Display** - Messages with multiple tool_use or tool_result blocks are properly displayed with visual separation (horizontal rules between each tool invocation)
+- **Duplicate Filtering** - Duplicate tool_use and tool_result blocks (same ID) are automatically filtered out
+- **System Reminder Filtering** - System reminder text blocks are hidden from display
 
 ### Authentication Flow
 

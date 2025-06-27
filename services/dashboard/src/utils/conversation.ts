@@ -130,55 +130,112 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
   if (typeof msg.content === 'string') {
     content = msg.content
   } else if (Array.isArray(msg.content)) {
-    // Check for tool use in assistant messages
-    const toolUseBlock = msg.content.find((c: any) => c.type === 'tool_use')
-    const toolResultBlock = msg.content.find((c: any) => c.type === 'tool_result')
+    // Process all content blocks in order
+    const contentParts: string[] = []
+    const toolUseBlocks = msg.content.filter((c: any) => c.type === 'tool_use')
+    const toolResultBlocks = msg.content.filter((c: any) => c.type === 'tool_result')
 
-    if (toolUseBlock) {
-      isToolUse = true
-      toolName = toolUseBlock.name || 'Unknown Tool'
-      toolId = toolUseBlock.id || ''
-      content = `**Tool Use: ${toolName}**\n\n`
+    // Track if we have any tool blocks for metadata
+    isToolUse = toolUseBlocks.length > 0
+    isToolResult = toolResultBlocks.length > 0
 
-      // Add tool input if available
-      if (toolUseBlock.input) {
-        const jsonStr = JSON.stringify(toolUseBlock.input, null, 2)
-        content += '```json\n' + jsonStr + '\n```'
-      }
-    } else if (toolResultBlock) {
-      isToolResult = true
-      toolId = toolResultBlock.tool_use_id || ''
-      content = '**Tool Result**\n\n'
+    // If there are tool blocks, use the first one for metadata (backward compatibility)
+    if (toolUseBlocks.length > 0) {
+      toolName = toolUseBlocks[0].name || 'Unknown Tool'
+      toolId = toolUseBlocks[0].id || ''
+    } else if (toolResultBlocks.length > 0) {
+      toolId = toolResultBlocks[0].tool_use_id || ''
+    }
 
-      // Handle tool result content
-      if (typeof toolResultBlock.content === 'string') {
-        // Tool results might contain HTML/code, wrap in code block for safety
-        content += '```\n' + toolResultBlock.content + '\n```'
-      } else if (Array.isArray(toolResultBlock.content)) {
-        const resultText = toolResultBlock.content
-          .filter((c: any) => c.type === 'text')
-          .map((c: any) => c.text)
-          .join('\n\n')
-        // Wrap in code block if it looks like it might contain HTML or code
-        if (resultText.includes('<') || resultText.includes('>') || resultText.includes('```')) {
-          content += '```\n' + resultText + '\n```'
-        } else {
-          content += resultText
+    // Filter out system-reminder content items and deduplicate tool_use/tool_result by ID
+    const seenToolUseIds = new Set<string>()
+    const seenToolResultIds = new Set<string>()
+
+    const filteredContent = msg.content.filter((item: any) => {
+      // Skip text items that start with <system-reminder>
+      if (item.type === 'text' && typeof item.text === 'string') {
+        if (item.text.trim().startsWith('<system-reminder>')) {
+          return false
         }
       }
-    }
 
-    // Add text content
-    const textContent = msg.content
-      .filter((c: any) => c.type === 'text')
-      .map((c: any) => c.text)
-      .join('\n\n')
+      // Deduplicate tool_use items by ID
+      if (item.type === 'tool_use' && item.id) {
+        if (seenToolUseIds.has(item.id)) {
+          return false // Skip duplicate
+        }
+        seenToolUseIds.add(item.id)
+      }
 
-    if (textContent && !isToolUse && !isToolResult) {
-      content = textContent
-    } else if (textContent && (isToolUse || isToolResult)) {
-      content = textContent + '\n\n' + content
-    }
+      // Deduplicate tool_result items by tool_use_id
+      if (item.type === 'tool_result' && item.tool_use_id) {
+        if (seenToolResultIds.has(item.tool_use_id)) {
+          return false // Skip duplicate
+        }
+        seenToolResultIds.add(item.tool_use_id)
+      }
+
+      return true
+    })
+
+    // Process each filtered content block in order
+    filteredContent.forEach((block: any) => {
+      switch (block.type) {
+        case 'text':
+          contentParts.push(block.text)
+          break
+
+        case 'tool_use': {
+          let toolContent = `**Tool Use: ${block.name || 'Unknown Tool'}**`
+          if (block.id) {
+            toolContent += ` (ID: ${block.id})`
+          }
+          toolContent += '\n\n'
+
+          // Add tool input if available
+          if (block.input) {
+            const jsonStr = JSON.stringify(block.input, null, 2)
+            toolContent += '```json\n' + jsonStr + '\n```'
+          }
+          contentParts.push(toolContent)
+          break
+        }
+
+        case 'tool_result': {
+          let resultContent = '**Tool Result**'
+          if (block.tool_use_id) {
+            resultContent += ` (ID: ${block.tool_use_id})`
+          }
+          resultContent += '\n\n'
+
+          // Handle tool result content
+          if (typeof block.content === 'string') {
+            // Tool results might contain HTML/code, wrap in code block for safety
+            resultContent += '```\n' + block.content + '\n```'
+          } else if (Array.isArray(block.content)) {
+            const resultText = block.content
+              .filter((c: any) => c.type === 'text')
+              .map((c: any) => c.text)
+              .join('\n\n')
+            // Wrap in code block if it looks like it might contain HTML or code
+            if (
+              resultText.includes('<') ||
+              resultText.includes('>') ||
+              resultText.includes('```')
+            ) {
+              resultContent += '```\n' + resultText + '\n```'
+            } else {
+              resultContent += resultText
+            }
+          }
+          contentParts.push(resultContent)
+          break
+        }
+      }
+    })
+
+    // Join all parts with proper separation
+    content = contentParts.join('\n\n---\n\n').trim()
   }
 
   // Render markdown to HTML

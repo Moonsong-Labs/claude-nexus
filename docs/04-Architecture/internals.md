@@ -586,6 +586,109 @@ spec:
                   key: url
 ```
 
+## Dashboard Service
+
+### Message Parsing and Display
+
+The dashboard service includes sophisticated message parsing to handle complex Claude API responses, particularly those with multiple tool invocations.
+
+#### Conversation Message Parser
+
+````typescript
+// services/dashboard/src/utils/conversation.ts
+async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> {
+  // Handles multiple content formats:
+  // 1. Simple string content
+  // 2. Array content with multiple blocks (text, tool_use, tool_result)
+
+  if (Array.isArray(msg.content)) {
+    // Filter out system-reminder content items and deduplicate tool_use/tool_result by ID
+    const seenToolUseIds = new Set<string>()
+    const seenToolResultIds = new Set<string>()
+
+    const filteredContent = msg.content.filter((item: any) => {
+      // Skip text items that start with <system-reminder>
+      if (item.type === 'text' && typeof item.text === 'string') {
+        if (item.text.trim().startsWith('<system-reminder>')) {
+          return false
+        }
+      }
+
+      // Deduplicate tool_use items by ID
+      if (item.type === 'tool_use' && item.id) {
+        if (seenToolUseIds.has(item.id)) {
+          return false // Skip duplicate
+        }
+        seenToolUseIds.add(item.id)
+      }
+
+      // Deduplicate tool_result items by tool_use_id
+      if (item.type === 'tool_result' && item.tool_use_id) {
+        if (seenToolResultIds.has(item.tool_use_id)) {
+          return false // Skip duplicate
+        }
+        seenToolResultIds.add(item.tool_use_id)
+      }
+
+      return true
+    })
+
+    // Process each filtered content block in order
+    const contentParts: string[] = []
+
+    filteredContent.forEach((block: any) => {
+      switch (block.type) {
+        case 'text':
+          contentParts.push(block.text)
+          break
+
+        case 'tool_use': {
+          // Format each tool invocation with name and ID
+          let toolContent = `**Tool Use: ${block.name}** (ID: ${block.id})`
+          if (block.input) {
+            toolContent += '\n\n```json\n' + JSON.stringify(block.input, null, 2) + '\n```'
+          }
+          contentParts.push(toolContent)
+          break
+        }
+
+        case 'tool_result': {
+          // Format tool results with proper code blocks
+          let resultContent = `**Tool Result** (ID: ${block.tool_use_id})`
+          // Handle both string and array content formats
+          contentParts.push(resultContent)
+          break
+        }
+      }
+    })
+
+    // Join with visual separators for clarity
+    content = contentParts.join('\n\n---\n\n')
+  }
+}
+````
+
+#### Key Features
+
+1. **Multiple Tool Display**: Messages containing multiple `tool_use` or `tool_result` blocks are fully rendered
+2. **Duplicate Filtering**: Duplicate tool_use and tool_result blocks with the same ID are automatically filtered out
+3. **System Reminder Filtering**: Text blocks starting with `<system-reminder>` are hidden from display
+4. **Visual Separation**: Horizontal rules (`---`) separate different content blocks for readability
+5. **Order Preservation**: Content blocks are processed and displayed in their original order
+6. **Backward Compatibility**: Single tool messages continue to work without changes
+7. **Rich Formatting**: Tool inputs/outputs are displayed as formatted JSON code blocks
+
+#### Message Metadata
+
+The parser maintains metadata for backward compatibility:
+
+- `isToolUse`: True if message contains any tool_use blocks
+- `isToolResult`: True if message contains any tool_result blocks
+- `toolName`: Name of the first tool (for compatibility)
+- `toolId`: ID of the first tool or result
+
+This ensures existing UI components that expect single tool metadata continue to function while the full content is properly displayed.
+
 ## References
 
 - [Architecture Decision Records](./ADRs/)
