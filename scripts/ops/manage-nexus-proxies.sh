@@ -7,11 +7,13 @@
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 {up|down|status} [server-name]"
+    echo "Usage: $0 [--env {prod|staging}] {up|down|status} [server-name]"
     echo ""
     echo "Commands:"
     echo "  up      - Enable/start the claude-nexus-proxy container"
@@ -19,19 +21,66 @@ usage() {
     echo "  status  - Check the status of the claude-nexus-proxy container"
     echo ""
     echo "Options:"
-    echo "  server-name - Optional. If not provided, the command will run on all servers"
+    echo "  --env {prod|staging} - Filter servers by environment tag (optional)"
+    echo "  server-name          - Optional. If not provided, the command will run on all servers"
     echo ""
-    echo "The script will dynamically fetch all EC2 instances with 'Nexus Proxy' in their name."
+    echo "Examples:"
+    echo "  $0 status                       # Check status on all servers"
+    echo "  $0 --env prod up               # Start proxy on all production servers"
+    echo "  $0 --env staging status server1 # Check status on specific staging server"
+    echo ""
+    echo "The script will dynamically fetch EC2 instances with 'Nexus Proxy' in their name,"
+    echo "filtered by environment tag if specified."
     exit 1
 }
 
-# Check if at least one argument is provided
-if [ $# -eq 0 ]; then
+# Parse command line arguments
+ENV_FILTER=""
+COMMAND=""
+SERVER_NAME=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env)
+            if [[ -z "$2" ]] || [[ "$2" == --* ]]; then
+                echo -e "${RED}Error: --env requires a value (prod or staging)${NC}"
+                usage
+            fi
+            ENV_FILTER="$2"
+            if [[ ! "$ENV_FILTER" =~ ^(prod|staging)$ ]]; then
+                echo -e "${RED}Error: Invalid environment '$ENV_FILTER'. Must be 'prod' or 'staging'${NC}"
+                usage
+            fi
+            shift 2
+            ;;
+        up|down|status)
+            if [[ -n "$COMMAND" ]]; then
+                echo -e "${RED}Error: Command already specified as '$COMMAND'${NC}"
+                usage
+            fi
+            COMMAND="$1"
+            shift
+            ;;
+        *)
+            if [[ -z "$COMMAND" ]]; then
+                echo -e "${RED}Error: Unknown option or command '$1'${NC}"
+                usage
+            elif [[ -z "$SERVER_NAME" ]]; then
+                SERVER_NAME="$1"
+                shift
+            else
+                echo -e "${RED}Error: Too many arguments${NC}"
+                usage
+            fi
+            ;;
+    esac
+done
+
+# Check if command is provided
+if [[ -z "$COMMAND" ]]; then
+    echo -e "${RED}Error: No command specified${NC}"
     usage
 fi
-
-COMMAND=$1
-SERVER_NAME=$2
 
 # Validate command
 if [[ ! "$COMMAND" =~ ^(up|down|status)$ ]]; then
@@ -51,23 +100,46 @@ declare -g INSTANCES=""
 
 # Function to fetch EC2 instances
 fetch_ec2_instances() {
-    echo -e "${YELLOW}Fetching EC2 instances from AWS...${NC}"
+    local env_display=""
+    if [[ -n "$ENV_FILTER" ]]; then
+        if [[ "$ENV_FILTER" == "prod" ]]; then
+            env_display="${RED}PRODUCTION${NC}"
+        else
+            env_display="${YELLOW}STAGING${NC}"
+        fi
+        echo -e "${YELLOW}Fetching ${env_display} EC2 instances from AWS...${NC}"
+    else
+        echo -e "${YELLOW}Fetching EC2 instances from AWS (all environments)...${NC}"
+    fi
     
-    # Get instances with Nexus Proxy in their name - store as JSON array
-    local raw_instances=$(aws ec2 describe-instances --output json | jq -c '
+    # Build jq filter based on whether env filter is specified
+    local jq_filter='
         [.Reservations[].Instances[] | 
         select(.Tags[]?.Value | ascii_downcase | contains("nexus") and contains("proxy")) | 
         select(.State.Name == "running") |
         {
             Name: (.Tags[] | select(.Key=="Name").Value),
             PublicIP: .PublicIpAddress,
-            InstanceId: .InstanceId
-        } | 
-        select(.PublicIP != null)]
-    ')
+            InstanceId: .InstanceId,
+            Environment: ((.Tags[] | select(.Key=="env").Value) // "unknown")
+        }'
+    
+    # Add environment filter if specified
+    if [[ -n "$ENV_FILTER" ]]; then
+        jq_filter+=' | select(.Environment == "'$ENV_FILTER'")'
+    fi
+    
+    jq_filter+=' | select(.PublicIP != null)]'
+    
+    # Get instances with Nexus Proxy in their name - store as JSON array
+    local raw_instances=$(aws ec2 describe-instances --output json | jq -c "$jq_filter")
     
     if [ "$raw_instances" = "[]" ] || [ -z "$raw_instances" ]; then
-        echo -e "${RED}No running EC2 instances found with 'Nexus Proxy' in their name.${NC}"
+        if [[ -n "$ENV_FILTER" ]]; then
+            echo -e "${RED}No running EC2 instances found with 'Nexus Proxy' in their name and env='$ENV_FILTER'.${NC}"
+        else
+            echo -e "${RED}No running EC2 instances found with 'Nexus Proxy' in their name.${NC}"
+        fi
         exit 1
     fi
     
@@ -75,7 +147,14 @@ fetch_ec2_instances() {
     INSTANCES="$raw_instances"
     
     echo -e "${GREEN}Found EC2 instances:${NC}"
-    echo "$INSTANCES" | jq -r '.[] | "\(.Name) (\(.PublicIP))"'
+    echo "$INSTANCES" | jq -r '.[] | 
+        if .Environment == "prod" then
+            "\(.Name) (\(.PublicIP)) [\u001b[0;31mPROD\u001b[0m]"
+        elif .Environment == "staging" then
+            "\(.Name) (\(.PublicIP)) [\u001b[1;33mSTAGING\u001b[0m]"
+        else
+            "\(.Name) (\(.PublicIP)) [unknown]"
+        end'
     echo ""
 }
 
@@ -85,9 +164,19 @@ execute_on_server_async() {
     local ip=$2
     local cmd=$3
     local output_file=$4
+    local env=$5
     
     {
-        echo -e "${YELLOW}Connecting to $name ($ip)...${NC}"
+        local env_display=""
+        if [[ "$env" == "prod" ]]; then
+            env_display=" ${RED}[PROD]${NC}"
+        elif [[ "$env" == "staging" ]]; then
+            env_display=" ${YELLOW}[STAGING]${NC}"
+        elif [[ "$env" != "unknown" ]] && [[ -n "$env" ]]; then
+            env_display=" [$env]"
+        fi
+        
+        echo -e "${YELLOW}Connecting to $name ($ip)$env_display...${NC}"
         
         case $cmd in
             "up")
@@ -118,8 +207,18 @@ execute_on_server() {
     local name=$1
     local ip=$2
     local cmd=$3
+    local env=$4
     
-    echo -e "${YELLOW}Connecting to $name ($ip)...${NC}"
+    local env_display=""
+    if [[ "$env" == "prod" ]]; then
+        env_display=" ${RED}[PROD]${NC}"
+    elif [[ "$env" == "staging" ]]; then
+        env_display=" ${YELLOW}[STAGING]${NC}"
+    elif [[ "$env" != "unknown" ]] && [[ -n "$env" ]]; then
+        env_display=" [$env]"
+    fi
+    
+    echo -e "${YELLOW}Connecting to $name ($ip)$env_display...${NC}"
     
     case $cmd in
         "up")
@@ -146,6 +245,15 @@ execute_on_server() {
 
 # Main execution
 echo -e "${GREEN}=== Claude Nexus Proxy Manager ===${NC}"
+if [[ -n "$ENV_FILTER" ]]; then
+    if [[ "$ENV_FILTER" == "prod" ]]; then
+        echo -e "Environment: ${RED}PRODUCTION${NC}"
+    else
+        echo -e "Environment: ${YELLOW}STAGING${NC}"
+    fi
+else
+    echo -e "Environment: ${BLUE}ALL${NC}"
+fi
 echo ""
 
 # Fetch EC2 instances
@@ -160,12 +268,14 @@ if [ -n "$SERVER_NAME" ]; then
         echo -e "${RED}Error: Server '$SERVER_NAME' not found${NC}"
         echo ""
         echo "Available servers:"
-        echo "$INSTANCES" | jq -r '.[].Name'
+        echo "$INSTANCES" | jq -r '.[] | 
+            "\(.Name) [" + .Environment + "]"'
         exit 1
     fi
     
     IP=$(echo "$SERVER_INFO" | jq -r '.PublicIP')
-    execute_on_server "$SERVER_NAME" "$IP" "$COMMAND"
+    ENV=$(echo "$SERVER_INFO" | jq -r '.Environment')
+    execute_on_server "$SERVER_NAME" "$IP" "$COMMAND" "$ENV"
 else
     # Execute on all servers
     echo -e "${YELLOW}Executing '$COMMAND' on all servers concurrently...${NC}"
@@ -189,10 +299,11 @@ else
         INSTANCE=$(echo "$INSTANCES" | jq -c ".[$i]")
         NAME=$(echo "$INSTANCE" | jq -r '.Name')
         IP=$(echo "$INSTANCE" | jq -r '.PublicIP')
+        ENV=$(echo "$INSTANCE" | jq -r '.Environment')
         OUTPUT_FILE="$TEMP_DIR/output_$i.txt"
         
         # Execute in background
-        execute_on_server_async "$NAME" "$IP" "$COMMAND" "$OUTPUT_FILE" &
+        execute_on_server_async "$NAME" "$IP" "$COMMAND" "$OUTPUT_FILE" "$ENV" &
         PIDS+=($!)
         NAMES+=("$NAME")
         OUTPUT_FILES+=("$OUTPUT_FILE")
