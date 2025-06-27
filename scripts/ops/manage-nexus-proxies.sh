@@ -205,13 +205,15 @@ execute_on_server_async() {
                 
                 if [ $? -eq 0 ]; then
                     echo -e "${GREEN}✓ Code updated${NC}"
+                    
+                    # Now run the update script
+                    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
+                        "cd ~ && ./claude-nexus-proxy/scripts/ops/update-proxy.sh latest proxy" 2>&1
                 else
-                    echo -e "${YELLOW}⚠ Could not pull latest code (continuing)${NC}"
+                    echo -e "${RED}✗ Failed to pull latest code. Aborting update for $name.${NC}"
+                    echo -e "${RED}Please resolve git issues on the server before retrying.${NC}"
+                    exit 1
                 fi
-                
-                # Now run the update script
-                ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-                    "cd ~/claude-nexus-proxy && ./scripts/ops/update-proxy.sh latest proxy" 2>&1
                 ;;
             "down")
                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
@@ -258,13 +260,15 @@ execute_on_server() {
             
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}✓ Code updated${NC}"
+                
+                # Now run the update script
+                ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
+                    "cd ~ && ./claude-nexus-proxy/scripts/ops/update-proxy.sh latest proxy" 2>&1
             else
-                echo -e "${YELLOW}⚠ Could not pull latest code (continuing)${NC}"
+                echo -e "${RED}✗ Failed to pull latest code. Aborting update for $name.${NC}"
+                echo -e "${RED}Please resolve git issues on the server before retrying.${NC}"
+                return 1
             fi
-            
-            # Now run the update script
-            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-                "cd ~/claude-nexus-proxy && ./scripts/ops/update-proxy.sh latest proxy" 2>&1
             ;;
         "down")
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
