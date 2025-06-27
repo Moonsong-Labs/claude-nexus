@@ -14,6 +14,7 @@ export interface ConversationRequest {
   request_tokens?: number
   response_tokens?: number
   duration?: number
+  duration_ms?: number
   hasToolUse?: boolean
   hasToolResult?: boolean
   messageTypeSummary?: string[]
@@ -21,6 +22,7 @@ export interface ConversationRequest {
   parent_task_request_id?: string
   is_subtask?: boolean
   task_tool_invocation?: any
+  body?: any
 }
 
 export interface ConversationSummary {

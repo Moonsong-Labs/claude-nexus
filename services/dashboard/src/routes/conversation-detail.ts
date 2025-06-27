@@ -308,6 +308,13 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Calculate stats
     const totalDuration =
       new Date(conversation.last_message).getTime() - new Date(conversation.first_message).getTime()
+
+    // Calculate AI inference time (sum of all request durations)
+    const totalInferenceTime = conversation.requests.reduce(
+      (sum, req) => sum + (req.duration_ms || 0),
+      0
+    )
+
     const branchStats = conversation.branches.reduce(
       (acc, branch) => {
         const branchRequests = conversation.requests.filter(r => (r.branch_id || 'main') === branch)
@@ -387,6 +394,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const totalTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
       const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
       const duration = timestamps.length > 0 ? Math.max(...timestamps) - Math.min(...timestamps) : 0
+      const inferenceTime = filteredRequests.reduce((sum, req) => sum + (req.duration_ms || 0), 0)
 
       // Calculate sub-tasks for filtered branch
       let branchSubtasks = 0
@@ -408,6 +416,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         totalTokens: totalTokens,
         branchCount: 1,
         duration: duration,
+        inferenceTime: inferenceTime,
         requestCount: filteredRequests.length,
         totalSubtasks: branchSubtasks,
       }
@@ -418,6 +427,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         totalTokens: conversation.total_tokens,
         branchCount: Object.keys(branchStats).length,
         duration: totalDuration,
+        inferenceTime: totalInferenceTime,
         requestCount: conversation.requests.length,
         totalSubtasks: totalSubtasksSpawned,
       }
@@ -457,6 +467,10 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <div class="conversation-stat-card">
           <div class="conversation-stat-label">Duration</div>
           <div class="conversation-stat-value">${formatDuration(displayStats.duration)}</div>
+        </div>
+        <div class="conversation-stat-card">
+          <div class="conversation-stat-label">AI Inference Time</div>
+          <div class="conversation-stat-value">${formatDuration(displayStats.inferenceTime)}</div>
         </div>
       </div>
 
@@ -595,6 +609,57 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 })
 
 /**
+ * Helper to extract the last message content from a request
+ */
+function getLastMessageContent(req: ConversationRequest): string {
+  try {
+    if (!req.body || !req.body.messages || !Array.isArray(req.body.messages)) {
+      return 'Request ID: ' + req.request_id
+    }
+
+    const messages = req.body.messages
+    if (messages.length === 0) {
+      return 'Request ID: ' + req.request_id
+    }
+
+    // Get the last message
+    const lastMessage = messages[messages.length - 1]
+
+    // Handle different message formats
+    if (typeof lastMessage.content === 'string') {
+      // Simple string content
+      const content = lastMessage.content.trim()
+      return content.length > 80 ? content.substring(0, 77) + '...' : content
+    } else if (Array.isArray(lastMessage.content)) {
+      // Array of content blocks
+      for (const block of lastMessage.content) {
+        if (block.type === 'text' && block.text) {
+          const content = block.text.trim()
+          return content.length > 80 ? content.substring(0, 77) + '...' : content
+        } else if (block.type === 'tool_use' && block.name) {
+          return `🔧 Tool: ${block.name}${block.input?.prompt ? ' - ' + block.input.prompt.substring(0, 50) + '...' : ''}`
+        } else if (block.type === 'tool_result' && block.tool_use_id) {
+          return `✅ Tool Result${block.content ? ': ' + (typeof block.content === 'string' ? block.content : JSON.stringify(block.content)).substring(0, 50) + '...' : ''}`
+        }
+      }
+    }
+
+    // Fallback to role-based description
+    if (lastMessage.role === 'assistant') {
+      return '🤖 Assistant response'
+    } else if (lastMessage.role === 'user') {
+      return '👤 User message'
+    } else if (lastMessage.role === 'system') {
+      return '⚙️ System message'
+    }
+
+    return 'Request ID: ' + req.request_id
+  } catch (_error) {
+    return 'Request ID: ' + req.request_id
+  }
+}
+
+/**
  * Helper to render conversation messages
  */
 function renderConversationMessages(
@@ -650,13 +715,14 @@ function renderConversationMessages(
               <div style="display: flex; gap: 0.75rem; align-items: center;">
                 <span class="text-sm text-gray-600">${req.message_count || 0} messages</span>
                 <span class="text-sm text-gray-600">${formatNumber(req.total_tokens)} tokens</span>
+                ${req.duration_ms ? `<span class="text-sm text-gray-600">${formatDuration(req.duration_ms)}</span>` : ''}
                 ${req.error ? '<span style="color: #ef4444; font-size: 0.875rem;">Error</span>' : ''}
               </div>
             </div>
             <div class="section-content" style="padding: 0.75rem 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="text-sm text-gray-500">
-                  Request ID: ${req.request_id}
+                <div class="text-sm text-gray-700" style="flex: 1; margin-right: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${escapeHtml(getLastMessageContent(req))}
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: center;">
                   ${
