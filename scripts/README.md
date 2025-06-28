@@ -34,7 +34,31 @@ Retroactively computes conversation IDs and branches from existing requests.
 ```bash
 # IMPORTANT: Backup first!
 bun run scripts/db/backup-database.ts
+
+# Standard version (loads all data into memory)
 bun run scripts/db/rebuild-conversations.ts
+
+# Options:
+#   --dry-run                    Run without making changes
+#   --domain <domain>            Filter by specific domain
+#   --limit <number>             Limit number of requests
+#   --debug-conversation-changes Debug log conversation ID changes
+#   --only-orphan-conversations  Process only orphan conversations
+```
+
+### rebuild-conversations-batched.ts
+
+Memory-efficient version that processes requests in batches. Recommended for large databases.
+
+```bash
+# Process in batches (default: 10,000 per batch)
+bun run scripts/db/rebuild-conversations-batched.ts
+
+# With custom batch size
+bun run scripts/db/rebuild-conversations-batched.ts --batch-size 5000
+
+# All options from standard version plus:
+#   --batch-size <number>  Number of requests per batch (default: 10000)
 ```
 
 ### recalculate-message-counts.ts

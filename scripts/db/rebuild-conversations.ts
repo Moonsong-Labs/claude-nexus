@@ -74,6 +74,9 @@ class ConversationRebuilder {
 
   async rebuild() {
     console.log('Starting conversation rebuild...')
+    console.log('\n⚠️  WARNING: This script loads ALL requests into memory at once.')
+    console.log('For large databases, consider using rebuild-conversations-batched.ts instead.')
+    console.log('')
 
     try {
       // Step 1: Load all requests
@@ -1039,8 +1042,11 @@ Options:
   --help, -h                  Show this help message
 
 Examples:
-  # Rebuild all conversations
+  # Rebuild all conversations (loads all data into memory)
   bun run scripts/db/rebuild-conversations.ts
+
+  # For large databases, use the batched version:
+  bun run scripts/db/rebuild-conversations-batched.ts
 
   # Dry run for a specific domain
   bun run scripts/db/rebuild-conversations.ts --dry-run --domain example.com
