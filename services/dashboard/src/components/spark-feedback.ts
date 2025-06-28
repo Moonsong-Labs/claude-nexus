@@ -36,7 +36,7 @@ export function renderSparkRecommendation(
       <div class="spark-header">
         <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
           <span>🎯 Spark Recommendation</span>
-          ${hasFeedback ? '<span class="feedback-badge">✅ Feedback Submitted</span>' : ''}
+          ${hasFeedback ? raw('<span class="feedback-badge">✅ Feedback Submitted</span>') : ''}
         </h3>
         <div class="spark-meta">
           <span style="font-size: 0.75rem; color: #6b7280;">
@@ -281,13 +281,11 @@ function renderFeedbackForm(
         </label>
         <div class="rating-group">
           <input type="hidden" name="rating" value="0" required />
-          ${[1, 2, 3, 4, 5]
-            .map(
-              i => `
-            <span class="rating-star" data-rating="${i}">☆</span>
-          `
-            )
-            .join('')}
+          ${raw(
+            [1, 2, 3, 4, 5]
+              .map(i => `<span class="rating-star" data-rating="${i}">☆</span>`)
+              .join(' ')
+          )}
           <span style="margin-left: 0.5rem; font-size: 0.875rem; color: #6b7280;">
             (1 = Not helpful, 5 = Very helpful)
           </span>
@@ -335,13 +333,11 @@ function renderExistingFeedback(feedback: any): any {
     <div class="existing-feedback">
       <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">Your Feedback</h4>
       <div class="feedback-rating">
-        ${[1, 2, 3, 4, 5]
-          .map(
-            i => `
-          <span class="${i <= rating ? 'star-filled' : 'star-empty'}">★</span>
-        `
-          )
-          .join('')}
+        ${raw(
+          [1, 2, 3, 4, 5]
+            .map(i => `<span class="${i <= rating ? 'star-filled' : 'star-empty'}">★</span>`)
+            .join('')
+        )}
       </div>
       ${comments
         ? `<p style="margin: 0.5rem 0 0 0; font-size: 0.875rem;">${escapeHtml(comments)}</p>`
