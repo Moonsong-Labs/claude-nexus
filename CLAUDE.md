@@ -473,6 +473,26 @@ curl "http://localhost:3000/api/conversations?accountId=acc_f9e1c2d3b4a5" \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
+### Copy Conversation Between Tables
+
+```bash
+# Copy a conversation from one table to another
+bun run db:copy-conversation --conversation-id <uuid> [options]
+
+# Example: Copy from nexus_query_logs to nexus_query_staging
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000
+
+# Dry run to preview what would be copied
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 --dry-run
+
+# Copy with streaming chunks
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 --include-chunks
+
+# Use custom table names (e.g., from api_requests to api_requests_staging)
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --source-table api_requests --dest-table api_requests_staging
+```
+
 ## Maintenance
 
 ### Grooming
