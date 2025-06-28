@@ -623,6 +623,7 @@ export class StorageReader {
         is_subtask: row.is_subtask,
         task_tool_invocation: row.task_tool_invocation,
         body: { last_message: row.last_message },
+        response_body: row.response_body,
       }))
 
       const conversation = {
