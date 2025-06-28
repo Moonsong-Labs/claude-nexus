@@ -470,7 +470,7 @@ export async function renderSparkRecommendationInline(
         }
         
         try {
-          const response = await fetch('/api/feedback', {
+          const response = await fetch('/api/spark/feedback', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
