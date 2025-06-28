@@ -74,12 +74,17 @@ export class ProxyService {
 
     // Extract conversation data if storage is enabled
     let conversationData:
-      | { currentMessageHash: string; parentMessageHash: string | null; conversationId: string }
+      | { 
+          currentMessageHash: string
+          parentMessageHash: string | null
+          conversationId: string
+          systemHash: string | null
+        }
       | undefined
 
     if (this.storageAdapter && rawRequest.messages && rawRequest.messages.length > 0) {
       try {
-        const { currentMessageHash, parentMessageHash } = extractMessageHashes(
+        const { currentMessageHash, parentMessageHash, systemHash } = extractMessageHashes(
           rawRequest.messages,
           rawRequest.system
         )
@@ -96,7 +101,7 @@ export class ProxyService {
           conversationId = generateConversationId()
         }
 
-        conversationData = { currentMessageHash, parentMessageHash, conversationId }
+        conversationData = { currentMessageHash, parentMessageHash, conversationId, systemHash }
 
         log.debug('Conversation tracking', {
           currentMessageHash,
@@ -185,6 +190,7 @@ export class ProxyService {
       currentMessageHash: string
       parentMessageHash: string | null
       conversationId: string
+      systemHash: string | null
     },
     sampleId?: string
   ): Promise<Response> {
@@ -273,6 +279,7 @@ export class ProxyService {
       currentMessageHash: string
       parentMessageHash: string | null
       conversationId: string
+      systemHash: string | null
     },
     sampleId?: string
   ): Promise<Response> {
@@ -367,6 +374,7 @@ export class ProxyService {
       currentMessageHash: string
       parentMessageHash: string | null
       conversationId: string
+      systemHash: string | null
     },
     sampleId?: string
   ): Promise<void> {

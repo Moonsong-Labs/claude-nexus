@@ -49,6 +49,7 @@ export class StorageAdapter {
     parentMessageHash?: string | null
     conversationId?: string
     branchId?: string
+    systemHash?: string | null
     messageCount?: number
     parentTaskRequestId?: string
     isSubtask?: boolean
@@ -83,6 +84,7 @@ export class StorageAdapter {
         parentMessageHash: data.parentMessageHash,
         conversationId: data.conversationId,
         branchId: data.branchId,
+        systemHash: data.systemHash,
         messageCount: data.messageCount,
         parentTaskRequestId: data.parentTaskRequestId,
         isSubtask: data.isSubtask,
