@@ -79,7 +79,9 @@ class ConversationRebuilder {
       // Step 1: Load all requests
       console.log('\n1. Loading all requests from database...')
       const requests = await this.loadRequests()
-      console.log(`   Found ${requests.length} requests${this.limit ? ` (limited to ${this.limit})` : ''}`)
+      console.log(
+        `   Found ${requests.length} requests${this.limit ? ` (limited to ${this.limit})` : ''}`
+      )
 
       // Count how many needed hash computation
       const requestsWithHashes = requests.filter(r => r.current_message_hash).length
@@ -201,7 +203,7 @@ class ConversationRebuilder {
     }
 
     query += ' ORDER BY timestamp ASC'
-    
+
     // Add limit if specified
     if (this.limit && this.limit > 0) {
       query += ` LIMIT ${this.limit}`
@@ -285,11 +287,16 @@ class ConversationRebuilder {
 
     // Check for summarization system prompt
     if (request.body?.system) {
-      const systemContent = typeof request.body.system === 'string' 
-        ? request.body.system 
-        : request.body.system.map((item: any) => item.text || '').join(' ')
-      
-      if (systemContent.includes('You are a helpful AI assistant tasked with summarizing conversations')) {
+      const systemContent =
+        typeof request.body.system === 'string'
+          ? request.body.system
+          : request.body.system.map((item: any) => item.text || '').join(' ')
+
+      if (
+        systemContent.includes(
+          'You are a helpful AI assistant tasked with summarizing conversations'
+        )
+      ) {
         isSummarization = true
       }
     }
@@ -299,7 +306,7 @@ class ConversationRebuilder {
       const firstMessage = request.body.messages[0]
       if (firstMessage.role === 'user' && firstMessage.content) {
         let messageContent = ''
-        
+
         if (typeof firstMessage.content === 'string') {
           messageContent = firstMessage.content
         } else if (Array.isArray(firstMessage.content)) {
@@ -315,7 +322,7 @@ class ConversationRebuilder {
         const continuationMatch = messageContent.match(
           /This session is being continued from a previous conversation that ran out of context.*?The conversation is summarized below:\s*(.+?)\s*(?:Please continue|Summary:|Analysis:|$)/s
         )
-        
+
         if (continuationMatch) {
           isContinuation = true
           // Extract the summary text for matching
@@ -331,7 +338,7 @@ class ConversationRebuilder {
    * Finds a request whose response contains the continuation target text
    */
   private async findContinuationSource(
-    targetText: string, 
+    targetText: string,
     beforeTimestamp: Date,
     domain: string
   ): Promise<Request | null> {
@@ -362,14 +369,14 @@ class ConversationRebuilder {
       domain,
       beforeTimestamp,
       '%' + cleanTarget.substring(0, 50) + '%',
-      '%' + cleanTarget.replace(/\s+/g, '%') + '%'
+      '%' + cleanTarget.replace(/\s+/g, '%') + '%',
     ])
 
     // Check each candidate for a good match
     for (const row of result.rows) {
       if (row.response_body?.content) {
         let responseText = ''
-        
+
         if (typeof row.response_body.content === 'string') {
           responseText = row.response_body.content
         } else if (Array.isArray(row.response_body.content)) {
@@ -415,29 +422,31 @@ class ConversationRebuilder {
     // Build parent-child relationships
     for (const request of requests) {
       const node = nodeMap.get(request.request_id)!
-      
+
       // Check for special linking cases
       const specialLinking = this.detectSpecialLinking(request)
-      
+
       // Handle summarization requests - ignore system prompt for parent matching
       if (specialLinking.isSummarization && request.parent_message_hash) {
         // Find parent requests ignoring system hash differences
         const parentRequests = this.requestsByHash.get(request.parent_message_hash) || []
-        
+
         if (parentRequests.length > 0) {
           const parent = this.findBestParent(parentRequests, request)
-          
+
           if (parent) {
             const parentNode = nodeMap.get(parent.request_id)
             if (parentNode) {
               parentNode.children.push(node)
-              console.log(`   Linked summarization request ${request.request_id} to parent ${parent.request_id} (ignoring system prompt)`)
+              console.log(
+                `   Linked summarization request ${request.request_id} to parent ${parent.request_id} (ignoring system prompt)`
+              )
               continue
             }
           }
         }
       }
-      
+
       // Handle continuation requests - find the source conversation
       if (specialLinking.isContinuation && specialLinking.continuationTarget) {
         try {
@@ -446,17 +455,22 @@ class ConversationRebuilder {
             request.timestamp,
             request.domain
           )
-          
+
           if (sourceRequest) {
             const sourceNode = nodeMap.get(sourceRequest.request_id)
             if (sourceNode) {
               // Add as child of the source
               sourceNode.children.push(node)
-              
+
               // Mark this as a continuation branch
-              node.branch_id = `compact_${new Date(request.timestamp).toISOString().replace(/[^0-9]/g, '').substring(8, 14)}`
-              
-              console.log(`   Linked continuation request ${request.request_id} to source ${sourceRequest.request_id} with branch ${node.branch_id}`)
+              node.branch_id = `compact_${new Date(request.timestamp)
+                .toISOString()
+                .replace(/[^0-9]/g, '')
+                .substring(8, 14)}`
+
+              console.log(
+                `   Linked continuation request ${request.request_id} to source ${sourceRequest.request_id} with branch ${node.branch_id}`
+              )
               continue
             }
           } else {
@@ -649,7 +663,7 @@ class ConversationRebuilder {
   ) {
     // Use pre-assigned branch_id if available (for continuation nodes)
     const effectiveBranchId = node.branch_id || branchId
-    
+
     // Get existing request data
     const existing = this.existingRequests.get(node.request_id)
 
@@ -804,7 +818,7 @@ class ConversationRebuilder {
     if (this.debugConversationChanges) {
       console.log('\n   🔍 DEBUG: Conversation ID changes:')
       let conversationChangeCount = 0
-      
+
       updates.forEach(update => {
         const existing = this.existingRequests.get(update.request_id)
         if (existing && existing.conversation_id !== update.conversation_id) {
@@ -821,7 +835,7 @@ class ConversationRebuilder {
           }
         }
       })
-      
+
       if (conversationChangeCount === 0) {
         console.log('     No conversation ID changes detected')
       } else {
@@ -996,9 +1010,10 @@ function parseArgs(): {
   const args = process.argv.slice(2)
   const domainIndex = args.findIndex(arg => arg === '--domain')
   const domain = domainIndex !== -1 && args[domainIndex + 1] ? args[domainIndex + 1] : null
-  
+
   const limitIndex = args.findIndex(arg => arg === '--limit')
-  const limit = limitIndex !== -1 && args[limitIndex + 1] ? parseInt(args[limitIndex + 1], 10) : null
+  const limit =
+    limitIndex !== -1 && args[limitIndex + 1] ? parseInt(args[limitIndex + 1], 10) : null
 
   return {
     dryRun: args.includes('--dry-run'),
@@ -1043,7 +1058,8 @@ Examples:
 
 // Main execution
 async function main() {
-  const { dryRun, onlyOrphanConversations, domain, limit, debugConversationChanges, help } = parseArgs()
+  const { dryRun, onlyOrphanConversations, domain, limit, debugConversationChanges, help } =
+    parseArgs()
 
   if (help) {
     showHelp()
@@ -1102,9 +1118,9 @@ async function main() {
   }
 
   const rebuilder = new ConversationRebuilder(
-    databaseUrl, 
-    dryRun, 
-    onlyOrphanConversations, 
+    databaseUrl,
+    dryRun,
+    onlyOrphanConversations,
     domain,
     limit,
     debugConversationChanges
