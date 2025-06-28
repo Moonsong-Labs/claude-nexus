@@ -74,7 +74,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                 )
 
                 if (toolResult) {
-                  const recommendation = parseSparkRecommendation(toolResult)
+                  const recommendation = parseSparkRecommendation(toolResult, content)
                   if (recommendation) {
                     sparkRecommendations.push({
                       sessionId: recommendation.sessionId,
@@ -374,15 +374,17 @@ requestDetailsRoutes.get('/request/:id', async c => {
                 <div class="section-header">🎯 Spark Recommendations</div>
                 <div class="section-content">
                   ${raw(
-                    sparkRecommendations
-                      .map(({ sessionId, recommendation }) =>
-                        renderSparkRecommendation(
-                          recommendation,
-                          details.requestId,
-                          sparkFeedbackMap[sessionId]
+                    (
+                      await Promise.all(
+                        sparkRecommendations.map(({ sessionId, recommendation }) =>
+                          renderSparkRecommendation(
+                            recommendation,
+                            details.requestId,
+                            sparkFeedbackMap[sessionId]
+                          )
                         )
                       )
-                      .join('')
+                    ).join('')
                   )}
                 </div>
               </div>

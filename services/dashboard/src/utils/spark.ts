@@ -9,6 +9,8 @@ export interface SparkRecommendation {
   feedback?: any
   errorMessage?: string | null
   metadata?: Record<string, any>
+  query?: string
+  context?: string | string[]
 }
 
 /**
@@ -21,7 +23,10 @@ export function isSparkRecommendation(toolUse: any): boolean {
 /**
  * Parse a Spark recommendation from a tool_result content
  */
-export function parseSparkRecommendation(toolResult: any): SparkRecommendation | null {
+export function parseSparkRecommendation(
+  toolResult: any,
+  toolUse?: any
+): SparkRecommendation | null {
   try {
     // Tool result content is usually an array with text blocks
     if (!toolResult?.content || !Array.isArray(toolResult.content)) {
@@ -43,6 +48,15 @@ export function parseSparkRecommendation(toolResult: any): SparkRecommendation |
       return null
     }
 
+    // Extract query and context from tool_use if provided
+    let query: string | undefined
+    let context: string | string[] | undefined
+
+    if (toolUse?.input?.request) {
+      query = toolUse.input.request.query || undefined
+      context = toolUse.input.request.context || undefined
+    }
+
     return {
       sessionId: data.session_id,
       request: data.request || '',
@@ -50,6 +64,8 @@ export function parseSparkRecommendation(toolResult: any): SparkRecommendation |
       feedback: data.feedback !== 'None' ? data.feedback : undefined,
       errorMessage: data.error_message,
       metadata: data.metadata || {},
+      query,
+      context,
     }
   } catch (error) {
     console.error('Failed to parse Spark recommendation:', error)
@@ -81,7 +97,7 @@ export function extractSparkSessionIds(messages: any[]): string[] {
           )
 
           if (toolResult) {
-            const recommendation = parseSparkRecommendation(toolResult)
+            const recommendation = parseSparkRecommendation(toolResult, content)
             if (recommendation) {
               sessionIds.push(recommendation.sessionId)
             }

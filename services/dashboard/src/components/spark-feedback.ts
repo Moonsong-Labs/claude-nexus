@@ -1,5 +1,7 @@
 import { html, raw } from 'hono/html'
 import { escapeHtml } from '../utils/formatters.js'
+import { marked } from 'marked'
+import sanitizeHtml from 'sanitize-html'
 import {
   type SparkRecommendation,
   getRecommendationSections,
@@ -21,14 +23,47 @@ import {
 /**
  * Render a Spark recommendation with feedback UI
  */
-export function renderSparkRecommendation(
+export async function renderSparkRecommendation(
   recommendation: SparkRecommendation,
   requestId: string,
   existingFeedback?: any
-): any {
+): Promise<any> {
   const sections = getRecommendationSections(recommendation)
   const sources = getRecommendationSources(recommendation)
   const hasFeedback = !!existingFeedback
+
+  // Render markdown content
+  const dirtyHtml = await marked.parse(recommendation.response)
+  const htmlContent = sanitizeHtml(dirtyHtml, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'pre',
+      'code',
+      'table',
+      'thead',
+      'tbody',
+      'tr',
+      'th',
+      'td',
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      code: ['class'],
+      pre: ['class'],
+      td: ['align'],
+      th: ['align'],
+    },
+  })
+
+  // Check if content is long (more than 500 chars of markdown)
+  const isLong = recommendation.response.length > 500
+  const contentId = `spark-content-${recommendation.sessionId}`
+  const truncatedId = `spark-truncated-${recommendation.sessionId}`
 
   return html`
     <div class="spark-recommendation" data-session-id="${recommendation.sessionId}">
@@ -45,8 +80,64 @@ export function renderSparkRecommendation(
         </div>
       </div>
 
+      <!-- Query and Context -->
+      ${recommendation.query || recommendation.context
+        ? html`
+            <div class="spark-request-info">
+              ${recommendation.query
+                ? html`
+                    <div class="request-field">
+                      <strong>Query:</strong>
+                      <div class="request-value">${escapeHtml(recommendation.query)}</div>
+                    </div>
+                  `
+                : ''}
+              ${recommendation.context
+                ? html`
+                    <div class="request-field">
+                      <strong>Context:</strong>
+                      <div class="request-value">
+                        ${Array.isArray(recommendation.context)
+                          ? raw(recommendation.context.map(c => escapeHtml(c)).join('<br>'))
+                          : escapeHtml(recommendation.context)}
+                      </div>
+                    </div>
+                  `
+                : ''}
+            </div>
+          `
+        : ''}
+
       <!-- Recommendation Content -->
-      <div class="spark-content markdown-content">${raw(recommendation.response)}</div>
+      <div class="spark-content markdown-content">
+        ${isLong
+          ? html`
+              <div id="${truncatedId}">
+                <div style="max-height: 300px; overflow: hidden; position: relative;">
+                  ${raw(htmlContent)}
+                  <div
+                    style="position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(to bottom, transparent, #f9fafb);"
+                  ></div>
+                </div>
+                <button
+                  class="show-more-btn"
+                  onclick="toggleSparkContent('${recommendation.sessionId}')"
+                >
+                  Show more
+                </button>
+              </div>
+              <div id="${contentId}" style="display: none;">
+                ${raw(htmlContent)}
+                <button
+                  class="show-more-btn"
+                  onclick="toggleSparkContent('${recommendation.sessionId}')"
+                >
+                  Show less
+                </button>
+              </div>
+            `
+          : raw(htmlContent)}
+      </div>
 
       <!-- Feedback Section -->
       <div class="spark-feedback-section" id="feedback-${recommendation.sessionId}">
@@ -84,13 +175,106 @@ export function renderSparkRecommendation(
         font-weight: 500;
       }
 
-      .spark-content {
-        margin-bottom: 1rem;
-        max-height: 600px;
-        overflow-y: auto;
+      .spark-request-info {
+        margin: 1rem 0;
+        padding: 0.75rem;
+        background: #f3f4f6;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+      }
+
+      .request-field {
+        margin-bottom: 0.5rem;
+      }
+
+      .request-field:last-child {
+        margin-bottom: 0;
+      }
+
+      .request-value {
+        margin-top: 0.25rem;
         padding: 0.5rem;
         background: white;
         border-radius: 0.25rem;
+        border: 1px solid #e5e7eb;
+      }
+
+      .spark-content {
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: white;
+        border-radius: 0.25rem;
+      }
+
+      .spark-content.markdown-content h1,
+      .spark-content.markdown-content h2,
+      .spark-content.markdown-content h3,
+      .spark-content.markdown-content h4,
+      .spark-content.markdown-content h5,
+      .spark-content.markdown-content h6 {
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .spark-content.markdown-content p {
+        margin-bottom: 0.75rem;
+      }
+
+      .spark-content.markdown-content pre {
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 1rem;
+        border-radius: 0.375rem;
+        overflow-x: auto;
+        margin-bottom: 0.75rem;
+      }
+
+      .spark-content.markdown-content code {
+        background: #e5e7eb;
+        padding: 0.125rem 0.25rem;
+        border-radius: 0.25rem;
+        font-size: 0.875em;
+      }
+
+      .spark-content.markdown-content pre code {
+        background: transparent;
+        padding: 0;
+      }
+
+      .spark-content.markdown-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 0.75rem;
+      }
+
+      .spark-content.markdown-content th,
+      .spark-content.markdown-content td {
+        border: 1px solid #e5e7eb;
+        padding: 0.5rem;
+        text-align: left;
+      }
+
+      .spark-content.markdown-content th {
+        background: #f3f4f6;
+        font-weight: 600;
+      }
+
+      .show-more-btn {
+        display: block;
+        width: 100%;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.25rem;
+        color: #3b82f6;
+        font-weight: 500;
+        cursor: pointer;
+        text-align: center;
+      }
+
+      .show-more-btn:hover {
+        background: #e5e7eb;
       }
 
       .spark-feedback-section {
@@ -194,6 +378,22 @@ export function renderSparkRecommendation(
         const parts = value.split('; ' + name + '=')
         if (parts.length === 2) return parts.pop().split(';').shift()
         return ''
+      }
+
+      // Toggle Spark content visibility
+      function toggleSparkContent(sessionId) {
+        const contentEl = document.getElementById('spark-content-' + sessionId)
+        const truncatedEl = document.getElementById('spark-truncated-' + sessionId)
+
+        if (contentEl && truncatedEl) {
+          if (contentEl.style.display === 'none') {
+            contentEl.style.display = 'block'
+            truncatedEl.style.display = 'none'
+          } else {
+            contentEl.style.display = 'none'
+            truncatedEl.style.display = 'block'
+          }
+        }
       }
 
       // Rating star interaction
