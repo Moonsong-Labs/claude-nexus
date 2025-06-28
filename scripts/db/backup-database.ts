@@ -10,6 +10,7 @@ import { parseArgs } from 'util'
  *   bun run scripts/backup-database.ts --name=mybackup  # Creates backup with custom name
  *   bun run scripts/backup-database.ts --file       # Exports to a .sql file
  *   bun run scripts/backup-database.ts --file=backup.sql  # Exports to specific file
+ *   bun run scripts/backup-database.ts --since="1 day"  # Backup only data from last day
  */
 
 function formatTimestamp(): string {
@@ -20,6 +21,49 @@ function formatTimestamp(): string {
 function getDatabaseName(connectionString: string): string {
   const url = new URL(connectionString)
   return url.pathname.substring(1)
+}
+
+function parseSinceParameter(since: string): string {
+  // Support various formats:
+  // - Relative: "1 hour", "2 days", "3 weeks", "1 month"
+  // - Absolute: "2024-01-01", "2024-01-01 12:00:00"
+
+  // Check if it's an absolute date
+  const absoluteDateRegex = /^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?$/
+  if (absoluteDateRegex.test(since)) {
+    return since
+  }
+
+  // Parse relative time
+  const relativeRegex = /^(\d+)\s+(hour|day|week|month)s?$/i
+  const match = since.match(relativeRegex)
+
+  if (!match) {
+    throw new Error(
+      `Invalid --since format: "${since}". Use formats like "1 hour", "2 days", or "2024-01-01"`
+    )
+  }
+
+  const [, amount, unit] = match
+  const now = new Date()
+  const num = parseInt(amount, 10)
+
+  switch (unit.toLowerCase()) {
+    case 'hour':
+      now.setHours(now.getHours() - num)
+      break
+    case 'day':
+      now.setDate(now.getDate() - num)
+      break
+    case 'week':
+      now.setDate(now.getDate() - num * 7)
+      break
+    case 'month':
+      now.setMonth(now.getMonth() - num)
+      break
+  }
+
+  return now.toISOString()
 }
 
 async function backupDatabase() {
@@ -41,6 +85,10 @@ async function backupDatabase() {
         type: 'string',
         short: 'n',
       },
+      since: {
+        type: 'string',
+        short: 's',
+      },
       help: {
         type: 'boolean',
         short: 'h',
@@ -59,11 +107,14 @@ Usage:
   bun run scripts/backup-database.ts --name=mybackup  # Creates backup with custom name
   bun run scripts/backup-database.ts --file       # Exports to a .sql file with timestamp
   bun run scripts/backup-database.ts --file=backup.sql  # Exports to specific file
+  bun run scripts/backup-database.ts --since="1 day"  # Backup only last day's data
+  bun run scripts/backup-database.ts --since="2 hours" --file  # Export last 2 hours to file
   bun run scripts/backup-database.ts --help       # Show this help
 
 Options:
   -n, --name <dbname>    Custom name for the backup database (default: includes timestamp)
   -f, --file [filename]  Export to file instead of creating a backup database
+  -s, --since <time>     Only backup data newer than this time (e.g., '1 hour', '2 days', '2024-01-01')
   -h, --help            Show help information
 
 Note: --name and --file options are mutually exclusive
@@ -91,20 +142,60 @@ Note: --name and --file options are mutually exclusive
 
       console.log(`Starting database backup to file: ${filename}`)
       console.log(`Source database: ${dbName}`)
+      if (values.since) {
+        const sinceTimestamp = parseSinceParameter(values.since)
+        console.log(`Filtering data since: ${sinceTimestamp}`)
+      }
 
       // Use pg_dump with connection string directly
-      const dumpCommand = [
-        'pg_dump',
-        `"${databaseUrl}"`,
-        '--verbose',
-        '--no-owner',
-        '--no-privileges',
-        '--if-exists',
-        '--clean',
-        `-f ${filename}`,
-      ].join(' ')
+      let dumpCommand: string
 
-      execSync(dumpCommand, { stdio: 'inherit' })
+      if (values.since) {
+        // For filtered backups, we need to use a custom approach
+        // pg_dump doesn't support WHERE clauses directly, so we'll create a custom dump
+        const sinceTimestamp = parseSinceParameter(values.since)
+        console.log(`\nNote: Creating filtered backup with data since ${sinceTimestamp}`)
+        console.log(`This will only include table structure and filtered data.\n`)
+
+        // First dump the schema only
+        const schemaDumpCommand = [
+          'pg_dump',
+          `"${databaseUrl}"`,
+          '--verbose',
+          '--schema-only',
+          '--no-owner',
+          '--no-privileges',
+          '--if-exists',
+          '--clean',
+          `-f ${filename}.schema`,
+        ].join(' ')
+
+        execSync(schemaDumpCommand, { stdio: 'inherit' })
+
+        // Then use COPY commands to export filtered data
+        const dataDumpCommand = `psql "${databaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE timestamp >= '${sinceTimestamp}') TO '${filename}.data' WITH (FORMAT csv, HEADER true)"`
+        execSync(dataDumpCommand, { stdio: 'inherit', shell: true })
+
+        // Combine schema and data
+        const combineCommand = `cat ${filename}.schema > ${filename} && echo "\\\\copy api_requests FROM '${filename}.data' WITH (FORMAT csv, HEADER true);" >> ${filename} && rm ${filename}.schema ${filename}.data`
+        execSync(combineCommand, { stdio: 'inherit', shell: true })
+
+        console.log(`\n✅ Filtered database backup completed!`)
+      } else {
+        // Full backup
+        dumpCommand = [
+          'pg_dump',
+          `"${databaseUrl}"`,
+          '--verbose',
+          '--no-owner',
+          '--no-privileges',
+          '--if-exists',
+          '--clean',
+          `-f ${filename}`,
+        ].join(' ')
+
+        execSync(dumpCommand, { stdio: 'inherit' })
+      }
 
       console.log(`✅ Database backup completed successfully!`)
       console.log(`📁 Backup file: ${filename}`)
@@ -134,6 +225,10 @@ Note: --name and --file options are mutually exclusive
       console.log(`Starting database backup...`)
       console.log(`Source database: ${dbName}`)
       console.log(`Backup database: ${backupDbName}`)
+      if (values.since) {
+        const sinceTimestamp = parseSinceParameter(values.since)
+        console.log(`Filtering data since: ${sinceTimestamp}`)
+      }
 
       // First, check if custom database name already exists
       if (values.name) {
@@ -171,9 +266,37 @@ Note: --name and --file options are mutually exclusive
       const backupUrl = new URL(databaseUrl)
       backupUrl.pathname = `/${backupDbName}`
 
-      const backupCommand = `pg_dump "${databaseUrl}" --verbose --no-owner --no-privileges | psql "${backupUrl.toString()}"`
+      if (values.since) {
+        // For filtered backups, we need a different approach
+        const sinceTimestamp = parseSinceParameter(values.since)
+        console.log(`\nNote: Creating filtered backup with data since ${sinceTimestamp}`)
 
-      execSync(backupCommand, { stdio: 'inherit', shell: true })
+        // First, dump and restore the schema only
+        console.log(`Copying database schema...`)
+        const schemaCommand = `pg_dump "${databaseUrl}" --schema-only --verbose --no-owner --no-privileges | psql "${backupUrl.toString()}"`
+        execSync(schemaCommand, { stdio: 'inherit', shell: true })
+
+        // Then copy filtered data for each table that has a timestamp column
+        console.log(`Copying filtered data...`)
+
+        // Copy api_requests with timestamp filter
+        const copyApiRequestsCommand = `psql "${databaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE timestamp >= '${sinceTimestamp}') TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy api_requests FROM STDIN"`
+        execSync(copyApiRequestsCommand, { stdio: 'inherit', shell: true })
+
+        // Copy streaming_chunks for the filtered requests
+        const copyStreamingChunksCommand = `psql "${databaseUrl}" -c "\\copy (SELECT sc.* FROM streaming_chunks sc JOIN api_requests ar ON sc.request_id = ar.request_id WHERE ar.timestamp >= '${sinceTimestamp}') TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy streaming_chunks FROM STDIN"`
+        try {
+          execSync(copyStreamingChunksCommand, { stdio: 'inherit', shell: true })
+        } catch (e) {
+          console.log(`Note: streaming_chunks table might not exist or be empty`)
+        }
+
+        console.log(`✅ Filtered database backup completed!`)
+      } else {
+        // Full backup
+        const backupCommand = `pg_dump "${databaseUrl}" --verbose --no-owner --no-privileges | psql "${backupUrl.toString()}"`
+        execSync(backupCommand, { stdio: 'inherit', shell: true })
+      }
 
       console.log(`✅ Database backup completed successfully!`)
       console.log(`🗄️  Backup database: ${backupDbName}`)

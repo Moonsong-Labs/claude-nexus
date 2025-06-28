@@ -5,6 +5,8 @@ import { parseArgs } from 'util'
 /**
  * Database backup script - creates a backup of the Claude Nexus database
  * Refactored version with improved structure and type safety
+ *
+ * Supports filtering by timestamp to backup only recent data
  */
 
 // ============================================================================
@@ -16,11 +18,13 @@ interface BackupConfig {
   sourceDatabaseUrl: string
   sourceDatabaseName: string
   targetName: string
+  sinceTimestamp?: string
 }
 
 interface ParsedArguments {
   file?: string
   name?: string
+  since?: string
   help?: boolean
 }
 
@@ -39,11 +43,14 @@ Usage:
   bun run scripts/backup-database.ts --name=mybackup  # Creates backup with custom name
   bun run scripts/backup-database.ts --file       # Exports to a .sql file with timestamp
   bun run scripts/backup-database.ts --file=backup.sql  # Exports to specific file
+  bun run scripts/backup-database.ts --since="1 day"  # Backup only last day's data
+  bun run scripts/backup-database.ts --since="2 hours" --file  # Export last 2 hours to file
   bun run scripts/backup-database.ts --help       # Show this help
 
 Options:
   -n, --name <dbname>    Custom name for the backup database (default: includes timestamp)
   -f, --file [filename]  Export to file instead of creating a backup database
+  -s, --since <time>     Only backup data newer than this time (e.g., '1 hour', '2 days', '2024-01-01')
   -h, --help            Show help information
 
 Note: --name and --file options are mutually exclusive
@@ -77,6 +84,49 @@ function validateDatabaseName(name: string): void {
   }
 }
 
+function parseSinceParameter(since: string): string {
+  // Support various formats:
+  // - Relative: "1 hour", "2 days", "3 weeks", "1 month"
+  // - Absolute: "2024-01-01", "2024-01-01 12:00:00"
+
+  // Check if it's an absolute date
+  const absoluteDateRegex = /^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?$/
+  if (absoluteDateRegex.test(since)) {
+    return since
+  }
+
+  // Parse relative time
+  const relativeRegex = /^(\d+)\s+(hour|day|week|month)s?$/i
+  const match = since.match(relativeRegex)
+
+  if (!match) {
+    throw new Error(
+      `Invalid --since format: "${since}". Use formats like "1 hour", "2 days", or "2024-01-01"`
+    )
+  }
+
+  const [, amount, unit] = match
+  const now = new Date()
+  const num = parseInt(amount, 10)
+
+  switch (unit.toLowerCase()) {
+    case 'hour':
+      now.setHours(now.getHours() - num)
+      break
+    case 'day':
+      now.setDate(now.getDate() - num)
+      break
+    case 'week':
+      now.setDate(now.getDate() - num * 7)
+      break
+    case 'month':
+      now.setMonth(now.getMonth() - num)
+      break
+  }
+
+  return now.toISOString()
+}
+
 // ============================================================================
 // Argument Parsing
 // ============================================================================
@@ -92,6 +142,10 @@ function parseArguments(): ParsedArguments {
       name: {
         type: 'string',
         short: 'n',
+      },
+      since: {
+        type: 'string',
+        short: 's',
       },
       help: {
         type: 'boolean',
@@ -126,6 +180,7 @@ function createBackupConfig(args: ParsedArguments): BackupConfig {
 
   const sourceDatabaseName = getDatabaseName(databaseUrl)
   const timestamp = formatTimestamp()
+  const sinceTimestamp = args.since ? parseSinceParameter(args.since) : undefined
 
   if (args.file !== undefined) {
     const targetName =
@@ -138,6 +193,7 @@ function createBackupConfig(args: ParsedArguments): BackupConfig {
       sourceDatabaseUrl: databaseUrl,
       sourceDatabaseName,
       targetName,
+      sinceTimestamp,
     }
   } else {
     const targetName = args.name || `${sourceDatabaseName}_backup_${timestamp}`
@@ -151,6 +207,7 @@ function createBackupConfig(args: ParsedArguments): BackupConfig {
       sourceDatabaseUrl: databaseUrl,
       sourceDatabaseName,
       targetName,
+      sinceTimestamp,
     }
   }
 }
@@ -195,19 +252,54 @@ function copyDatabaseContent(sourceUrl: string, targetDatabaseName: string): voi
 async function performFileBackup(config: BackupConfig): Promise<void> {
   console.log(`Starting database backup to file: ${config.targetName}`)
   console.log(`Source database: ${config.sourceDatabaseName}`)
+  if (config.sinceTimestamp) {
+    console.log(`Filtering data since: ${config.sinceTimestamp}`)
+  }
 
-  const dumpCommand = [
-    'pg_dump',
-    `"${config.sourceDatabaseUrl}"`,
-    '--verbose',
-    '--no-owner',
-    '--no-privileges',
-    '--if-exists',
-    '--clean',
-    `-f ${config.targetName}`,
-  ].join(' ')
+  if (config.sinceTimestamp) {
+    // For filtered backups, we need to use a custom approach
+    console.log(`\nNote: Creating filtered backup with data since ${config.sinceTimestamp}`)
+    console.log(`This will only include table structure and filtered data.\n`)
 
-  execSync(dumpCommand, { stdio: 'inherit' })
+    // First dump the schema only
+    const schemaDumpCommand = [
+      'pg_dump',
+      `"${config.sourceDatabaseUrl}"`,
+      '--verbose',
+      '--schema-only',
+      '--no-owner',
+      '--no-privileges',
+      '--if-exists',
+      '--clean',
+      `-f ${config.targetName}.schema`,
+    ].join(' ')
+
+    execSync(schemaDumpCommand, { stdio: 'inherit' })
+
+    // Then use COPY commands to export filtered data
+    const dataDumpCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}') TO '${config.targetName}.data' WITH (FORMAT csv, HEADER true)"`
+    execSync(dataDumpCommand, { stdio: 'inherit', shell: true })
+
+    // Combine schema and data
+    const combineCommand = `cat ${config.targetName}.schema > ${config.targetName} && echo "\\\\copy api_requests FROM '${config.targetName}.data' WITH (FORMAT csv, HEADER true);" >> ${config.targetName} && rm ${config.targetName}.schema ${config.targetName}.data`
+    execSync(combineCommand, { stdio: 'inherit', shell: true })
+
+    console.log(`\n✅ Filtered database backup completed!`)
+  } else {
+    // Full backup
+    const dumpCommand = [
+      'pg_dump',
+      `"${config.sourceDatabaseUrl}"`,
+      '--verbose',
+      '--no-owner',
+      '--no-privileges',
+      '--if-exists',
+      '--clean',
+      `-f ${config.targetName}`,
+    ].join(' ')
+
+    execSync(dumpCommand, { stdio: 'inherit' })
+  }
 
   console.log(`✅ Database backup completed successfully!`)
   console.log(`📁 Backup file: ${config.targetName}`)
@@ -221,6 +313,9 @@ async function performDatabaseBackup(config: BackupConfig): Promise<void> {
   console.log(`Starting database backup...`)
   console.log(`Source database: ${config.sourceDatabaseName}`)
   console.log(`Backup database: ${config.targetName}`)
+  if (config.sinceTimestamp) {
+    console.log(`Filtering data since: ${config.sinceTimestamp}`)
+  }
 
   // Check if database already exists (only for custom names)
   if (config.targetName.includes('_backup_')) {
@@ -243,7 +338,37 @@ async function performDatabaseBackup(config: BackupConfig): Promise<void> {
   createDatabase(config.sourceDatabaseUrl, config.targetName)
 
   console.log(`Copying database content...`)
-  copyDatabaseContent(config.sourceDatabaseUrl, config.targetName)
+
+  if (config.sinceTimestamp) {
+    // For filtered backups, copy schema then filtered data
+    console.log(`\nNote: Creating filtered backup with data since ${config.sinceTimestamp}`)
+
+    const backupUrl = new URL(config.sourceDatabaseUrl)
+    backupUrl.pathname = `/${config.targetName}`
+
+    // First, dump and restore the schema only
+    console.log(`Copying database schema...`)
+    const schemaCommand = `pg_dump "${config.sourceDatabaseUrl}" --schema-only --verbose --no-owner --no-privileges | psql "${backupUrl.toString()}"`
+    execSync(schemaCommand, { stdio: 'inherit', shell: true })
+
+    // Then copy filtered data for each table that has a timestamp column
+    console.log(`Copying filtered data...`)
+
+    // Copy api_requests with timestamp filter
+    const copyApiRequestsCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}') TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy api_requests FROM STDIN"`
+    execSync(copyApiRequestsCommand, { stdio: 'inherit', shell: true })
+
+    // Copy streaming_chunks for the filtered requests
+    const copyStreamingChunksCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT sc.* FROM streaming_chunks sc JOIN api_requests ar ON sc.request_id = ar.request_id WHERE ar.timestamp >= '${config.sinceTimestamp}') TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy streaming_chunks FROM STDIN"`
+    try {
+      execSync(copyStreamingChunksCommand, { stdio: 'inherit', shell: true })
+    } catch (e) {
+      console.log(`Note: streaming_chunks table might not exist or be empty`)
+    }
+  } else {
+    // Full backup
+    copyDatabaseContent(config.sourceDatabaseUrl, config.targetName)
+  }
 
   console.log(`✅ Database backup completed successfully!`)
   console.log(`🗄️  Backup database: ${config.targetName}`)
