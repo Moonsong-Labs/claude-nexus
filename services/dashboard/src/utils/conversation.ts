@@ -13,6 +13,10 @@ export interface ParsedMessage {
   toolName?: string
   toolId?: string
   timestamp?: Date
+  sparkRecommendation?: {
+    sessionId: string
+    recommendation: any
+  }
   metadata?: {
     tokenCount?: number
     toolCalls?: any[]

@@ -556,4 +556,33 @@ export class ProxyApiClient {
       })),
     }
   }
+
+  /**
+   * Generic POST method for API calls
+   */
+  async post(path: string, body: any): Promise<any> {
+    try {
+      const url = new URL(path, this.baseUrl)
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(body),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}) as any)
+        throw new Error(
+          (errorData as any).error || `API error: ${response.status} ${response.statusText}`
+        )
+      }
+
+      return await response.json()
+    } catch (error) {
+      logger.error('API POST request failed', {
+        error: getErrorMessage(error),
+        path,
+      })
+      throw error
+    }
+  }
 }

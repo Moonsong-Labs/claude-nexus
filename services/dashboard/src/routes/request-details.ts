@@ -5,6 +5,8 @@ import { getErrorMessage } from '@claude-nexus/shared'
 import { parseConversation, calculateCost } from '../utils/conversation.js'
 import { formatDuration, escapeHtml } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
+import { isSparkRecommendation, parseSparkRecommendation } from '../utils/spark.js'
+import { renderSparkRecommendation } from '../components/spark-feedback.js'
 
 export const requestDetailsRoutes = new Hono<{
   Variables: {
@@ -46,6 +48,64 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
     // Calculate cost
     const cost = calculateCost(conversation.totalInputTokens, conversation.totalOutputTokens)
+
+    // Detect Spark recommendations
+    const sparkRecommendations: Array<{
+      sessionId: string
+      recommendation: any
+      messageIndex: number
+    }> = []
+
+    // Look through raw request/response for Spark tool usage
+    if (details.requestBody?.messages && details.responseBody) {
+      const allMessages = [...(details.requestBody.messages || []), details.responseBody]
+
+      for (let i = 0; i < allMessages.length - 1; i++) {
+        const msg = allMessages[i]
+        const nextMsg = allMessages[i + 1]
+
+        if (msg.content && Array.isArray(msg.content)) {
+          for (const content of msg.content) {
+            if (content.type === 'tool_use' && isSparkRecommendation(content)) {
+              // Look for corresponding tool_result in next message
+              if (nextMsg.content && Array.isArray(nextMsg.content)) {
+                const toolResult = nextMsg.content.find(
+                  (item: any) => item.type === 'tool_result' && item.tool_use_id === content.id
+                )
+
+                if (toolResult) {
+                  const recommendation = parseSparkRecommendation(toolResult)
+                  if (recommendation) {
+                    sparkRecommendations.push({
+                      sessionId: recommendation.sessionId,
+                      recommendation,
+                      messageIndex: i,
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fetch existing feedback for Spark recommendations if any
+    let sparkFeedbackMap: Record<string, any> = {}
+    if (sparkRecommendations.length > 0 && apiClient) {
+      try {
+        const sessionIds = sparkRecommendations.map(r => r.sessionId)
+        const feedbackResponse = await apiClient.post('/spark/feedback/batch', {
+          session_ids: sessionIds,
+        })
+
+        if (feedbackResponse.results) {
+          sparkFeedbackMap = feedbackResponse.results
+        }
+      } catch (error) {
+        console.error('Failed to fetch Spark feedback:', error)
+      }
+    }
 
     // Format messages for display - reverse order to show newest first
     const messagesHtml = conversation.messages
@@ -304,7 +364,31 @@ requestDetailsRoutes.get('/request/:id', async c => {
       </div>
 
       <!-- Conversation View -->
-      <div id="conversation-view" class="conversation-container">${raw(messagesHtml)}</div>
+      <div id="conversation-view" class="conversation-container">
+        ${raw(messagesHtml)}
+
+        <!-- Spark Recommendations -->
+        ${sparkRecommendations.length > 0
+          ? html`
+              <div class="section" style="margin-top: 2rem;">
+                <div class="section-header">🎯 Spark Recommendations</div>
+                <div class="section-content">
+                  ${raw(
+                    sparkRecommendations
+                      .map(({ sessionId, recommendation }) =>
+                        renderSparkRecommendation(
+                          recommendation,
+                          details.requestId,
+                          sparkFeedbackMap[sessionId]
+                        )
+                      )
+                      .join('')
+                  )}
+                </div>
+              </div>
+            `
+          : ''}
+      </div>
 
       <!-- Raw JSON View (hidden by default) -->
       <div id="raw-view" class="hidden">
