@@ -2,14 +2,15 @@
 /**
  * Copy Conversation Script
  *
- * This script copies all requests of a given conversation from one table to another.
- * It's designed to be flexible and work with configurable table names.
+ * This script copies all requests of a given conversation between databases.
+ * Supports copying to the same table name in a different database.
  *
  * Usage:
- *   bun run scripts/copy-conversation.ts --conversation-id <uuid> [options]
+ *   bun run scripts/copy-conversation.ts --conversation-id <uuid> --dest-db <url> [options]
  *
  * Options:
  *   --conversation-id <uuid>  Required. The conversation ID to copy
+ *   --dest-db <url>           Required. Destination database URL
  *   --source-table <name>     Source table name (default: nexus_query_logs)
  *   --dest-table <name>       Destination table name (default: nexus_query_staging)
  *   --dry-run                 Show what would be copied without executing
@@ -17,7 +18,7 @@
  *   --verbose                 Enable verbose logging
  *
  * Expected table structure:
- *   Both tables should have similar structure to api_requests table with at least:
+ *   Both tables should have similar structure with at least:
  *   - request_id (UUID)
  *   - conversation_id (UUID)
  *   - All other columns from the source should exist in destination
@@ -33,6 +34,9 @@ const { values, positionals } = parseArgs({
   args: Bun.argv,
   options: {
     'conversation-id': {
+      type: 'string',
+    },
+    'dest-db': {
       type: 'string',
     },
     'source-table': {
@@ -68,13 +72,14 @@ const { values, positionals } = parseArgs({
 if (values['help']) {
   console.log(`Copy Conversation Script
 
-This script copies all requests of a given conversation from one table to another.
+This script copies all requests of a given conversation between databases.
 
 Usage:
-  bun run scripts/copy-conversation.ts --conversation-id <uuid> [options]
+  bun run scripts/copy-conversation.ts --conversation-id <uuid> --dest-db <url> [options]
 
 Options:
   --conversation-id <uuid>  Required. The conversation ID to copy
+  --dest-db <url>           Required. Destination database URL
   --source-table <name>     Source table name (default: nexus_query_logs)
   --dest-table <name>       Destination table name (default: nexus_query_staging)
   --dry-run                 Show what would be copied without executing
@@ -82,18 +87,26 @@ Options:
   --verbose                 Enable verbose logging
   --help                    Show this help message
 
+Environment:
+  DATABASE_URL              Source database connection (from environment)
+
 Examples:
-  # Basic copy
-  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000
+  # Copy to staging database (same table names)
+  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000 \\
+    --dest-db "postgresql://user:pass@staging-host:5432/staging_db"
+
+  # Copy between different table names
+  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000 \\
+    --dest-db "postgresql://user:pass@staging-host:5432/staging_db" \\
+    --source-table api_requests --dest-table api_requests_backup
 
   # Dry run to see what would be copied
-  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000 --dry-run
+  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000 \\
+    --dest-db "postgresql://user:pass@staging-host:5432/staging_db" --dry-run
 
   # Copy with streaming chunks
-  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000 --include-chunks
-
-  # Use custom table names
-  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000 --source-table api_requests --dest-table api_requests_staging
+  bun run scripts/copy-conversation.ts --conversation-id 123e4567-e89b-12d3-a456-426614174000 \\
+    --dest-db "postgresql://user:pass@staging-host:5432/staging_db" --include-chunks
 `)
   process.exit(0)
 }
@@ -101,7 +114,18 @@ Examples:
 // Validate required arguments
 if (!values['conversation-id']) {
   console.error('Error: --conversation-id is required')
-  console.error('Usage: bun run scripts/copy-conversation.ts --conversation-id <uuid> [options]')
+  console.error(
+    'Usage: bun run scripts/copy-conversation.ts --conversation-id <uuid> --dest-db <url> [options]'
+  )
+  console.error('Run with --help for more information')
+  process.exit(1)
+}
+
+if (!values['dest-db']) {
+  console.error('Error: --dest-db is required')
+  console.error(
+    'Usage: bun run scripts/copy-conversation.ts --conversation-id <uuid> --dest-db <url> [options]'
+  )
   console.error('Run with --help for more information')
   process.exit(1)
 }
@@ -117,23 +141,28 @@ const config = {
   conversationId: values['conversation-id'],
   sourceTable: values['source-table'],
   destTable: values['dest-table'],
+  destDbUrl: values['dest-db'],
   dryRun: values['dry-run'],
   includeChunks: values['include-chunks'],
   verbose: values['verbose'],
 }
 
-// Database connection
-const DATABASE_URL = process.env.DATABASE_URL
-if (!DATABASE_URL) {
+// Database connections
+const SOURCE_DB_URL = process.env.DATABASE_URL
+if (!SOURCE_DB_URL) {
   console.error('Error: DATABASE_URL environment variable is not set')
   process.exit(1)
 }
 
-const client = new Client({
-  connectionString: DATABASE_URL,
+const sourceClient = new Client({
+  connectionString: SOURCE_DB_URL,
 })
 
-async function tableExists(tableName: string): Promise<boolean> {
+const destClient = new Client({
+  connectionString: config.destDbUrl,
+})
+
+async function tableExists(client: any, tableName: string): Promise<boolean> {
   const query = `
     SELECT EXISTS (
       SELECT FROM information_schema.tables 
@@ -145,7 +174,7 @@ async function tableExists(tableName: string): Promise<boolean> {
   return result.rows[0].exists
 }
 
-async function getTableColumns(tableName: string): Promise<string[]> {
+async function getTableColumns(client: any, tableName: string): Promise<string[]> {
   const query = `
     SELECT column_name 
     FROM information_schema.columns 
@@ -165,12 +194,12 @@ async function getConversationRequests(): Promise<any[]> {
   `
 
   try {
-    const result = await client.query(query, [config.conversationId])
+    const result = await sourceClient.query(query, [config.conversationId])
     return result.rows
   } catch (error: any) {
     if (error.code === '42P01') {
       // undefined_table
-      throw new Error(`Table "${config.sourceTable}" does not exist`)
+      throw new Error(`Table "${config.sourceTable}" does not exist in source database`)
     }
     if (error.code === '42703') {
       // undefined_column
@@ -206,7 +235,7 @@ async function copyRequests(requests: any[], commonColumns: string[]): Promise<n
 
     if (!config.dryRun) {
       try {
-        const result = await client.query(insertQuery, values)
+        const result = await destClient.query(insertQuery, values)
         if (result.rowCount > 0) {
           copiedCount++
         }
@@ -227,54 +256,90 @@ async function copyStreamingChunks(requestIds: string[]): Promise<number> {
     return 0
   }
 
-  const query = `
-    INSERT INTO streaming_chunks (request_id, chunk_index, timestamp, data, token_count, created_at)
+  // For cross-database copy, we need to fetch from source and insert to destination
+  const selectQuery = `
     SELECT request_id, chunk_index, timestamp, data, token_count, created_at
     FROM streaming_chunks
     WHERE request_id = ANY($1)
-    ON CONFLICT (request_id, chunk_index) DO NOTHING;
+    ORDER BY request_id, chunk_index;
   `
 
-  if (!config.dryRun) {
-    const result = await client.query(query, [requestIds])
-    return result.rowCount || 0
-  } else {
-    // In dry-run mode, just count the chunks
-    const countQuery = `
-      SELECT COUNT(*) as count
-      FROM streaming_chunks
-      WHERE request_id = ANY($1);
-    `
-    const result = await client.query(countQuery, [requestIds])
-    return parseInt(result.rows[0].count)
+  const chunks = await sourceClient.query(selectQuery, [requestIds])
+
+  if (chunks.rows.length === 0) {
+    return 0
   }
+
+  let copiedCount = 0
+
+  if (!config.dryRun) {
+    // Insert chunks one by one to destination
+    const insertQuery = `
+      INSERT INTO streaming_chunks (request_id, chunk_index, timestamp, data, token_count, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (request_id, chunk_index) DO NOTHING;
+    `
+
+    for (const chunk of chunks.rows) {
+      try {
+        const result = await destClient.query(insertQuery, [
+          chunk.request_id,
+          chunk.chunk_index,
+          chunk.timestamp,
+          chunk.data,
+          chunk.token_count,
+          chunk.created_at,
+        ])
+        if (result.rowCount > 0) {
+          copiedCount++
+        }
+      } catch (error: any) {
+        console.error(
+          `Error copying chunk ${chunk.request_id}[${chunk.chunk_index}]:`,
+          error.message
+        )
+        throw error
+      }
+    }
+  } else {
+    copiedCount = chunks.rows.length
+  }
+
+  return copiedCount
 }
 
 async function main() {
   try {
-    await client.connect()
-    console.log('Connected to database')
+    // Connect to both databases
+    await sourceClient.connect()
+    console.log('Connected to source database')
 
-    // Start transaction
-    await client.query('BEGIN')
+    await destClient.connect()
+    console.log('Connected to destination database')
+
+    // Start transactions on both connections
+    await sourceClient.query('BEGIN')
+    await destClient.query('BEGIN')
 
     // Check if tables exist
     console.log(`\nChecking tables...`)
-    const sourceExists = await tableExists(config.sourceTable)
-    const destExists = await tableExists(config.destTable)
+    const sourceExists = await tableExists(sourceClient, config.sourceTable)
+    const destExists = await tableExists(destClient, config.destTable)
 
     if (!sourceExists) {
-      throw new Error(`Source table "${config.sourceTable}" does not exist`)
+      throw new Error(`Source table "${config.sourceTable}" does not exist in source database`)
     }
     if (!destExists) {
-      throw new Error(`Destination table "${config.destTable}" does not exist`)
+      throw new Error(
+        `Destination table "${config.destTable}" does not exist in destination database`
+      )
     }
     console.log('✓ Both tables exist')
 
     // Get column information
     console.log(`\nAnalyzing table structures...`)
-    const sourceColumns = await getTableColumns(config.sourceTable)
-    const destColumns = await getTableColumns(config.destTable)
+    const sourceColumns = await getTableColumns(sourceClient, config.sourceTable)
+    const destColumns = await getTableColumns(destClient, config.destTable)
 
     // Find common columns
     const commonColumns = sourceColumns.filter(col => destColumns.includes(col))
@@ -297,7 +362,8 @@ async function main() {
 
     if (requests.length === 0) {
       console.log('No requests found for this conversation ID')
-      await client.query('ROLLBACK')
+      await sourceClient.query('ROLLBACK')
+      await destClient.query('ROLLBACK')
       return
     }
 
@@ -338,20 +404,28 @@ async function main() {
       }
     }
 
-    // Commit transaction
+    // Commit transactions
     if (!config.dryRun) {
-      await client.query('COMMIT')
-      console.log('\n✓ Transaction committed successfully')
+      await sourceClient.query('COMMIT')
+      await destClient.query('COMMIT')
+      console.log('\n✓ Transactions committed successfully')
     } else {
-      await client.query('ROLLBACK')
+      await sourceClient.query('ROLLBACK')
+      await destClient.query('ROLLBACK')
       console.log('\n✓ Dry run completed (no changes made)')
     }
   } catch (error) {
     console.error('\nError:', error)
-    await client.query('ROLLBACK')
+    try {
+      await sourceClient.query('ROLLBACK')
+      await destClient.query('ROLLBACK')
+    } catch (rollbackError) {
+      console.error('Error during rollback:', rollbackError)
+    }
     process.exit(1)
   } finally {
-    await client.end()
+    await sourceClient.end()
+    await destClient.end()
   }
 }
 

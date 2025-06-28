@@ -2,12 +2,13 @@
 
 ## Overview
 
-The `copy-conversation.ts` script is a utility for copying all requests of a given conversation from one database table to another. It's designed to be flexible and work with configurable table names.
+The `copy-conversation.ts` script is a utility for copying all requests of a given conversation between different databases. It's designed to copy data from one database to another, supporting both same and different table names.
 
 ## Features
 
+- **Cross-Database Copying**: Copy conversations between different PostgreSQL databases
 - **Flexible Table Names**: Works with any source and destination table names
-- **Transaction Safety**: Uses database transactions to ensure atomic operations
+- **Transaction Safety**: Uses database transactions on both connections to ensure atomic operations
 - **Dry Run Mode**: Preview what would be copied without making changes
 - **Streaming Chunks Support**: Optionally copy related streaming_chunks data
 - **Comprehensive Error Handling**: Validates table existence and column compatibility
@@ -16,18 +17,19 @@ The `copy-conversation.ts` script is a utility for copying all requests of a giv
 ## Usage
 
 ```bash
-bun run scripts/copy-conversation.ts --conversation-id <uuid> [options]
+bun run scripts/copy-conversation.ts --conversation-id <uuid> --dest-db <url> [options]
 ```
 
 Or using the npm script:
 
 ```bash
-bun run db:copy-conversation --conversation-id <uuid> [options]
+bun run db:copy-conversation --conversation-id <uuid> --dest-db <url> [options]
 ```
 
 ## Options
 
 - `--conversation-id <uuid>` - Required. The conversation ID to copy
+- `--dest-db <url>` - Required. Destination database connection URL
 - `--source-table <name>` - Source table name (default: nexus_query_logs)
 - `--dest-table <name>` - Destination table name (default: nexus_query_staging)
 - `--dry-run` - Show what would be copied without executing
@@ -37,10 +39,23 @@ bun run db:copy-conversation --conversation-id <uuid> [options]
 
 ## Examples
 
-### Basic Copy
+### Copy to Staging Database
+
+Copy a conversation from production to staging database (same table names):
 
 ```bash
-bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db"
+```
+
+### Copy Between Different Table Names
+
+Copy from api_requests in source to api_requests_backup in destination:
+
+```bash
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db" \
+  --source-table api_requests --dest-table api_requests_backup
 ```
 
 ### Dry Run
@@ -48,22 +63,17 @@ bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174
 Preview what would be copied without making changes:
 
 ```bash
-bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 --dry-run
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db" --dry-run
 ```
 
 ### Copy with Streaming Chunks
 
-```bash
-bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 --include-chunks
-```
-
-### Custom Table Names
-
-Copy from api_requests to api_requests_staging:
+Copy conversation including streaming response data:
 
 ```bash
 bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
-  --source-table api_requests --dest-table api_requests_staging
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db" --include-chunks
 ```
 
 ## Expected Table Structure
@@ -90,20 +100,22 @@ The script will:
 
 ## Environment Variables
 
-- `DATABASE_URL` - Required. PostgreSQL connection string
+- `DATABASE_URL` - Required. Source database PostgreSQL connection string
 
 ## Error Handling
 
 The script will exit with appropriate error messages if:
 
 - DATABASE_URL is not set
+- --dest-db is not provided
 - Conversation ID is not provided or invalid
-- Source or destination table doesn't exist
+- Source or destination table doesn't exist in their respective databases
 - Required columns are missing
 - Database connection fails
 
 ## Notes
 
 - The default table names (`nexus_query_logs` and `nexus_query_staging`) are used as requested, but these tables need to be created before using the script
-- The script is designed to be generic and can work with any tables that follow a similar structure
+- The script is designed for cross-database copying, using DATABASE_URL for source and --dest-db for destination
 - When copying streaming chunks, it maintains referential integrity with the copied requests
+- Both database connections use separate transactions for data consistency
