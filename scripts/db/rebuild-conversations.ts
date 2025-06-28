@@ -55,6 +55,9 @@ class ConversationRebuilder {
   private debugConversationChanges: boolean
   private existingRequests: Map<string, Request> = new Map()
   private existingConversationRequests: Map<string, Request[]> = new Map()
+  // Track conversation request counts for verification
+  private originalConversationCounts: Map<string, number> = new Map()
+  private newConversationCounts: Map<string, number> = new Map()
 
   constructor(
     databaseUrl: string,
@@ -133,7 +136,11 @@ class ConversationRebuilder {
       await this.updateDatabase(updates)
       console.log('   Database updated successfully')
 
-      // Step 6: Show statistics
+      // Step 6: Verify conversation integrity
+      console.log('\n6. Verifying conversation integrity...')
+      this.verifyConversationIntegrity()
+
+      // Step 7: Show statistics
       await this.showStatistics()
     } catch (error) {
       console.error('Error during rebuild:', error)
@@ -228,6 +235,12 @@ class ConversationRebuilder {
           this.existingConversationRequests.set(request.conversation_id, [])
         }
         this.existingConversationRequests.get(request.conversation_id)!.push(request)
+
+        // Track original conversation counts
+        this.originalConversationCounts.set(
+          request.conversation_id,
+          (this.originalConversationCounts.get(request.conversation_id) || 0) + 1
+        )
       }
 
       // If hashes are missing but we have a body with messages, compute them
@@ -664,6 +677,11 @@ class ConversationRebuilder {
     }>,
     isExistingConversation: boolean = false
   ) {
+    // Track new conversation counts
+    this.newConversationCounts.set(
+      conversationId,
+      (this.newConversationCounts.get(conversationId) || 0) + 1
+    )
     // Use pre-assigned branch_id if available (for continuation nodes)
     const effectiveBranchId = node.branch_id || branchId
 
@@ -997,6 +1015,57 @@ class ConversationRebuilder {
       console.log(
         `     ${row.domain}: ${row.conversations} conversations, ${row.branches} branches, ${row.requests} requests`
       )
+    }
+  }
+
+  private verifyConversationIntegrity() {
+    const warnings: string[] = []
+    let conversationsWithFewerRequests = 0
+    let conversationsWithMoreRequests = 0
+    let conversationsUnchanged = 0
+
+    // Check all conversations that existed before
+    for (const [convId, originalCount] of this.originalConversationCounts) {
+      const newCount = this.newConversationCounts.get(convId) || 0
+
+      if (newCount < originalCount) {
+        conversationsWithFewerRequests++
+        warnings.push(
+          `   ⚠️  Conversation ${convId}: ${originalCount} → ${newCount} requests (lost ${originalCount - newCount})`
+        )
+      } else if (newCount > originalCount) {
+        conversationsWithMoreRequests++
+      } else {
+        conversationsUnchanged++
+      }
+    }
+
+    // Check for new conversations that might have stolen requests
+    const newConversations = [...this.newConversationCounts.keys()].filter(
+      convId => !this.originalConversationCounts.has(convId)
+    )
+
+    console.log('\n   Conversation integrity check:')
+    console.log(`   - Conversations unchanged: ${conversationsUnchanged}`)
+    console.log(`   - Conversations with more requests: ${conversationsWithMoreRequests}`)
+    console.log(`   - Conversations with fewer requests: ${conversationsWithFewerRequests}`)
+    console.log(`   - New conversations created: ${newConversations.length}`)
+
+    if (warnings.length > 0) {
+      console.log('\n   ⚠️  WARNING: Some conversations lost requests!')
+      console.log('   This may indicate an issue with the rebuild logic.')
+      console.log('   Affected conversations (showing first 10):')
+      warnings.slice(0, 10).forEach(warning => console.log(warning))
+      if (warnings.length > 10) {
+        console.log(`   ... and ${warnings.length - 10} more`)
+      }
+
+      if (!this.dryRun) {
+        console.log('\n   ⚠️  These changes have been applied to the database!')
+        console.log('   Consider reviewing the rebuild logic or restoring from backup.')
+      }
+    } else {
+      console.log('\n   ✅ All conversations maintained or gained requests - integrity verified!')
     }
   }
 }

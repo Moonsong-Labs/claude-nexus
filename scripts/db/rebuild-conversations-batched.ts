@@ -69,6 +69,9 @@ class BatchedConversationRebuilder {
     changed: new Set<string>(),
     created: new Set<string>(),
   }
+  // Track conversation request counts for verification
+  private originalConversationCounts: Map<string, number> = new Map()
+  private newConversationCounts: Map<string, number> = new Map()
 
   constructor(
     databaseUrl: string,
@@ -93,6 +96,10 @@ class BatchedConversationRebuilder {
     console.log(`Processing requests in batches of ${this.batchSize}`)
 
     try {
+      // Step 0: Capture original conversation counts for verification
+      console.log('\n0. Capturing original conversation request counts...')
+      await this.captureOriginalConversationCounts()
+
       // Step 1: Get total count
       const totalCount = await this.getTotalRequestCount()
       const effectiveLimit = this.limit ? Math.min(this.limit, totalCount) : totalCount
@@ -126,8 +133,12 @@ class BatchedConversationRebuilder {
         await this.flushUpdates()
       }
 
-      // Step 4: Show statistics
-      console.log('\n4. Final statistics:')
+      // Step 4: Verify conversation integrity
+      console.log('\n4. Verifying conversation integrity...')
+      await this.verifyConversationIntegrity()
+
+      // Step 5: Show statistics
+      console.log('\n5. Final statistics:')
       console.log(`   Total requests processed: ${this.totalProcessed}`)
       console.log(`   Total requests updated: ${this.totalUpdated}`)
       console.log(`   Preserved conversations: ${this.conversationStats.preserved.size}`)
@@ -141,6 +152,34 @@ class BatchedConversationRebuilder {
     } finally {
       await this.pool.end()
     }
+  }
+
+  private async captureOriginalConversationCounts() {
+    let query = `
+      SELECT conversation_id, COUNT(*) as request_count
+      FROM api_requests
+      WHERE request_type IN ('inference')
+        AND conversation_id IS NOT NULL
+    `
+    const queryParams: any[] = []
+
+    if (this.domainFilter) {
+      queryParams.push(this.domainFilter)
+      query += ` AND domain = $${queryParams.length}`
+    }
+
+    query += ' GROUP BY conversation_id'
+
+    const result = await this.pool.query(query, queryParams)
+
+    // Store the counts
+    for (const row of result.rows) {
+      this.originalConversationCounts.set(row.conversation_id, parseInt(row.request_count))
+    }
+
+    console.log(
+      `   Captured request counts for ${this.originalConversationCounts.size} existing conversations`
+    )
   }
 
   private async getTotalRequestCount(): Promise<number> {
@@ -407,6 +446,12 @@ class BatchedConversationRebuilder {
       branchId,
       lastMessageHash: request.current_message_hash,
     })
+
+    // Track new conversation counts
+    this.newConversationCounts.set(
+      conversationId,
+      (this.newConversationCounts.get(conversationId) || 0) + 1
+    )
 
     // Add update if needed
     if (needsUpdate) {
@@ -723,6 +768,57 @@ class BatchedConversationRebuilder {
     console.log(`   Total branches: ${stats.rows[0].total_branches}`)
     console.log(`   Total requests with conversations: ${stats.rows[0].total_requests}`)
     console.log(`   Requests on non-main branches: ${stats.rows[0].branched_requests}`)
+  }
+
+  private async verifyConversationIntegrity() {
+    const warnings: string[] = []
+    let conversationsWithFewerRequests = 0
+    let conversationsWithMoreRequests = 0
+    let conversationsUnchanged = 0
+
+    // Check all conversations that existed before
+    for (const [convId, originalCount] of this.originalConversationCounts) {
+      const newCount = this.newConversationCounts.get(convId) || 0
+
+      if (newCount < originalCount) {
+        conversationsWithFewerRequests++
+        warnings.push(
+          `   ⚠️  Conversation ${convId}: ${originalCount} → ${newCount} requests (lost ${originalCount - newCount})`
+        )
+      } else if (newCount > originalCount) {
+        conversationsWithMoreRequests++
+      } else {
+        conversationsUnchanged++
+      }
+    }
+
+    // Check for new conversations that might have stolen requests
+    const newConversations = [...this.newConversationCounts.keys()].filter(
+      convId => !this.originalConversationCounts.has(convId)
+    )
+
+    console.log('\n   Conversation integrity check:')
+    console.log(`   - Conversations unchanged: ${conversationsUnchanged}`)
+    console.log(`   - Conversations with more requests: ${conversationsWithMoreRequests}`)
+    console.log(`   - Conversations with fewer requests: ${conversationsWithFewerRequests}`)
+    console.log(`   - New conversations created: ${newConversations.length}`)
+
+    if (warnings.length > 0) {
+      console.log('\n   ⚠️  WARNING: Some conversations lost requests!')
+      console.log('   This may indicate an issue with the rebuild logic.')
+      console.log('   Affected conversations (showing first 10):')
+      warnings.slice(0, 10).forEach(warning => console.log(warning))
+      if (warnings.length > 10) {
+        console.log(`   ... and ${warnings.length - 10} more`)
+      }
+
+      if (!this.dryRun) {
+        console.log('\n   ⚠️  These changes have been applied to the database!')
+        console.log('   Consider reviewing the rebuild logic or restoring from backup.')
+      }
+    } else {
+      console.log('\n   ✅ All conversations maintained or gained requests - integrity verified!')
+    }
   }
 }
 
