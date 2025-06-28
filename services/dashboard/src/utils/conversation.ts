@@ -1,6 +1,7 @@
 import { marked } from 'marked'
 import sanitizeHtml from 'sanitize-html'
 import { formatDuration as formatDurationUtil } from './formatters.js'
+import { isSparkRecommendation, parseSparkRecommendation } from './spark.js'
 
 export interface ParsedMessage {
   role: 'user' | 'assistant' | 'system'
@@ -16,6 +17,7 @@ export interface ParsedMessage {
   sparkRecommendation?: {
     sessionId: string
     recommendation: any
+    toolUse?: any
   }
   metadata?: {
     tokenCount?: number
@@ -129,6 +131,8 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
   let isToolResult = false
   let toolName = ''
   let toolId = ''
+  let sparkRecommendation: ParsedMessage['sparkRecommendation'] = undefined
+  let pendingSparkToolUse: any = null
 
   // Handle different content formats
   if (typeof msg.content === 'string') {
@@ -190,6 +194,11 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
           break
 
         case 'tool_use': {
+          // Check if this is a Spark recommendation tool
+          if (isSparkRecommendation(block)) {
+            pendingSparkToolUse = block
+          }
+
           let toolContent = `**Tool Use: ${block.name || 'Unknown Tool'}**`
           if (block.id) {
             toolContent += ` (ID: ${block.id})`
@@ -206,6 +215,23 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
         }
 
         case 'tool_result': {
+          // Check if this is a Spark recommendation result
+          if (pendingSparkToolUse && pendingSparkToolUse.id === block.tool_use_id) {
+            const recommendation = parseSparkRecommendation(block, pendingSparkToolUse)
+            if (recommendation) {
+              sparkRecommendation = {
+                sessionId: recommendation.sessionId,
+                recommendation,
+                toolUse: pendingSparkToolUse,
+              }
+
+              // Create a special marker for Spark recommendations
+              contentParts.push(`[[SPARK_RECOMMENDATION:${recommendation.sessionId}]]`)
+              pendingSparkToolUse = null
+              break
+            }
+          }
+
           let resultContent = '**Tool Result**'
           if (block.tool_use_id) {
             resultContent += ` (ID: ${block.tool_use_id})`
@@ -313,6 +339,7 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
     toolName,
     toolId,
     timestamp,
+    sparkRecommendation,
     metadata: {
       tokenCount: msg.tokenCount,
       toolCalls: msg.toolCalls,

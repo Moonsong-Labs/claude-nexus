@@ -6,7 +6,7 @@ import { parseConversation, calculateCost } from '../utils/conversation.js'
 import { formatDuration, escapeHtml } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
 import { isSparkRecommendation, parseSparkRecommendation } from '../utils/spark.js'
-import { renderSparkRecommendation } from '../components/spark-feedback.js'
+import { renderSparkRecommendationInline } from '../components/spark-recommendation-inline.js'
 
 export const requestDetailsRoutes = new Hono<{
   Variables: {
@@ -108,36 +108,61 @@ requestDetailsRoutes.get('/request/:id', async c => {
     }
 
     // Format messages for display - reverse order to show newest first
-    const messagesHtml = conversation.messages
-      .slice()
-      .reverse()
-      .map((msg, idx) => {
-        const messageId = `message-${idx}`
-        const contentId = `content-${idx}`
-        const truncatedId = `truncated-${idx}`
+    const messagesHtml = await Promise.all(
+      conversation.messages
+        .slice()
+        .reverse()
+        .map(async (msg, idx) => {
+          const messageId = `message-${idx}`
+          const contentId = `content-${idx}`
+          const truncatedId = `truncated-${idx}`
 
-        // Add special classes for tool messages
-        let messageClass = `message message-${msg.role}`
-        if (msg.isToolUse) {
-          messageClass += ' message-tool-use'
-        } else if (msg.isToolResult) {
-          messageClass += ' message-tool-result'
-        }
+          // Check if this message contains a Spark recommendation
+          let sparkHtml = ''
+          if (msg.sparkRecommendation) {
+            const feedbackForSession = sparkFeedbackMap[msg.sparkRecommendation.sessionId]
+            sparkHtml = await renderSparkRecommendationInline(
+              msg.sparkRecommendation.recommendation,
+              msg.sparkRecommendation.sessionId,
+              idx,
+              feedbackForSession
+            )
 
-        // Add special styling for assistant messages
-        if (msg.role === 'assistant') {
-          messageClass += ' message-assistant-response'
-        }
+            // Replace the marker in the content with the Spark HTML
+            msg.htmlContent = msg.htmlContent.replace(
+              `[[SPARK_RECOMMENDATION:${msg.sparkRecommendation.sessionId}]]`,
+              sparkHtml
+            )
+            if (msg.truncatedHtml) {
+              msg.truncatedHtml = msg.truncatedHtml.replace(
+                `[[SPARK_RECOMMENDATION:${msg.sparkRecommendation.sessionId}]]`,
+                '<div class="spark-inline-recommendation"><div class="spark-inline-header"><div class="spark-inline-title"><span class="spark-icon">✨</span><span class="spark-label">Spark Recommendation</span></div></div><div style="padding: 0.5rem 1rem; text-align: center; color: #64748b; font-size: 0.875rem;">Show more to view recommendation</div></div>'
+              )
+            }
+          }
 
-        // Format role display
-        let roleDisplay = msg.role.charAt(0).toUpperCase() + msg.role.slice(1)
-        if (msg.isToolUse) {
-          roleDisplay = 'Tool 🔧'
-        } else if (msg.isToolResult) {
-          roleDisplay = 'Result ✅'
-        }
+          // Add special classes for tool messages
+          let messageClass = `message message-${msg.role}`
+          if (msg.isToolUse) {
+            messageClass += ' message-tool-use'
+          } else if (msg.isToolResult) {
+            messageClass += ' message-tool-result'
+          }
 
-        return `
+          // Add special styling for assistant messages
+          if (msg.role === 'assistant') {
+            messageClass += ' message-assistant-response'
+          }
+
+          // Format role display
+          let roleDisplay = msg.role.charAt(0).toUpperCase() + msg.role.slice(1)
+          if (msg.isToolUse) {
+            roleDisplay = 'Tool 🔧'
+          } else if (msg.isToolResult) {
+            roleDisplay = 'Result ✅'
+          }
+
+          return `
         <div class="${messageClass}" id="message-${idx}" data-message-index="${idx}">
           <div class="message-meta">
             <div class="message-role">${roleDisplay}</div>
@@ -166,8 +191,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
           </div>
         </div>
       `
-      })
-      .join('')
+        })
+    )
 
     const content = html`
       <div class="mb-6">
@@ -364,33 +389,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
       </div>
 
       <!-- Conversation View -->
-      <div id="conversation-view" class="conversation-container">
-        ${raw(messagesHtml)}
-
-        <!-- Spark Recommendations -->
-        ${sparkRecommendations.length > 0
-          ? html`
-              <div class="section" style="margin-top: 2rem;">
-                <div class="section-header">🎯 Spark Recommendations</div>
-                <div class="section-content">
-                  ${raw(
-                    (
-                      await Promise.all(
-                        sparkRecommendations.map(({ sessionId, recommendation }) =>
-                          renderSparkRecommendation(
-                            recommendation,
-                            details.requestId,
-                            sparkFeedbackMap[sessionId]
-                          )
-                        )
-                      )
-                    ).join('')
-                  )}
-                </div>
-              </div>
-            `
-          : ''}
-      </div>
+      <div id="conversation-view" class="conversation-container">${raw(messagesHtml.join(''))}</div>
 
       <!-- Raw JSON View (hidden by default) -->
       <div id="raw-view" class="hidden">
