@@ -694,6 +694,50 @@ function getLastMessageContent(req: ConversationRequest): string {
 }
 
 /**
+ * Helper to extract the response summary from a request
+ */
+function getResponseSummary(req: ConversationRequest): string {
+  try {
+    if (!req.response_body) {
+      return req.error ? '❌ Error response' : '⏳ No response'
+    }
+
+    const response = req.response_body
+
+    // Handle different response formats
+    if (typeof response === 'string') {
+      // Simple string response
+      const content = response.trim()
+      return '🤖 ' + (content.length > 80 ? content.substring(0, 77) + '...' : content)
+    } else if (response.content) {
+      // Handle content array or string
+      if (typeof response.content === 'string') {
+        const content = response.content.trim()
+        return '🤖 ' + (content.length > 80 ? content.substring(0, 77) + '...' : content)
+      } else if (Array.isArray(response.content)) {
+        // Array of content blocks
+        for (const block of response.content) {
+          if (block.type === 'text' && block.text) {
+            const content = block.text.trim()
+            return '🤖 ' + (content.length > 80 ? content.substring(0, 77) + '...' : content)
+          } else if (block.type === 'tool_use' && block.name) {
+            return `🤖 🔧 ${block.name}${block.input?.prompt ? ': ' + block.input.prompt.substring(0, 50) + '...' : ''}`
+          }
+        }
+      }
+    } else if (response.error) {
+      // Error response
+      return `❌ ${response.error.type || 'Error'}${response.error.message ? ': ' + response.error.message.substring(0, 50) + '...' : ''}`
+    }
+
+    // Fallback
+    return '🤖 Response received'
+  } catch (_error) {
+    return '🤖 Response'
+  }
+}
+
+/**
  * Helper to render conversation messages
  */
 function renderConversationMessages(
@@ -762,9 +806,14 @@ function renderConversationMessages(
               </div>
             </div>
             <div class="section-content" style="padding: 0.75rem 1rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="text-sm text-gray-700" style="flex: 1; margin-right: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  ${escapeHtml(getLastMessageContent(req))}
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="flex: 1; margin-right: 1rem;">
+                  <div class="text-sm text-gray-700" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 0.25rem;">
+                    ${escapeHtml(getResponseSummary(req))}
+                  </div>
+                  <div class="text-sm text-gray-600" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    👤 ${escapeHtml(getLastMessageContent(req).replace(/^(👤|🤖|⚙️|🔧|✅)\s*/, ''))}
+                  </div>
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: center;">
                   ${
