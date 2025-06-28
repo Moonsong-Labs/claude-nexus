@@ -66,7 +66,7 @@ const BatchFeedbackRequestSchema = z.object({
 /**
  * Get feedback for a specific session
  */
-sparkApiRoutes.get('/spark/sessions/:sessionId/feedback', async c => {
+sparkApiRoutes.get('/sessions/:sessionId/feedback', async c => {
   const sessionId = c.req.param('sessionId')
 
   if (!config.spark.enabled || !config.spark.apiUrl || !config.spark.apiKey) {
@@ -101,7 +101,7 @@ sparkApiRoutes.get('/spark/sessions/:sessionId/feedback', async c => {
 /**
  * Send feedback for a recommendation session
  */
-sparkApiRoutes.post('/spark/feedback', async c => {
+sparkApiRoutes.post('/feedback', async c => {
   if (!config.spark.enabled || !config.spark.apiUrl || !config.spark.apiKey) {
     return c.json({ error: 'Spark API not configured' }, 503)
   }
@@ -141,7 +141,7 @@ sparkApiRoutes.post('/spark/feedback', async c => {
 /**
  * Get feedback for multiple sessions in batch
  */
-sparkApiRoutes.post('/spark/feedback/batch', async c => {
+sparkApiRoutes.post('/feedback/batch', async c => {
   if (!config.spark.enabled || !config.spark.apiUrl || !config.spark.apiKey) {
     return c.json({ error: 'Spark API not configured' }, 503)
   }

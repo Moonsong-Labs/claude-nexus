@@ -473,9 +473,9 @@ The dashboard supports the Spark recommendation tool (`mcp__spark__get_recommend
 
 **API Endpoints:**
 
-- `POST /api/spark/feedback` - Submit feedback for a recommendation
-- `GET /api/spark/sessions/:sessionId/feedback` - Get feedback for a specific session
-- `POST /api/spark/feedback/batch` - Get feedback for multiple sessions
+- `POST /api/feedback` - Submit feedback for a recommendation
+- `GET /api/sessions/:sessionId/feedback` - Get feedback for a specific session
+- `POST /api/feedback/batch` - Get feedback for multiple sessions
 
 ### SQL Query Optimization
 
