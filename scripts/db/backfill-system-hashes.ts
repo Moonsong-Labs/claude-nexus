@@ -14,10 +14,10 @@ const pool = new Pool({
 
 async function backfillSystemHashes() {
   const client = await pool.connect()
-  
+
   try {
     console.log('Starting backfill of system hashes...')
-    
+
     // Get all requests that have a body with system prompt but no system_hash
     const result = await client.query(`
       SELECT request_id, body
@@ -28,25 +28,25 @@ async function backfillSystemHashes() {
       ORDER BY timestamp DESC
       LIMIT 1000
     `)
-    
+
     console.log(`Found ${result.rows.length} requests to process`)
-    
+
     let updated = 0
     let skipped = 0
-    
+
     for (const row of result.rows) {
       try {
         const body = row.body
         if (body.system) {
           const systemHash = hashSystemPrompt(body.system)
-          
+
           if (systemHash) {
-            await client.query(
-              'UPDATE api_requests SET system_hash = $1 WHERE request_id = $2',
-              [systemHash, row.request_id]
-            )
+            await client.query('UPDATE api_requests SET system_hash = $1 WHERE request_id = $2', [
+              systemHash,
+              row.request_id,
+            ])
             updated++
-            
+
             if (updated % 100 === 0) {
               console.log(`Updated ${updated} records...`)
             }
@@ -60,11 +60,10 @@ async function backfillSystemHashes() {
         console.error(`Error processing request ${row.request_id}:`, error)
       }
     }
-    
+
     console.log(`\nBackfill completed!`)
     console.log(`Updated: ${updated} records`)
     console.log(`Skipped: ${skipped} records`)
-    
   } catch (error) {
     console.error('Backfill failed:', error)
     throw error

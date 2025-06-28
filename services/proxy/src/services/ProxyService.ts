@@ -74,7 +74,7 @@ export class ProxyService {
 
     // Extract conversation data if storage is enabled
     let conversationData:
-      | { 
+      | {
           currentMessageHash: string
           parentMessageHash: string | null
           conversationId: string

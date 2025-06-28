@@ -138,6 +138,7 @@ This approach has proven effective in production, enabling powerful conversation
 The original implementation included system prompts in the conversation hash, which caused issues when system prompts changed between sessions (e.g., git status in Claude Code, context compaction). This was resolved by implementing a dual hash system:
 
 **Changes:**
+
 1. **Separate Message Hash**: `hashMessagesOnly()` - Hashes only the message content for conversation linking
 2. **Separate System Hash**: `hashSystemPrompt()` - Hashes only the system prompt for tracking context changes
 3. **Updated `extractMessageHashes()`**: Now returns three values:
@@ -146,11 +147,13 @@ The original implementation included system prompts in the conversation hash, wh
    - `systemHash` - System prompt hash for context tracking
 
 **Benefits:**
+
 - Conversations maintain links even when system prompts change
 - System context changes can be tracked independently
 - Backward compatible with existing data
 
 **Migration:**
+
 - Added `system_hash` column to `api_requests` table
 - Existing data can be backfilled using `scripts/db/backfill-system-hashes.ts`
 

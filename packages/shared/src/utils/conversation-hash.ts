@@ -288,7 +288,7 @@ export function extractMessageHashes(
 
   // Hash messages only (no system) for conversation linking
   const currentMessageHash = hashMessagesOnly(messages)
-  
+
   // Hash system separately for tracking context changes
   const systemHash = hashSystemPrompt(system)
 
