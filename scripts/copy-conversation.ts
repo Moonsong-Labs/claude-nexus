@@ -11,8 +11,8 @@
  * Options:
  *   --conversation-id <uuid>  Required. The conversation ID to copy
  *   --dest-db <url>           Required. Destination database URL
- *   --source-table <name>     Source table name (default: nexus_query_logs)
- *   --dest-table <name>       Destination table name (default: nexus_query_staging)
+ *   --source-table <name>     Source table name (default: api_requests)
+ *   --dest-table <name>       Destination table name (default: api_requests)
  *   --dry-run                 Show what would be copied without executing
  *   --include-chunks          Also copy related streaming_chunks data
  *   --verbose                 Enable verbose logging
@@ -41,11 +41,11 @@ const { values, positionals } = parseArgs({
     },
     'source-table': {
       type: 'string',
-      default: 'nexus_query_logs',
+      default: 'api_requests',
     },
     'dest-table': {
       type: 'string',
-      default: 'nexus_query_staging',
+      default: 'api_requests',
     },
     'dry-run': {
       type: 'boolean',
@@ -80,8 +80,8 @@ Usage:
 Options:
   --conversation-id <uuid>  Required. The conversation ID to copy
   --dest-db <url>           Required. Destination database URL
-  --source-table <name>     Source table name (default: nexus_query_logs)
-  --dest-table <name>       Destination table name (default: nexus_query_staging)
+  --source-table <name>     Source table name (default: api_requests)
+  --dest-table <name>       Destination table name (default: api_requests)
   --dry-run                 Show what would be copied without executing
   --include-chunks          Also copy related streaming_chunks data
   --verbose                 Enable verbose logging

@@ -30,8 +30,8 @@ bun run db:copy-conversation --conversation-id <uuid> --dest-db <url> [options]
 
 - `--conversation-id <uuid>` - Required. The conversation ID to copy
 - `--dest-db <url>` - Required. Destination database connection URL
-- `--source-table <name>` - Source table name (default: nexus_query_logs)
-- `--dest-table <name>` - Destination table name (default: nexus_query_staging)
+- `--source-table <name>` - Source table name (default: api_requests)
+- `--dest-table <name>` - Destination table name (default: api_requests)
 - `--dry-run` - Show what would be copied without executing
 - `--include-chunks` - Also copy related streaming_chunks data
 - `--verbose` - Enable verbose logging
@@ -115,7 +115,7 @@ The script will exit with appropriate error messages if:
 
 ## Notes
 
-- The default table names (`nexus_query_logs` and `nexus_query_staging`) are used as requested, but these tables need to be created before using the script
+- The default table name is `api_requests` for both source and destination
 - The script is designed for cross-database copying, using DATABASE_URL for source and --dest-db for destination
 - When copying streaming chunks, it maintains referential integrity with the copied requests
 - Both database connections use separate transactions for data consistency
