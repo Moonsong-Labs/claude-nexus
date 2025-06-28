@@ -51,6 +51,8 @@ class ConversationRebuilder {
   private dryRun: boolean
   private onlyOrphanConversations: boolean
   private domainFilter: string | null
+  private limit: number | null
+  private debugConversationChanges: boolean
   private existingRequests: Map<string, Request> = new Map()
   private existingConversationRequests: Map<string, Request[]> = new Map()
 
@@ -58,12 +60,16 @@ class ConversationRebuilder {
     databaseUrl: string,
     dryRun: boolean = false,
     onlyOrphanConversations: boolean = false,
-    domainFilter: string | null = null
+    domainFilter: string | null = null,
+    limit: number | null = null,
+    debugConversationChanges: boolean = false
   ) {
     this.pool = new Pool({ connectionString: databaseUrl })
     this.dryRun = dryRun
     this.onlyOrphanConversations = onlyOrphanConversations
     this.domainFilter = domainFilter
+    this.limit = limit
+    this.debugConversationChanges = debugConversationChanges
   }
 
   async rebuild() {
@@ -73,7 +79,7 @@ class ConversationRebuilder {
       // Step 1: Load all requests
       console.log('\n1. Loading all requests from database...')
       const requests = await this.loadRequests()
-      console.log(`   Found ${requests.length} requests`)
+      console.log(`   Found ${requests.length} requests${this.limit ? ` (limited to ${this.limit})` : ''}`)
 
       // Count how many needed hash computation
       const requestsWithHashes = requests.filter(r => r.current_message_hash).length
@@ -195,6 +201,11 @@ class ConversationRebuilder {
     }
 
     query += ' ORDER BY timestamp ASC'
+    
+    // Add limit if specified
+    if (this.limit && this.limit > 0) {
+      query += ` LIMIT ${this.limit}`
+    }
 
     const result = await this.pool.query(query, queryParams)
 
@@ -789,6 +800,35 @@ class ConversationRebuilder {
       return
     }
 
+    // Debug logging for conversation ID changes
+    if (this.debugConversationChanges) {
+      console.log('\n   🔍 DEBUG: Conversation ID changes:')
+      let conversationChangeCount = 0
+      
+      updates.forEach(update => {
+        const existing = this.existingRequests.get(update.request_id)
+        if (existing && existing.conversation_id !== update.conversation_id) {
+          conversationChangeCount++
+          console.log(`     [${conversationChangeCount}] Request ${update.request_id}:`)
+          console.log(`       - Old conversation_id: ${existing.conversation_id || 'NULL'}`)
+          console.log(`       - New conversation_id: ${update.conversation_id}`)
+          console.log(`       - Branch: ${update.branch_id}`)
+          if (existing.timestamp) {
+            console.log(`       - Timestamp: ${existing.timestamp}`)
+          }
+          if (existing.domain) {
+            console.log(`       - Domain: ${existing.domain}`)
+          }
+        }
+      })
+      
+      if (conversationChangeCount === 0) {
+        console.log('     No conversation ID changes detected')
+      } else {
+        console.log(`\n   Total requests with conversation ID changes: ${conversationChangeCount}`)
+      }
+    }
+
     const client = await this.pool.connect()
 
     try {
@@ -949,16 +989,23 @@ function parseArgs(): {
   dryRun: boolean
   onlyOrphanConversations: boolean
   domain: string | null
+  limit: number | null
+  debugConversationChanges: boolean
   help: boolean
 } {
   const args = process.argv.slice(2)
   const domainIndex = args.findIndex(arg => arg === '--domain')
   const domain = domainIndex !== -1 && args[domainIndex + 1] ? args[domainIndex + 1] : null
+  
+  const limitIndex = args.findIndex(arg => arg === '--limit')
+  const limit = limitIndex !== -1 && args[limitIndex + 1] ? parseInt(args[limitIndex + 1], 10) : null
 
   return {
     dryRun: args.includes('--dry-run'),
     onlyOrphanConversations: args.includes('--only-orphan-conversations'),
     domain,
+    limit: limit && !isNaN(limit) ? limit : null,
+    debugConversationChanges: args.includes('--debug-conversation-changes'),
     help: args.includes('--help') || args.includes('-h'),
   }
 }
@@ -972,6 +1019,8 @@ Options:
   --dry-run                   Run in dry-run mode (no database changes)
   --only-orphan-conversations Only process orphan conversations
   --domain <domain>           Filter by specific domain
+  --limit <number>            Limit the number of requests to process
+  --debug-conversation-changes Debug log all conversation ID changes
   --help, -h                  Show this help message
 
 Examples:
@@ -983,12 +1032,18 @@ Examples:
 
   # Process only orphan conversations for a domain
   bun run scripts/db/rebuild-conversations.ts --only-orphan-conversations --domain myapp.com
+
+  # Process first 100 requests with debug logging
+  bun run scripts/db/rebuild-conversations.ts --limit 100 --debug-conversation-changes
+
+  # Dry run with limit and conversation change debugging
+  bun run scripts/db/rebuild-conversations.ts --dry-run --limit 50 --debug-conversation-changes
 `)
 }
 
 // Main execution
 async function main() {
-  const { dryRun, onlyOrphanConversations, domain, help } = parseArgs()
+  const { dryRun, onlyOrphanConversations, domain, limit, debugConversationChanges, help } = parseArgs()
 
   if (help) {
     showHelp()
@@ -1026,6 +1081,14 @@ async function main() {
     console.log(`🌐 Filtering by domain: ${domain}`)
   }
 
+  if (limit) {
+    console.log(`📊 Limiting to ${limit} requests`)
+  }
+
+  if (debugConversationChanges) {
+    console.log(`🐛 Debug mode: Will log all conversation ID changes`)
+  }
+
   console.log('')
 
   // Add a confirmation prompt unless in dry run mode
@@ -1038,7 +1101,14 @@ async function main() {
     }
   }
 
-  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations, domain)
+  const rebuilder = new ConversationRebuilder(
+    databaseUrl, 
+    dryRun, 
+    onlyOrphanConversations, 
+    domain,
+    limit,
+    debugConversationChanges
+  )
 
   try {
     await rebuilder.rebuild()
