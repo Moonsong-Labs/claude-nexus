@@ -6,7 +6,9 @@ import { parseArgs } from 'util'
  * Database backup script - creates a backup of the Claude Nexus database
  * Refactored version with improved structure and type safety
  *
- * Supports filtering by timestamp to backup only recent data
+ * Supports filtering by timestamp to backup complete conversations with recent activity
+ * When using --since, backs up entire conversations (not just recent messages) to maintain
+ * foreign key integrity with self-referential fields like parent_task_request_id
  */
 
 // ============================================================================
@@ -50,7 +52,8 @@ Usage:
 Options:
   -n, --name <dbname>    Custom name for the backup database (default: includes timestamp)
   -f, --file [filename]  Export to file instead of creating a backup database
-  -s, --since <time>     Only backup data newer than this time (e.g., '1 hour', '2 days', '2024-01-01')
+  -s, --since <time>     Backup complete conversations with activity after this time (e.g., '1 hour', '2 days', '2024-01-01')
+                         Note: Backs up entire conversations to maintain foreign key integrity
   -h, --help            Show help information
 
 Note: --name and --file options are mutually exclusive
@@ -276,9 +279,18 @@ async function performFileBackup(config: BackupConfig): Promise<void> {
 
     execSync(schemaDumpCommand, { stdio: 'inherit' })
 
-    // Then use COPY commands to export filtered data
-    const dataDumpCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}') TO '${config.targetName}.data' WITH (FORMAT csv, HEADER true)"`
+    // First, get all conversation IDs that have activity since the given timestamp
+    console.log(`Finding conversations with activity since ${config.sinceTimestamp}...`)
+    const getConversationIdsCommand = `psql "${config.sourceDatabaseUrl}" -t -c "SELECT DISTINCT conversation_id FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}'" > ${config.targetName}.conversations`
+    execSync(getConversationIdsCommand, { stdio: 'inherit', shell: true })
+
+    // Then use COPY commands to export all requests for those conversations
+    // This ensures we maintain foreign key integrity by including complete conversations
+    const dataDumpCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE conversation_id IN (SELECT DISTINCT conversation_id FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}')) TO '${config.targetName}.data' WITH (FORMAT csv, HEADER true)"`
     execSync(dataDumpCommand, { stdio: 'inherit', shell: true })
+
+    // Clean up temporary file
+    execSync(`rm -f ${config.targetName}.conversations`, { stdio: 'inherit', shell: true })
 
     // Combine schema and data
     const combineCommand = `cat ${config.targetName}.schema > ${config.targetName} && echo "\\\\copy api_requests FROM '${config.targetName}.data' WITH (FORMAT csv, HEADER true);" >> ${config.targetName} && rm ${config.targetName}.schema ${config.targetName}.data`
@@ -354,12 +366,16 @@ async function performDatabaseBackup(config: BackupConfig): Promise<void> {
     // Then copy filtered data for each table that has a timestamp column
     console.log(`Copying filtered data...`)
 
-    // Copy api_requests with timestamp filter
-    const copyApiRequestsCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}') TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy api_requests FROM STDIN"`
+    // First find all conversation IDs that have activity since the given timestamp
+    console.log(`Finding conversations with activity since ${config.sinceTimestamp}...`)
+
+    // Copy all api_requests for conversations that have any activity since the timestamp
+    // This ensures we maintain foreign key integrity by including complete conversations
+    const copyApiRequestsCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT * FROM api_requests WHERE conversation_id IN (SELECT DISTINCT conversation_id FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}')) TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy api_requests FROM STDIN"`
     execSync(copyApiRequestsCommand, { stdio: 'inherit', shell: true })
 
-    // Copy streaming_chunks for the filtered requests
-    const copyStreamingChunksCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT sc.* FROM streaming_chunks sc JOIN api_requests ar ON sc.request_id = ar.request_id WHERE ar.timestamp >= '${config.sinceTimestamp}') TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy streaming_chunks FROM STDIN"`
+    // Copy streaming_chunks for all the backed up requests
+    const copyStreamingChunksCommand = `psql "${config.sourceDatabaseUrl}" -c "\\copy (SELECT sc.* FROM streaming_chunks sc WHERE sc.request_id IN (SELECT request_id FROM api_requests WHERE conversation_id IN (SELECT DISTINCT conversation_id FROM api_requests WHERE timestamp >= '${config.sinceTimestamp}'))) TO STDOUT" | psql "${backupUrl.toString()}" -c "\\copy streaming_chunks FROM STDIN"`
     try {
       execSync(copyStreamingChunksCommand, { stdio: 'inherit', shell: true })
     } catch (e) {
