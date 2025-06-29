@@ -6,6 +6,13 @@ import {
   type LinkingRequest,
   type ParentQueryCriteria,
 } from '../conversation-linker'
+import {
+  hashMessagesOnly,
+  hashSystemPrompt,
+  hashConversationState,
+  hashConversationStateWithSystem,
+} from '../conversation-hash.js'
+import type { ClaudeMessage } from '../../types/index.js'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 
@@ -439,5 +446,301 @@ describe('ConversationLinker - JSON File Tests', () => {
         expect(result.parentRequestId).toBeNull()
       }
     }
+  })
+})
+
+describe('Dual Hash System - Message and System Hashing', () => {
+  describe('hashMessagesOnly', () => {
+    test('should hash single message correctly', () => {
+      const messages: ClaudeMessage[] = [{ role: 'user', content: 'Hello world' }]
+
+      const hash = hashMessagesOnly(messages)
+      expect(hash).toBeTruthy()
+      expect(hash.length).toBe(64) // SHA-256 produces 64 hex characters
+    })
+
+    test('should produce consistent hash for same messages', () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'What is the weather?' },
+        { role: 'assistant', content: 'I can help with weather information.' },
+      ]
+
+      const hash1 = hashMessagesOnly(messages)
+      const hash2 = hashMessagesOnly(messages)
+      expect(hash1).toBe(hash2)
+    })
+
+    test('should produce different hash for different messages', () => {
+      const messages1: ClaudeMessage[] = [{ role: 'user', content: 'Hello' }]
+      const messages2: ClaudeMessage[] = [{ role: 'user', content: 'Hi' }]
+
+      const hash1 = hashMessagesOnly(messages1)
+      const hash2 = hashMessagesOnly(messages2)
+      expect(hash1).not.toBe(hash2)
+    })
+
+    test('should normalize string and array content to same hash', () => {
+      const messages1: ClaudeMessage[] = [{ role: 'user', content: 'Hello world' }]
+      const messages2: ClaudeMessage[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Hello world' }] },
+      ]
+
+      const hash1 = hashMessagesOnly(messages1)
+      const hash2 = hashMessagesOnly(messages2)
+      expect(hash1).toBe(hash2)
+    })
+
+    test('should filter out system reminder content', () => {
+      const messagesWithReminder: ClaudeMessage[] = [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '<system-reminder>This is a reminder</system-reminder>' },
+            { type: 'text', text: 'Actual user message' },
+          ],
+        },
+      ]
+      const messagesWithoutReminder: ClaudeMessage[] = [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Actual user message' }],
+        },
+      ]
+
+      const hash1 = hashMessagesOnly(messagesWithReminder)
+      const hash2 = hashMessagesOnly(messagesWithoutReminder)
+      expect(hash1).toBe(hash2)
+    })
+
+    test('should handle empty messages array', () => {
+      const hash = hashMessagesOnly([])
+      expect(hash).toBe('')
+    })
+
+    test('should deduplicate tool use messages', () => {
+      const messagesWithDuplicates: ClaudeMessage[] = [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } },
+            { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } }, // Duplicate
+            { type: 'text', text: 'Using calculator' },
+          ],
+        },
+      ]
+      const messagesWithoutDuplicates: ClaudeMessage[] = [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } },
+            { type: 'text', text: 'Using calculator' },
+          ],
+        },
+      ]
+
+      const hash1 = hashMessagesOnly(messagesWithDuplicates)
+      const hash2 = hashMessagesOnly(messagesWithoutDuplicates)
+      expect(hash1).toBe(hash2)
+    })
+  })
+
+  describe('hashSystemPrompt', () => {
+    test('should hash string system prompt', () => {
+      const system = 'You are a helpful assistant'
+      const hash = hashSystemPrompt(system)
+
+      expect(hash).toBeTruthy()
+      expect(hash).not.toBeNull()
+      expect(hash!.length).toBe(64)
+    })
+
+    test('should hash array system prompt', () => {
+      const system = [
+        { type: 'text', text: 'You are a helpful assistant' },
+        { type: 'text', text: 'Be concise' },
+      ]
+      const hash = hashSystemPrompt(system)
+
+      expect(hash).toBeTruthy()
+      expect(hash!.length).toBe(64)
+    })
+
+    test('should return null for undefined system', () => {
+      const hash = hashSystemPrompt(undefined)
+      expect(hash).toBeNull()
+    })
+
+    test('should return null for empty string system', () => {
+      const hash = hashSystemPrompt('')
+      expect(hash).toBeNull()
+    })
+
+    test('should produce consistent hash for same system prompt', () => {
+      const system = 'You are a coding assistant'
+      const hash1 = hashSystemPrompt(system)
+      const hash2 = hashSystemPrompt(system)
+      expect(hash1).toBe(hash2)
+    })
+
+    test('should produce different hash for different system prompts', () => {
+      const system1 = 'You are a helpful assistant'
+      const system2 = 'You are a coding assistant'
+      const hash1 = hashSystemPrompt(system1)
+      const hash2 = hashSystemPrompt(system2)
+      expect(hash1).not.toBe(hash2)
+    })
+
+    test('should handle cache control in array system prompts', () => {
+      const system = [
+        {
+          type: 'text',
+          text: 'You are helpful',
+          cache_control: { type: 'ephemeral' },
+        },
+      ]
+      const hash = hashSystemPrompt(system)
+      expect(hash).toBeTruthy()
+    })
+  })
+
+  describe('hashConversationState with dual hash system', () => {
+    test('should include both message and system hashes', () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there!' },
+      ]
+      const system = 'You are a helpful assistant'
+
+      const hashWithSystem = hashConversationStateWithSystem(messages, system)
+      const hashWithoutSystem = hashConversationState(messages)
+
+      // Should be different when system is included
+      expect(hashWithSystem).not.toBe(hashWithoutSystem)
+    })
+
+    test('should produce same hash regardless of system changes when using messages only', () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there!' },
+      ]
+
+      const hash1 = hashMessagesOnly(messages)
+      const hash2 = hashMessagesOnly(messages)
+
+      // Same messages should always produce same hash
+      expect(hash1).toBe(hash2)
+
+      // And this should be true even if we had different systems
+      const system1 = 'You are a helpful assistant'
+      const system2 = 'You are a helpful assistant with git status: modified'
+
+      const sysHash1 = hashSystemPrompt(system1)
+      const sysHash2 = hashSystemPrompt(system2)
+
+      // System hashes should be different
+      expect(sysHash1).not.toBe(sysHash2)
+
+      // But message hashes remain the same
+      const msgHash1 = hashMessagesOnly(messages)
+      const msgHash2 = hashMessagesOnly(messages)
+      expect(msgHash1).toBe(msgHash2)
+    })
+  })
+
+  describe('Integration with ConversationLinker', () => {
+    test('should properly separate system and message hashes in linking result', async () => {
+      const linker = new ConversationLinker(
+        async () => [], // mockQueryExecutor
+        async () => null // mockCompactSearchExecutor
+      )
+
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages: [
+          { role: 'user', content: 'What is TypeScript?' },
+          { role: 'assistant', content: 'TypeScript is a programming language.' },
+          { role: 'user', content: 'Tell me more' },
+        ],
+        systemPrompt: 'You are a programming tutor',
+        requestId: 'test-123',
+        messageCount: 3,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      // Should have both message hash and system hash
+      expect(result.currentMessageHash).toBeTruthy()
+      expect(result.systemHash).toBeTruthy()
+
+      // Verify system hash matches what we expect
+      const expectedSystemHash = hashSystemPrompt('You are a programming tutor')
+      expect(result.systemHash).toBe(expectedSystemHash)
+    })
+
+    test('should maintain conversation link when system prompt changes', async () => {
+      let queryResults: any[] = []
+
+      const linker = new ConversationLinker(
+        async criteria => {
+          // Return our mock parent if searching by message hash
+          if (criteria.currentMessageHash) {
+            return queryResults
+          }
+          return []
+        },
+        async () => null
+      )
+
+      // First request with original system prompt
+      const messages1: ClaudeMessage[] = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there!' },
+      ]
+
+      const request1: LinkingRequest = {
+        domain: 'test.com',
+        messages: messages1,
+        systemPrompt: 'You are helpful',
+        requestId: 'req-1',
+        messageCount: 2,
+      }
+
+      const result1 = await linker.linkConversation(request1)
+
+      // Set up mock to return this as parent
+      queryResults = [
+        {
+          request_id: 'req-1',
+          conversation_id: 'conv-123',
+          branch_id: 'main',
+          current_message_hash: result1.currentMessageHash,
+          system_hash: result1.systemHash,
+        },
+      ]
+
+      // Second request with same messages but different system prompt
+      const messages2: ClaudeMessage[] = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there!' },
+        { role: 'user', content: 'How are you?' },
+      ]
+
+      const request2: LinkingRequest = {
+        domain: 'test.com',
+        messages: messages2,
+        systemPrompt: 'You are helpful. Git status: modified files', // Changed system
+        requestId: 'req-2',
+        messageCount: 3,
+      }
+
+      const result2 = await linker.linkConversation(request2)
+
+      // Should link to same conversation despite system change
+      expect(result2.conversationId).toBe('conv-123')
+      expect(result2.parentRequestId).toBe('req-1')
+
+      // But system hashes should be different
+      expect(result2.systemHash).not.toBe(result1.systemHash)
+    })
   })
 })

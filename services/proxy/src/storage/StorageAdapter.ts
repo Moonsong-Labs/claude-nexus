@@ -7,6 +7,7 @@ import {
   type QueryExecutor,
   type CompactSearchExecutor,
   type ClaudeMessage,
+  type ParentQueryCriteria,
 } from '@claude-nexus/shared'
 
 /**
@@ -28,15 +29,15 @@ export class StorageAdapter {
     this.writer = new StorageWriter(pool)
 
     // Create query executor for ConversationLinker
-    const queryExecutor: QueryExecutor = async criteria => {
+    const queryExecutor: QueryExecutor = async (criteria: ParentQueryCriteria) => {
       return await this.writer.findParentRequests(criteria)
     }
 
     // Create compact search executor
     const compactSearchExecutor: CompactSearchExecutor = async (
-      domain,
-      summaryContent,
-      beforeTimestamp
+      domain: string,
+      summaryContent: string,
+      beforeTimestamp: Date
     ) => {
       return await this.writer.findParentByResponseContent(domain, summaryContent, beforeTimestamp)
     }
