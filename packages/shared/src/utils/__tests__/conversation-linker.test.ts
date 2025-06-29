@@ -1,7 +1,11 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
-import { ConversationLinker } from '../conversation-linker'
-import type { QueryExecutor, CompactSearchExecutor, LinkingRequest, ParentQueryCriteria } from '../conversation-linker'
-import type { ClaudeMessage } from '../../types'
+import {
+  ConversationLinker,
+  type QueryExecutor,
+  type CompactSearchExecutor,
+  type LinkingRequest,
+  type ParentQueryCriteria,
+} from '../conversation-linker'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 
@@ -11,14 +15,14 @@ describe('ConversationLinker', () => {
   let mockCompactSearchExecutor: CompactSearchExecutor
 
   beforeEach(() => {
-    mockQueryExecutor = async (criteria: ParentQueryCriteria) => {
+    mockQueryExecutor = async (_criteria: ParentQueryCriteria) => {
       return []
     }
-    
-    mockCompactSearchExecutor = async (domain, summaryContent, beforeTimestamp) => {
+
+    mockCompactSearchExecutor = async (_domain, _summaryContent, _beforeTimestamp) => {
       return null
     }
-    
+
     linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
   })
 
@@ -29,12 +33,12 @@ describe('ConversationLinker', () => {
         messages: [
           {
             role: 'user',
-            content: 'Hello, how are you?'
-          }
+            content: 'Hello, how are you?',
+          },
         ],
         systemPrompt: 'You are a helpful assistant',
         requestId: 'test-request-1',
-        messageCount: 1
+        messageCount: 1,
       }
 
       const result = await linker.linkConversation(request)
@@ -53,23 +57,24 @@ describe('ConversationLinker', () => {
         messages: [
           {
             role: 'user',
-            content: 'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\n\nUser asked about weather.\n\nPlease continue the conversation from where we left off.'
-          }
+            content:
+              'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\n\nUser asked about weather.\n\nPlease continue the conversation from where we left off.',
+          },
         ],
         systemPrompt: 'You are a helpful assistant',
         requestId: 'test-request-2',
-        messageCount: 1
+        messageCount: 1,
       }
 
       // Mock finding a parent for compact conversation
-      mockCompactSearchExecutor = async (domain, summaryContent, beforeTimestamp) => {
+      mockCompactSearchExecutor = async (_domain, summaryContent, _beforeTimestamp) => {
         if (summaryContent.includes('user asked about weather')) {
           return {
             request_id: 'parent-request-1',
             conversation_id: 'conv-123',
             branch_id: 'main',
             current_message_hash: 'parent-hash',
-            system_hash: 'system-hash'
+            system_hash: 'system-hash',
           }
         }
         return null
@@ -90,11 +95,11 @@ describe('ConversationLinker', () => {
         messages: [
           { role: 'user', content: 'What is the weather?' },
           { role: 'assistant', content: 'I can help with weather information.' },
-          { role: 'user', content: 'Show me the forecast' }
+          { role: 'user', content: 'Show me the forecast' },
         ],
         systemPrompt: 'You are a weather assistant',
         requestId: 'test-request-3',
-        messageCount: 3
+        messageCount: 3,
       }
 
       const result = await linker.linkConversation(request)
@@ -107,15 +112,13 @@ describe('ConversationLinker', () => {
     test('should handle system prompt as array', async () => {
       const request: LinkingRequest = {
         domain: 'test.com',
-        messages: [
-          { role: 'user', content: 'Hello' }
-        ],
+        messages: [{ role: 'user', content: 'Hello' }],
         systemPrompt: [
           { type: 'text', text: 'You are helpful' },
-          { type: 'text', text: 'Be concise' }
+          { type: 'text', text: 'Be concise' },
         ],
         requestId: 'test-request-4',
-        messageCount: 1
+        messageCount: 1,
       }
 
       const result = await linker.linkConversation(request)
@@ -129,7 +132,7 @@ describe('ConversationLinker', () => {
         messages: [], // Empty messages should trigger error handling
         systemPrompt: 'You are helpful',
         requestId: 'test-request-5',
-        messageCount: 0
+        messageCount: 0,
       }
 
       const result = await linker.linkConversation(request)
@@ -144,12 +147,10 @@ describe('ConversationLinker', () => {
     test('should normalize string content', async () => {
       const request: LinkingRequest = {
         domain: 'test.com',
-        messages: [
-          { role: 'user', content: '  Hello world\r\n  ' }
-        ],
+        messages: [{ role: 'user', content: '  Hello world\r\n  ' }],
         systemPrompt: 'Test',
         requestId: 'test-1',
-        messageCount: 1
+        messageCount: 1,
       }
 
       const result = await linker.linkConversation(request)
@@ -164,13 +165,13 @@ describe('ConversationLinker', () => {
             role: 'user',
             content: [
               { type: 'text', text: '<system-reminder>This is a reminder</system-reminder>' },
-              { type: 'text', text: 'Actual user message' }
-            ]
-          }
+              { type: 'text', text: 'Actual user message' },
+            ],
+          },
         ],
         systemPrompt: 'Test',
         requestId: 'test-2',
-        messageCount: 1
+        messageCount: 1,
       }
 
       const result = await linker.linkConversation(request)
@@ -187,13 +188,13 @@ describe('ConversationLinker', () => {
               { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } },
               { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } }, // Duplicate
               { type: 'tool_result', tool_use_id: 'tool-1', content: 'Result 1' },
-              { type: 'tool_result', tool_use_id: 'tool-1', content: 'Result 1' } // Duplicate
-            ]
-          }
+              { type: 'tool_result', tool_use_id: 'tool-1', content: 'Result 1' }, // Duplicate
+            ],
+          },
         ],
         systemPrompt: 'Test',
         requestId: 'test-3',
-        messageCount: 1
+        messageCount: 1,
       }
 
       const result = await linker.linkConversation(request)
@@ -206,21 +207,21 @@ describe('ConversationLinker', () => {
       const messages = [
         { role: 'user', content: 'First' },
         { role: 'assistant', content: 'Second' },
-        { role: 'user', content: 'Third' }
+        { role: 'user', content: 'Third' },
       ]
 
-      let queriedCriteria: ParentQueryCriteria | null = null
-      mockQueryExecutor = async (criteria) => {
-        queriedCriteria = criteria
+      mockQueryExecutor = async criteria => {
         // Return a match when looking for parent
         if (criteria.currentMessageHash) {
-          return [{
-            request_id: 'exact-match',
-            conversation_id: 'conv-exact',
-            branch_id: 'main',
-            current_message_hash: criteria.currentMessageHash!,
-            system_hash: 'expected-hash'
-          }]
+          return [
+            {
+              request_id: 'exact-match',
+              conversation_id: 'conv-exact',
+              branch_id: 'main',
+              current_message_hash: criteria.currentMessageHash as string,
+              system_hash: 'expected-hash',
+            },
+          ]
         }
         return []
       }
@@ -231,7 +232,7 @@ describe('ConversationLinker', () => {
         messages,
         systemPrompt: 'Test system prompt',
         requestId: 'test-request',
-        messageCount: 3
+        messageCount: 3,
       }
 
       const result = await linker.linkConversation(request)
@@ -244,20 +245,22 @@ describe('ConversationLinker', () => {
       const messages = [
         { role: 'user', content: 'First' },
         { role: 'assistant', content: 'Second' },
-        { role: 'user', content: 'Third' }
+        { role: 'user', content: 'Third' },
       ]
 
       let queriedWithoutSystemHash = false
-      mockQueryExecutor = async (criteria) => {
+      mockQueryExecutor = async criteria => {
         if (criteria.systemHash === null) {
           queriedWithoutSystemHash = true
-          return [{
-            request_id: 'summarization-match',
-            conversation_id: 'conv-summary',
-            branch_id: 'main',
-            current_message_hash: criteria.currentMessageHash!,
-            system_hash: null
-          }]
+          return [
+            {
+              request_id: 'summarization-match',
+              conversation_id: 'conv-summary',
+              branch_id: 'main',
+              current_message_hash: criteria.currentMessageHash as string,
+              system_hash: null,
+            },
+          ]
         }
         return []
       }
@@ -268,7 +271,7 @@ describe('ConversationLinker', () => {
         messages,
         systemPrompt: 'You are a helpful AI assistant tasked with summarizing conversations',
         requestId: 'test-request',
-        messageCount: 3
+        messageCount: 3,
       }
 
       const result = await linker.linkConversation(request)
@@ -283,30 +286,34 @@ describe('ConversationLinker', () => {
       const messages = [
         { role: 'user', content: 'First' },
         { role: 'assistant', content: 'Second' },
-        { role: 'user', content: 'Third' }
+        { role: 'user', content: 'Third' },
       ]
 
       let childrenQueried = false
-      mockQueryExecutor = async (criteria) => {
+      mockQueryExecutor = async criteria => {
         if (criteria.parentMessageHash) {
           childrenQueried = true
           // Return existing children
-          return [{
-            request_id: 'existing-child',
-            conversation_id: 'conv-1',
-            branch_id: 'main',
-            current_message_hash: 'child-hash',
-            system_hash: null
-          }]
+          return [
+            {
+              request_id: 'existing-child',
+              conversation_id: 'conv-1',
+              branch_id: 'main',
+              current_message_hash: 'child-hash',
+              system_hash: null,
+            },
+          ]
         } else if (criteria.currentMessageHash) {
           // Return parent match
-          return [{
-            request_id: 'parent-1',
-            conversation_id: 'conv-1',
-            branch_id: 'main',
-            current_message_hash: criteria.currentMessageHash,
-            system_hash: null
-          }]
+          return [
+            {
+              request_id: 'parent-1',
+              conversation_id: 'conv-1',
+              branch_id: 'main',
+              current_message_hash: criteria.currentMessageHash,
+              system_hash: null,
+            },
+          ]
         }
         return []
       }
@@ -317,7 +324,7 @@ describe('ConversationLinker', () => {
         messages,
         systemPrompt: 'Test',
         requestId: 'test-request',
-        messageCount: 3
+        messageCount: 3,
       }
 
       const result = await linker.linkConversation(request)
@@ -331,55 +338,62 @@ describe('ConversationLinker', () => {
 
 describe('ConversationLinker - JSON File Tests', () => {
   const fixturesDir = join(__dirname, 'fixtures', 'conversation-linking')
-  
+
   test('should correctly link parent-child conversations from JSON fixtures', async () => {
     // Read all test files from fixtures directory
     let files: string[] = []
     try {
       files = await readdir(fixturesDir)
-    } catch (error) {
-      console.log('No fixtures directory found, skipping JSON file tests')
+    } catch (_error) {
+      // No fixtures directory found, skipping JSON file tests
       return
     }
-    
+
     const jsonFiles = files.filter(f => f.endsWith('.json'))
-    
+
     for (const file of jsonFiles) {
       const filePath = join(fixturesDir, file)
       const content = await readFile(filePath, 'utf-8')
       const testCase = JSON.parse(content)
-      
-      
+
       // Create mock executors that return the parent when queried
-      const mockQueryExecutor: QueryExecutor = async (criteria) => {
+      const mockQueryExecutor: QueryExecutor = async criteria => {
         // For normal linking, we look for parent by current_message_hash
         if (criteria.currentMessageHash) {
           // The child is looking for a parent whose current_message_hash matches
           // the child's parent_message_hash (first N-2 messages)
           if (testCase.parent.current_message_hash === criteria.currentMessageHash) {
-            return [{
-              request_id: testCase.parent.request_id,
-              conversation_id: testCase.parent.conversation_id,
-              branch_id: testCase.parent.branch_id || 'main',
-              current_message_hash: testCase.parent.current_message_hash,
-              system_hash: testCase.parent.system_hash
-            }]
+            return [
+              {
+                request_id: testCase.parent.request_id,
+                conversation_id: testCase.parent.conversation_id,
+                branch_id: testCase.parent.branch_id || 'main',
+                current_message_hash: testCase.parent.current_message_hash,
+                system_hash: testCase.parent.system_hash,
+              },
+            ]
           }
         }
         // For branch detection
         if (criteria.parentMessageHash && testCase.existingChild) {
-          return [{
-            request_id: testCase.existingChild.request_id,
-            conversation_id: testCase.existingChild.conversation_id,
-            branch_id: testCase.existingChild.branch_id,
-            current_message_hash: testCase.existingChild.current_message_hash,
-            system_hash: null
-          }]
+          return [
+            {
+              request_id: testCase.existingChild.request_id,
+              conversation_id: testCase.existingChild.conversation_id,
+              branch_id: testCase.existingChild.branch_id,
+              current_message_hash: testCase.existingChild.current_message_hash,
+              system_hash: null,
+            },
+          ]
         }
         return []
       }
-      
-      const mockCompactSearchExecutor: CompactSearchExecutor = async (domain, summaryContent, beforeTimestamp) => {
+
+      const mockCompactSearchExecutor: CompactSearchExecutor = async (
+        _domain,
+        summaryContent,
+        _beforeTimestamp
+      ) => {
         // Handle compact conversation cases if needed
         if (testCase.type === 'compact' && testCase.expectedSummaryContent) {
           if (summaryContent.includes(testCase.expectedSummaryContent)) {
@@ -388,34 +402,34 @@ describe('ConversationLinker - JSON File Tests', () => {
               conversation_id: testCase.parent.conversation_id,
               branch_id: testCase.parent.branch_id || 'main',
               current_message_hash: testCase.parent.current_message_hash,
-              system_hash: testCase.parent.system_hash
+              system_hash: testCase.parent.system_hash,
             }
           }
         }
         return null
       }
-      
+
       const linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
-      
+
       // Extract messages from child request body
       const childMessages = testCase.child.body.messages
       const childSystemPrompt = testCase.child.body.system
-      
+
       const request: LinkingRequest = {
         domain: testCase.child.domain,
         messages: childMessages,
         systemPrompt: childSystemPrompt,
         requestId: testCase.child.request_id,
-        messageCount: childMessages.length
+        messageCount: childMessages.length,
       }
-      
+
       const result = await linker.linkConversation(request)
-      
+
       // Verify the linking worked correctly
       if (testCase.expectedLink) {
         expect(result.conversationId).toBe(testCase.parent.conversation_id)
         expect(result.parentRequestId).toBe(testCase.parent.request_id)
-        
+
         if (testCase.expectedBranchPattern) {
           expect(result.branchId).toMatch(new RegExp(testCase.expectedBranchPattern))
         }

@@ -315,13 +315,15 @@ export class StorageWriter {
     currentMessageHash?: string
     systemHash?: string | null
     excludeRequestId?: string
-  }): Promise<Array<{
-    request_id: string
-    conversation_id: string
-    branch_id: string
-    current_message_hash: string
-    system_hash: string | null
-  }>> {
+  }): Promise<
+    Array<{
+      request_id: string
+      conversation_id: string
+      branch_id: string
+      current_message_hash: string
+      system_hash: string | null
+    }>
+  > {
     try {
       const conditions: string[] = ['domain = $1']
       const values: any[] = [criteria.domain]
@@ -410,7 +412,7 @@ export class StorageWriter {
         .replace(/[\\%_]/g, '\\$&') // Escape SQL LIKE wildcards
         .replace(/\s+/g, ' ') // Normalize whitespace
         .trim()
-      
+
       // Use parameterized query with proper escaping
       const query = `
         SELECT 
@@ -428,9 +430,9 @@ export class StorageWriter {
         ORDER BY timestamp DESC
         LIMIT 1
       `
-      
+
       const result = await this.pool.query(query, [domain, beforeTimestamp, escapedContent])
-      
+
       if (result.rows.length > 0) {
         logger.info('Found parent conversation by response content match', {
           metadata: {
@@ -440,7 +442,7 @@ export class StorageWriter {
           },
         })
       }
-      
+
       return result.rows[0] || null
     } catch (error) {
       logger.error('Failed to find parent by response content', {

@@ -73,14 +73,22 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
 
   // Security: Validate max_tokens is within reasonable bounds
   if (request.max_tokens !== undefined) {
-    if (!Number.isInteger(request.max_tokens) || request.max_tokens < 1 || request.max_tokens > 1000000) {
+    if (
+      !Number.isInteger(request.max_tokens) ||
+      request.max_tokens < 1 ||
+      request.max_tokens > 1000000
+    ) {
       errors.push('max_tokens must be between 1 and 1,000,000')
     }
   }
 
   // Validate temperature
   if (request.temperature !== undefined) {
-    if (typeof request.temperature !== 'number' || request.temperature < 0 || request.temperature > 1) {
+    if (
+      typeof request.temperature !== 'number' ||
+      request.temperature < 0 ||
+      request.temperature > 1
+    ) {
       errors.push('temperature must be between 0 and 1')
     }
   }
@@ -101,14 +109,15 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
   let totalLength = 0
   const MAX_MESSAGE_LENGTH = 100000 // 100KB per message
   const MAX_TOTAL_LENGTH = 500000 // 500KB total
-  
+
   // Add system prompt length if present
   if (request.system) {
-    const systemLength = typeof request.system === 'string' 
-      ? request.system.length 
-      : JSON.stringify(request.system).length
+    const systemLength =
+      typeof request.system === 'string'
+        ? request.system.length
+        : JSON.stringify(request.system).length
     totalLength += systemLength
-    
+
     if (systemLength > MAX_MESSAGE_LENGTH) {
       errors.push(`System prompt too long: ${systemLength} characters (max: ${MAX_MESSAGE_LENGTH})`)
     }
@@ -129,18 +138,22 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
     }
 
     // Check message content length
-    const messageLength = typeof message.content === 'string'
-      ? message.content.length
-      : JSON.stringify(message.content).length
-    
+    const messageLength =
+      typeof message.content === 'string'
+        ? message.content.length
+        : JSON.stringify(message.content).length
+
     if (messageLength > MAX_MESSAGE_LENGTH) {
       errors.push(`Message ${i} too long: ${messageLength} characters (max: ${MAX_MESSAGE_LENGTH})`)
     }
-    
+
     totalLength += messageLength
 
     // Check for empty content
-    if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
+    if (
+      !message.content ||
+      (typeof message.content === 'string' && message.content.trim() === '')
+    ) {
       errors.push(`Message ${i} has empty content`)
     }
 
@@ -161,7 +174,9 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
 
   // Check total length
   if (totalLength > MAX_TOTAL_LENGTH) {
-    errors.push(`Total request size too large: ${totalLength} characters (max: ${MAX_TOTAL_LENGTH})`)
+    errors.push(
+      `Total request size too large: ${totalLength} characters (max: ${MAX_TOTAL_LENGTH})`
+    )
   }
 
   // Validate tools if present
@@ -180,7 +195,7 @@ function validateClaudeRequestDetails(request: ClaudeMessagesRequest): string[] 
 export function sanitizeErrorMessage(message: string): string {
   // Limit message length to prevent ReDoS
   const truncatedMessage = message.length > 1000 ? message.substring(0, 1000) + '...' : message
-  
+
   // Remove any potential sensitive information with simpler, safer regex patterns
   return truncatedMessage
     .replace(/sk-ant-[\w-]{1,100}/g, 'sk-ant-****')
