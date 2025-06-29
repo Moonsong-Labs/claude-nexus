@@ -7,6 +7,7 @@ import { validationMiddleware } from './middleware/validation.js'
 import { createRateLimiter, createDomainRateLimiter } from './middleware/rate-limit.js'
 import { createHealthRoutes } from './routes/health.js'
 import { apiRoutes } from './routes/api.js'
+import { sparkApiRoutes } from './routes/spark-api.js'
 import { initializeSlack } from './services/slack.js'
 import { initializeDatabase } from './storage/writer.js'
 import { apiAuthMiddleware } from './middleware/api-auth.js'
@@ -134,6 +135,9 @@ export async function createProxyApp(): Promise<
     await next()
   })
   app.route('/api', apiRoutes)
+
+  // Spark API routes (protected by same auth as dashboard API)
+  app.route('/api', sparkApiRoutes)
 
   // Client setup files
   app.get('/client-setup/:filename', async c => {
