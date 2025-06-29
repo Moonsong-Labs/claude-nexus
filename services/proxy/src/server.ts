@@ -24,6 +24,11 @@ async function startServer() {
     metadata: {
       version: process.env.npm_package_version || '2.0.0',
       environment: config.server.env,
+      features: {
+        storage: config.storage.enabled ? 'enabled' : 'disabled',
+        telemetry: config.telemetry.enabled ? 'enabled' : 'disabled',
+        sparkApi: config.spark.enabled ? 'enabled' : 'disabled',
+      },
     },
   })
 
@@ -90,6 +95,16 @@ async function startServer() {
     metadata: {
       port: config.server.port,
       host: config.server.host,
+      sparkApi: config.spark.enabled
+        ? {
+            enabled: true,
+            url: config.spark.apiUrl,
+            hasApiKey: !!config.spark.apiKey,
+          }
+        : {
+            enabled: false,
+            reason: !config.spark.apiKey ? 'SPARK_API_KEY not set' : 'SPARK_ENABLED is false',
+          },
     },
   })
 

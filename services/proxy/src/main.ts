@@ -204,6 +204,17 @@ async function main() {
       )
     }
 
+    // Show Spark API configuration
+    console.log('\nSpark API:')
+    if (process.env.SPARK_API_KEY) {
+      console.log('  - Enabled: Yes')
+      console.log(`  - URL: ${process.env.SPARK_API_URL || 'http://localhost:8000 (default)'}`)
+      console.log('  - API Key: Configured')
+    } else {
+      console.log('  - Enabled: No')
+      console.log('  - Reason: SPARK_API_KEY not set')
+    }
+
     // Check all credentials at startup
     console.log('\nChecking credentials...')
     const credentialService = new CredentialStatusService()

@@ -5,6 +5,8 @@ import { getErrorMessage } from '@claude-nexus/shared'
 import { parseConversation, calculateCost } from '../utils/conversation.js'
 import { formatDuration, escapeHtml } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
+import { isSparkRecommendation, parseSparkRecommendation } from '../utils/spark.js'
+import { renderSparkRecommendationInline } from '../components/spark-recommendation-inline.js'
 
 export const requestDetailsRoutes = new Hono<{
   Variables: {
@@ -47,37 +49,120 @@ requestDetailsRoutes.get('/request/:id', async c => {
     // Calculate cost
     const cost = calculateCost(conversation.totalInputTokens, conversation.totalOutputTokens)
 
+    // Detect Spark recommendations
+    const sparkRecommendations: Array<{
+      sessionId: string
+      recommendation: any
+      messageIndex: number
+    }> = []
+
+    // Look through raw request/response for Spark tool usage
+    if (details.requestBody?.messages && details.responseBody) {
+      const allMessages = [...(details.requestBody.messages || []), details.responseBody]
+
+      for (let i = 0; i < allMessages.length - 1; i++) {
+        const msg = allMessages[i]
+        const nextMsg = allMessages[i + 1]
+
+        if (msg.content && Array.isArray(msg.content)) {
+          for (const content of msg.content) {
+            if (content.type === 'tool_use' && isSparkRecommendation(content)) {
+              // Look for corresponding tool_result in next message
+              if (nextMsg.content && Array.isArray(nextMsg.content)) {
+                const toolResult = nextMsg.content.find(
+                  (item: any) => item.type === 'tool_result' && item.tool_use_id === content.id
+                )
+
+                if (toolResult) {
+                  const recommendation = parseSparkRecommendation(toolResult, content)
+                  if (recommendation) {
+                    sparkRecommendations.push({
+                      sessionId: recommendation.sessionId,
+                      recommendation,
+                      messageIndex: i,
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fetch existing feedback for Spark recommendations if any
+    let sparkFeedbackMap: Record<string, any> = {}
+    if (sparkRecommendations.length > 0 && apiClient) {
+      try {
+        const sessionIds = sparkRecommendations.map(r => r.sessionId)
+        const feedbackResponse = await apiClient.post('/api/spark/feedback/batch', {
+          session_ids: sessionIds,
+        })
+
+        if (feedbackResponse.results) {
+          sparkFeedbackMap = feedbackResponse.results
+        }
+      } catch (error) {
+        console.error('Failed to fetch Spark feedback:', error)
+      }
+    }
+
     // Format messages for display - reverse order to show newest first
-    const messagesHtml = conversation.messages
-      .slice()
-      .reverse()
-      .map((msg, idx) => {
-        const messageId = `message-${idx}`
-        const contentId = `content-${idx}`
-        const truncatedId = `truncated-${idx}`
+    const messagesHtml = await Promise.all(
+      conversation.messages
+        .slice()
+        .reverse()
+        .map(async (msg, idx) => {
+          const messageId = `message-${idx}`
+          const contentId = `content-${idx}`
+          const truncatedId = `truncated-${idx}`
 
-        // Add special classes for tool messages
-        let messageClass = `message message-${msg.role}`
-        if (msg.isToolUse) {
-          messageClass += ' message-tool-use'
-        } else if (msg.isToolResult) {
-          messageClass += ' message-tool-result'
-        }
+          // Check if this message contains a Spark recommendation
+          let sparkHtml = ''
+          if (msg.sparkRecommendation) {
+            const feedbackForSession = sparkFeedbackMap[msg.sparkRecommendation.sessionId]
+            sparkHtml = await renderSparkRecommendationInline(
+              msg.sparkRecommendation.recommendation,
+              msg.sparkRecommendation.sessionId,
+              idx,
+              feedbackForSession
+            )
 
-        // Add special styling for assistant messages
-        if (msg.role === 'assistant') {
-          messageClass += ' message-assistant-response'
-        }
+            // Replace the marker in the content with the Spark HTML
+            msg.htmlContent = msg.htmlContent.replace(
+              `[[SPARK_RECOMMENDATION:${msg.sparkRecommendation.sessionId}]]`,
+              sparkHtml
+            )
+            if (msg.truncatedHtml) {
+              msg.truncatedHtml = msg.truncatedHtml.replace(
+                `[[SPARK_RECOMMENDATION:${msg.sparkRecommendation.sessionId}]]`,
+                '<div class="spark-inline-recommendation"><div class="spark-inline-header"><div class="spark-inline-title"><span class="spark-icon">✨</span><span class="spark-label">Spark Recommendation</span></div></div><div style="padding: 0.5rem 1rem; text-align: center; color: #64748b; font-size: 0.875rem;">Show more to view recommendation</div></div>'
+              )
+            }
+          }
 
-        // Format role display
-        let roleDisplay = msg.role.charAt(0).toUpperCase() + msg.role.slice(1)
-        if (msg.isToolUse) {
-          roleDisplay = 'Tool 🔧'
-        } else if (msg.isToolResult) {
-          roleDisplay = 'Result ✅'
-        }
+          // Add special classes for tool messages
+          let messageClass = `message message-${msg.role}`
+          if (msg.isToolUse) {
+            messageClass += ' message-tool-use'
+          } else if (msg.isToolResult) {
+            messageClass += ' message-tool-result'
+          }
 
-        return `
+          // Add special styling for assistant messages
+          if (msg.role === 'assistant') {
+            messageClass += ' message-assistant-response'
+          }
+
+          // Format role display
+          let roleDisplay = msg.role.charAt(0).toUpperCase() + msg.role.slice(1)
+          if (msg.isToolUse) {
+            roleDisplay = 'Tool 🔧'
+          } else if (msg.isToolResult) {
+            roleDisplay = 'Result ✅'
+          }
+
+          return `
         <div class="${messageClass}" id="message-${idx}" data-message-index="${idx}">
           <div class="message-meta">
             <div class="message-role">${roleDisplay}</div>
@@ -106,8 +191,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
           </div>
         </div>
       `
-      })
-      .join('')
+        })
+    )
 
     const content = html`
       <div class="mb-6">
@@ -304,7 +389,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
       </div>
 
       <!-- Conversation View -->
-      <div id="conversation-view" class="conversation-container">${raw(messagesHtml)}</div>
+      <div id="conversation-view" class="conversation-container">${raw(messagesHtml.join(''))}</div>
 
       <!-- Raw JSON View (hidden by default) -->
       <div id="raw-view" class="hidden">

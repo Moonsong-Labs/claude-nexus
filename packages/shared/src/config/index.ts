@@ -109,6 +109,13 @@ export const config = {
     enabled: env.bool('SLACK_ENABLED', !!env.string('SLACK_WEBHOOK_URL', '')),
   },
 
+  // Spark API configuration
+  spark: {
+    apiUrl: env.string('SPARK_API_URL', 'http://localhost:8000'),
+    apiKey: env.string('SPARK_API_KEY', ''),
+    enabled: env.bool('SPARK_ENABLED', !!env.string('SPARK_API_KEY', '')),
+  },
+
   // Telemetry
   telemetry: {
     endpoint: env.string('TELEMETRY_ENDPOINT', ''),
