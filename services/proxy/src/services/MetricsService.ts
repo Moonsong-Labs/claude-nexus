@@ -60,6 +60,7 @@ export class MetricsService {
       parentMessageHash: string | null
       conversationId: string
       systemHash: string | null
+      branchId?: string
     },
     responseHeaders?: Record<string, string>,
     fullResponseBody?: any,
@@ -246,6 +247,7 @@ export class MetricsService {
       parentMessageHash: string | null
       conversationId: string
       systemHash: string | null
+      branchId?: string
     },
     responseHeaders?: Record<string, string>,
     fullResponseBody?: any,
@@ -297,6 +299,7 @@ export class MetricsService {
         currentMessageHash: conversationData?.currentMessageHash,
         parentMessageHash: conversationData?.parentMessageHash,
         conversationId: conversationData?.conversationId,
+        branchId: conversationData?.branchId,
         systemHash: conversationData?.systemHash,
         messageCount: messageCount,
       })
