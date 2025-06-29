@@ -478,11 +478,18 @@ class ConversationRebuilder {
               // Add as child of the source
               sourceNode.children.push(node)
 
-              // Mark this as a continuation branch
-              node.branch_id = `compact_${new Date(request.timestamp)
-                .toISOString()
-                .replace(/[^0-9]/g, '')
-                .substring(8, 14)}`
+              // Check if source already has a compact branch to preserve
+              const sourceRequestData = this.existingRequests.get(sourceRequest.request_id)
+              if (sourceRequestData?.branch_id?.startsWith('compact_')) {
+                // Preserve the existing compact branch
+                node.branch_id = sourceRequestData.branch_id
+              } else {
+                // Create a new compact branch
+                node.branch_id = `compact_${new Date(request.timestamp)
+                  .toISOString()
+                  .replace(/[^0-9]/g, '')
+                  .substring(8, 14)}`
+              }
 
               console.log(
                 `   Linked continuation request ${request.request_id} to source ${sourceRequest.request_id} with branch ${node.branch_id}`
@@ -647,19 +654,16 @@ class ConversationRebuilder {
       // Check if this conversation already exists and has the same structure
       const existingConvId = this.findExistingConversationId(root)
 
-      // Special handling for requests without parent or with < 3 messages
+      // Special handling for requests without parent
       const existingRequest = this.existingRequests.get(root.request_id)
       const shouldPreserveConversationId =
-        existingRequest?.conversation_id &&
-        (!root.parent_message_hash || (root.message_count !== null && root.message_count < 3))
+        existingRequest?.conversation_id && !root.parent_message_hash
 
       let conversationId: string
       if (shouldPreserveConversationId) {
-        // Preserve existing conversation ID for requests without parent or with < 3 messages
+        // Preserve existing conversation ID for requests without parent
         conversationId = existingRequest.conversation_id
-        console.log(
-          `   Preserving conversation ID for request ${root.request_id} (no parent or message_count < 3)`
-        )
+        console.log(`   Preserving conversation ID for request ${root.request_id} (no parent)`)
       } else {
         conversationId = existingConvId || randomUUID()
       }
@@ -696,10 +700,8 @@ class ConversationRebuilder {
     // Get existing request data
     const existing = this.existingRequests.get(node.request_id)
 
-    // Special handling for requests without parent or with < 3 messages
-    const shouldPreserveConversationId =
-      existing?.conversation_id &&
-      (!node.parent_message_hash || (node.message_count !== null && node.message_count < 3))
+    // Special handling for requests without parent
+    const shouldPreserveConversationId = existing?.conversation_id && !node.parent_message_hash
 
     // Use existing conversation ID if we should preserve it
     const effectiveConversationId = shouldPreserveConversationId
@@ -708,9 +710,7 @@ class ConversationRebuilder {
 
     // Log when we preserve conversation ID for non-root nodes
     if (shouldPreserveConversationId && node.parent_message_hash) {
-      console.log(
-        `   Preserving conversation ID for child request ${node.request_id} (message_count < 3)`
-      )
+      console.log(`   Preserving conversation ID for child request ${node.request_id}`)
     }
 
     // Track new conversation counts
