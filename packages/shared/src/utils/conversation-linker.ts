@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
-import type { ClaudeMessage, ClaudeContent } from '../types'
-import { hashSystemPrompt } from './conversation-hash'
+import type { ClaudeMessage, ClaudeContent } from '../types/index.js'
+import { hashSystemPrompt } from './conversation-hash.js'
 
 // Constants
 const BRANCH_MAIN = 'main'
