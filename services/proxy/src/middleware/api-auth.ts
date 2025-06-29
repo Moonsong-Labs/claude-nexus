@@ -15,7 +15,9 @@ export function apiAuthMiddleware() {
 
   return async (c: Context, next: Next) => {
     const providedKey =
-      c.req.header('X-API-Key') || c.req.header('Authorization')?.replace('Bearer ', '')
+      c.req.header('X-API-Key') ||
+      c.req.header('X-Dashboard-Key') ||
+      c.req.header('Authorization')?.replace('Bearer ', '')
 
     if (!providedKey) {
       logger.warn('API request without authentication', {

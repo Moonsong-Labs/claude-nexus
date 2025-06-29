@@ -451,6 +451,15 @@ export async function renderSparkRecommendationInline(
         if (parts.length === 2) return parts.pop().split(';').shift()
         return ''
       }
+      
+      // Get dashboard API key from cookie
+      // Note: The dashboard_auth cookie is set with httpOnly=false to allow JavaScript access
+      // This is needed for making authenticated API calls from the browser to the proxy service
+      function getDashboardApiKey() {
+        // Get from cookie - this works because httpOnly is set to false in auth.ts
+        const cookieValue = getCookie('dashboard_auth') || ''
+        return cookieValue
+      }
 
       // Submit feedback
       async function submitInlineSparkFeedback(sessionId) {
@@ -464,21 +473,24 @@ export async function renderSparkRecommendationInline(
               overall_feedback: {
                 rating: parseInt(formData.get('rating')),
                 comments: formData.get('comments')
-              }
-            }
+              },
+              section_feedbacks: [] // Required but can be empty
+            },
+            source_feedbacks: [], // Required but can be empty
+            lessons_learned: [] // Required but can be empty
           }
         }
         
         try {
-          // Send to proxy service on port 3000
-          const proxyUrl = window.location.protocol + '//' + window.location.hostname + ':3000'
-          const response = await fetch(proxyUrl + '/api/spark/feedback', {
+          // Send feedback through dashboard's proxy endpoint
+          // This avoids CORS and authentication issues
+          const response = await fetch('/dashboard/api/spark/feedback', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'X-Dashboard-Key': getCookie('dashboard_auth') || ''
+              'Content-Type': 'application/json'
             },
-            body: JSON.stringify(feedback)
+            body: JSON.stringify(feedback),
+            credentials: 'same-origin'
           })
           
           if (response.ok) {
@@ -486,6 +498,7 @@ export async function renderSparkRecommendationInline(
             const feedbackSection = document.getElementById('spark-inline-feedback-' + sessionId)
             feedbackSection.innerHTML = '<div class="inline-existing-feedback"><p>✅ Thank you for your feedback!</p></div>'
           } else {
+            const errorText = await response.text()
             alert('Failed to submit feedback. Please try again.')
           }
         } catch (error) {

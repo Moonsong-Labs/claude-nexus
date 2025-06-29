@@ -150,7 +150,8 @@ sparkApiRoutes.post('/spark/feedback/batch', async c => {
     const body = await c.req.json()
     const validatedData = BatchFeedbackRequestSchema.parse(body)
 
-    const response = await fetch(`${config.spark.apiUrl}/feedback/batch`, {
+    const sparkUrl = `${config.spark.apiUrl}/feedback/batch`
+    const response = await fetch(sparkUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.spark.apiKey}`,
@@ -160,11 +161,21 @@ sparkApiRoutes.post('/spark/feedback/batch', async c => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}) as any)
+      const errorText = await response.text().catch(() => '')
+
+      let errorData: any = {}
+      try {
+        errorData = errorText ? JSON.parse(errorText) : {}
+      } catch {
+        // Not JSON
+      }
+
       return c.json(
         {
           error:
-            (errorData as any).detail || `Failed to fetch batch feedback: ${response.statusText}`,
+            (errorData as any).detail ||
+            errorText ||
+            `Failed to fetch batch feedback: ${response.statusText}`,
         },
         response.status as any
       )

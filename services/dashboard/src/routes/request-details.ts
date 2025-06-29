@@ -95,7 +95,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
     if (sparkRecommendations.length > 0 && apiClient) {
       try {
         const sessionIds = sparkRecommendations.map(r => r.sessionId)
-        const feedbackResponse = await apiClient.post('/spark/feedback/batch', {
+        const feedbackResponse = await apiClient.post('/api/spark/feedback/batch', {
           session_ids: sessionIds,
         })
 

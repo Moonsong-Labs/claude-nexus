@@ -470,12 +470,23 @@ The dashboard supports the Spark recommendation tool (`mcp__spark__get_recommend
 1. Set `SPARK_API_URL` and `SPARK_API_KEY` environment variables
 2. The dashboard will automatically detect Spark recommendations in tool_result messages
 3. Users can submit feedback directly from the request details page
+4. The proxy logs Spark configuration at startup:
+   - When configured: Shows URL and confirms API key is set
+   - When not configured: Shows "SPARK_API_KEY not set"
 
 **API Endpoints:**
 
 - `POST /api/spark/feedback` - Submit feedback for a recommendation
 - `GET /api/spark/sessions/:sessionId/feedback` - Get feedback for a specific session
 - `POST /api/spark/feedback/batch` - Get feedback for multiple sessions
+
+**Security Note:**
+
+The dashboard authentication cookie (`dashboard_auth`) is set with `httpOnly: false` to allow JavaScript access for making authenticated API calls from the browser to the proxy service. This is a security trade-off that enables the inline feedback component to work. Consider implementing a more secure approach such as:
+
+- Using a separate API token for browser-based requests
+- Implementing a server-side proxy endpoint in the dashboard
+- Using session-based authentication with CSRF tokens
 
 ### SQL Query Optimization
 
