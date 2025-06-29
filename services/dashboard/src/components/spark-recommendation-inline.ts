@@ -470,7 +470,9 @@ export async function renderSparkRecommendationInline(
         }
         
         try {
-          const response = await fetch('/api/spark/feedback', {
+          // Send to proxy service on port 3000
+          const proxyUrl = window.location.protocol + '//' + window.location.hostname + ':3000'
+          const response = await fetch(proxyUrl + '/api/spark/feedback', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

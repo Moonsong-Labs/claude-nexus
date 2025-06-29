@@ -50,6 +50,9 @@ export async function parseConversation(requestData: any): Promise<ConversationD
   const messages: ParsedMessage[] = []
   const toolUsage: Record<string, number> = {}
 
+  // Track pending Spark tool uses across messages
+  const pendingSparkToolUses: Map<string, any> = new Map()
+
   // Helper function to process message content for tool usage
   const processMessageContentForTools = (content: any[]) => {
     if (!Array.isArray(content)) {
@@ -77,7 +80,7 @@ export async function parseConversation(requestData: any): Promise<ConversationD
         // Earlier messages - subtract some time
         messageTime.setSeconds(messageTime.getSeconds() - (request.messages.length - i) * 30)
       }
-      const parsedMsg = await parseMessage(msg, messageTime)
+      const parsedMsg = await parseMessage(msg, messageTime, pendingSparkToolUses)
       messages.push(parsedMsg)
     }
   }
@@ -94,12 +97,13 @@ export async function parseConversation(requestData: any): Promise<ConversationD
         role: 'assistant',
         content: response.content,
       },
-      timestamp
+      timestamp,
+      pendingSparkToolUses
     )
     messages.push(parsedMsg)
   } else if (response.type === 'message' && response.role === 'assistant') {
     // Handle case where response is already in message format
-    const parsedMsg = await parseMessage(response, timestamp)
+    const parsedMsg = await parseMessage(response, timestamp, pendingSparkToolUses)
     messages.push(parsedMsg)
   }
 
@@ -125,14 +129,17 @@ export async function parseConversation(requestData: any): Promise<ConversationD
   }
 }
 
-async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> {
+async function parseMessage(
+  msg: any,
+  timestamp?: Date,
+  pendingSparkToolUses?: Map<string, any>
+): Promise<ParsedMessage> {
   let content = ''
   let isToolUse = false
   let isToolResult = false
   let toolName = ''
   let toolId = ''
   let sparkRecommendation: ParsedMessage['sparkRecommendation'] = undefined
-  let pendingSparkToolUse: any = null
 
   // Handle different content formats
   if (typeof msg.content === 'string') {
@@ -195,8 +202,8 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
 
         case 'tool_use': {
           // Check if this is a Spark recommendation tool
-          if (isSparkRecommendation(block)) {
-            pendingSparkToolUse = block
+          if (isSparkRecommendation(block) && pendingSparkToolUses && block.id) {
+            pendingSparkToolUses.set(block.id, block)
           }
 
           let toolContent = `**Tool Use: ${block.name || 'Unknown Tool'}**`
@@ -216,19 +223,22 @@ async function parseMessage(msg: any, timestamp?: Date): Promise<ParsedMessage> 
 
         case 'tool_result': {
           // Check if this is a Spark recommendation result
-          if (pendingSparkToolUse && pendingSparkToolUse.id === block.tool_use_id) {
-            const recommendation = parseSparkRecommendation(block, pendingSparkToolUse)
-            if (recommendation) {
-              sparkRecommendation = {
-                sessionId: recommendation.sessionId,
-                recommendation,
-                toolUse: pendingSparkToolUse,
-              }
+          if (pendingSparkToolUses && block.tool_use_id) {
+            const pendingSparkToolUse = pendingSparkToolUses.get(block.tool_use_id)
+            if (pendingSparkToolUse) {
+              const recommendation = parseSparkRecommendation(block, pendingSparkToolUse)
+              if (recommendation) {
+                sparkRecommendation = {
+                  sessionId: recommendation.sessionId,
+                  recommendation,
+                  toolUse: pendingSparkToolUse,
+                }
 
-              // Create a special marker for Spark recommendations
-              contentParts.push(`[[SPARK_RECOMMENDATION:${recommendation.sessionId}]]`)
-              pendingSparkToolUse = null
-              break
+                // Create a special marker for Spark recommendations
+                contentParts.push(`[[SPARK_RECOMMENDATION:${recommendation.sessionId}]]`)
+                pendingSparkToolUses.delete(block.tool_use_id)
+                break
+              }
             }
           }
 
