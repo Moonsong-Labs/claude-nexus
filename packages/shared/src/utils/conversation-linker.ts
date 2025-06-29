@@ -211,7 +211,7 @@ export class ConversationLinker {
     }
   }
 
-  private computeMessageHash(messages: ClaudeMessage[]): string {
+  public computeMessageHash(messages: ClaudeMessage[]): string {
     try {
       const hash = createHash('sha256')
 

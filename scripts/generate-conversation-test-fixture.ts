@@ -205,9 +205,9 @@ async function generateTestFixture(
       domain: parentData.domain,
       conversation_id: parentData.conversation_id,
       branch_id: parentData.branch_id,
-      current_message_hash: null,
-      parent_message_hash: null,
-      system_hash: null,
+      current_message_hash: parentData.current_message_hash,
+      parent_message_hash: parentData.parent_message_hash,
+      system_hash: parentData.system_hash,
       body: sanitizeData(filterToolMessages(parentData.body)), // Include filtered and sanitized body
       response_body: sanitizeData(parentData.response_body),
     },

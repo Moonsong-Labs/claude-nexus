@@ -133,7 +133,7 @@ describe('ConversationLinker', () => {
       expect(result.systemHash).toBeTruthy()
     })
 
-    test('should handle errors gracefully', async () => {
+    test('should handle empty messages gracefully', async () => {
       const request: LinkingRequest = {
         domain: 'test.com',
         messages: [], // Empty messages should trigger error handling
@@ -144,9 +144,12 @@ describe('ConversationLinker', () => {
 
       const result = await linker.linkConversation(request)
 
+      // Should return safe defaults when messages are empty
       expect(result.conversationId).toBeNull()
       expect(result.parentRequestId).toBeNull()
       expect(result.branchId).toBe('main')
+      expect(result.currentMessageHash).toBe('') // Empty hash for empty messages
+      expect(result.parentMessageHash).toBeNull()
     })
   })
 
