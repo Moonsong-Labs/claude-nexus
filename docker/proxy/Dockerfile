@@ -13,7 +13,7 @@ COPY . .
 RUN bun install
 
 # Build shared package
-RUN cd packages/shared && bun run build
+RUN cd packages/shared && bun run build && ls -la dist/
 
 # Build production bundle
 RUN cd services/proxy && bun run build:production
