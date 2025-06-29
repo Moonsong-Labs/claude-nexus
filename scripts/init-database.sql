@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS api_requests (
     is_subtask BOOLEAN DEFAULT false,
     task_tool_invocation JSONB,
     account_id VARCHAR(255),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    parent_request_id UUID REFERENCES api_requests(request_id),
+    system_hash VARCHAR(64),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT chk_parent_request_not_self CHECK (parent_request_id != request_id)
 );
 
 -- Create streaming_chunks table
@@ -77,6 +80,14 @@ WHERE conversation_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_requests_request_id 
 ON api_requests(request_id);
 
+-- Create index for parent_request_id
+CREATE INDEX IF NOT EXISTS idx_api_requests_parent_request_id 
+ON api_requests(parent_request_id);
+
+-- Create index for system_hash
+CREATE INDEX IF NOT EXISTS idx_api_requests_system_hash 
+ON api_requests(system_hash);
+
 -- Create indexes for streaming_chunks
 CREATE INDEX IF NOT EXISTS idx_chunks_request_id ON streaming_chunks(request_id);
 
@@ -90,3 +101,5 @@ COMMENT ON COLUMN api_requests.parent_task_request_id IS 'Links sub-task request
 COMMENT ON COLUMN api_requests.is_subtask IS 'Boolean flag indicating if a request is a sub-task';
 COMMENT ON COLUMN api_requests.task_tool_invocation IS 'JSONB array storing Task tool invocations';
 COMMENT ON COLUMN api_requests.account_id IS 'Account identifier from credential file for per-account tracking';
+COMMENT ON COLUMN api_requests.parent_request_id IS 'UUID of the parent request in the conversation chain, references the immediate parent';
+COMMENT ON COLUMN api_requests.system_hash IS 'SHA-256 hash of the system prompt only, separate from message content hash';

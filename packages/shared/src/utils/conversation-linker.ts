@@ -72,6 +72,11 @@ export class ConversationLinker {
   async linkConversation(request: LinkingRequest): Promise<LinkingResult> {
     const { domain, messages, systemPrompt, requestId } = request
 
+    // Validate messages before processing
+    if (!messages || messages.length === 0) {
+      throw new Error('Cannot compute hash for empty messages array')
+    }
+
     try {
       // Compute hashes with error handling
       const currentMessageHash = this.computeMessageHash(messages)
@@ -170,13 +175,23 @@ export class ConversationLinker {
       }
 
       if (parent) {
-        // Check if this creates a branch
-        const existingChildren = await this.findChildrenOfParent(
-          domain,
-          parent.current_message_hash,
-          requestId
-        )
-        const branchId = existingChildren.length > 0 ? this.generateBranchId() : parent.branch_id
+        // Check if the parent is on a compact branch
+        const isParentCompactBranch = parent.branch_id.startsWith(COMPACT_PREFIX)
+
+        let branchId: string
+        if (isParentCompactBranch) {
+          // If parent is on a compact branch, preserve that branch
+          // This ensures follow-ups to compact conversations stay on the same branch
+          branchId = parent.branch_id
+        } else {
+          // Normal branch detection for non-compact conversations
+          const existingChildren = await this.findChildrenOfParent(
+            domain,
+            parent.current_message_hash,
+            requestId
+          )
+          branchId = existingChildren.length > 0 ? this.generateBranchId() : parent.branch_id
+        }
 
         return {
           conversationId: parent.conversation_id,

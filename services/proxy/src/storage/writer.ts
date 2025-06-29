@@ -25,6 +25,7 @@ interface StorageRequest {
   parentTaskRequestId?: string
   isSubtask?: boolean
   taskToolInvocation?: any
+  parentRequestId?: string // Parent request in conversation chain
 }
 
 interface StorageResponse {
@@ -147,8 +148,8 @@ export class StorageWriter {
           request_id, domain, account_id, timestamp, method, path, headers, body, 
           api_key_hash, model, request_type, current_message_hash, 
           parent_message_hash, conversation_id, branch_id, system_hash, message_count,
-          parent_task_request_id, is_subtask, task_tool_invocation
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+          parent_task_request_id, is_subtask, task_tool_invocation, parent_request_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -173,6 +174,7 @@ export class StorageWriter {
         parentTaskRequestId || null,
         isSubtask,
         request.taskToolInvocation ? JSON.stringify(request.taskToolInvocation) : null,
+        request.parentRequestId || null,
       ]
 
       await this.pool.query(query, values)

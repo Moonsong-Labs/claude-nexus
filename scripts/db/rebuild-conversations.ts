@@ -646,7 +646,23 @@ class ConversationRebuilder {
     for (const root of trees) {
       // Check if this conversation already exists and has the same structure
       const existingConvId = this.findExistingConversationId(root)
-      const conversationId = existingConvId || randomUUID()
+
+      // Special handling for requests without parent or with < 3 messages
+      const existingRequest = this.existingRequests.get(root.request_id)
+      const shouldPreserveConversationId =
+        existingRequest?.conversation_id &&
+        (!root.parent_message_hash || (root.message_count !== null && root.message_count < 3))
+
+      let conversationId: string
+      if (shouldPreserveConversationId) {
+        // Preserve existing conversation ID for requests without parent or with < 3 messages
+        conversationId = existingRequest.conversation_id
+        console.log(
+          `   Preserving conversation ID for request ${root.request_id} (no parent or message_count < 3)`
+        )
+      } else {
+        conversationId = existingConvId || randomUUID()
+      }
 
       this.traverseAndAssign(
         root,
@@ -654,7 +670,7 @@ class ConversationRebuilder {
         'main',
         new Map(),
         updates,
-        existingConvId !== null
+        existingConvId !== null || shouldPreserveConversationId
       )
     }
 
@@ -677,21 +693,38 @@ class ConversationRebuilder {
     }>,
     isExistingConversation: boolean = false
   ) {
+    // Get existing request data
+    const existing = this.existingRequests.get(node.request_id)
+
+    // Special handling for requests without parent or with < 3 messages
+    const shouldPreserveConversationId =
+      existing?.conversation_id &&
+      (!node.parent_message_hash || (node.message_count !== null && node.message_count < 3))
+
+    // Use existing conversation ID if we should preserve it
+    const effectiveConversationId = shouldPreserveConversationId
+      ? existing.conversation_id
+      : conversationId
+
+    // Log when we preserve conversation ID for non-root nodes
+    if (shouldPreserveConversationId && node.parent_message_hash) {
+      console.log(
+        `   Preserving conversation ID for child request ${node.request_id} (message_count < 3)`
+      )
+    }
+
     // Track new conversation counts
     this.newConversationCounts.set(
-      conversationId,
-      (this.newConversationCounts.get(conversationId) || 0) + 1
+      effectiveConversationId,
+      (this.newConversationCounts.get(effectiveConversationId) || 0) + 1
     )
     // Use pre-assigned branch_id if available (for continuation nodes)
     const effectiveBranchId = node.branch_id || branchId
 
-    // Get existing request data
-    const existing = this.existingRequests.get(node.request_id)
-
     // Check if we need to update this request
     const needsUpdate =
       !existing ||
-      existing.conversation_id !== conversationId ||
+      existing.conversation_id !== effectiveConversationId ||
       existing.branch_id !== effectiveBranchId ||
       existing.current_message_hash !== node.current_message_hash ||
       existing.parent_message_hash !== node.parent_message_hash ||
@@ -702,7 +735,7 @@ class ConversationRebuilder {
       // Only create update if something has changed
       const update: any = {
         request_id: node.request_id,
-        conversation_id: conversationId,
+        conversation_id: effectiveConversationId,
         branch_id: effectiveBranchId,
       }
 
@@ -725,6 +758,9 @@ class ConversationRebuilder {
 
     // Check if this node creates a branch point
     if (node.children.length > 1) {
+      // Check if we're on a compact branch - if so, preserve it for the first child
+      const isCompactBranch = effectiveBranchId.startsWith('compact_')
+
       // This is a branch point
       console.log(
         `   Branch point detected at ${node.request_id} with ${node.children.length} children`
@@ -735,14 +771,14 @@ class ConversationRebuilder {
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       )
 
-      // First child continues on the same branch
+      // First child continues on the same branch (including compact branches)
       this.traverseAndAssign(
         sortedChildren[0],
-        conversationId,
-        branchId,
+        effectiveConversationId,
+        effectiveBranchId,
         branchPoints,
         updates,
-        isExistingConversation
+        isExistingConversation || shouldPreserveConversationId
       )
 
       // Other children get new branches
@@ -750,22 +786,22 @@ class ConversationRebuilder {
         const newBranchId = `branch_${new Date(sortedChildren[i].timestamp).getTime()}`
         this.traverseAndAssign(
           sortedChildren[i],
-          conversationId,
+          effectiveConversationId,
           newBranchId,
           branchPoints,
           updates,
-          isExistingConversation
+          isExistingConversation || shouldPreserveConversationId
         )
       }
     } else if (node.children.length === 1) {
-      // Single child continues on the same branch
+      // Single child continues on the same branch (including compact branches)
       this.traverseAndAssign(
         node.children[0],
-        conversationId,
-        branchId,
+        effectiveConversationId,
+        effectiveBranchId,
         branchPoints,
         updates,
-        isExistingConversation
+        isExistingConversation || shouldPreserveConversationId
       )
     }
     // If no children, traversal ends here

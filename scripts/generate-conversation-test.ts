@@ -6,6 +6,8 @@ import { join, dirname, basename } from 'path'
 import { fileURLToPath } from 'url'
 import { writeFile, mkdir, readFile } from 'fs/promises'
 import { existsSync } from 'fs'
+import { ConversationLinker } from '../packages/shared/src/utils/conversation-linker'
+import { hashSystemPrompt } from '../packages/shared/src/utils/conversation-hash'
 
 // Load environment variables
 config()
@@ -43,7 +45,7 @@ interface TestFixture {
     current_message_hash: string | null
     parent_message_hash: string | null
     system_hash: string | null
-    body: any // Include full request body for hash recomputation
+    body: any // Include full request body for test validation
     response_body: any
   }
   child: {
@@ -89,14 +91,23 @@ function detectFixtureType(childBody: any): 'standard' | 'compact' {
   }
 
   const firstMessage = childBody.messages[0]
-  const content =
-    typeof firstMessage.content === 'string'
-      ? firstMessage.content
-      : firstMessage.content?.[0]?.text || ''
 
-  // Check if this is a compact/continuation message
-  if (content.includes('This session is being continued from a previous conversation')) {
-    return 'compact'
+  // Check all content items in the first message
+  if (typeof firstMessage.content === 'string') {
+    if (
+      firstMessage.content.includes('This session is being continued from a previous conversation')
+    ) {
+      return 'compact'
+    }
+  } else if (Array.isArray(firstMessage.content)) {
+    for (const item of firstMessage.content) {
+      if (
+        item.type === 'text' &&
+        item.text.includes('This session is being continued from a previous conversation')
+      ) {
+        return 'compact'
+      }
+    }
   }
 
   return 'standard'
@@ -108,15 +119,24 @@ function extractSummaryContent(childBody: any): string | undefined {
   }
 
   const firstMessage = childBody.messages[0]
-  const content =
-    typeof firstMessage.content === 'string'
-      ? firstMessage.content
-      : firstMessage.content?.[0]?.text || ''
 
-  // Extract summary content from continuation message
-  const summaryMatch = content.match(/The conversation is summarized below:\s*([^.]+)/)
-  if (summaryMatch) {
-    return summaryMatch[1].trim()
+  // Check all content items for the summary
+  let fullContent = ''
+  if (typeof firstMessage.content === 'string') {
+    fullContent = firstMessage.content
+  } else if (Array.isArray(firstMessage.content)) {
+    fullContent = firstMessage.content
+      .filter((item: any) => item.type === 'text')
+      .map((item: any) => item.text)
+      .join('\n')
+  }
+
+  // Just return the raw content after the marker - no normalization
+  // The test will handle the normalization comparison
+  const markerIndex = fullContent.indexOf('The conversation is summarized below:')
+  if (markerIndex > -1) {
+    const startIndex = markerIndex + 'The conversation is summarized below:'.length
+    return fullContent.substring(startIndex).trim()
   }
 
   return undefined
@@ -129,10 +149,11 @@ function generateBranchPattern(branchId: string | null): string | undefined {
 
   // Common branch patterns
   if (branchId.startsWith('compact_')) {
-    return '^compact_\\\\d{6}$'
+    // The compact branch format is compact_HHMMSS (6 digits)
+    return '^compact_\\d{6}$' // Fixed: removed extra backslashes
   }
   if (branchId.startsWith('branch_')) {
-    return '^branch_\\\\d+$'
+    return '^branch_\\d+$' // Fixed: removed extra backslashes
   }
 
   return undefined
@@ -194,17 +215,19 @@ async function generateTestFixture(
     throw new Error(`Child request ${childId} not found`)
   }
 
-  // Filter out tool-related messages from bodies
-  const filterToolMessages = (body: any) => {
-    if (!body?.messages) return body
+  // Filter out tools field from bodies to reduce fixture size
+  const filterToolsField = (body: any) => {
+    if (!body) return body
 
-    return {
-      ...body,
-      messages: body.messages.filter(
-        (msg: any) => msg.role !== 'tool_use' && msg.role !== 'tool_result'
-      ),
-    }
+    const filtered = { ...body }
+    // Remove the tools field which can be very large
+    delete filtered.tools
+    return filtered
   }
+
+  // Filter and sanitize bodies
+  const parentBody = sanitizeForTest(filterToolsField(parentData.body))
+  const childBody = sanitizeForTest(filterToolsField(childData.body))
 
   // Detect fixture type
   const fixtureType = detectFixtureType(childData.body)
@@ -222,13 +245,13 @@ async function generateTestFixture(
       current_message_hash: parentData.current_message_hash,
       parent_message_hash: parentData.parent_message_hash,
       system_hash: parentData.system_hash,
-      body: sanitizeForTest(filterToolMessages(parentData.body)), // Include filtered and sanitized body
+      body: parentBody,
       response_body: sanitizeForTest(parentData.response_body),
     },
     child: {
       request_id: childData.request_id,
       domain: childData.domain,
-      body: sanitizeForTest(filterToolMessages(childData.body)), // Filter and sanitize child body too
+      body: childBody,
     },
   }
 
@@ -276,7 +299,7 @@ function generateTestCode(fixture: TestFixture, fixturePath: string): string {
     }
     
     // Note: The fixture includes full parent.body and child.body with messages and system
-    // This allows the test to recompute hashes if needed for validation`
+    // This allows the test to validate the conversation structure`
 
   if (fixture.type === 'compact') {
     testCode += `

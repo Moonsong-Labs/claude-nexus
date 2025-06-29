@@ -78,6 +78,7 @@ export class StorageAdapter {
     parentTaskRequestId?: string
     isSubtask?: boolean
     taskToolInvocation?: any
+    parentRequestId?: string
   }): Promise<void> {
     try {
       // Generate a UUID for this request and store the mapping with timestamp
@@ -113,6 +114,7 @@ export class StorageAdapter {
         parentTaskRequestId: data.parentTaskRequestId,
         isSubtask: data.isSubtask,
         taskToolInvocation: data.taskToolInvocation,
+        parentRequestId: data.parentRequestId,
       })
     } catch (error) {
       logger.error('Failed to store request', {

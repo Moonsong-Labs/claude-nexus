@@ -102,6 +102,7 @@ export class ProxyService {
           conversationId,
           systemHash: linkingResult.systemHash,
           branchId: linkingResult.branchId,
+          parentRequestId: linkingResult.parentRequestId,
         }
 
         log.debug('Conversation tracking', {
@@ -192,6 +193,8 @@ export class ProxyService {
       parentMessageHash: string | null
       conversationId: string
       systemHash: string | null
+      branchId?: string
+      parentRequestId?: string
     },
     sampleId?: string
   ): Promise<Response> {
@@ -281,6 +284,8 @@ export class ProxyService {
       parentMessageHash: string | null
       conversationId: string
       systemHash: string | null
+      branchId?: string
+      parentRequestId?: string
     },
     sampleId?: string
   ): Promise<Response> {
@@ -376,6 +381,8 @@ export class ProxyService {
       parentMessageHash: string | null
       conversationId: string
       systemHash: string | null
+      branchId?: string
+      parentRequestId?: string
     },
     sampleId?: string
   ): Promise<void> {
