@@ -8,7 +8,7 @@ import { MetricsService } from './MetricsService'
 import { ClaudeMessagesRequest } from '../types/claude'
 import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
-import { extractMessageHashes, generateConversationId } from '@claude-nexus/shared'
+import { generateConversationId } from '@claude-nexus/shared'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
 
 /**
@@ -101,7 +101,7 @@ export class ProxyService {
           parentMessageHash: linkingResult.parentMessageHash,
           conversationId,
           systemHash: linkingResult.systemHash,
-          branchId: linkingResult.branchId
+          branchId: linkingResult.branchId,
         }
 
         log.debug('Conversation tracking', {
@@ -110,7 +110,7 @@ export class ProxyService {
           conversationId,
           branchId: linkingResult.branchId,
           isNewConversation: !linkingResult.conversationId,
-          parentRequestId: linkingResult.parentRequestId
+          parentRequestId: linkingResult.parentRequestId,
         })
       } catch (error) {
         log.warn('Failed to extract conversation data', error as Error)
