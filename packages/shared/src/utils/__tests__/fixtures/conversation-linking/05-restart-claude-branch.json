@@ -1,37 +1,50 @@
 {
-  "description": "Restart Claude Code session - system prompt changes",
+  "description": "Compact conversation - resuming from context overflow",
   "type": "compact",
   "expectedLink": true,
   "expectedSummaryContent": "implementing a dual hash system",
   "expectedBranchPattern": "^compact_\\d{6}$",
   "parent": {
-    "request_id": "parent-uuid-5",
+    "request_id": "parent-uuid-2",
     "domain": "test.com",
-    "conversation_id": "conv-uuid-5",
+    "conversation_id": "conv-uuid-2",
     "branch_id": "main",
-    "current_message_hash": "parent-hash-5",
-    "parent_message_hash": "grandparent-hash-5",
-    "system_hash": "system-hash-5",
+    "current_message_hash": "parent-hash-abc123",
+    "parent_message_hash": "grandparent-hash",
+    "system_hash": "system-hash-xyz789",
+    "body": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "I want to better support detecting the conversation links between requests."
+        },
+        {
+          "role": "assistant",
+          "content": "I'll help you implement a dual hash system to improve conversation link detection."
+        }
+      ],
+      "system": "You are a helpful coding assistant"
+    },
     "response_body": {
       "content": [
         {
-          "text": "I've successfully implemented the dual hash system for conversation linking. The system now separately tracks message hashes and system prompt hashes.",
+          "text": "I've analyzed the conversation and understand that you want to implement a dual hash system for better conversation link detection. The key issue is that system prompt changes (like git status updates in Claude Code) are breaking conversation linking. I'll help you implement this solution.",
           "type": "text"
         }
       ]
     }
   },
   "child": {
-    "request_id": "child-uuid-5",
+    "request_id": "child-uuid-2",
     "domain": "test.com",
     "body": {
       "messages": [
         {
           "role": "user",
-          "content": "This session is being continued from a previous conversation that ran out of context. The conversation is summarized below: implementing a dual hash system for conversation tracking. Please continue the conversation from where we left it off without asking the user any further questions. Continue with the last task that you were asked to work on."
+          "content": "This session is being continued from a previous conversation that ran out of context. The conversation is summarized below: The user requested implementing a dual hash system to improve conversation link detection by splitting system prompts and message content into separate hashes."
         }
       ],
-      "system": "You are a helpful coding assistant. Git status: modified files"
+      "system": "You are a helpful coding assistant with updated git status"
     }
   }
 }
