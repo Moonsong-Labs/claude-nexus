@@ -102,13 +102,13 @@ function calculateReversedLayout(
   graph: ConversationGraph,
   _requestMap?: Map<string, any>
 ): GraphLayout {
-  const nodeWidth = 100
-  const nodeHeight = 40
+  const nodeWidth = 160
+  const nodeHeight = 32
   const subtaskNodeWidth = 100
   const subtaskNodeHeight = 36
-  const horizontalSpacing = 120
+  const horizontalSpacing = 180
   const verticalSpacing = 30
-  const subtaskOffset = 150 // How far to the right sub-task nodes should be
+  const subtaskOffset = 180 // How far to the right sub-task nodes should be
 
   // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
@@ -492,24 +492,18 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
       // Add message count number on the left
       if (node.messageCount !== undefined && node.messageCount > 0) {
-        svg += `    <text x="${x + 12}" y="${y + node.height / 2 + 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 14px; fill: ${color};">${node.messageCount}</text>\n`
+        svg += `    <text x="${x + 15}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 13px; fill: ${color};">${node.messageCount}</text>\n`
       }
 
       // Add request ID (first 8 chars) in the center
       const requestIdShort = node.id.substring(0, 8)
-      svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 - 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
+      svg += `    <text x="${x + 50}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
 
-      // Add timestamp
+      // Add timestamp on the right
       const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
+      svg += `    <text x="${x + node.width - 10}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-size: 10px; fill: #6b7280;">${time}</text>\n`
 
-      // Add sub-task indicators
-      if (node.isSubtask) {
-        svg += `    <text x="${x + node.width - 12}" y="${y + 12}" text-anchor="middle" class="graph-node-label" style="font-size: 10px;" title="Sub-task">🔗</text>\n`
-      }
-      if (node.hasSubtasks && node.subtaskCount) {
-        svg += `    <text x="${x + node.width - 12}" y="${y + node.height - 6}" text-anchor="middle" class="graph-node-label" style="font-size: 10px;" title="${node.subtaskCount} sub-tasks">📋</text>\n`
-      }
+      // Add sub-task indicators (removed as they would overlap with the new layout)
 
       // Add connection point at the bottom
       svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`
