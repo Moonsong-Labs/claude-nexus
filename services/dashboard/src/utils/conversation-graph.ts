@@ -125,6 +125,9 @@ function calculateReversedLayout(
   const branchLanes = new Map<string, number>()
   let nextLane = 0
 
+  // Track message count offset for compact branches
+  const branchOffsets = new Map<string, number>()
+
   // Find max message count to reverse Y positions
   // For compact branches, we need to adjust their count
   let maxMessageCount = 0
@@ -132,11 +135,20 @@ function calculateReversedLayout(
     let messageCount = node.messageCount || 0
 
     // Adjust for compact branches
-    if (node.branchId.startsWith('compact_') && node.parentId && requestMap) {
-      const parentRequest = requestMap.get(node.parentId)
-      if (parentRequest && parentRequest.message_count) {
-        messageCount = parentRequest.message_count + (node.messageCount || 1) - 1
+    if (node.branchId.startsWith('compact_')) {
+      // Check if we already have an offset for this branch
+      if (!branchOffsets.has(node.branchId) && node.parentId && requestMap) {
+        // This is the first node in the compact branch, calculate offset
+        const parentRequest = requestMap.get(node.parentId)
+        if (parentRequest && parentRequest.message_count) {
+          // Store the offset for this entire branch
+          branchOffsets.set(node.branchId, parentRequest.message_count - 1)
+        }
       }
+
+      // Apply the offset to all nodes in this compact branch
+      const offset = branchOffsets.get(node.branchId) || 0
+      messageCount = (node.messageCount || 0) + offset
     }
 
     maxMessageCount = Math.max(maxMessageCount, messageCount)
@@ -164,13 +176,10 @@ function calculateReversedLayout(
       let messageCount = node.messageCount || 0
 
       // Special handling for compact branches
-      if (node.branchId.startsWith('compact_') && node.parentId && requestMap) {
-        // Find the parent request to get its message count
-        const parentRequest = requestMap.get(node.parentId)
-        if (parentRequest && parentRequest.message_count) {
-          // Add parent's message count to properly position compact branch
-          messageCount = parentRequest.message_count + (node.messageCount || 1) - 1
-        }
+      if (node.branchId.startsWith('compact_')) {
+        // Apply the offset we calculated earlier for this branch
+        const offset = branchOffsets.get(node.branchId) || 0
+        messageCount = (node.messageCount || 0) + offset
       }
 
       // Y position is based on reversed message count (newest at top)
