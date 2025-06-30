@@ -6,6 +6,7 @@
 
 import { Pool } from 'pg'
 import { config } from 'dotenv'
+import { createLoggingPool } from './utils/create-logging-pool.js'
 
 // Load environment variables
 config()
@@ -43,7 +44,7 @@ class ConversationAnalyzer {
   private requestsById: Map<string, Request> = new Map()
 
   constructor(databaseUrl: string) {
-    this.pool = new Pool({ connectionString: databaseUrl })
+    this.pool = createLoggingPool(databaseUrl)
   }
 
   async analyze() {

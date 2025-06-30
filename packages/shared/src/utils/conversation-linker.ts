@@ -12,7 +12,7 @@ const SUMMARY_MARKER = 'The conversation is summarized below:'
 const SUMMARY_SUFFIX_MARKER = 'Please continue the conversation'
 const SUMMARIZATION_SYSTEM_PROMPT =
   'You are a helpful AI assistant tasked with summarizing conversations'
-const COMPACT_SEARCH_DAYS = 7
+const COMPACT_SEARCH_DAYS = 7 // Search window for compact conversations
 // const QUERY_LIMIT = 10 // Reserved for future use0
 const MIN_MESSAGES_FOR_PARENT_HASH = 3
 
@@ -22,6 +22,7 @@ export interface LinkingRequest {
   systemPrompt?: string | { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[]
   requestId: string
   messageCount: number
+  timestamp?: Date
 }
 
 export interface LinkingResult {
@@ -45,6 +46,7 @@ export interface ParentQueryCriteria {
   currentMessageHash?: string
   systemHash?: string | null
   excludeRequestId?: string
+  beforeTimestamp?: Date
 }
 
 interface ParentRequest {
@@ -60,7 +62,8 @@ export type QueryExecutor = (criteria: ParentQueryCriteria) => Promise<ParentReq
 export type CompactSearchExecutor = (
   domain: string,
   summaryContent: string,
-  beforeTimestamp: Date
+  afterTimestamp: Date,
+  beforeTimestamp?: Date
 ) => Promise<ParentRequest | null>
 
 export class ConversationLinker {
@@ -70,7 +73,7 @@ export class ConversationLinker {
   ) {}
 
   async linkConversation(request: LinkingRequest): Promise<LinkingResult> {
-    const { domain, messages, systemPrompt, requestId } = request
+    const { domain, messages, systemPrompt, requestId, timestamp } = request
 
     // Validate messages before processing
     if (!messages || messages.length === 0) {
@@ -98,12 +101,12 @@ export class ConversationLinker {
         const compactInfo = this.detectCompactConversation(messages[0])
         if (compactInfo) {
           // Case a: Compact conversation continuation
-          const parent = await this.findCompactParent(domain, compactInfo.summaryContent)
+          const parent = await this.findCompactParent(domain, compactInfo.summaryContent, timestamp)
           if (parent) {
             return {
               conversationId: parent.conversation_id,
               parentRequestId: parent.request_id,
-              branchId: this.generateCompactBranchId(),
+              branchId: this.generateCompactBranchId(timestamp),
               currentMessageHash,
               parentMessageHash: parent.current_message_hash,
               systemHash,
@@ -147,7 +150,8 @@ export class ConversationLinker {
           domain,
           parentMessageHash,
           systemHash,
-          requestId
+          requestId,
+          timestamp
         )
         parent = this.selectBestParent(exactMatches)
       }
@@ -158,7 +162,8 @@ export class ConversationLinker {
           domain,
           parentMessageHash,
           null,
-          requestId
+          requestId,
+          timestamp
         )
         parent = this.selectBestParent(summarizationMatches)
       }
@@ -169,7 +174,8 @@ export class ConversationLinker {
           domain,
           parentMessageHash,
           null,
-          requestId
+          requestId,
+          timestamp
         )
         parent = this.selectBestParent(fallbackMatches)
       }
@@ -188,9 +194,11 @@ export class ConversationLinker {
           const existingChildren = await this.findChildrenOfParent(
             domain,
             parent.current_message_hash,
-            requestId
+            requestId,
+            timestamp
           )
-          branchId = existingChildren.length > 0 ? this.generateBranchId() : parent.branch_id
+          branchId =
+            existingChildren.length > 0 ? this.generateBranchId(timestamp) : parent.branch_id
         }
 
         return {
@@ -432,7 +440,8 @@ export class ConversationLinker {
 
   private async findCompactParent(
     domain: string,
-    summaryContent: string
+    summaryContent: string,
+    requestTimestamp?: Date
   ): Promise<ParentRequest | null> {
     try {
       if (!this.compactSearchExecutor) {
@@ -441,14 +450,22 @@ export class ConversationLinker {
       }
 
       // Normalize the summary content for comparison
-      const normalizedSummary = this.normalizeSummaryForComparison(summaryContent)
+      const normalizedSummary = summaryContent // this.normalizeSummaryForComparison(summaryContent)
 
       // Search for a request whose response contains the summary
-      // Look for requests within the last N days
-      const beforeTimestamp = new Date()
-      beforeTimestamp.setDate(beforeTimestamp.getDate() - COMPACT_SEARCH_DAYS)
+      // Look for requests within the last N days before the current request
+      const afterTimestamp = new Date(requestTimestamp || new Date())
+      afterTimestamp.setDate(afterTimestamp.getDate() - COMPACT_SEARCH_DAYS)
 
-      return await this.compactSearchExecutor(domain, normalizedSummary, beforeTimestamp)
+      // afterTimestamp: N days before the request (lower bound - earliest time to search)
+      // requestTimestamp: the current request time (upper bound - latest time to search)
+      // This creates a time window: [requestTime - N days, requestTime]
+      return await this.compactSearchExecutor(
+        domain,
+        normalizedSummary,
+        afterTimestamp,
+        requestTimestamp
+      )
     } catch (error) {
       console.error('Error finding compact parent:', error)
       return null
@@ -458,7 +475,6 @@ export class ConversationLinker {
   private normalizeSummaryForComparison(summary: string): string {
     // Remove common variations in formatting
     return summary
-      .toLowerCase()
       .replace(/\s+/g, ' ')
       .replace(/<analysis>/g, '')
       .replace(/<\/analysis>/g, '')
@@ -472,7 +488,8 @@ export class ConversationLinker {
     domain: string,
     parentMessageHash: string,
     systemHash: string | null,
-    excludeRequestId: string
+    excludeRequestId: string,
+    beforeTimestamp?: Date
   ): Promise<ParentRequest[]> {
     try {
       const criteria: ParentQueryCriteria = {
@@ -480,6 +497,7 @@ export class ConversationLinker {
         currentMessageHash: parentMessageHash,
         systemHash,
         excludeRequestId,
+        beforeTimestamp,
       }
 
       return await this.queryExecutor(criteria)
@@ -492,13 +510,15 @@ export class ConversationLinker {
   private async findChildrenOfParent(
     domain: string,
     parentMessageHash: string,
-    excludeRequestId: string
+    excludeRequestId: string,
+    beforeTimestamp?: Date
   ): Promise<ParentRequest[]> {
     try {
       const criteria: ParentQueryCriteria = {
         domain,
         parentMessageHash,
         excludeRequestId,
+        beforeTimestamp,
       }
 
       return await this.queryExecutor(criteria)
@@ -540,17 +560,17 @@ export class ConversationLinker {
     return systemPromptStr.includes(SUMMARIZATION_SYSTEM_PROMPT)
   }
 
-  private generateBranchId(): string {
-    const now = new Date()
-    const timestamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 14)
-    return `${BRANCH_PREFIX}${timestamp}`
+  private generateBranchId(timestamp?: Date): string {
+    const date = timestamp || new Date()
+    const timestampStr = date.toISOString().replace(/[-:T]/g, '').slice(0, 14)
+    return `${BRANCH_PREFIX}${timestampStr}`
   }
 
-  private generateCompactBranchId(): string {
-    const now = new Date()
-    const hours = now.getHours().toString().padStart(2, '0')
-    const minutes = now.getMinutes().toString().padStart(2, '0')
-    const seconds = now.getSeconds().toString().padStart(2, '0')
+  private generateCompactBranchId(timestamp?: Date): string {
+    const date = timestamp || new Date()
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    const seconds = date.getSeconds().toString().padStart(2, '0')
     return `${COMPACT_PREFIX}${hours}${minutes}${seconds}`
   }
 }

@@ -5,6 +5,7 @@ export * from './logger/index.js'
 export * from './utils/errors.js'
 export * from './utils/conversation-hash.js'
 export * from './utils/conversation-linker.js'
+export * from './utils/db-query-executors.js'
 
 // Re-export specific functions to ensure they're available
 export {
@@ -39,3 +40,5 @@ export {
   type LinkingResult,
   type ParentQueryCriteria,
 } from './utils/conversation-linker.js'
+
+export { createQueryExecutors } from './utils/db-query-executors.js'

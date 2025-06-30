@@ -24,7 +24,6 @@ async function backfillSystemHashes() {
       FROM api_requests
       WHERE body IS NOT NULL
         AND body::jsonb ? 'system'
-        AND system_hash IS NULL
       ORDER BY timestamp DESC
       LIMIT 1000
     `)

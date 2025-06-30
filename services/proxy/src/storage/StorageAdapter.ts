@@ -2,6 +2,7 @@ import { Pool } from 'pg'
 import { StorageWriter } from './writer.js'
 import { logger } from '../middleware/logger.js'
 import { randomUUID } from 'crypto'
+import { enableSqlLogging } from '../utils/sql-logger.js'
 import {
   ConversationLinker,
   type QueryExecutor,
@@ -26,7 +27,15 @@ export class StorageAdapter {
     Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
 
   constructor(private pool: Pool) {
-    this.writer = new StorageWriter(pool)
+    // Enable SQL logging on the pool if DEBUG or DEBUG_SQL is set
+    const loggingPool = enableSqlLogging(pool, {
+      logQueries: process.env.DEBUG === 'true' || process.env.DEBUG_SQL === 'true',
+      logSlowQueries: true,
+      slowQueryThreshold: Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 5000,
+      logStackTrace: process.env.DEBUG === 'true',
+    })
+
+    this.writer = new StorageWriter(loggingPool)
 
     // Create query executor for ConversationLinker
     const queryExecutor: QueryExecutor = async (criteria: ParentQueryCriteria) => {
@@ -37,9 +46,15 @@ export class StorageAdapter {
     const compactSearchExecutor: CompactSearchExecutor = async (
       domain: string,
       summaryContent: string,
-      beforeTimestamp: Date
+      afterTimestamp: Date,
+      beforeTimestamp?: Date
     ) => {
-      return await this.writer.findParentByResponseContent(domain, summaryContent, beforeTimestamp)
+      return await this.writer.findParentByResponseContent(
+        domain,
+        summaryContent,
+        afterTimestamp,
+        beforeTimestamp
+      )
     }
 
     this.conversationLinker = new ConversationLinker(queryExecutor, compactSearchExecutor)

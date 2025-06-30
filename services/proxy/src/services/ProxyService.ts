@@ -80,6 +80,7 @@ export class ProxyService {
           conversationId: string
           systemHash: string | null
           branchId?: string
+          parentRequestId?: string
         }
       | undefined
 
@@ -102,7 +103,7 @@ export class ProxyService {
           conversationId,
           systemHash: linkingResult.systemHash,
           branchId: linkingResult.branchId,
-          parentRequestId: linkingResult.parentRequestId,
+          parentRequestId: linkingResult.parentRequestId || undefined,
         }
 
         log.debug('Conversation tracking', {

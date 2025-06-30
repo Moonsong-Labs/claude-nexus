@@ -203,6 +203,56 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
 
 ## Examples
 
+### Adding System Hash Column (006-split-conversation-hashes.ts)
+
+```typescript
+// Add column for dual hash system
+await pool.query(`
+  ALTER TABLE api_requests 
+  ADD COLUMN IF NOT EXISTS system_hash VARCHAR(64)
+`)
+
+// Create index for the new column
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_api_requests_system_hash 
+  ON api_requests(system_hash) 
+  WHERE system_hash IS NOT NULL
+`)
+```
+
+### Adding Parent Request ID (007-add-parent-request-id.ts)
+
+```typescript
+// Add foreign key reference column
+await pool.query(`
+  ALTER TABLE api_requests 
+  ADD COLUMN IF NOT EXISTS parent_request_id UUID REFERENCES api_requests(request_id)
+`)
+
+// Create index
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_api_requests_parent_request_id 
+  ON api_requests(parent_request_id)
+`)
+
+// Populate existing data
+await pool.query(`
+  WITH parent_mapping AS (
+    SELECT child.request_id AS child_id, 
+           parent.request_id AS parent_id
+    FROM api_requests child
+    JOIN api_requests parent 
+      ON child.parent_message_hash = parent.current_message_hash
+      AND child.domain = parent.domain
+      AND child.conversation_id = parent.conversation_id
+  )
+  UPDATE api_requests 
+  SET parent_request_id = parent_mapping.parent_id
+  FROM parent_mapping 
+  WHERE api_requests.request_id = parent_mapping.child_id
+`)
+```
+
 ### Adding a Column (003-add-subtask-tracking.ts)
 
 ```typescript

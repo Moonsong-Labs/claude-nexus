@@ -237,6 +237,19 @@ requestDetailsRoutes.get('/request/:id', async c => {
                     </dd>
                   `
                 : ''}
+              ${details.parentRequestId
+                ? html`
+                    <dt class="text-gray-600">Parent Request:</dt>
+                    <dd>
+                      <a
+                        href="/dashboard/request/${details.parentRequestId}"
+                        class="font-mono text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        ${details.parentRequestId}
+                      </a>
+                    </dd>
+                  `
+                : ''}
 
               <dt class="text-gray-600">Domain:</dt>
               <dd>${details.domain}</dd>

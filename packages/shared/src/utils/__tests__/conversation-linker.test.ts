@@ -481,6 +481,10 @@ describe('ConversationLinker - JSON File Tests', () => {
 
         if (testCase.expectedBranchPattern) {
           expect(result.branchId).toMatch(new RegExp(testCase.expectedBranchPattern))
+        } else if (!testCase.existingChild) {
+          // If no branch pattern is expected and there's no existing child (no branching),
+          // the branch should be the same as the parent's branch
+          expect(result.branchId).toBe(testCase.parent.branch_id || 'main')
         }
       } else {
         // Should not link

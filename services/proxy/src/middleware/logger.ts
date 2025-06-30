@@ -60,8 +60,14 @@ class Logger {
   private config: LoggerConfig
 
   constructor(config: Partial<LoggerConfig> = {}) {
+    // Enable debug logging if DEBUG or DEBUG_SQL is set
+    const defaultLevel =
+      process.env.DEBUG === 'true' || process.env.DEBUG_SQL === 'true'
+        ? LogLevel.DEBUG
+        : (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO
+
     this.config = {
-      level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
+      level: defaultLevel,
       prettyPrint: process.env.NODE_ENV !== 'production',
       maskSensitiveData: true,
       ...config,

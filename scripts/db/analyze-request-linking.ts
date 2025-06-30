@@ -9,7 +9,10 @@ import { config } from 'dotenv'
 import {
   hashConversationStateWithSystem,
   hashMessage,
+  hashSystemPrompt,
 } from '../../packages/shared/src/utils/conversation-hash.js'
+import { ConversationLinker } from '../../packages/shared/src/utils/conversation-linker.js'
+import { createLoggingPool } from './utils/create-logging-pool.js'
 
 config()
 
@@ -40,7 +43,7 @@ if (args.length !== 2) {
 const requestIds = args
 
 async function main() {
-  const pool = new Pool({ connectionString: CONNECTION_STRING })
+  const pool = createLoggingPool(CONNECTION_STRING)
 
   try {
     console.log('==========================================')
@@ -59,6 +62,7 @@ async function main() {
         message_count,
         current_message_hash,
         parent_message_hash,
+        system_hash,
         conversation_id,
         branch_id,
         timestamp
@@ -94,7 +98,8 @@ async function main() {
     console.log(`  Conversation: ${req1.conversation_id || 'NULL'}`)
     console.log(`  Branch: ${req1.branch_id || 'NULL'}`)
     console.log(`  Current hash: ${req1.current_message_hash}`)
-    console.log(`  Parent hash: ${req1.parent_message_hash || 'NULL'}\n`)
+    console.log(`  Parent hash: ${req1.parent_message_hash || 'NULL'}`)
+    console.log(`  System hash: ${req1.system_hash || 'NULL'}\n`)
 
     console.log(`Request 2:`)
     console.log(`  ID: ${req2.request_id}`)
@@ -103,86 +108,104 @@ async function main() {
     console.log(`  Conversation: ${req2.conversation_id || 'NULL'}`)
     console.log(`  Branch: ${req2.branch_id || 'NULL'}`)
     console.log(`  Current hash: ${req2.current_message_hash}`)
-    console.log(`  Parent hash: ${req2.parent_message_hash || 'NULL'}\n`)
+    console.log(`  Parent hash: ${req2.parent_message_hash || 'NULL'}`)
+    console.log(`  System hash: ${req2.system_hash || 'NULL'}\n`)
 
     console.log(`Time difference: ${Math.round((req2.timestamp - req1.timestamp) / 1000)} seconds`)
     console.log(
       `Same conversation: ${req1.conversation_id === req2.conversation_id ? 'YES' : 'NO'}`
     )
 
-    // 1. SYSTEM PROMPT ANALYSIS
+    // 1. SYSTEM HASH ANALYSIS (DUAL HASH SYSTEM)
     console.log('\n==========================================')
-    console.log('1. SYSTEM PROMPT ANALYSIS')
+    console.log('1. SYSTEM HASH ANALYSIS (DUAL HASH SYSTEM)')
     console.log('==========================================\n')
 
     const system1 = req1.body.system
     const system2 = req2.body.system
 
-    // Handle both string and array system prompts
-    const sys1Str = typeof system1 === 'string' ? system1 : JSON.stringify(system1)
-    const sys2Str = typeof system2 === 'string' ? system2 : JSON.stringify(system2)
+    // Convert array system prompts to strings
+    let sys1Str: string | undefined
+    let sys2Str: string | undefined
+    if (system1) {
+      sys1Str =
+        typeof system1 === 'string' ? system1 : system1.map((item: any) => item.text).join('\n')
+    }
+    if (system2) {
+      sys2Str =
+        typeof system2 === 'string' ? system2 : system2.map((item: any) => item.text).join('\n')
+    }
 
-    console.log(`System 1 type: ${typeof system1}`)
-    console.log(`System 2 type: ${typeof system2}`)
-    console.log(`System 1 length: ${sys1Str.length}`)
-    console.log(`System 2 length: ${sys2Str.length}`)
-    console.log(`Length difference: ${Math.abs(sys1Str.length - sys2Str.length)} characters\n`)
+    // Compute system hashes
+    const computedSysHash1 = sys1Str ? hashSystemPrompt(sys1Str) : null
+    const computedSysHash2 = sys2Str ? hashSystemPrompt(sys2Str) : null
 
-    if (sys1Str === sys2Str) {
-      console.log('✅ System prompts are IDENTICAL\n')
-    } else {
-      console.log('❌ System prompts are DIFFERENT\n')
+    console.log('System Hash Comparison:')
+    console.log(`Request 1:`)
+    console.log(`  Stored system hash:   ${req1.system_hash || 'NULL'}`)
+    console.log(`  Computed system hash: ${computedSysHash1 || 'NULL'}`)
+    console.log(`  Match: ${req1.system_hash === computedSysHash1 ? '✅' : '❌'}\n`)
+
+    console.log(`Request 2:`)
+    console.log(`  Stored system hash:   ${req2.system_hash || 'NULL'}`)
+    console.log(`  Computed system hash: ${computedSysHash2 || 'NULL'}`)
+    console.log(`  Match: ${req2.system_hash === computedSysHash2 ? '✅' : '❌'}\n`)
+
+    console.log(`System hashes between requests:`)
+    console.log(
+      `  Request 1 vs Request 2: ${req1.system_hash === req2.system_hash ? '✅ SAME' : '❌ DIFFERENT'}`
+    )
+    console.log(
+      `  Computed 1 vs Computed 2: ${computedSysHash1 === computedSysHash2 ? '✅ SAME' : '❌ DIFFERENT'}\n`
+    )
+
+    if (sys1Str && sys2Str && sys1Str !== sys2Str) {
+      console.log('System prompt content differs. Common reasons:')
 
       // Find where they differ
       for (let i = 0; i < Math.min(sys1Str.length, sys2Str.length); i++) {
         if (sys1Str[i] !== sys2Str[i]) {
-          console.log(`First difference at position ${i}:`)
-          const start = Math.max(0, i - 100)
-          const end = Math.min(i + 100, Math.min(sys1Str.length, sys2Str.length))
-
-          console.log('\nContext from System 1:')
-          console.log(`"...${sys1Str.substring(start, end).replace(/\n/g, '\\n')}..."`)
-          console.log('\nContext from System 2:')
-          console.log(`"...${sys2Str.substring(start, end).replace(/\n/g, '\\n')}..."`)
-
-          // Check for common differences
           const section1 = sys1Str.substring(i - 50, i + 200)
           const section2 = sys2Str.substring(i - 50, i + 200)
 
           if (section1.includes('gitStatus') || section2.includes('gitStatus')) {
-            console.log('\n🔍 Difference appears to be in git status section')
+            console.log('  • Git status changes')
           }
           if (section1.includes('Current branch') || section2.includes('Current branch')) {
-            console.log('🔍 Difference appears to be in git branch information')
+            console.log('  • Git branch information')
           }
           if (section1.includes('Recent commits') || section2.includes('Recent commits')) {
-            console.log('🔍 Difference appears to be in git commits section')
+            console.log('  • Git commit history')
           }
           if (section1.includes("Today's date") || section2.includes("Today's date")) {
-            console.log('🔍 Difference appears to be in date/time information')
+            console.log('  • Date/time information')
           }
           break
         }
       }
     }
 
-    // 2. MESSAGE HASH COMPARISON
+    // 2. MESSAGE HASH COMPARISON (WITHOUT SYSTEM)
     console.log('\n==========================================')
-    console.log('2. MESSAGE HASH COMPARISON')
+    console.log('2. MESSAGE HASH COMPARISON (WITHOUT SYSTEM)')
     console.log('==========================================\n')
 
     const messages1 = req1.body.messages
     const messages2 = req2.body.messages
 
-    // Compare message by message
+    // Create a ConversationLinker instance to use hash computation
+    const linker = new ConversationLinker(() => Promise.resolve([]))
+
+    // Compare message by message using computeMessageHash
     const maxMessages = Math.max(messages1.length, messages2.length)
     let lastMatchingHash = null
     let lastMatchingIndex = -1
 
+    console.log('Cumulative message hashes (WITHOUT system prompt):')
     for (let i = 0; i < maxMessages; i++) {
       const msgNum = i + 1
 
-      // Calculate cumulative hash up to this message
+      // Calculate cumulative hash up to this message (without system)
       const msgs1UpToHere = messages1.slice(0, i + 1)
       const msgs2UpToHere = messages2.slice(0, i + 1)
 
@@ -190,11 +213,19 @@ async function main() {
       let hash2 = null
 
       if (i < messages1.length) {
-        hash1 = hashConversationStateWithSystem(msgs1UpToHere, system1)
+        try {
+          hash1 = linker.computeMessageHash(msgs1UpToHere)
+        } catch (e) {
+          console.error(`Error computing hash for request 1, message ${msgNum}:`, e)
+        }
       }
 
       if (i < messages2.length) {
-        hash2 = hashConversationStateWithSystem(msgs2UpToHere, system2)
+        try {
+          hash2 = linker.computeMessageHash(msgs2UpToHere)
+        } catch (e) {
+          console.error(`Error computing hash for request 2, message ${msgNum}:`, e)
+        }
       }
 
       // Print the comparison
@@ -229,7 +260,7 @@ async function main() {
 
               if (content1 === content2) {
                 console.log(
-                  '   Content is IDENTICAL - difference must be in cumulative state or system prompt'
+                  '   Content is IDENTICAL - messages must differ in earlier conversation state'
                 )
               } else {
                 console.log('   Content is DIFFERENT')
@@ -248,6 +279,20 @@ async function main() {
         )
       }
     }
+
+    // Check stored message hashes
+    console.log('\n\nStored message hash validation:')
+    console.log('Request 1:')
+    console.log(`  Stored current_message_hash: ${req1.current_message_hash}`)
+    const computed1 = messages1.length > 0 ? linker.computeMessageHash(messages1) : null
+    console.log(`  Computed from messages:      ${computed1}`)
+    console.log(`  Match: ${req1.current_message_hash === computed1 ? '✅' : '❌'}`)
+
+    console.log('\nRequest 2:')
+    console.log(`  Stored current_message_hash: ${req2.current_message_hash}`)
+    const computed2 = messages2.length > 0 ? linker.computeMessageHash(messages2) : null
+    console.log(`  Computed from messages:      ${computed2}`)
+    console.log(`  Match: ${req2.current_message_hash === computed2 ? '✅' : '❌'}`)
 
     // 3. HASH FILTERING ANALYSIS
     console.log('\n==========================================')
@@ -357,16 +402,24 @@ async function main() {
       console.log(`   Request 2 conversation: ${req2.conversation_id || 'NULL'}`)
     }
 
-    console.log('\nHash Analysis:')
+    console.log('\nDual Hash System Analysis:')
+    console.log('1. System Hash:')
+    console.log(`   Request 1: ${req1.system_hash || 'NULL'}`)
+    console.log(`   Request 2: ${req2.system_hash || 'NULL'}`)
+    console.log(`   Match: ${req1.system_hash === req2.system_hash ? '✅ SAME' : '❌ DIFFERENT'}`)
+
+    console.log('\n2. Message Hash:')
     if (lastMatchingIndex >= 0) {
-      console.log(`✅ Messages 1-${lastMatchingIndex + 1} have matching hashes`)
-      console.log(`❌ Messages start to differ at message ${lastMatchingIndex + 2}`)
-      console.log(`\nLast matching hash: ${lastMatchingHash?.substring(0, 32)}...`)
+      console.log(`   ✅ Messages 1-${lastMatchingIndex + 1} have matching hashes`)
+      console.log(`   ❌ Messages start to differ at message ${lastMatchingIndex + 2}`)
+      console.log(`   Last matching message hash: ${lastMatchingHash?.substring(0, 32)}...`)
 
       // Check if this matches the parent hash
-      const expectedMessages = req1.message_count - 1
+      const expectedMessages = req1.message_count - 2 // Parent hash excludes last 2 messages
       if (lastMatchingIndex === expectedMessages) {
-        console.log('\n🎯 This is exactly where we expect them to match for conversation linking!')
+        console.log(
+          '\n   🎯 This is exactly where we expect them to match for conversation linking!'
+        )
         console.log(`   Request 2 parent hash should be: ${lastMatchingHash}`)
         console.log(`   Request 2 actual parent hash is: ${req2.parent_message_hash}`)
         console.log(
@@ -374,22 +427,28 @@ async function main() {
         )
 
         if (lastMatchingHash !== req2.parent_message_hash) {
-          console.log('\n⚠️  The parent hash in the database does not match the computed hash!')
+          console.log('\n   ⚠️  The parent hash in the database does not match the computed hash!')
           console.log('   This explains why the requests are not linking.')
-          console.log('   Running rebuild-conversations.ts should fix this.')
+          console.log('   Running rebuild-conversations-v2.ts should fix this.')
         }
       }
     } else {
       console.log(
-        '❌ No matching messages found - these appear to be completely different conversations'
+        '   ❌ No matching messages found - these appear to be completely different conversations'
       )
     }
+
+    console.log('\nLinking Priority System:')
+    console.log('The ConversationLinker uses a 3-tier priority system:')
+    console.log('  i.   Exact match: parent_hash + system_hash')
+    console.log('  ii.  Summarization: parent_hash only (for summarization requests)')
+    console.log('  iii. Fallback: parent_hash only (allows linking despite system changes)')
 
     console.log('\nRoot Causes:')
     const causes = []
 
-    if (sys1Str !== sys2Str) {
-      causes.push('1. System prompts are different (possibly git status, timestamps, etc.)')
+    if (req1.system_hash !== req2.system_hash) {
+      causes.push('1. System hashes differ (expected - git status, timestamps change)')
     }
 
     if (filteredStr1 !== filteredStr2) {
@@ -401,7 +460,11 @@ async function main() {
       req2.parent_message_hash &&
       lastMatchingHash !== req2.parent_message_hash
     ) {
-      causes.push("3. Parent hash mismatch - database hash doesn't match computed hash")
+      causes.push("3. Parent message hash mismatch - stored hash doesn't match computed")
+    }
+
+    if (computed1 !== req1.current_message_hash || computed2 !== req2.current_message_hash) {
+      causes.push('4. Current message hash mismatch - stored hash needs recalculation')
     }
 
     if (causes.length === 0) {
@@ -416,14 +479,15 @@ async function main() {
       req2.parent_message_hash &&
       lastMatchingHash !== req2.parent_message_hash
     ) {
-      console.log('   • Run rebuild-conversations.ts to recalculate conversation hashes')
+      console.log('   • Run rebuild-conversations-v2.ts to recalculate conversation hashes')
     }
-    if (sys1Str !== sys2Str) {
-      console.log('   • System prompt differences are expected between sessions')
+    if (req1.system_hash !== req2.system_hash) {
+      console.log('   • System hash differences are normal - fallback matching handles this')
     }
     if (filteredStr1 !== filteredStr2) {
       console.log('   • Check if requests are from different conversation branches')
     }
+    console.log('   • The dual hash system allows conversations to link despite system changes')
   } catch (error) {
     console.error('Error:', error)
   } finally {

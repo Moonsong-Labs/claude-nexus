@@ -313,6 +313,7 @@ apiRoutes.get('/requests/:id', async c => {
         error,
         request_type,
         conversation_id,
+        parent_request_id,
         body as request_body,
         response_body,
         usage_data

@@ -1,6 +1,7 @@
 import { Pool } from 'pg'
 import { config } from '@claude-nexus/shared/config'
 import { logger } from '../middleware/logger.js'
+import { enableSqlLogging } from '../utils/sql-logger.js'
 
 let pool: Pool | undefined
 
@@ -30,6 +31,14 @@ export async function initializePool(): Promise<Pool | undefined> {
       logger.error('Unexpected database pool error', {
         error: { message: err.message, stack: err.stack },
       })
+    })
+
+    // Enable SQL logging
+    pool = enableSqlLogging(pool, {
+      logQueries: config.features.debug || process.env.DEBUG_SQL === 'true',
+      logSlowQueries: true,
+      slowQueryThreshold: Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 5000,
+      logStackTrace: config.features.debug,
     })
 
     return pool

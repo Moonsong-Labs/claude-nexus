@@ -48,6 +48,7 @@
     "test:watch": "bun test --watch",
     "db:analyze-conversations": "bun run scripts/db/analyze-conversations.ts",
     "db:rebuild-conversations": "bun run scripts/db/rebuild-conversations.ts",
+    "db:rebuild-conversations-v2": "bun run scripts/db/rebuild-conversations-v2.ts",
     "db:recalculate-counts": "bun run scripts/db/recalculate-message-counts.ts",
     "db:backup": "bun run scripts/db/backup-database.ts",
     "db:backup:file": "bun run scripts/db/backup-database.ts --file",

@@ -12,6 +12,7 @@ import { Pool } from 'pg'
 import { randomUUID } from 'crypto'
 import { config } from 'dotenv'
 import { extractMessageHashes } from '../../packages/shared/src/utils/conversation-hash'
+import fs from 'fs'
 
 // Load environment variables
 config()
@@ -45,6 +46,7 @@ interface ConversationNode {
 
 class ConversationRebuilder {
   private pool: Pool
+  private databaseUrl: string
   private requestsByHash: Map<string, Request[]> = new Map()
   private processedRequests: Set<string> = new Set()
   private conversationRoots: ConversationNode[] = []
@@ -67,6 +69,7 @@ class ConversationRebuilder {
     limit: number | null = null,
     debugConversationChanges: boolean = false
   ) {
+    this.databaseUrl = databaseUrl
     this.pool = new Pool({ connectionString: databaseUrl })
     this.dryRun = dryRun
     this.onlyOrphanConversations = onlyOrphanConversations
@@ -75,8 +78,45 @@ class ConversationRebuilder {
     this.debugConversationChanges = debugConversationChanges
   }
 
+  /**
+   * Extracts the database name from a PostgreSQL connection string
+   * Handles both URI format (postgres://...) and key-value format (host=... dbname=...)
+   *
+   * Note: This is a simple parser that handles common cases. It may not handle:
+   * - Quoted values in key-value format (dbname='my db')
+   * - Escaped spaces or special characters
+   * - Multi-line key-value strings
+   * - Case variations (DBNAME vs dbname)
+   * For production use, consider using pg-connection-string package.
+   */
+  public static extractDatabaseName(connectionString: string): string | null {
+    if (!connectionString) return null
+
+    try {
+      // Check if it's a URI format
+      if (
+        connectionString.startsWith('postgres://') ||
+        connectionString.startsWith('postgresql://')
+      ) {
+        // Use URL class to parse, replacing postgres protocol with http for compatibility
+        const url = new URL(connectionString.replace(/^postgres(ql)?:\/\//, 'http://'))
+        // Database name is the first path segment (after the leading /)
+        const dbName = url.pathname.split('/')[1]
+        return dbName || null
+      } else {
+        // Try key-value format parsing
+        const match = connectionString.match(/(?:^|\s)dbname=([^\s]+)/)
+        return match ? match[1] : null
+      }
+    } catch (error) {
+      console.warn('Failed to parse database name from connection string:', error)
+      return null
+    }
+  }
+
   async rebuild() {
     console.log('Starting conversation rebuild...')
+
     console.log('\n⚠️  WARNING: This script loads ALL requests into memory at once.')
     console.log('For large databases, consider using rebuild-conversations-batched.ts instead.')
     console.log('')
@@ -88,6 +128,10 @@ class ConversationRebuilder {
       console.log(
         `   Found ${requests.length} requests${this.limit ? ` (limited to ${this.limit})` : ''}`
       )
+
+      // Write list of req id to file
+      const requestIds = requests.map(r => r.request_id)
+      fs.writeFileSync('continuation_sources.txt', requestIds.join('\n'))
 
       // Count how many needed hash computation
       const requestsWithHashes = requests.filter(r => r.current_message_hash).length
@@ -374,8 +418,6 @@ class ConversationRebuilder {
         AND timestamp < $2
         AND response_body IS NOT NULL
         AND (
-          response_body::text LIKE $3
-          OR response_body::text LIKE $4
         )
       ORDER BY timestamp DESC
       LIMIT 10
@@ -1214,6 +1256,12 @@ async function main() {
 
   if (debugConversationChanges) {
     console.log(`🐛 Debug mode: Will log all conversation ID changes`)
+  }
+
+  // Extract and display database name
+  const dbName = ConversationRebuilder.extractDatabaseName(databaseUrl)
+  if (dbName) {
+    console.log(`🗄️ Database: ${dbName}`)
   }
 
   console.log('')
