@@ -19,6 +19,7 @@ export const conversationDetailRoutes = new Hono()
 conversationDetailRoutes.get('/conversation/:id', async c => {
   const conversationId = c.req.param('id')
   const selectedBranch = c.req.query('branch')
+  const view = c.req.query('view') || 'tree' // Default to tree view
 
   // Get storage service from container
   const { container } = await import('../container.js')
@@ -103,6 +104,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     const graphNodes: ConversationNode[] = []
     const graphEdges: Array<{ source: string; target: string }> = []
 
+    // Create a map for quick request lookup by ID
+    const requestMap = new Map(conversation.requests.map(req => [req.request_id, req]))
+
     // First, add all conversation request nodes
     conversation.requests.forEach((req, index) => {
       const details = requestDetailsMap.get(req.request_id) || {
@@ -124,15 +128,21 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const finalSubtaskCount =
         subtaskCount || (hasTaskInvocation ? req.task_tool_invocation.length : 0)
 
+      // Use parent_request_id if available, fallback to hash-based lookup
+      let parentId = req.parent_request_id
+      if (!parentId && req.parent_message_hash) {
+        const parentReq = conversation.requests.find(
+          r => r.current_message_hash === req.parent_message_hash
+        )
+        parentId = parentReq?.request_id
+      }
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
         timestamp: new Date(req.timestamp),
         branchId: req.branch_id || 'main',
-        parentId: req.parent_message_hash
-          ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
-              ?.request_id
-          : undefined,
+        parentId: parentId,
         tokens: req.total_tokens,
         model: req.model,
         hasError: !!req.error,
@@ -237,42 +247,22 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       edges: graphEdges,
     }
 
-    // Build edges from parent relationships with branch awareness
-    conversation.requests.forEach(req => {
-      if (req.parent_message_hash) {
-        // Find the parent request
-        // When multiple requests have the same message hash, prefer:
-        // 1. Same branch
-        // 2. Most recent before this request
-        const potentialParents = conversation.requests.filter(
-          r =>
-            r.current_message_hash === req.parent_message_hash &&
-            new Date(r.timestamp) < new Date(req.timestamp)
-        )
-
-        let parentReq
-        if (potentialParents.length === 1) {
-          parentReq = potentialParents[0]
-        } else if (potentialParents.length > 1) {
-          // Multiple parents with same hash - prefer same branch
-          parentReq =
-            potentialParents.find(p => p.branch_id === req.branch_id) ||
-            potentialParents.sort(
-              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-            )[0]
-        }
-
-        if (parentReq) {
+    // Build edges from parent relationships
+    graphNodes.forEach(node => {
+      if (node.parentId && node.id !== node.parentId) {
+        // Verify parent exists in our nodes
+        const parentExists = graphNodes.some(n => n.id === node.parentId)
+        if (parentExists) {
           graphEdges.push({
-            source: parentReq.request_id,
-            target: req.request_id,
+            source: node.parentId,
+            target: node.id,
           })
         }
       }
     })
 
     // Calculate layout with reversed flag to show newest at top
-    const graphLayout = await calculateGraphLayout(graph, true)
+    const graphLayout = await calculateGraphLayout(graph, true, requestMap)
     const svgGraph = renderGraphSVG(graphLayout, true)
 
     // Filter requests by branch if selected
@@ -506,20 +496,127 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         )}
       </div>
 
+      <!-- Tab Navigation -->
+      <div class="tab-container" style="margin: 1.5rem 0; border-bottom: 1px solid #e5e7eb;">
+        <div style="display: flex; gap: 0;">
+          <button
+            id="tree-tab"
+            class="tab-button ${view === 'tree' ? 'tab-active' : 'tab-inactive'}"
+            style="
+              padding: 0.75rem 1.5rem;
+              background: none;
+              border: none;
+              cursor: pointer;
+              text-decoration: none;
+              font-weight: 500;
+              border-bottom: 2px solid ${view === 'tree' ? '#3b82f6' : 'transparent'};
+              color: ${view === 'tree' ? '#3b82f6' : '#6b7280'};
+              transition: all 0.2s;
+            "
+            onclick="switchTab('tree')"
+          >
+            Tree View
+          </button>
+          <button
+            id="timeline-tab"
+            class="tab-button ${view === 'timeline' ? 'tab-active' : 'tab-inactive'}"
+            style="
+              padding: 0.75rem 1.5rem;
+              background: none;
+              border: none;
+              cursor: pointer;
+              text-decoration: none;
+              font-weight: 500;
+              border-bottom: 2px solid ${view === 'timeline' ? '#3b82f6' : 'transparent'};
+              color: ${view === 'timeline' ? '#3b82f6' : '#6b7280'};
+              transition: all 0.2s;
+            "
+            onclick="switchTab('timeline')"
+          >
+            Timeline
+          </button>
+        </div>
+      </div>
+
       <!-- Main Content -->
-      <div class="conversation-graph-container">
+      <div class="conversation-content">
         <!-- Graph Visualization -->
-        <div class="conversation-graph">${raw(svgGraph)}</div>
+        <div
+          id="tree-panel"
+          class="conversation-graph"
+          style="display: ${view === 'tree' ? 'block' : 'none'}; width: 100%;"
+        >
+          ${raw(svgGraph)}
+        </div>
 
         <!-- Timeline -->
-        <div class="conversation-timeline" id="conversation-messages">
+        <div
+          id="timeline-panel"
+          class="conversation-timeline"
+          style="display: ${view === 'timeline' ? 'block' : 'none'};"
+        >
           ${raw(renderConversationMessages(filteredRequests, conversation.branches, subtasksMap))}
         </div>
       </div>
 
       <script>
-        // Add hover functionality for sub-task tooltips
+        // Tab switching functionality
+        function switchTab(tabName) {
+          // Update panel visibility
+          document.getElementById('tree-panel').style.display =
+            tabName === 'tree' ? 'block' : 'none'
+          document.getElementById('timeline-panel').style.display =
+            tabName === 'timeline' ? 'block' : 'none'
+
+          // Update tab styles
+          const treeTab = document.getElementById('tree-tab')
+          const timelineTab = document.getElementById('timeline-tab')
+
+          if (tabName === 'tree') {
+            treeTab.style.borderBottomColor = '#3b82f6'
+            treeTab.style.color = '#3b82f6'
+            treeTab.classList.add('tab-active')
+            treeTab.classList.remove('tab-inactive')
+
+            timelineTab.style.borderBottomColor = 'transparent'
+            timelineTab.style.color = '#6b7280'
+            timelineTab.classList.remove('tab-active')
+            timelineTab.classList.add('tab-inactive')
+          } else {
+            timelineTab.style.borderBottomColor = '#3b82f6'
+            timelineTab.style.color = '#3b82f6'
+            timelineTab.classList.add('tab-active')
+            timelineTab.classList.remove('tab-inactive')
+
+            treeTab.style.borderBottomColor = 'transparent'
+            treeTab.style.color = '#6b7280'
+            treeTab.classList.remove('tab-active')
+            treeTab.classList.add('tab-inactive')
+          }
+
+          // Update URL without reload
+          const url = new URL(window.location)
+          url.searchParams.set('view', tabName)
+          window.history.replaceState({}, '', url)
+        }
+
+        // Add hover effects for tabs
         document.addEventListener('DOMContentLoaded', function () {
+          const tabs = document.querySelectorAll('.tab-button')
+          tabs.forEach(tab => {
+            tab.addEventListener('mouseenter', function () {
+              if (this.classList.contains('tab-inactive')) {
+                this.style.color = '#4b5563'
+              }
+            })
+            tab.addEventListener('mouseleave', function () {
+              if (this.classList.contains('tab-inactive')) {
+                this.style.color = '#6b7280'
+              }
+            })
+          })
+
+          // Add hover functionality for sub-task tooltips
           const subtaskGroups = document.querySelectorAll('.subtask-node-group')
 
           subtaskGroups.forEach(group => {

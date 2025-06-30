@@ -5,9 +5,9 @@ import { ConversationGraph, GraphLayout, LayoutNode, LayoutEdge } from './conver
  * Arranges nodes in a tree-like structure with branches
  */
 export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
-  const nodeWidth = 100
-  const nodeHeight = 40
-  const horizontalSpacing = 120
+  const nodeWidth = 160
+  const nodeHeight = 32
+  const horizontalSpacing = 180
   const verticalSpacing = 80
 
   // Build parent-child relationships

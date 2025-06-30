@@ -83,11 +83,12 @@ export interface GraphLayout {
  */
 export async function calculateGraphLayout(
   graph: ConversationGraph,
-  reversed: boolean = false
+  reversed: boolean = false,
+  _requestMap?: Map<string, any>
 ): Promise<GraphLayout> {
   if (reversed) {
     // For reversed layout, we need a custom approach
-    return calculateReversedLayout(graph)
+    return calculateReversedLayout(graph, _requestMap)
   }
 
   // Use the simple layout algorithm
@@ -97,14 +98,17 @@ export async function calculateGraphLayout(
 /**
  * Calculate layout for reversed tree (newest at top)
  */
-function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
-  const nodeWidth = 100
-  const nodeHeight = 40
+function calculateReversedLayout(
+  graph: ConversationGraph,
+  _requestMap?: Map<string, any>
+): GraphLayout {
+  const nodeWidth = 160
+  const nodeHeight = 32
   const subtaskNodeWidth = 100
   const subtaskNodeHeight = 36
-  const horizontalSpacing = 120
+  const horizontalSpacing = 180
   const verticalSpacing = 30
-  const subtaskOffset = 150 // How far to the right sub-task nodes should be
+  const subtaskOffset = 180 // How far to the right sub-task nodes should be
 
   // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
@@ -121,12 +125,51 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   const branchLanes = new Map<string, number>()
   let nextLane = 0
 
-  // Find max message count to reverse Y positions
-  const maxMessageCount = Math.max(...graph.nodes.map(n => n.messageCount || 0))
+  // Build a map of node distances from root
+  const nodeDistances = new Map<string, number>()
+
+  // Helper function to calculate distance from root
+  function calculateDistance(nodeId: string, visited = new Set<string>()): number {
+    if (visited.has(nodeId)) {
+      return 0
+    } // Prevent cycles
+    visited.add(nodeId)
+
+    const cached = nodeDistances.get(nodeId)
+    if (cached !== undefined) {
+      return cached
+    }
+
+    const node = nodeMap.get(nodeId)
+    if (!node || !node.parentId) {
+      // Root node or no parent
+      nodeDistances.set(nodeId, node?.messageCount || 1)
+      return node?.messageCount || 1
+    }
+
+    // Calculate parent's distance first
+    const parentDistance = calculateDistance(node.parentId, visited)
+    const distance = parentDistance + 1
+    nodeDistances.set(nodeId, distance)
+    return distance
+  }
+
+  // Calculate distances for all nodes
+  graph.nodes.forEach(node => {
+    if (!node.id.endsWith('-subtasks')) {
+      calculateDistance(node.id)
+    }
+  })
+
+  // Find max distance for positioning
+  const maxDistance = Math.max(...Array.from(nodeDistances.values()), 0)
 
   // First pass: position regular nodes
   const layoutNodes: LayoutNode[] = []
   const subtaskNodes: typeof graph.nodes = []
+
+  // Create a map to track actual Y positions for each node
+  const nodeYPositions = new Map<string, number>()
 
   // Separate regular nodes and subtask nodes
   graph.nodes.forEach(node => {
@@ -140,10 +183,13 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       }
 
       const lane = branchLanes.get(node.branchId) || 0
-      const messageCount = node.messageCount || 0
 
-      // Y position is based on reversed message count (newest at top)
-      const y = (maxMessageCount - messageCount) * verticalSpacing
+      // Use the pre-calculated distance for positioning
+      const distance = nodeDistances.get(node.id) || node.messageCount || 0
+
+      // Y position is based on reversed distance (newest at top)
+      const y = (maxDistance - distance) * verticalSpacing
+      nodeYPositions.set(node.id, y)
 
       // X position is based on branch lane
       const x = lane * horizontalSpacing
@@ -179,7 +225,9 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
     const parentNode = graph.nodes.find(n => n.id === parentId)
     if (parentNode) {
       const parentLane = branchLanes.get(parentNode.branchId) || 0
-      const parentMessageCount = parentNode.messageCount || 0
+
+      // Use the actual Y position we calculated for the parent
+      const parentY = parentId ? nodeYPositions.get(parentId) || 0 : 0
 
       // Count how many subtask nodes are already positioned for this parent
       const existingSubtaskNodes = layoutNodes.filter(
@@ -191,9 +239,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       layoutNodes.push({
         id: node.id,
         x: parentLane * horizontalSpacing + subtaskOffset,
-        y:
-          (maxMessageCount - parentMessageCount) * verticalSpacing +
-          existingSubtaskNodes * (subtaskNodeHeight + 10),
+        y: parentY + existingSubtaskNodes * (subtaskNodeHeight + 10),
         width: subtaskNodeWidth,
         height: subtaskNodeHeight,
         branchId: node.branchId,
@@ -446,24 +492,18 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
       // Add message count number on the left
       if (node.messageCount !== undefined && node.messageCount > 0) {
-        svg += `    <text x="${x + 12}" y="${y + node.height / 2 + 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 14px; fill: ${color};">${node.messageCount}</text>\n`
+        svg += `    <text x="${x + 15}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 13px; fill: ${color};">${node.messageCount}</text>\n`
       }
 
       // Add request ID (first 8 chars) in the center
       const requestIdShort = node.id.substring(0, 8)
-      svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 - 4}" text-anchor="middle" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
+      svg += `    <text x="${x + 50}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
 
-      // Add timestamp
+      // Add timestamp on the right
       const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      svg += `    <text x="${x + node.width / 2}" y="${y + node.height / 2 + 10}" text-anchor="middle" class="graph-node-label" style="font-size: 9px; fill: #6b7280;">${time}</text>\n`
+      svg += `    <text x="${x + node.width - 10}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-size: 10px; fill: #6b7280;">${time}</text>\n`
 
-      // Add sub-task indicators
-      if (node.isSubtask) {
-        svg += `    <text x="${x + node.width - 12}" y="${y + 12}" text-anchor="middle" class="graph-node-label" style="font-size: 10px;" title="Sub-task">🔗</text>\n`
-      }
-      if (node.hasSubtasks && node.subtaskCount) {
-        svg += `    <text x="${x + node.width - 12}" y="${y + node.height - 6}" text-anchor="middle" class="graph-node-label" style="font-size: 10px;" title="${node.subtaskCount} sub-tasks">📋</text>\n`
-      }
+      // Add sub-task indicators (removed as they would overlap with the new layout)
 
       // Add connection point at the bottom
       svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`

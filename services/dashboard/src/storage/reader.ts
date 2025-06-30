@@ -23,6 +23,7 @@ interface ApiRequest {
   parent_task_request_id?: string
   is_subtask?: boolean
   task_tool_invocation?: any
+  parent_request_id?: string
   body?: any
 }
 
@@ -582,7 +583,7 @@ export class StorageReader {
           input_tokens, output_tokens, total_tokens, duration_ms,
           error, request_type, tool_call_count, conversation_id,
           current_message_hash, parent_message_hash, branch_id, message_count,
-          parent_task_request_id, is_subtask, task_tool_invocation,
+          parent_task_request_id, is_subtask, task_tool_invocation, parent_request_id,
           response_body,
           CASE 
             WHEN body -> 'messages' IS NOT NULL AND jsonb_array_length(body -> 'messages') > 0 THEN
@@ -622,6 +623,7 @@ export class StorageReader {
         parent_task_request_id: row.parent_task_request_id,
         is_subtask: row.is_subtask,
         task_tool_invocation: row.task_tool_invocation,
+        parent_request_id: row.parent_request_id,
         body: { last_message: row.last_message },
         response_body: row.response_body,
       }))
