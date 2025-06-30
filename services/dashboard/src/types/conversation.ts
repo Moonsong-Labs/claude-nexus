@@ -22,6 +22,7 @@ export interface ConversationRequest {
   parent_task_request_id?: string
   is_subtask?: boolean
   task_tool_invocation?: any
+  parent_request_id?: string
   body?: any
   response_body?: any
 }

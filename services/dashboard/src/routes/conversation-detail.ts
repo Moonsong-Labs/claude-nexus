@@ -19,6 +19,7 @@ export const conversationDetailRoutes = new Hono()
 conversationDetailRoutes.get('/conversation/:id', async c => {
   const conversationId = c.req.param('id')
   const selectedBranch = c.req.query('branch')
+  const view = c.req.query('view') || 'tree' // Default to tree view
 
   // Get storage service from container
   const { container } = await import('../container.js')
@@ -103,6 +104,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     const graphNodes: ConversationNode[] = []
     const graphEdges: Array<{ source: string; target: string }> = []
 
+    // Create a map for quick request lookup by ID
+    const requestMap = new Map(conversation.requests.map(req => [req.request_id, req]))
+
     // First, add all conversation request nodes
     conversation.requests.forEach((req, index) => {
       const details = requestDetailsMap.get(req.request_id) || {
@@ -124,15 +128,21 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const finalSubtaskCount =
         subtaskCount || (hasTaskInvocation ? req.task_tool_invocation.length : 0)
 
+      // Use parent_request_id if available, fallback to hash-based lookup
+      let parentId = req.parent_request_id
+      if (!parentId && req.parent_message_hash) {
+        const parentReq = conversation.requests.find(
+          r => r.current_message_hash === req.parent_message_hash
+        )
+        parentId = parentReq?.request_id
+      }
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
         timestamp: new Date(req.timestamp),
         branchId: req.branch_id || 'main',
-        parentId: req.parent_message_hash
-          ? conversation.requests.find(r => r.current_message_hash === req.parent_message_hash)
-              ?.request_id
-          : undefined,
+        parentId: parentId,
         tokens: req.total_tokens,
         model: req.model,
         hasError: !!req.error,
@@ -237,42 +247,22 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       edges: graphEdges,
     }
 
-    // Build edges from parent relationships with branch awareness
-    conversation.requests.forEach(req => {
-      if (req.parent_message_hash) {
-        // Find the parent request
-        // When multiple requests have the same message hash, prefer:
-        // 1. Same branch
-        // 2. Most recent before this request
-        const potentialParents = conversation.requests.filter(
-          r =>
-            r.current_message_hash === req.parent_message_hash &&
-            new Date(r.timestamp) < new Date(req.timestamp)
-        )
-
-        let parentReq
-        if (potentialParents.length === 1) {
-          parentReq = potentialParents[0]
-        } else if (potentialParents.length > 1) {
-          // Multiple parents with same hash - prefer same branch
-          parentReq =
-            potentialParents.find(p => p.branch_id === req.branch_id) ||
-            potentialParents.sort(
-              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-            )[0]
-        }
-
-        if (parentReq) {
+    // Build edges from parent relationships
+    graphNodes.forEach(node => {
+      if (node.parentId && node.id !== node.parentId) {
+        // Verify parent exists in our nodes
+        const parentExists = graphNodes.some(n => n.id === node.parentId)
+        if (parentExists) {
           graphEdges.push({
-            source: parentReq.request_id,
-            target: req.request_id,
+            source: node.parentId,
+            target: node.id,
           })
         }
       }
     })
 
     // Calculate layout with reversed flag to show newest at top
-    const graphLayout = await calculateGraphLayout(graph, true)
+    const graphLayout = await calculateGraphLayout(graph, true, requestMap)
     const svgGraph = renderGraphSVG(graphLayout, true)
 
     // Filter requests by branch if selected
@@ -481,7 +471,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       <div class="branch-filter" id="branch-filter">
         <span class="text-sm text-gray-600">Filter by branch:</span>
         <a
-          href="/dashboard/conversation/${conversationId}"
+          href="/dashboard/conversation/${conversationId}${view !== 'tree' ? '?view=' + view : ''}"
           class="branch-chip ${!selectedBranch ? 'branch-chip-active' : 'branch-chip-main'}"
           style="${!selectedBranch
             ? 'background: #f3f4f6; color: #1f2937; border-color: #9ca3af;'
@@ -495,7 +485,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               const color = getBranchColor(branch)
               const isActive = selectedBranch === branch
               return `
-            <a href="/dashboard/conversation/${conversationId}?branch=${branch}"
+            <a href="/dashboard/conversation/${conversationId}?branch=${branch}${view !== 'tree' ? '&view=' + view : ''}"
                class="branch-chip ${isActive ? 'branch-chip-active' : ''}"
                style="${branch !== 'main' ? `background: ${color}20; color: ${color}; border-color: ${color};` : 'background: #f3f4f6; color: #4b5563; border-color: #e5e7eb;'}${isActive ? ' font-weight: 600;' : ''}">
               ${branch} (${stats.count} messages, ${formatNumber(stats.tokens)} tokens)
@@ -506,13 +496,64 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         )}
       </div>
 
+      <!-- Tab Navigation -->
+      <div class="tab-container" style="margin: 1.5rem 0; border-bottom: 1px solid #e5e7eb;">
+        <div style="display: flex; gap: 0;">
+          <a
+            href="/dashboard/conversation/${conversationId}?${selectedBranch
+              ? 'branch=' + selectedBranch + '&'
+              : ''}view=tree"
+            class="tab-button ${view === 'tree' ? 'tab-active' : 'tab-inactive'}"
+            style="
+              padding: 0.75rem 1.5rem;
+              text-decoration: none;
+              font-weight: 500;
+              border-bottom: 2px solid ${view === 'tree' ? '#3b82f6' : 'transparent'};
+              color: ${view === 'tree' ? '#3b82f6' : '#6b7280'};
+              transition: all 0.2s;
+            "
+            onmouseover="if (this.classList.contains('tab-inactive')) { this.style.color = '#4b5563'; }"
+            onmouseout="if (this.classList.contains('tab-inactive')) { this.style.color = '#6b7280'; }"
+          >
+            Tree View
+          </a>
+          <a
+            href="/dashboard/conversation/${conversationId}?${selectedBranch
+              ? 'branch=' + selectedBranch + '&'
+              : ''}view=timeline"
+            class="tab-button ${view === 'timeline' ? 'tab-active' : 'tab-inactive'}"
+            style="
+              padding: 0.75rem 1.5rem;
+              text-decoration: none;
+              font-weight: 500;
+              border-bottom: 2px solid ${view === 'timeline' ? '#3b82f6' : 'transparent'};
+              color: ${view === 'timeline' ? '#3b82f6' : '#6b7280'};
+              transition: all 0.2s;
+            "
+            onmouseover="if (this.classList.contains('tab-inactive')) { this.style.color = '#4b5563'; }"
+            onmouseout="if (this.classList.contains('tab-inactive')) { this.style.color = '#6b7280'; }"
+          >
+            Timeline
+          </a>
+        </div>
+      </div>
+
       <!-- Main Content -->
-      <div class="conversation-graph-container">
+      <div class="conversation-content">
         <!-- Graph Visualization -->
-        <div class="conversation-graph">${raw(svgGraph)}</div>
+        <div
+          class="conversation-graph"
+          style="display: ${view === 'tree' ? 'block' : 'none'}; width: 100%;"
+        >
+          ${raw(svgGraph)}
+        </div>
 
         <!-- Timeline -->
-        <div class="conversation-timeline" id="conversation-messages">
+        <div
+          class="conversation-timeline"
+          id="conversation-messages"
+          style="display: ${view === 'timeline' ? 'block' : 'none'};"
+        >
           ${raw(renderConversationMessages(filteredRequests, conversation.branches, subtasksMap))}
         </div>
       </div>

@@ -83,11 +83,12 @@ export interface GraphLayout {
  */
 export async function calculateGraphLayout(
   graph: ConversationGraph,
-  reversed: boolean = false
+  reversed: boolean = false,
+  requestMap?: Map<string, any>
 ): Promise<GraphLayout> {
   if (reversed) {
     // For reversed layout, we need a custom approach
-    return calculateReversedLayout(graph)
+    return calculateReversedLayout(graph, requestMap)
   }
 
   // Use the simple layout algorithm
@@ -97,7 +98,10 @@ export async function calculateGraphLayout(
 /**
  * Calculate layout for reversed tree (newest at top)
  */
-function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
+function calculateReversedLayout(
+  graph: ConversationGraph,
+  requestMap?: Map<string, any>
+): GraphLayout {
   const nodeWidth = 100
   const nodeHeight = 40
   const subtaskNodeWidth = 100
@@ -122,11 +126,28 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
   let nextLane = 0
 
   // Find max message count to reverse Y positions
-  const maxMessageCount = Math.max(...graph.nodes.map(n => n.messageCount || 0))
+  // For compact branches, we need to adjust their count
+  let maxMessageCount = 0
+  graph.nodes.forEach(node => {
+    let messageCount = node.messageCount || 0
+
+    // Adjust for compact branches
+    if (node.branchId.startsWith('compact_') && node.parentId && requestMap) {
+      const parentRequest = requestMap.get(node.parentId)
+      if (parentRequest && parentRequest.message_count) {
+        messageCount = parentRequest.message_count + (node.messageCount || 1) - 1
+      }
+    }
+
+    maxMessageCount = Math.max(maxMessageCount, messageCount)
+  })
 
   // First pass: position regular nodes
   const layoutNodes: LayoutNode[] = []
   const subtaskNodes: typeof graph.nodes = []
+
+  // Create a map to track actual Y positions for each node
+  const nodeYPositions = new Map<string, number>()
 
   // Separate regular nodes and subtask nodes
   graph.nodes.forEach(node => {
@@ -140,10 +161,21 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       }
 
       const lane = branchLanes.get(node.branchId) || 0
-      const messageCount = node.messageCount || 0
+      let messageCount = node.messageCount || 0
+
+      // Special handling for compact branches
+      if (node.branchId.startsWith('compact_') && node.parentId && requestMap) {
+        // Find the parent request to get its message count
+        const parentRequest = requestMap.get(node.parentId)
+        if (parentRequest && parentRequest.message_count) {
+          // Add parent's message count to properly position compact branch
+          messageCount = parentRequest.message_count + (node.messageCount || 1) - 1
+        }
+      }
 
       // Y position is based on reversed message count (newest at top)
       const y = (maxMessageCount - messageCount) * verticalSpacing
+      nodeYPositions.set(node.id, y)
 
       // X position is based on branch lane
       const x = lane * horizontalSpacing
@@ -179,7 +211,9 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
     const parentNode = graph.nodes.find(n => n.id === parentId)
     if (parentNode) {
       const parentLane = branchLanes.get(parentNode.branchId) || 0
-      const parentMessageCount = parentNode.messageCount || 0
+
+      // Use the actual Y position we calculated for the parent
+      const parentY = nodeYPositions.get(parentId) || 0
 
       // Count how many subtask nodes are already positioned for this parent
       const existingSubtaskNodes = layoutNodes.filter(
@@ -191,9 +225,7 @@ function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
       layoutNodes.push({
         id: node.id,
         x: parentLane * horizontalSpacing + subtaskOffset,
-        y:
-          (maxMessageCount - parentMessageCount) * verticalSpacing +
-          existingSubtaskNodes * (subtaskNodeHeight + 10),
+        y: parentY + existingSubtaskNodes * (subtaskNodeHeight + 10),
         width: subtaskNodeWidth,
         height: subtaskNodeHeight,
         branchId: node.branchId,
