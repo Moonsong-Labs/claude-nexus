@@ -20,10 +20,12 @@ interface StorageRequest {
   parentMessageHash?: string | null
   conversationId?: string
   branchId?: string
+  systemHash?: string | null
   messageCount?: number
   parentTaskRequestId?: string
   isSubtask?: boolean
   taskToolInvocation?: any
+  parentRequestId?: string // Parent request in conversation chain
 }
 
 interface StorageResponse {
@@ -88,27 +90,14 @@ export class StorageWriter {
         if (existingConv.rows.length > 0 && existingConv.rows[0].is_subtask) {
           parentTaskRequestId = existingConv.rows[0].parent_task_request_id
           isSubtask = true
-          logger.debug('Continuing sub-task conversation', {
-            metadata: {
-              requestId: request.requestId,
-              conversationId: request.conversationId,
-              parentTaskRequestId,
-            },
-          })
+          // Continuing sub-task conversation
         }
       } else if (!request.parentMessageHash && request.body?.messages?.length > 0) {
         // Only check for sub-task matching if this is the first message in a conversation
         const firstMessage = request.body.messages[0]
         if (firstMessage?.role === 'user') {
           const userContent = this.extractUserMessageContent(firstMessage)
-          logger.debug('Extracted user content for sub-task matching', {
-            metadata: {
-              requestId: request.requestId,
-              hasContent: !!userContent,
-              contentLength: userContent?.length || 0,
-              contentPreview: userContent?.substring(0, 100),
-            },
-          })
+          // Extracted user content for sub-task matching
           if (userContent) {
             const match = await this.findMatchingTaskInvocation(userContent, request.timestamp)
             if (match) {
@@ -129,25 +118,22 @@ export class StorageWriter {
         }
       }
 
-      // Detect if this is a branch in the conversation
-      let branchId = request.branchId || 'main'
-      if (request.conversationId && request.parentMessageHash) {
-        const detectedBranch = await this.detectBranch(
-          request.conversationId,
-          request.parentMessageHash
-        )
-        if (detectedBranch) {
-          branchId = detectedBranch
-        }
-      }
+      // Use the branch ID determined by ConversationLinker
+      // Do NOT override it with local detection as that can cause race conditions
+      // The ConversationLinker already handles branch detection properly by:
+      // 1. Excluding the current request when checking for existing children
+      // 2. Maintaining consistency across the conversation linking logic
+      // Previously, detectBranch() here was causing the first child to incorrectly
+      // get a branch ID instead of inheriting "main" from its parent
+      const branchId = request.branchId || 'main'
 
       const query = `
         INSERT INTO api_requests (
           request_id, domain, account_id, timestamp, method, path, headers, body, 
           api_key_hash, model, request_type, current_message_hash, 
-          parent_message_hash, conversation_id, branch_id, message_count,
-          parent_task_request_id, is_subtask, task_tool_invocation
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          parent_message_hash, conversation_id, branch_id, system_hash, message_count,
+          parent_task_request_id, is_subtask, task_tool_invocation, parent_request_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         ON CONFLICT (request_id) DO NOTHING
       `
 
@@ -167,10 +153,12 @@ export class StorageWriter {
         request.parentMessageHash || null,
         request.conversationId || null,
         branchId,
+        request.systemHash || null,
         request.messageCount || 0,
         parentTaskRequestId || null,
         isSubtask,
         request.taskToolInvocation ? JSON.stringify(request.taskToolInvocation) : null,
+        request.parentRequestId || null,
       ]
 
       await this.pool.query(query, values)
@@ -303,6 +291,167 @@ export class StorageWriter {
   }
 
   /**
+   * Find parent requests based on criteria
+   * Used by ConversationLinker
+   */
+  async findParentRequests(criteria: {
+    domain: string
+    messageCount?: number
+    parentMessageHash?: string
+    currentMessageHash?: string
+    systemHash?: string | null
+    excludeRequestId?: string
+    beforeTimestamp?: Date
+  }): Promise<
+    Array<{
+      request_id: string
+      conversation_id: string
+      branch_id: string
+      current_message_hash: string
+      system_hash: string | null
+    }>
+  > {
+    try {
+      const conditions: string[] = ['domain = $1']
+      const values: any[] = [criteria.domain]
+      let paramCount = 1
+
+      if (criteria.currentMessageHash) {
+        paramCount++
+        conditions.push(`current_message_hash = $${paramCount}`)
+        values.push(criteria.currentMessageHash)
+      }
+
+      if (criteria.parentMessageHash) {
+        paramCount++
+        conditions.push(`parent_message_hash = $${paramCount}`)
+        values.push(criteria.parentMessageHash)
+      }
+
+      if (criteria.systemHash) {
+        paramCount++
+        conditions.push(`system_hash = $${paramCount}`)
+        values.push(criteria.systemHash)
+      }
+
+      if (criteria.messageCount !== undefined) {
+        paramCount++
+        conditions.push(`message_count = $${paramCount}`)
+        values.push(criteria.messageCount)
+      }
+
+      if (criteria.excludeRequestId) {
+        paramCount++
+        conditions.push(`request_id != $${paramCount}`)
+        values.push(criteria.excludeRequestId)
+      }
+
+      if (criteria.beforeTimestamp) {
+        paramCount++
+        conditions.push(`timestamp < $${paramCount}`)
+        values.push(criteria.beforeTimestamp)
+      }
+
+      const query = `
+        SELECT 
+          request_id,
+          conversation_id,
+          branch_id,
+          current_message_hash,
+          system_hash
+        FROM api_requests
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY timestamp DESC
+        LIMIT 100
+      `
+
+      const result = await this.pool.query(query, values)
+      return result.rows
+    } catch (error) {
+      logger.error('Failed to find parent requests', {
+        metadata: {
+          criteria,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return []
+    }
+  }
+
+  /**
+   * Find parent request by searching response content
+   * Used for compact conversation detection
+   */
+  async findParentByResponseContent(
+    domain: string,
+    summaryContent: string,
+    afterTimestamp: Date,
+    beforeTimestamp?: Date
+  ): Promise<{
+    request_id: string
+    conversation_id: string
+    branch_id: string
+    current_message_hash: string
+    system_hash: string | null
+  } | null> {
+    try {
+      // Search for requests where the response contains the summary
+      // Escape SQL LIKE special characters to prevent injection
+      const escapedContent = summaryContent
+        .toLowerCase()
+        .replace(/[\\%_]/g, '\\$&') // Escape SQL LIKE wildcards
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim()
+
+      // Use parameterized query with proper escaping
+      const query = `
+        SELECT 
+          request_id,
+          conversation_id,
+          branch_id,
+          current_message_hash,
+          system_hash
+        FROM api_requests
+        WHERE domain = $1
+          AND timestamp >= $2
+          ${beforeTimestamp ? 'AND timestamp < $4' : ''}
+          AND response_body IS NOT NULL
+          AND LOWER(response_body::text) LIKE '%' || $3 || '%'
+          AND conversation_id IS NOT NULL
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `
+
+      const params: any[] = [domain, afterTimestamp, escapedContent]
+      if (beforeTimestamp) {
+        params.push(beforeTimestamp)
+      }
+
+      const result = await this.pool.query(query, params)
+
+      if (result.rows.length > 0) {
+        logger.info('Found parent conversation by response content match', {
+          metadata: {
+            domain,
+            parentRequestId: result.rows[0].request_id,
+            conversationId: result.rows[0].conversation_id,
+          },
+        })
+      }
+
+      return result.rows[0] || null
+    } catch (error) {
+      logger.error('Failed to find parent by response content', {
+        metadata: {
+          domain,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return null
+    }
+  }
+
+  /**
    * Find conversation ID by parent message hash
    * When multiple conversations have the same parent hash, pick the one with fewer requests
    */
@@ -369,74 +518,6 @@ export class StorageWriter {
         },
       })
       return null
-    }
-  }
-
-  /**
-   * Detect if this is a branch in an existing conversation
-   * Returns the branch ID if this is a new branch, null otherwise
-   */
-  private async detectBranch(
-    conversationId: string,
-    parentMessageHash: string
-  ): Promise<string | null> {
-    try {
-      // First, find the parent message to get its branch
-      const parentResult = await this.pool.query(
-        `SELECT branch_id, current_message_hash
-         FROM api_requests 
-         WHERE conversation_id = $1 
-         AND current_message_hash = $2
-         LIMIT 1`,
-        [conversationId, parentMessageHash]
-      )
-
-      const parentBranch = parentResult.rows[0]?.branch_id || 'main'
-
-      // Now check if there's already a child of this parent in the conversation
-      const childrenResult = await this.pool.query(
-        `SELECT COUNT(*) as count, array_agg(DISTINCT branch_id) as existing_branches
-         FROM api_requests 
-         WHERE conversation_id = $1 
-         AND parent_message_hash = $2`,
-        [conversationId, parentMessageHash]
-      )
-
-      const { count, existing_branches } = childrenResult.rows[0]
-
-      // If there's already a message with this parent, we're creating a new branch
-      if (parseInt(count) > 0) {
-        logger.info('Creating new branch - parent already has children', {
-          metadata: {
-            conversationId,
-            parentMessageHash,
-            parentBranch,
-            existingBranches: existing_branches,
-            childCount: count,
-          },
-        })
-        // Generate new branch ID based on current timestamp
-        return `branch_${Date.now()}`
-      }
-
-      // If this is the first message with this parent, continue on the parent's branch
-      logger.info('Continuing on parent branch', {
-        metadata: {
-          conversationId,
-          parentMessageHash,
-          parentBranch,
-        },
-      })
-      return parentBranch
-    } catch (error) {
-      logger.error('Error detecting branch', {
-        metadata: {
-          conversationId,
-          parentMessageHash,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      })
-      return 'main'
     }
   }
 
@@ -579,13 +660,7 @@ export class StorageWriter {
     timestamp: Date
   ): Promise<{ request_id: string; timestamp: Date } | null> {
     try {
-      logger.debug('Looking for matching Task invocation', {
-        metadata: {
-          contentLength: userContent.length,
-          contentPreview: userContent.substring(0, 100),
-          timestamp: timestamp.toISOString(),
-        },
-      })
+      // Looking for matching Task invocation
 
       // Look for Task invocations in the last 30 seconds
       // Using 30-second window to match migration script for consistency
@@ -607,23 +682,11 @@ export class StorageWriter {
       const result = await this.pool.query(query, [timestamp.toISOString(), userContent])
 
       if (result.rows.length > 0) {
-        logger.debug('Found matching Task invocation', {
-          metadata: {
-            parentRequestId: result.rows[0].request_id,
-            parentTimestamp: result.rows[0].timestamp,
-            timeDiffSeconds: Math.round(
-              (timestamp.getTime() - new Date(result.rows[0].timestamp).getTime()) / 1000
-            ),
-          },
-        })
+        // Found matching Task invocation
         return result.rows[0]
       }
 
-      logger.debug('No matching Task invocation found', {
-        metadata: {
-          searchWindow: '30 seconds',
-        },
-      })
+      // No matching Task invocation found
 
       return null
     } catch (error) {

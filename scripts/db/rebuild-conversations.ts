@@ -12,6 +12,7 @@ import { Pool } from 'pg'
 import { randomUUID } from 'crypto'
 import { config } from 'dotenv'
 import { extractMessageHashes } from '../../packages/shared/src/utils/conversation-hash'
+import fs from 'fs'
 
 // Load environment variables
 config()
@@ -22,11 +23,13 @@ interface Request {
   timestamp: Date
   current_message_hash: string | null
   parent_message_hash: string | null
+  system_hash: string | null
   conversation_id: string | null
   branch_id: string | null
   body: any
   request_type: string | null
   message_count: number | null
+  response_body?: any
 }
 
 interface ConversationNode {
@@ -34,6 +37,7 @@ interface ConversationNode {
   timestamp: Date
   parent_message_hash: string | null
   current_message_hash: string | null
+  system_hash?: string | null
   conversation_id?: string
   branch_id?: string
   message_count?: number | null
@@ -42,35 +46,92 @@ interface ConversationNode {
 
 class ConversationRebuilder {
   private pool: Pool
+  private databaseUrl: string
   private requestsByHash: Map<string, Request[]> = new Map()
   private processedRequests: Set<string> = new Set()
   private conversationRoots: ConversationNode[] = []
   private dryRun: boolean
   private onlyOrphanConversations: boolean
   private domainFilter: string | null
+  private limit: number | null
+  private debugConversationChanges: boolean
   private existingRequests: Map<string, Request> = new Map()
   private existingConversationRequests: Map<string, Request[]> = new Map()
+  // Track conversation request counts for verification
+  private originalConversationCounts: Map<string, number> = new Map()
+  private newConversationCounts: Map<string, number> = new Map()
 
   constructor(
     databaseUrl: string,
     dryRun: boolean = false,
     onlyOrphanConversations: boolean = false,
-    domainFilter: string | null = null
+    domainFilter: string | null = null,
+    limit: number | null = null,
+    debugConversationChanges: boolean = false
   ) {
+    this.databaseUrl = databaseUrl
     this.pool = new Pool({ connectionString: databaseUrl })
     this.dryRun = dryRun
     this.onlyOrphanConversations = onlyOrphanConversations
     this.domainFilter = domainFilter
+    this.limit = limit
+    this.debugConversationChanges = debugConversationChanges
+  }
+
+  /**
+   * Extracts the database name from a PostgreSQL connection string
+   * Handles both URI format (postgres://...) and key-value format (host=... dbname=...)
+   *
+   * Note: This is a simple parser that handles common cases. It may not handle:
+   * - Quoted values in key-value format (dbname='my db')
+   * - Escaped spaces or special characters
+   * - Multi-line key-value strings
+   * - Case variations (DBNAME vs dbname)
+   * For production use, consider using pg-connection-string package.
+   */
+  public static extractDatabaseName(connectionString: string): string | null {
+    if (!connectionString) return null
+
+    try {
+      // Check if it's a URI format
+      if (
+        connectionString.startsWith('postgres://') ||
+        connectionString.startsWith('postgresql://')
+      ) {
+        // Use URL class to parse, replacing postgres protocol with http for compatibility
+        const url = new URL(connectionString.replace(/^postgres(ql)?:\/\//, 'http://'))
+        // Database name is the first path segment (after the leading /)
+        const dbName = url.pathname.split('/')[1]
+        return dbName || null
+      } else {
+        // Try key-value format parsing
+        const match = connectionString.match(/(?:^|\s)dbname=([^\s]+)/)
+        return match ? match[1] : null
+      }
+    } catch (error) {
+      console.warn('Failed to parse database name from connection string:', error)
+      return null
+    }
   }
 
   async rebuild() {
     console.log('Starting conversation rebuild...')
 
+    console.log('\n⚠️  WARNING: This script loads ALL requests into memory at once.')
+    console.log('For large databases, consider using rebuild-conversations-batched.ts instead.')
+    console.log('')
+
     try {
       // Step 1: Load all requests
       console.log('\n1. Loading all requests from database...')
       const requests = await this.loadRequests()
-      console.log(`   Found ${requests.length} requests`)
+      console.log(
+        `   Found ${requests.length} requests${this.limit ? ` (limited to ${this.limit})` : ''}`
+      )
+
+      // Write list of req id to file
+      const requestIds = requests.map(r => r.request_id)
+      fs.writeFileSync('continuation_sources.txt', requestIds.join('\n'))
 
       // Count how many needed hash computation
       const requestsWithHashes = requests.filter(r => r.current_message_hash).length
@@ -88,7 +149,7 @@ class ConversationRebuilder {
 
       // Step 3: Build conversation trees
       console.log('\n3. Building conversation trees...')
-      const trees = this.buildConversationTrees(requests)
+      const trees = await this.buildConversationTrees(requests)
       console.log(`   Found ${trees.length} conversation roots`)
 
       // Step 4: Assign conversation IDs and detect branches
@@ -119,7 +180,11 @@ class ConversationRebuilder {
       await this.updateDatabase(updates)
       console.log('   Database updated successfully')
 
-      // Step 6: Show statistics
+      // Step 6: Verify conversation integrity
+      console.log('\n6. Verifying conversation integrity...')
+      this.verifyConversationIntegrity()
+
+      // Step 7: Show statistics
       await this.showStatistics()
     } catch (error) {
       console.error('Error during rebuild:', error)
@@ -137,9 +202,11 @@ class ConversationRebuilder {
         timestamp,
         current_message_hash,
         parent_message_hash,
+        system_hash,
         conversation_id,
         branch_id,
         body,
+        response_body,
         request_type,
         message_count
       FROM api_requests
@@ -191,6 +258,11 @@ class ConversationRebuilder {
 
     query += ' ORDER BY timestamp ASC'
 
+    // Add limit if specified
+    if (this.limit && this.limit > 0) {
+      query += ` LIMIT ${this.limit}`
+    }
+
     const result = await this.pool.query(query, queryParams)
 
     // Process requests to compute missing hashes and message counts
@@ -207,17 +279,24 @@ class ConversationRebuilder {
           this.existingConversationRequests.set(request.conversation_id, [])
         }
         this.existingConversationRequests.get(request.conversation_id)!.push(request)
+
+        // Track original conversation counts
+        this.originalConversationCounts.set(
+          request.conversation_id,
+          (this.originalConversationCounts.get(request.conversation_id) || 0) + 1
+        )
       }
 
       // If hashes are missing but we have a body with messages, compute them
       if (request.body?.messages) {
         try {
-          const { currentMessageHash, parentMessageHash } = extractMessageHashes(
+          const { currentMessageHash, parentMessageHash, systemHash } = extractMessageHashes(
             request.body.messages,
             request.body.system
           )
           request.current_message_hash = currentMessageHash
           request.parent_message_hash = parentMessageHash
+          request.system_hash = systemHash
         } catch (error) {
           console.warn(`Failed to compute hashes for request ${request.request_id}:`, error)
         }
@@ -252,7 +331,130 @@ class ConversationRebuilder {
     }
   }
 
-  private buildConversationTrees(requests: Request[]): ConversationNode[] {
+  /**
+   * Detects special conversation linking cases:
+   * 1. Conversation summarization (system prompt contains "You are a helpful AI assistant tasked with summarizing conversations")
+   * 2. Context overflow continuation (first message contains "This session is being continued...")
+   */
+  private detectSpecialLinking(request: Request): {
+    isSummarization: boolean
+    isContinuation: boolean
+    continuationTarget?: string
+  } {
+    let isSummarization = false
+    let isContinuation = false
+    let continuationTarget: string | undefined
+
+    // Check for summarization system prompt
+    if (request.body?.system) {
+      const systemContent =
+        typeof request.body.system === 'string'
+          ? request.body.system
+          : request.body.system.map((item: any) => item.text || '').join(' ')
+
+      if (
+        systemContent.includes(
+          'You are a helpful AI assistant tasked with summarizing conversations'
+        )
+      ) {
+        isSummarization = true
+      }
+    }
+
+    // Check for continuation message
+    if (request.body?.messages?.[0]) {
+      const firstMessage = request.body.messages[0]
+      if (firstMessage.role === 'user' && firstMessage.content) {
+        let messageContent = ''
+
+        if (typeof firstMessage.content === 'string') {
+          messageContent = firstMessage.content
+        } else if (Array.isArray(firstMessage.content)) {
+          // Check each content item
+          for (const item of firstMessage.content) {
+            if (item.type === 'text' && item.text) {
+              messageContent += item.text + ' '
+            }
+          }
+        }
+
+        // Check for continuation pattern
+        const continuationMatch = messageContent.match(
+          /This session is being continued from a previous conversation that ran out of context.*?The conversation is summarized below:\s*(.+?)\s*(?:Please continue|Summary:|Analysis:|$)/s
+        )
+
+        if (continuationMatch) {
+          isContinuation = true
+          // Extract the summary text for matching
+          continuationTarget = continuationMatch[1].trim()
+        }
+      }
+    }
+
+    return { isSummarization, isContinuation, continuationTarget }
+  }
+
+  /**
+   * Finds a request whose response contains the continuation target text
+   */
+  private async findContinuationSource(
+    targetText: string,
+    beforeTimestamp: Date,
+    domain: string
+  ): Promise<Request | null> {
+    // Clean up the target text for better matching
+    const cleanTarget = targetText
+      .replace(/^(Analysis|Summary):\s*/i, '')
+      .trim()
+      .substring(0, 200) // Use first 200 chars for matching
+
+    const query = `
+      SELECT request_id, domain, timestamp, current_message_hash, 
+             parent_message_hash, system_hash, conversation_id, 
+             branch_id, body, response_body, request_type, message_count
+      FROM api_requests
+      WHERE request_type = 'inference'
+        AND domain = $1
+        AND timestamp < $2
+        AND response_body IS NOT NULL
+        AND (
+        )
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `
+
+    const result = await this.pool.query(query, [
+      domain,
+      beforeTimestamp,
+      '%' + cleanTarget.substring(0, 50) + '%',
+      '%' + cleanTarget.replace(/\s+/g, '%') + '%',
+    ])
+
+    // Check each candidate for a good match
+    for (const row of result.rows) {
+      if (row.response_body?.content) {
+        let responseText = ''
+
+        if (typeof row.response_body.content === 'string') {
+          responseText = row.response_body.content
+        } else if (Array.isArray(row.response_body.content)) {
+          responseText = row.response_body.content
+            .filter((item: any) => item.type === 'text')
+            .map((item: any) => item.text || '')
+            .join(' ')
+        }
+
+        // Check if this response contains our target text
+        if (responseText.includes(cleanTarget.substring(0, 50))) {
+          return row
+        }
+      }
+    }
+
+    return null
+  }
+
+  private async buildConversationTrees(requests: Request[]): Promise<ConversationNode[]> {
     const roots: ConversationNode[] = []
     const nodeMap = new Map<string, ConversationNode>()
 
@@ -268,6 +470,7 @@ class ConversationRebuilder {
         timestamp: request.timestamp,
         parent_message_hash: request.parent_message_hash,
         current_message_hash: request.current_message_hash,
+        system_hash: request.system_hash,
         message_count: request.message_count,
         children: [],
       }
@@ -278,6 +481,72 @@ class ConversationRebuilder {
     for (const request of requests) {
       const node = nodeMap.get(request.request_id)!
 
+      // Check for special linking cases
+      const specialLinking = this.detectSpecialLinking(request)
+
+      // Handle summarization requests - ignore system prompt for parent matching
+      if (specialLinking.isSummarization && request.parent_message_hash) {
+        // Find parent requests ignoring system hash differences
+        const parentRequests = this.requestsByHash.get(request.parent_message_hash) || []
+
+        if (parentRequests.length > 0) {
+          const parent = this.findBestParent(parentRequests, request)
+
+          if (parent) {
+            const parentNode = nodeMap.get(parent.request_id)
+            if (parentNode) {
+              parentNode.children.push(node)
+              console.log(
+                `   Linked summarization request ${request.request_id} to parent ${parent.request_id} (ignoring system prompt)`
+              )
+              continue
+            }
+          }
+        }
+      }
+
+      // Handle continuation requests - find the source conversation
+      if (specialLinking.isContinuation && specialLinking.continuationTarget) {
+        try {
+          const sourceRequest = await this.findContinuationSource(
+            specialLinking.continuationTarget,
+            request.timestamp,
+            request.domain
+          )
+
+          if (sourceRequest) {
+            const sourceNode = nodeMap.get(sourceRequest.request_id)
+            if (sourceNode) {
+              // Add as child of the source
+              sourceNode.children.push(node)
+
+              // Check if source already has a compact branch to preserve
+              const sourceRequestData = this.existingRequests.get(sourceRequest.request_id)
+              if (sourceRequestData?.branch_id?.startsWith('compact_')) {
+                // Preserve the existing compact branch
+                node.branch_id = sourceRequestData.branch_id
+              } else {
+                // Create a new compact branch
+                node.branch_id = `compact_${new Date(request.timestamp)
+                  .toISOString()
+                  .replace(/[^0-9]/g, '')
+                  .substring(8, 14)}`
+              }
+
+              console.log(
+                `   Linked continuation request ${request.request_id} to source ${sourceRequest.request_id} with branch ${node.branch_id}`
+              )
+              continue
+            }
+          } else {
+            console.log(`   Could not find source for continuation request ${request.request_id}`)
+          }
+        } catch (error) {
+          console.warn(`   Error finding continuation source for ${request.request_id}:`, error)
+        }
+      }
+
+      // Normal parent-child linking
       if (request.parent_message_hash) {
         // Find parent requests
         const parentRequests = this.requestsByHash.get(request.parent_message_hash) || []
@@ -410,6 +679,7 @@ class ConversationRebuilder {
     branch_id: string
     current_message_hash?: string
     parent_message_hash?: string
+    system_hash?: string | null
     message_count?: number
   }> {
     const updates: Array<{
@@ -418,13 +688,27 @@ class ConversationRebuilder {
       branch_id: string
       current_message_hash?: string
       parent_message_hash?: string
+      system_hash?: string | null
       message_count?: number
     }> = []
 
     for (const root of trees) {
       // Check if this conversation already exists and has the same structure
       const existingConvId = this.findExistingConversationId(root)
-      const conversationId = existingConvId || randomUUID()
+
+      // Special handling for requests without parent
+      const existingRequest = this.existingRequests.get(root.request_id)
+      const shouldPreserveConversationId =
+        existingRequest?.conversation_id && !root.parent_message_hash
+
+      let conversationId: string
+      if (shouldPreserveConversationId) {
+        // Preserve existing conversation ID for requests without parent
+        conversationId = existingRequest.conversation_id
+        console.log(`   Preserving conversation ID for request ${root.request_id} (no parent)`)
+      } else {
+        conversationId = existingConvId || randomUUID()
+      }
 
       this.traverseAndAssign(
         root,
@@ -432,7 +716,7 @@ class ConversationRebuilder {
         'main',
         new Map(),
         updates,
-        existingConvId !== null
+        existingConvId !== null || shouldPreserveConversationId
       )
     }
 
@@ -450,6 +734,7 @@ class ConversationRebuilder {
       branch_id: string
       current_message_hash?: string
       parent_message_hash?: string
+      system_hash?: string | null
       message_count?: number
     }>,
     isExistingConversation: boolean = false
@@ -457,21 +742,43 @@ class ConversationRebuilder {
     // Get existing request data
     const existing = this.existingRequests.get(node.request_id)
 
+    // Special handling for requests without parent
+    const shouldPreserveConversationId = existing?.conversation_id && !node.parent_message_hash
+
+    // Use existing conversation ID if we should preserve it
+    const effectiveConversationId = shouldPreserveConversationId
+      ? existing.conversation_id
+      : conversationId
+
+    // Log when we preserve conversation ID for non-root nodes
+    if (shouldPreserveConversationId && node.parent_message_hash) {
+      console.log(`   Preserving conversation ID for child request ${node.request_id}`)
+    }
+
+    // Track new conversation counts
+    this.newConversationCounts.set(
+      effectiveConversationId,
+      (this.newConversationCounts.get(effectiveConversationId) || 0) + 1
+    )
+    // Use pre-assigned branch_id if available (for continuation nodes)
+    const effectiveBranchId = node.branch_id || branchId
+
     // Check if we need to update this request
     const needsUpdate =
       !existing ||
-      existing.conversation_id !== conversationId ||
-      existing.branch_id !== branchId ||
+      existing.conversation_id !== effectiveConversationId ||
+      existing.branch_id !== effectiveBranchId ||
       existing.current_message_hash !== node.current_message_hash ||
       existing.parent_message_hash !== node.parent_message_hash ||
+      existing.system_hash !== node.system_hash ||
       existing.message_count !== node.message_count
 
     if (needsUpdate) {
       // Only create update if something has changed
       const update: any = {
         request_id: node.request_id,
-        conversation_id: conversationId,
-        branch_id: branchId,
+        conversation_id: effectiveConversationId,
+        branch_id: effectiveBranchId,
       }
 
       // Include hashes if they exist
@@ -480,6 +787,9 @@ class ConversationRebuilder {
       }
       if (node.parent_message_hash) {
         update.parent_message_hash = node.parent_message_hash
+      }
+      if (node.system_hash !== undefined) {
+        update.system_hash = node.system_hash
       }
       if (node.message_count !== null && node.message_count !== undefined) {
         update.message_count = node.message_count
@@ -490,6 +800,9 @@ class ConversationRebuilder {
 
     // Check if this node creates a branch point
     if (node.children.length > 1) {
+      // Check if we're on a compact branch - if so, preserve it for the first child
+      const isCompactBranch = effectiveBranchId.startsWith('compact_')
+
       // This is a branch point
       console.log(
         `   Branch point detected at ${node.request_id} with ${node.children.length} children`
@@ -500,14 +813,14 @@ class ConversationRebuilder {
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       )
 
-      // First child continues on the same branch
+      // First child continues on the same branch (including compact branches)
       this.traverseAndAssign(
         sortedChildren[0],
-        conversationId,
-        branchId,
+        effectiveConversationId,
+        effectiveBranchId,
         branchPoints,
         updates,
-        isExistingConversation
+        isExistingConversation || shouldPreserveConversationId
       )
 
       // Other children get new branches
@@ -515,22 +828,22 @@ class ConversationRebuilder {
         const newBranchId = `branch_${new Date(sortedChildren[i].timestamp).getTime()}`
         this.traverseAndAssign(
           sortedChildren[i],
-          conversationId,
+          effectiveConversationId,
           newBranchId,
           branchPoints,
           updates,
-          isExistingConversation
+          isExistingConversation || shouldPreserveConversationId
         )
       }
     } else if (node.children.length === 1) {
-      // Single child continues on the same branch
+      // Single child continues on the same branch (including compact branches)
       this.traverseAndAssign(
         node.children[0],
-        conversationId,
-        branchId,
+        effectiveConversationId,
+        effectiveBranchId,
         branchPoints,
         updates,
-        isExistingConversation
+        isExistingConversation || shouldPreserveConversationId
       )
     }
     // If no children, traversal ends here
@@ -543,6 +856,7 @@ class ConversationRebuilder {
       branch_id: string
       current_message_hash?: string
       parent_message_hash?: string
+      system_hash?: string | null
       message_count?: number
     }>
   ) {
@@ -581,6 +895,11 @@ class ConversationRebuilder {
               `       - parent_message_hash: ${update.parent_message_hash ? update.parent_message_hash.substring(0, 16) + '...' : 'NULL'}`
             )
           }
+          if (update.system_hash !== undefined) {
+            console.log(
+              `       - system_hash: ${update.system_hash ? update.system_hash.substring(0, 16) + '...' : 'NULL'}`
+            )
+          }
           if (update.message_count !== undefined) {
             console.log(`       - message_count: ${update.message_count}`)
           }
@@ -592,6 +911,35 @@ class ConversationRebuilder {
       }
 
       return
+    }
+
+    // Debug logging for conversation ID changes
+    if (this.debugConversationChanges) {
+      console.log('\n   🔍 DEBUG: Conversation ID changes:')
+      let conversationChangeCount = 0
+
+      updates.forEach(update => {
+        const existing = this.existingRequests.get(update.request_id)
+        if (existing && existing.conversation_id !== update.conversation_id) {
+          conversationChangeCount++
+          console.log(`     [${conversationChangeCount}] Request ${update.request_id}:`)
+          console.log(`       - Old conversation_id: ${existing.conversation_id || 'NULL'}`)
+          console.log(`       - New conversation_id: ${update.conversation_id}`)
+          console.log(`       - Branch: ${update.branch_id}`)
+          if (existing.timestamp) {
+            console.log(`       - Timestamp: ${existing.timestamp}`)
+          }
+          if (existing.domain) {
+            console.log(`       - Domain: ${existing.domain}`)
+          }
+        }
+      })
+
+      if (conversationChangeCount === 0) {
+        console.log('     No conversation ID changes detected')
+      } else {
+        console.log(`\n   Total requests with conversation ID changes: ${conversationChangeCount}`)
+      }
     }
 
     const client = await this.pool.connect()
@@ -637,6 +985,14 @@ class ConversationRebuilder {
           )
           .join(' ')
 
+        const caseSystemHash = batch
+          .map(u =>
+            u.system_hash !== undefined
+              ? `WHEN '${u.request_id}' THEN ${u.system_hash ? `'${u.system_hash}'` : 'NULL'}`
+              : `WHEN '${u.request_id}' THEN system_hash`
+          )
+          .join(' ')
+
         const requestIds = batch.map(u => `'${u.request_id}'`).join(',')
 
         const query = `
@@ -646,6 +1002,7 @@ class ConversationRebuilder {
             branch_id = CASE request_id ${caseBranchId} END,
             current_message_hash = CASE request_id ${caseCurrentHash} END,
             parent_message_hash = CASE request_id ${caseParentHash} END,
+            system_hash = CASE request_id ${caseSystemHash} END,
             message_count = CASE request_id ${caseMessageCount} END
           WHERE request_id IN (${requestIds})
         `
@@ -738,6 +1095,57 @@ class ConversationRebuilder {
       )
     }
   }
+
+  private verifyConversationIntegrity() {
+    const warnings: string[] = []
+    let conversationsWithFewerRequests = 0
+    let conversationsWithMoreRequests = 0
+    let conversationsUnchanged = 0
+
+    // Check all conversations that existed before
+    for (const [convId, originalCount] of this.originalConversationCounts) {
+      const newCount = this.newConversationCounts.get(convId) || 0
+
+      if (newCount < originalCount) {
+        conversationsWithFewerRequests++
+        warnings.push(
+          `   ⚠️  Conversation ${convId}: ${originalCount} → ${newCount} requests (lost ${originalCount - newCount})`
+        )
+      } else if (newCount > originalCount) {
+        conversationsWithMoreRequests++
+      } else {
+        conversationsUnchanged++
+      }
+    }
+
+    // Check for new conversations that might have stolen requests
+    const newConversations = [...this.newConversationCounts.keys()].filter(
+      convId => !this.originalConversationCounts.has(convId)
+    )
+
+    console.log('\n   Conversation integrity check:')
+    console.log(`   - Conversations unchanged: ${conversationsUnchanged}`)
+    console.log(`   - Conversations with more requests: ${conversationsWithMoreRequests}`)
+    console.log(`   - Conversations with fewer requests: ${conversationsWithFewerRequests}`)
+    console.log(`   - New conversations created: ${newConversations.length}`)
+
+    if (warnings.length > 0) {
+      console.log('\n   ⚠️  WARNING: Some conversations lost requests!')
+      console.log('   This may indicate an issue with the rebuild logic.')
+      console.log('   Affected conversations (showing first 10):')
+      warnings.slice(0, 10).forEach(warning => console.log(warning))
+      if (warnings.length > 10) {
+        console.log(`   ... and ${warnings.length - 10} more`)
+      }
+
+      if (!this.dryRun) {
+        console.log('\n   ⚠️  These changes have been applied to the database!')
+        console.log('   Consider reviewing the rebuild logic or restoring from backup.')
+      }
+    } else {
+      console.log('\n   ✅ All conversations maintained or gained requests - integrity verified!')
+    }
+  }
 }
 
 // Parse command line arguments
@@ -745,16 +1153,24 @@ function parseArgs(): {
   dryRun: boolean
   onlyOrphanConversations: boolean
   domain: string | null
+  limit: number | null
+  debugConversationChanges: boolean
   help: boolean
 } {
   const args = process.argv.slice(2)
   const domainIndex = args.findIndex(arg => arg === '--domain')
   const domain = domainIndex !== -1 && args[domainIndex + 1] ? args[domainIndex + 1] : null
 
+  const limitIndex = args.findIndex(arg => arg === '--limit')
+  const limit =
+    limitIndex !== -1 && args[limitIndex + 1] ? parseInt(args[limitIndex + 1], 10) : null
+
   return {
     dryRun: args.includes('--dry-run'),
     onlyOrphanConversations: args.includes('--only-orphan-conversations'),
     domain,
+    limit: limit && !isNaN(limit) ? limit : null,
+    debugConversationChanges: args.includes('--debug-conversation-changes'),
     help: args.includes('--help') || args.includes('-h'),
   }
 }
@@ -768,23 +1184,35 @@ Options:
   --dry-run                   Run in dry-run mode (no database changes)
   --only-orphan-conversations Only process orphan conversations
   --domain <domain>           Filter by specific domain
+  --limit <number>            Limit the number of requests to process
+  --debug-conversation-changes Debug log all conversation ID changes
   --help, -h                  Show this help message
 
 Examples:
-  # Rebuild all conversations
+  # Rebuild all conversations (loads all data into memory)
   bun run scripts/db/rebuild-conversations.ts
+
+  # For large databases, use the batched version:
+  bun run scripts/db/rebuild-conversations-batched.ts
 
   # Dry run for a specific domain
   bun run scripts/db/rebuild-conversations.ts --dry-run --domain example.com
 
   # Process only orphan conversations for a domain
   bun run scripts/db/rebuild-conversations.ts --only-orphan-conversations --domain myapp.com
+
+  # Process first 100 requests with debug logging
+  bun run scripts/db/rebuild-conversations.ts --limit 100 --debug-conversation-changes
+
+  # Dry run with limit and conversation change debugging
+  bun run scripts/db/rebuild-conversations.ts --dry-run --limit 50 --debug-conversation-changes
 `)
 }
 
 // Main execution
 async function main() {
-  const { dryRun, onlyOrphanConversations, domain, help } = parseArgs()
+  const { dryRun, onlyOrphanConversations, domain, limit, debugConversationChanges, help } =
+    parseArgs()
 
   if (help) {
     showHelp()
@@ -822,6 +1250,20 @@ async function main() {
     console.log(`🌐 Filtering by domain: ${domain}`)
   }
 
+  if (limit) {
+    console.log(`📊 Limiting to ${limit} requests`)
+  }
+
+  if (debugConversationChanges) {
+    console.log(`🐛 Debug mode: Will log all conversation ID changes`)
+  }
+
+  // Extract and display database name
+  const dbName = ConversationRebuilder.extractDatabaseName(databaseUrl)
+  if (dbName) {
+    console.log(`🗄️ Database: ${dbName}`)
+  }
+
   console.log('')
 
   // Add a confirmation prompt unless in dry run mode
@@ -834,7 +1276,14 @@ async function main() {
     }
   }
 
-  const rebuilder = new ConversationRebuilder(databaseUrl, dryRun, onlyOrphanConversations, domain)
+  const rebuilder = new ConversationRebuilder(
+    databaseUrl,
+    dryRun,
+    onlyOrphanConversations,
+    domain,
+    limit,
+    debugConversationChanges
+  )
 
   try {
     await rebuilder.rebuild()

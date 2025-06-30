@@ -2,6 +2,14 @@ import { Pool } from 'pg'
 import { StorageWriter } from './writer.js'
 import { logger } from '../middleware/logger.js'
 import { randomUUID } from 'crypto'
+import { enableSqlLogging } from '../utils/sql-logger.js'
+import {
+  ConversationLinker,
+  type QueryExecutor,
+  type CompactSearchExecutor,
+  type ClaudeMessage,
+  type ParentQueryCriteria,
+} from '@claude-nexus/shared'
 
 /**
  * Storage adapter that provides a simplified interface for MetricsService
@@ -9,6 +17,7 @@ import { randomUUID } from 'crypto'
  */
 export class StorageAdapter {
   private writer: StorageWriter
+  private conversationLinker: ConversationLinker
   private requestIdMap: Map<string, { uuid: string; timestamp: number }> = new Map() // Map nanoid to UUID with timestamp
   private cleanupTimer: NodeJS.Timeout | null = null
   private isClosed: boolean = false
@@ -17,8 +26,38 @@ export class StorageAdapter {
   private readonly RETENTION_TIME_MS =
     Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
 
-  constructor(pool: Pool) {
-    this.writer = new StorageWriter(pool)
+  constructor(private pool: Pool) {
+    // Enable SQL logging on the pool if DEBUG or DEBUG_SQL is set
+    const loggingPool = enableSqlLogging(pool, {
+      logQueries: process.env.DEBUG === 'true' || process.env.DEBUG_SQL === 'true',
+      logSlowQueries: true,
+      slowQueryThreshold: Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 5000,
+      logStackTrace: process.env.DEBUG === 'true',
+    })
+
+    this.writer = new StorageWriter(loggingPool)
+
+    // Create query executor for ConversationLinker
+    const queryExecutor: QueryExecutor = async (criteria: ParentQueryCriteria) => {
+      return await this.writer.findParentRequests(criteria)
+    }
+
+    // Create compact search executor
+    const compactSearchExecutor: CompactSearchExecutor = async (
+      domain: string,
+      summaryContent: string,
+      afterTimestamp: Date,
+      beforeTimestamp?: Date
+    ) => {
+      return await this.writer.findParentByResponseContent(
+        domain,
+        summaryContent,
+        afterTimestamp,
+        beforeTimestamp
+      )
+    }
+
+    this.conversationLinker = new ConversationLinker(queryExecutor, compactSearchExecutor)
     this.scheduleNextCleanup()
   }
 
@@ -49,10 +88,12 @@ export class StorageAdapter {
     parentMessageHash?: string | null
     conversationId?: string
     branchId?: string
+    systemHash?: string | null
     messageCount?: number
     parentTaskRequestId?: string
     isSubtask?: boolean
     taskToolInvocation?: any
+    parentRequestId?: string
   }): Promise<void> {
     try {
       // Generate a UUID for this request and store the mapping with timestamp
@@ -83,10 +124,12 @@ export class StorageAdapter {
         parentMessageHash: data.parentMessageHash,
         conversationId: data.conversationId,
         branchId: data.branchId,
+        systemHash: data.systemHash,
         messageCount: data.messageCount,
         parentTaskRequestId: data.parentTaskRequestId,
         isSubtask: data.isSubtask,
         taskToolInvocation: data.taskToolInvocation,
+        parentRequestId: data.parentRequestId,
       })
     } catch (error) {
       logger.error('Failed to store request', {
@@ -212,6 +255,31 @@ export class StorageAdapter {
    */
   async findConversationByParentHash(parentHash: string): Promise<string | null> {
     return await this.writer.findConversationByParentHash(parentHash)
+  }
+
+  /**
+   * Link a conversation using the new ConversationLinker
+   */
+  async linkConversation(
+    domain: string,
+    messages: ClaudeMessage[],
+    systemPrompt:
+      | string
+      | { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[]
+      | undefined,
+    requestId: string
+  ) {
+    const messageCount = messages?.length || 0
+
+    const result = await this.conversationLinker.linkConversation({
+      domain,
+      messages,
+      systemPrompt,
+      requestId,
+      messageCount,
+    })
+
+    return result
   }
 
   /**

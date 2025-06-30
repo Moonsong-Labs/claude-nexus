@@ -162,6 +162,22 @@ The proxy automatically tracks conversations and detects branches using message 
 - **Duplicate messages are deduplicated**: When tool_use or tool_result messages have duplicate IDs, only the first occurrence is included in the hash
 - This ensures conversations link correctly regardless of content format, system reminder presence, or duplicate messages from the Claude API
 
+**Dual Hash System:**
+
+- **Message Hash**: Used for conversation linking, contains only message content
+- **System Hash**: Tracks system prompt separately, stored in `system_hash` column
+- This allows conversations to maintain links even when system prompts change (e.g., git status updates, context compaction)
+- Backward compatible: Old conversations continue to work without modification
+
+**Special Conversation Handling:**
+
+- **Conversation Summarization**: When Claude summarizes a conversation (detected by system prompt "You are a helpful AI assistant tasked with summarizing conversations"), the system links to the previous conversation ignoring system prompt differences
+- **Compact Conversations**: When a conversation is continued from a previous one due to context overflow (first message starts with "This session is being continued from a previous conversation..."), it:
+  - Links to the source conversation automatically
+  - Creates a special branch ID format: `compact_HHMMSS`
+  - Preserves the compact branch for all follow-up messages in that conversation
+  - Prevents unnecessary branching when continuing compact conversations
+
 **API Endpoints:**
 
 - `/api/conversations` - Get conversations grouped by conversation_id with branch information
@@ -172,7 +188,9 @@ The proxy automatically tracks conversations and detects branches using message 
 - `conversation_id` - UUID identifying the conversation
 - `current_message_hash` - Hash of the last message in the request
 - `parent_message_hash` - Hash of the previous message (null for first message)
+- `system_hash` - Hash of the system prompt (for tracking context changes)
 - `branch_id` - Branch identifier (defaults to 'main', auto-generated for new branches)
+- `parent_request_id` - Direct link to the parent request in the conversation chain
 
 **Dashboard Features:**
 
@@ -240,6 +258,30 @@ When `DEBUG=true`:
 - Logs full request/response (with sensitive data masked)
 - Shows streaming chunks
 - Masks patterns: `sk-ant-****`, `Bearer ****`
+- Includes SQL query stack traces
+
+### SQL Query Logging
+
+Enable SQL query logging in debug mode:
+
+```bash
+# Option 1: Enable all debug logging (includes SQL)
+DEBUG=true bun run dev
+
+# Option 2: Enable only SQL query logging
+DEBUG_SQL=true bun run dev
+
+# Option 3: Set in .env file
+DEBUG_SQL=true
+```
+
+SQL logging features:
+
+- All queries with parameters
+- Query execution time
+- Row counts
+- Slow query warnings (default: >5 seconds)
+- Failed query errors with details
 
 ## Environment Variables
 
@@ -251,6 +293,7 @@ When `DEBUG=true`:
 **Optional:**
 
 - `DEBUG` - Enable debug logging
+- `DEBUG_SQL` - Enable SQL query logging (default: false)
 - `STORAGE_ENABLED` - Enable storage (default: false)
 - `SLACK_WEBHOOK_URL` - Slack notifications
 - `CREDENTIALS_DIR` - Domain credential directory

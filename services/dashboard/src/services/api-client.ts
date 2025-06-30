@@ -47,6 +47,7 @@ interface RequestDetails extends RequestSummary {
     data: string
     tokenCount: number
   }>
+  parentRequestId?: string
   // Optional fields that may be added in the future
   requestHeaders?: Record<string, string>
   responseHeaders?: Record<string, string>

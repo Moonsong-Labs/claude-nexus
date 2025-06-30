@@ -56,6 +56,7 @@
     "auth:generate-key": "bun run scripts/auth/generate-api-key.ts",
     "auth:oauth-status": "bun run scripts/auth/check-oauth-status.ts",
     "auth:oauth-refresh": "bun run scripts/auth/oauth-refresh-all.ts",
+    "test:generate-fixture": "bun run scripts/generate-conversation-test-fixture.ts",
     "docker:secrets": "./scripts/create-docker-secrets.sh",
     "setup": "bun install && bun run build:shared",
     "format": "prettier --write .",
@@ -65,26 +66,19 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
-    "@faker-js/faker": "^8.0.0",
+    "@faker-js/faker": "^9.8.0",
     "@types/pg": "^8.11.10",
-    "@types/supertest": "^6.0.0",
-    "@vitest/coverage-c8": "^0.33.0",
     "bun-types": "latest",
     "concurrently": "^8.2.2",
     "eslint": "^9.17.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
-    "msw": "^2.0.0",
     "prettier": "^3.4.2",
-    "supertest": "^6.3.0",
-    "testcontainers": "^10.0.0",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.18.0",
-    "vitest": "^1.0.0"
+    "typescript-eslint": "^8.18.0"
   },
   "dependencies": {
-    "marked": "^15.0.12",
-    "pg": "^8.16.3",
-    "sanitize-html": "^2.17.0"
+    "dotenv": "^16.4.7",
+    "pg": "^8.16.3"
   }
 }

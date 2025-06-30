@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono'
 import { ValidationError } from '../types/errors'
-import { validateClaudeRequest, ClaudeMessagesRequest } from '../types/claude'
+import { validateClaudeRequest } from '../types/claude'
 import { getRequestLogger } from './logger'
 
 // Request size limits
@@ -31,7 +31,7 @@ export function validationMiddleware() {
     }
 
     // Parse and validate request body
-    let body: any
+    let body: unknown
     try {
       body = await c.req.json()
     } catch (error) {
@@ -47,12 +47,7 @@ export function validationMiddleware() {
       throw new ValidationError('Invalid request format for Claude API')
     }
 
-    // Additional validation
-    const validationErrors = validateClaudeRequestDetails(body)
-    if (validationErrors.length > 0) {
-      logger.warn('Request validation failed', { errors: validationErrors })
-      throw new ValidationError(`Request validation failed: ${validationErrors.join(', ')}`)
-    }
+    // Claude API will handle detailed validation
 
     // Attach validated body to context
     c.set('validatedBody', body)
@@ -62,46 +57,16 @@ export function validationMiddleware() {
   }
 }
 
-// Detailed validation
-function validateClaudeRequestDetails(_request: ClaudeMessagesRequest): string[] {
-  const errors: string[] = []
-
-  // Model validation removed - allow any model name
-  // This allows for new models to be used immediately without proxy updates
-
-  // Validate messages
-  // let totalLength = request.system?.length || 0
-  // for (let i = 0; i < request.messages.length; i++) {
-  //   const message = request.messages[i]
-
-  //   // Check message content length
-  //   const messageLength = typeof message.content === 'string'
-  //     ? message.content.length
-  //     : JSON.stringify(message.content).length
-  //   totalLength += messageLength
-
-  //   // Validate message structure
-  //   if (message.role === 'system' && i > 0) {
-  //     errors.push('System messages must be at the beginning')
-  //   }
-
-  //   // Check for empty content
-  //   if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
-  //     errors.push(`Message ${i} has empty content`)
-  //   }
-  // }
-
-  // max_tokens validation removed - Claude API will handle any model-specific limits
-  // This allows the proxy to work with all current and future models without updates
-
-  return errors
-}
-
 // Helper to sanitize error messages for client
 export function sanitizeErrorMessage(message: string): string {
-  // Remove any potential sensitive information
-  return message
-    .replace(/sk-ant-[a-zA-Z0-9-]+/g, 'sk-ant-****')
-    .replace(/Bearer [a-zA-Z0-9-._~+/]+/g, 'Bearer ****')
-    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '****@****.com')
+  // Limit message length to prevent ReDoS
+  const truncatedMessage = message.length > 1000 ? message.substring(0, 1000) + '...' : message
+
+  // Remove any potential sensitive information with simpler, safer regex patterns
+  return truncatedMessage
+    .replace(/sk-ant-[\w-]{1,100}/g, 'sk-ant-****')
+    .replace(/Bearer\s+[\w\-._~+/]{1,200}/g, 'Bearer ****')
+    .replace(/[\w._%+-]{1,50}@[\w.-]{1,50}\.\w{2,10}/g, '****@****.com')
+    .replace(/password["\s:=]+["']?[\w\S]{1,50}/gi, 'password: ****')
+    .replace(/api[_-]?key["\s:=]+["']?[\w\S]{1,50}/gi, 'api_key: ****')
 }

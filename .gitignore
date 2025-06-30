@@ -181,6 +181,12 @@ packages/**/*.js
 services/**/*.js
 !services/**/*.config.js
 
+# Generated declaration files from build scripts
+**/scripts/**/*.d.ts
+**/scripts/**/*.d.ts.map
+**/scripts/**/*.js
+!**/scripts/**/*.config.js
+
 # Logs
 *.log
 proxy.log
