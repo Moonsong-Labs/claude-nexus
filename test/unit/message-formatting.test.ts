@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'bun:test'
 import { ProxyRequest } from '../../services/proxy/src/domain/entities/ProxyRequest'
 import { ProxyResponse } from '../../services/proxy/src/domain/entities/ProxyResponse'
 
