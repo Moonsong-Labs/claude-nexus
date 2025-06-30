@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import type { ClaudeMessage } from '../types/claude.js'
+import { stripSystemReminder } from './system-reminder.js'
 
 /**
  * Generates a deterministic SHA-256 hash for a Claude message
@@ -36,9 +37,11 @@ function normalizeMessageContent(content: string | any[]): string {
   // For array content, create a deterministic string representation
   // Filter out system-reminder content items before processing
   const filteredContent = content.filter(item => {
-    // Skip text items that start with <system-reminder>
+    // Skip text items that contain system-reminder blocks
     if (item.type === 'text' && typeof item.text === 'string') {
-      return !item.text.trim().startsWith('<system-reminder>')
+      // If the entire text is just a system-reminder, filter it out
+      const stripped = stripSystemReminder(item.text)
+      return stripped.trim().length > 0
     }
     return true
   })
@@ -69,30 +72,34 @@ function normalizeMessageContent(content: string | any[]): string {
     .map((item, index) => {
       // Extract only the essential fields, ignoring cache_control and other metadata
       switch (item.type) {
-        case 'text':
-          return `[${index}]text:${item.text?.trim().replace(/\r\n/g, '\n') || ''}`
-        case 'image':
+        case 'text': {
+          // Strip system-reminder blocks from text content before hashing
+          const cleanText = stripSystemReminder(item.text || '')
+          return `[${index}]text:${cleanText.trim().replace(/\r\n/g, '\n')}`
+        }
+        case 'image': {
           // For images, hash the data to avoid storing large base64 strings
           const imageHash = item.source?.data
             ? createHash('sha256').update(item.source.data).digest('hex')
             : 'no-data'
           return `[${index}]image:${item.source?.media_type || 'unknown'}:${imageHash}`
+        }
         case 'tool_use':
           return `[${index}]tool_use:${item.name}:${item.id}:${JSON.stringify(item.input || {})}`
-        case 'tool_result':
+        case 'tool_result': {
           let resultContent =
             typeof item.content === 'string' ? item.content : JSON.stringify(item.content || [])
           // Remove system-reminder blocks from tool_result content
           if (typeof item.content === 'string') {
-            resultContent = item.content
-              .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
-              .trim()
+            resultContent = stripSystemReminder(item.content).trim()
           }
           return `[${index}]tool_result:${item.tool_use_id}:${resultContent}`
-        default:
+        }
+        default: {
           // For unknown types, only include type and essential content
           const essentialItem = { type: item.type, content: item.content, text: item.text }
           return `[${index}]${item.type}:${JSON.stringify(essentialItem)}`
+        }
       }
     })
     .join('|')
@@ -138,7 +145,7 @@ function getStableSystemPrompt(systemPrompt: string | any[]): string {
     stable = stable.replace(/<transient_context>[\s\S]*?<\/transient_context>/g, '')
 
     // Remove system-reminder blocks
-    stable = stable.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    stable = stripSystemReminder(stable)
 
     // Remove git status sections (common in Claude Code)
     // Pattern: "gitStatus: " followed by content until double newline or end

@@ -6,6 +6,7 @@ export * from './utils/errors.js'
 export * from './utils/conversation-hash.js'
 export * from './utils/conversation-linker.js'
 export * from './utils/db-query-executors.js'
+export * from './utils/system-reminder.js'
 
 // Re-export specific functions to ensure they're available
 export {
@@ -42,3 +43,5 @@ export {
 } from './utils/conversation-linker.js'
 
 export { createQueryExecutors } from './utils/db-query-executors.js'
+
+export { stripSystemReminder, containsSystemReminder } from './utils/system-reminder.js'

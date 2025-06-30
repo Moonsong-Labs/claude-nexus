@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import type { ClaudeMessage, ClaudeContent } from '../types/index.js'
 import { hashSystemPrompt } from './conversation-hash.js'
+import { stripSystemReminder } from './system-reminder.js'
 
 // Constants
 const BRANCH_MAIN = 'main'
@@ -283,9 +284,11 @@ export class ConversationLinker {
   private filterSystemReminders(content: ClaudeContent[]): ClaudeContent[] {
     // Filter out system-reminder content items before processing
     return content.filter(item => {
-      // Skip text items that start with <system-reminder>
+      // Skip text items that contain system-reminder blocks
       if (item.type === 'text' && typeof item.text === 'string') {
-        return !item.text.trim().startsWith('<system-reminder>')
+        // If the entire text is just a system-reminder, filter it out
+        const stripped = stripSystemReminder(item.text)
+        return stripped.trim().length > 0
       }
       return true
     })
@@ -332,7 +335,9 @@ export class ConversationLinker {
   }
 
   private serializeTextItem(item: ClaudeContent, index: number): string {
-    const text = (item.text || '').trim().replace(/\r\n/g, '\n')
+    // Strip system-reminder blocks from text content before serializing
+    const cleanText = stripSystemReminder(item.text || '')
+    const text = cleanText.trim().replace(/\r\n/g, '\n')
     return `[${index}]text:${text}`
   }
 
@@ -354,7 +359,8 @@ export class ConversationLinker {
   private serializeToolResultItem(item: ClaudeContent, index: number): string {
     let contentStr = ''
     if (typeof item.content === 'string') {
-      contentStr = item.content
+      // Strip system-reminder blocks from tool_result content
+      contentStr = stripSystemReminder(item.content)
     } else if (Array.isArray(item.content)) {
       contentStr = JSON.stringify(item.content)
     }

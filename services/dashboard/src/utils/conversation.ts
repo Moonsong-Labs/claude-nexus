@@ -2,6 +2,7 @@ import { marked } from 'marked'
 import sanitizeHtml from 'sanitize-html'
 import { formatDuration as formatDurationUtil } from './formatters.js'
 import { isSparkRecommendation, parseSparkRecommendation } from './spark.js'
+import { stripSystemReminder } from '@claude-nexus/shared'
 
 export interface ParsedMessage {
   role: 'user' | 'assistant' | 'system'
@@ -167,9 +168,11 @@ async function parseMessage(
     const seenToolResultIds = new Set<string>()
 
     const filteredContent = msg.content.filter((item: any) => {
-      // Skip text items that start with <system-reminder>
+      // Skip text items that contain system-reminder blocks
       if (item.type === 'text' && typeof item.text === 'string') {
-        if (item.text.trim().startsWith('<system-reminder>')) {
+        // If the entire text is just a system-reminder, filter it out
+        const stripped = stripSystemReminder(item.text)
+        if (stripped.trim().length === 0) {
           return false
         }
       }
@@ -197,7 +200,8 @@ async function parseMessage(
     filteredContent.forEach((block: any) => {
       switch (block.type) {
         case 'text':
-          contentParts.push(block.text)
+          // Strip system-reminder blocks from text content
+          contentParts.push(stripSystemReminder(block.text))
           break
 
         case 'tool_use': {
@@ -250,8 +254,10 @@ async function parseMessage(
 
           // Handle tool result content
           if (typeof block.content === 'string') {
+            // Strip system-reminder blocks from tool result content
+            const cleanContent = stripSystemReminder(block.content)
             // Tool results might contain HTML/code, wrap in code block for safety
-            resultContent += '```\n' + block.content + '\n```'
+            resultContent += '```\n' + cleanContent + '\n```'
           } else if (Array.isArray(block.content)) {
             const resultText = block.content
               .filter((c: any) => c.type === 'text')
