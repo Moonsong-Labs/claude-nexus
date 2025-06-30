@@ -471,7 +471,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       <div class="branch-filter" id="branch-filter">
         <span class="text-sm text-gray-600">Filter by branch:</span>
         <a
-          href="/dashboard/conversation/${conversationId}${view !== 'tree' ? '?view=' + view : ''}"
+          href="/dashboard/conversation/${conversationId}"
           class="branch-chip ${!selectedBranch ? 'branch-chip-active' : 'branch-chip-main'}"
           style="${!selectedBranch
             ? 'background: #f3f4f6; color: #1f2937; border-color: #9ca3af;'
@@ -485,7 +485,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               const color = getBranchColor(branch)
               const isActive = selectedBranch === branch
               return `
-            <a href="/dashboard/conversation/${conversationId}?branch=${branch}${view !== 'tree' ? '&view=' + view : ''}"
+            <a href="/dashboard/conversation/${conversationId}?branch=${branch}"
                class="branch-chip ${isActive ? 'branch-chip-active' : ''}"
                style="${branch !== 'main' ? `background: ${color}20; color: ${color}; border-color: ${color};` : 'background: #f3f4f6; color: #4b5563; border-color: #e5e7eb;'}${isActive ? ' font-weight: 600;' : ''}">
               ${branch} (${stats.count} messages, ${formatNumber(stats.tokens)} tokens)
@@ -499,42 +499,42 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       <!-- Tab Navigation -->
       <div class="tab-container" style="margin: 1.5rem 0; border-bottom: 1px solid #e5e7eb;">
         <div style="display: flex; gap: 0;">
-          <a
-            href="/dashboard/conversation/${conversationId}?${selectedBranch
-              ? 'branch=' + selectedBranch + '&'
-              : ''}view=tree"
+          <button
+            id="tree-tab"
             class="tab-button ${view === 'tree' ? 'tab-active' : 'tab-inactive'}"
             style="
               padding: 0.75rem 1.5rem;
+              background: none;
+              border: none;
+              cursor: pointer;
               text-decoration: none;
               font-weight: 500;
               border-bottom: 2px solid ${view === 'tree' ? '#3b82f6' : 'transparent'};
               color: ${view === 'tree' ? '#3b82f6' : '#6b7280'};
               transition: all 0.2s;
             "
-            onmouseover="if (this.classList.contains('tab-inactive')) { this.style.color = '#4b5563'; }"
-            onmouseout="if (this.classList.contains('tab-inactive')) { this.style.color = '#6b7280'; }"
+            onclick="switchTab('tree')"
           >
             Tree View
-          </a>
-          <a
-            href="/dashboard/conversation/${conversationId}?${selectedBranch
-              ? 'branch=' + selectedBranch + '&'
-              : ''}view=timeline"
+          </button>
+          <button
+            id="timeline-tab"
             class="tab-button ${view === 'timeline' ? 'tab-active' : 'tab-inactive'}"
             style="
               padding: 0.75rem 1.5rem;
+              background: none;
+              border: none;
+              cursor: pointer;
               text-decoration: none;
               font-weight: 500;
               border-bottom: 2px solid ${view === 'timeline' ? '#3b82f6' : 'transparent'};
               color: ${view === 'timeline' ? '#3b82f6' : '#6b7280'};
               transition: all 0.2s;
             "
-            onmouseover="if (this.classList.contains('tab-inactive')) { this.style.color = '#4b5563'; }"
-            onmouseout="if (this.classList.contains('tab-inactive')) { this.style.color = '#6b7280'; }"
+            onclick="switchTab('timeline')"
           >
             Timeline
-          </a>
+          </button>
         </div>
       </div>
 
@@ -542,6 +542,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       <div class="conversation-content">
         <!-- Graph Visualization -->
         <div
+          id="tree-panel"
           class="conversation-graph"
           style="display: ${view === 'tree' ? 'block' : 'none'}; width: 100%;"
         >
@@ -550,8 +551,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
         <!-- Timeline -->
         <div
+          id="timeline-panel"
           class="conversation-timeline"
-          id="conversation-messages"
           style="display: ${view === 'timeline' ? 'block' : 'none'};"
         >
           ${raw(renderConversationMessages(filteredRequests, conversation.branches, subtasksMap))}
@@ -559,8 +560,63 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       </div>
 
       <script>
-        // Add hover functionality for sub-task tooltips
+        // Tab switching functionality
+        function switchTab(tabName) {
+          // Update panel visibility
+          document.getElementById('tree-panel').style.display =
+            tabName === 'tree' ? 'block' : 'none'
+          document.getElementById('timeline-panel').style.display =
+            tabName === 'timeline' ? 'block' : 'none'
+
+          // Update tab styles
+          const treeTab = document.getElementById('tree-tab')
+          const timelineTab = document.getElementById('timeline-tab')
+
+          if (tabName === 'tree') {
+            treeTab.style.borderBottomColor = '#3b82f6'
+            treeTab.style.color = '#3b82f6'
+            treeTab.classList.add('tab-active')
+            treeTab.classList.remove('tab-inactive')
+
+            timelineTab.style.borderBottomColor = 'transparent'
+            timelineTab.style.color = '#6b7280'
+            timelineTab.classList.remove('tab-active')
+            timelineTab.classList.add('tab-inactive')
+          } else {
+            timelineTab.style.borderBottomColor = '#3b82f6'
+            timelineTab.style.color = '#3b82f6'
+            timelineTab.classList.add('tab-active')
+            timelineTab.classList.remove('tab-inactive')
+
+            treeTab.style.borderBottomColor = 'transparent'
+            treeTab.style.color = '#6b7280'
+            treeTab.classList.remove('tab-active')
+            treeTab.classList.add('tab-inactive')
+          }
+
+          // Update URL without reload
+          const url = new URL(window.location)
+          url.searchParams.set('view', tabName)
+          window.history.replaceState({}, '', url)
+        }
+
+        // Add hover effects for tabs
         document.addEventListener('DOMContentLoaded', function () {
+          const tabs = document.querySelectorAll('.tab-button')
+          tabs.forEach(tab => {
+            tab.addEventListener('mouseenter', function () {
+              if (this.classList.contains('tab-inactive')) {
+                this.style.color = '#4b5563'
+              }
+            })
+            tab.addEventListener('mouseleave', function () {
+              if (this.classList.contains('tab-inactive')) {
+                this.style.color = '#6b7280'
+              }
+            })
+          })
+
+          // Add hover functionality for sub-task tooltips
           const subtaskGroups = document.querySelectorAll('.subtask-node-group')
 
           subtaskGroups.forEach(group => {
