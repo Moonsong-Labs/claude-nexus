@@ -404,6 +404,34 @@ for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 
 See `docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md` for details.
 
+### Conversation Rebuilding
+
+**Rebuild Conversation Linkages:**
+
+The rebuild script uses the `conversation-linker` library for all logic and processes requests in batches.
+
+```bash
+# Default: Process in batches of 1000 requests
+bun run scripts/db/rebuild-conversations.ts
+
+# Use larger batches for better performance
+bun run scripts/db/rebuild-conversations.ts --batch-size 5000
+
+# Other options
+bun run scripts/db/rebuild-conversations.ts \
+  --domain example.com \   # Filter by domain
+  --limit 10000 \          # Process only first N requests
+  --dry-run                # Preview changes without applying
+  --debug-changes          # Show detailed conversation changes
+```
+
+The script:
+
+- Loads requests in batches ordered by timestamp DESC
+- Processes each request sequentially (due to dependencies)
+- Uses the conversation-linker library for all linking logic
+- Memory usage: ~100-200MB regardless of database size
+
 ## Common Tasks
 
 ### Add Domain Credentials
