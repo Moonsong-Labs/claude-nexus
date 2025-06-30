@@ -75,7 +75,7 @@ describe('ConversationLinker', () => {
 
       // Mock finding a parent for compact conversation
       mockCompactSearchExecutor = async (_domain, summaryContent, _beforeTimestamp) => {
-        if (summaryContent.includes('user asked about weather')) {
+        if (summaryContent.toLowerCase().includes('user asked about weather')) {
           return {
             request_id: 'parent-request-1',
             conversation_id: 'conv-123',
@@ -344,20 +344,6 @@ describe('ConversationLinker', () => {
 describe('ConversationLinker - JSON File Tests', () => {
   const fixturesDir = join(__dirname, 'fixtures', 'conversation-linking')
 
-  // Helper function to normalize summary content for comparison
-  // This matches the normalization in ConversationLinker.normalizeSummaryForComparison
-  const normalizeSummary = (summary: string): string => {
-    return summary
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .replace(/<analysis>/g, '')
-      .replace(/<\/analysis>/g, '')
-      .replace(/<summary>/g, '')
-      .replace(/<\/summary>/g, '')
-      .replace(/analysis:/gi, '')
-      .trim()
-  }
-
   test('should correctly link parent-child conversations from JSON fixtures', async () => {
     // Read all test files from fixtures directory
     let files: string[] = []
@@ -437,14 +423,11 @@ describe('ConversationLinker - JSON File Tests', () => {
       ) => {
         // Handle compact conversation cases if needed
         if (testCase.type === 'compact' && testCase.expectedSummaryContent) {
-          // Normalize the expected summary content to match what ConversationLinker produces
-          const normalizedExpected = normalizeSummary(testCase.expectedSummaryContent)
-
           // For compact conversations, check if the summaries match after normalization
           // The ConversationLinker has already normalized the summaryContent it passes here
           if (
-            summaryContent.startsWith(normalizedExpected) ||
-            normalizedExpected.startsWith(summaryContent)
+            summaryContent.startsWith(testCase.expectedSummaryContent) ||
+            testCase.expectedSummaryContent.startsWith(summaryContent)
           ) {
             return {
               request_id: testCase.parent.request_id,
