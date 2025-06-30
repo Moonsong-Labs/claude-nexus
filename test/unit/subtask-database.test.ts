@@ -230,18 +230,6 @@ describe('Sub-task Database Logic', () => {
         rowCount: 0,
       })
 
-      // Mock detectBranch parent query
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ branch_id: 'main' }],
-        rowCount: 1,
-      })
-
-      // Mock detectBranch children query
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ count: '0', existing_branches: [] }],
-        rowCount: 1,
-      })
-
       // Then INSERT query
       mockPool.query.mockResolvedValueOnce({
         rows: [],
@@ -250,10 +238,10 @@ describe('Sub-task Database Logic', () => {
 
       await writer.storeRequest(request)
 
-      // Four queries: check sub-task, two for detectBranch, and one INSERT
-      expect(mockPool.query).toHaveBeenCalledTimes(4)
+      // Two queries: check sub-task and one INSERT (detectBranch was removed)
+      expect(mockPool.query).toHaveBeenCalledTimes(2)
 
-      const insertCall = mockPool.query.mock.calls[3]
+      const insertCall = mockPool.query.mock.calls[1]
       const insertValues = insertCall[1]
 
       // Verify defaults were used (indices 17 and 18)
