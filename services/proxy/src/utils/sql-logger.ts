@@ -2,6 +2,26 @@ import { Pool, QueryResult } from 'pg'
 import { logger } from '../middleware/logger.js'
 
 /**
+ * Default value redaction function to prevent logging sensitive data
+ */
+function defaultRedactValue(value: unknown): unknown {
+  if (value instanceof Buffer) {
+    return '<Buffer>'
+  }
+  if (typeof value === 'string') {
+    // Redact potential secrets
+    if (value.startsWith('sk-ant-') || value.startsWith('Bearer ')) {
+      return '<REDACTED>'
+    }
+    // Redact very long strings
+    if (value.length > 200) {
+      return `<String[${value.length}]>`
+    }
+  }
+  return value
+}
+
+/**
  * Wraps a pg Pool to add SQL query logging
  * @param pool The pool to wrap
  * @param options Logging options
@@ -14,6 +34,7 @@ export function enableSqlLogging(
     logSlowQueries?: boolean
     slowQueryThreshold?: number
     logStackTrace?: boolean
+    redactValue?: (value: unknown) => unknown
   } = {}
 ): Pool {
   const {
@@ -21,6 +42,7 @@ export function enableSqlLogging(
     logSlowQueries = true,
     slowQueryThreshold = 5000,
     logStackTrace = false,
+    redactValue = defaultRedactValue,
   } = options
 
   // Check if DEBUG or DEBUG_SQL is enabled
@@ -55,9 +77,11 @@ export function enableSqlLogging(
 
     // Log query start if enabled
     if (logQueries && debugEnabled) {
-      // Convert Date objects to ISO strings for logging
+      // Redact sensitive values and convert Date objects to ISO strings
       const loggableValues =
-        values.length > 0 ? values.map(v => (v instanceof Date ? v.toISOString() : v)) : undefined
+        values.length > 0
+          ? values.map(v => redactValue(v instanceof Date ? v.toISOString() : v))
+          : undefined
 
       logger.debug('SQL Query', {
         metadata: {
@@ -91,7 +115,7 @@ export function enableSqlLogging(
           if (logSlowQueries && duration > slowQueryThreshold) {
             const loggableValues =
               values.length > 0
-                ? values.map(v => (v instanceof Date ? v.toISOString() : v))
+                ? values.map(v => redactValue(v instanceof Date ? v.toISOString() : v))
                 : undefined
 
             logger.warn('Slow SQL query detected', {
@@ -110,7 +134,7 @@ export function enableSqlLogging(
           const duration = Date.now() - start
           const loggableValues =
             values.length > 0
-              ? values.map(v => (v instanceof Date ? v.toISOString() : v))
+              ? values.map(v => redactValue(v instanceof Date ? v.toISOString() : v))
               : undefined
 
           logger.error('SQL Query failed', {
