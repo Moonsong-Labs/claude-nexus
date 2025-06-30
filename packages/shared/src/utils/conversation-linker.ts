@@ -235,7 +235,7 @@ export class ConversationLinker {
     }
   }
 
-  public computeMessageHash(messages: ClaudeMessage[]): string {
+  computeMessageHash(messages: ClaudeMessage[]): string {
     try {
       const hash = createHash('sha256')
 
@@ -375,8 +375,46 @@ export class ConversationLinker {
       )
     }
 
+    // Check if the second-to-last message (at index length - 2) is "No response requested."
+    const secondToLastIndex = messages.length - 2
+    if (secondToLastIndex >= 0 && this.isNoResponseRequested(messages[secondToLastIndex])) {
+      // When the second-to-last message is "No response requested.",
+      // we need to exclude it from the parent hash computation
+      // Build parent messages by taking all except last 2, but also excluding the "No response requested."
+      const parentMessages = [
+        ...messages.slice(0, secondToLastIndex), // All messages before "No response requested."
+        // Skip the "No response requested." message at secondToLastIndex
+        // Don't include the last message (at length - 1) as per normal parent hash rules
+      ]
+
+      // Ensure we still have enough messages after skipping
+      if (parentMessages.length < 1) {
+        throw new Error(
+          'Cannot compute parent hash: insufficient messages after skipping "No response requested."'
+        )
+      }
+
+      return this.computeMessageHash(parentMessages)
+    }
+
+    // Normal case: parent hash is all messages except the last 2
     const parentMessages = messages.slice(0, -2)
     return this.computeMessageHash(parentMessages)
+  }
+
+  private isNoResponseRequested(message: ClaudeMessage): boolean {
+    // Check if the message content is exactly "No response requested."
+    if (typeof message.content === 'string') {
+      return message.content === 'No response requested.'
+    }
+
+    // For array content, check if it's a single text item with the exact message
+    if (Array.isArray(message.content) && message.content.length === 1) {
+      const item = message.content[0]
+      return item.type === 'text' && item.text === 'No response requested.'
+    }
+
+    return false
   }
 
   private detectCompactConversation(message: ClaudeMessage): CompactInfo | null {
@@ -539,11 +577,8 @@ export class ConversationLinker {
       return null
     }
 
-    // For now, return the first candidate
-    // In the future, we might want to select based on:
-    // - Recency
-    // - Conversation size
-    // - Branch preference
+    // Return the first candidate, which is the most recent due to timestamp DESC ordering
+    // When multiple conversations have the same parent hash, we select the most recent one
     return candidates[0]
   }
 

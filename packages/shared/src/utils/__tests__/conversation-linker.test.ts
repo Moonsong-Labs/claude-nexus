@@ -207,6 +207,163 @@ describe('ConversationLinker', () => {
     })
   })
 
+  describe('No response requested handling', () => {
+    test('should skip "No response requested." message when computing parent hash', async () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'First response' },
+        { role: 'user', content: 'Second message' },
+        { role: 'assistant', content: 'No response requested.' },
+        { role: 'user', content: 'Third message' },
+      ]
+
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages,
+        systemPrompt: 'Test',
+        requestId: 'test-skip-1',
+        messageCount: messages.length,
+      }
+
+      // Compute what the parent hash should be without the "No response requested." message
+      const expectedParentMessages = [
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'First response' },
+        { role: 'user', content: 'Second message' },
+      ]
+      const expectedParentHash = hashMessagesOnly(expectedParentMessages)
+
+      const result = await linker.linkConversation(request)
+
+      expect(result.parentMessageHash).toBe(expectedParentHash)
+    })
+
+    test('should handle "No response requested." in array content format', async () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'First response' },
+        { role: 'user', content: 'Second message' },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'No response requested.' }],
+        },
+        { role: 'user', content: 'Third message' },
+      ]
+
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages,
+        systemPrompt: 'Test',
+        requestId: 'test-skip-2',
+        messageCount: messages.length,
+      }
+
+      // Compute expected parent hash
+      const expectedParentMessages = [
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'First response' },
+        { role: 'user', content: 'Second message' },
+      ]
+      const expectedParentHash = hashMessagesOnly(expectedParentMessages)
+
+      const result = await linker.linkConversation(request)
+
+      expect(result.parentMessageHash).toBe(expectedParentHash)
+    })
+
+    test('should not skip messages that contain but are not exactly "No response requested."', async () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'First response' },
+        { role: 'user', content: 'Second message' },
+        { role: 'assistant', content: 'No response requested. Here is more text.' },
+        { role: 'user', content: 'Third message' },
+      ]
+
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages,
+        systemPrompt: 'Test',
+        requestId: 'test-no-skip',
+        messageCount: messages.length,
+      }
+
+      // Should include the "No response requested. Here is more text." message
+      const expectedParentMessages = messages.slice(0, -2)
+      const expectedParentHash = hashMessagesOnly(expectedParentMessages)
+
+      const result = await linker.linkConversation(request)
+
+      expect(result.parentMessageHash).toBe(expectedParentHash)
+    })
+
+    test('should handle insufficient messages after skipping', async () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'No response requested.' },
+        { role: 'user', content: 'Second message' },
+      ]
+
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages,
+        systemPrompt: 'Test',
+        requestId: 'test-insufficient',
+        messageCount: messages.length,
+      }
+
+      await expect(linker.linkConversation(request)).rejects.toThrow(
+        'Cannot compute parent hash: insufficient messages after skipping "No response requested."'
+      )
+    })
+
+    test('should select most recent parent when multiple candidates exist', async () => {
+      const messages: ClaudeMessage[] = [
+        { role: 'user', content: 'What is the weather?' },
+        { role: 'assistant', content: 'No response requested.' },
+        { role: 'user', content: 'Show me the forecast' },
+      ]
+
+      // Mock query executor to return multiple candidates
+      mockQueryExecutor = async (criteria: ParentQueryCriteria) => {
+        if (criteria.currentMessageHash) {
+          return [
+            {
+              request_id: 'newer-request',
+              conversation_id: 'newer-conv',
+              branch_id: 'main',
+              current_message_hash: 'hash1',
+              system_hash: 'sys1',
+            },
+            {
+              request_id: 'older-request',
+              conversation_id: 'older-conv',
+              branch_id: 'main',
+              current_message_hash: 'hash2',
+              system_hash: 'sys1',
+            },
+          ]
+        }
+        return []
+      }
+      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages,
+        systemPrompt: 'Test',
+        requestId: 'test-multiple',
+        messageCount: messages.length,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      // Should select the first (most recent) candidate
+      expect(result.conversationId).toBe('newer-conv')
+      expect(result.parentRequestId).toBe('newer-request')
+    })
+  })
+
   describe('Priority-based parent matching', () => {
     test('should prioritize exact match with system hash', async () => {
       const messages = [

@@ -48,6 +48,9 @@ export function createQueryExecutors(pool: Pool): {
       query += ` AND timestamp < $${params.length}`
     }
 
+    // Order by timestamp DESC to get most recent first, with id DESC as secondary sort
+    query += ` ORDER BY timestamp DESC, request_id DESC`
+
     const result = await pool.query(query, params)
     return result.rows
   }
