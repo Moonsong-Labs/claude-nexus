@@ -48,7 +48,6 @@
     "test:watch": "bun test --watch",
     "db:analyze-conversations": "bun run scripts/db/analyze-conversations.ts",
     "db:rebuild-conversations": "bun run scripts/db/rebuild-conversations.ts",
-    "db:rebuild-conversations-v2": "bun run scripts/db/rebuild-conversations-v2.ts",
     "db:recalculate-counts": "bun run scripts/db/recalculate-message-counts.ts",
     "db:backup": "bun run scripts/db/backup-database.ts",
     "db:backup:file": "bun run scripts/db/backup-database.ts --file",
@@ -67,25 +66,20 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
-    "@faker-js/faker": "^8.0.0",
     "@types/pg": "^8.11.10",
-    "@types/supertest": "^6.0.0",
     "@vitest/coverage-c8": "^0.33.0",
     "bun-types": "latest",
     "concurrently": "^8.2.2",
     "eslint": "^9.17.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
-    "msw": "^2.0.0",
     "prettier": "^3.4.2",
-    "supertest": "^6.3.0",
-    "testcontainers": "^10.0.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.18.0",
     "vitest": "^1.0.0"
   },
   "dependencies": {
-    "marked": "^15.0.12",
-    "sanitize-html": "^2.17.0"
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1"
   }
 }
