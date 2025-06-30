@@ -213,7 +213,7 @@ function calculateReversedLayout(
       const parentLane = branchLanes.get(parentNode.branchId) || 0
 
       // Use the actual Y position we calculated for the parent
-      const parentY = nodeYPositions.get(parentId) || 0
+      const parentY = parentId ? nodeYPositions.get(parentId) || 0 : 0
 
       // Count how many subtask nodes are already positioned for this parent
       const existingSubtaskNodes = layoutNodes.filter(
