@@ -21,13 +21,9 @@ export {
 export { createLogger } from './logger/index.js'
 
 export {
-  hashMessage,
   hashMessagesOnly,
   hashSystemPrompt,
-  hashConversationState,
-  hashConversationStateWithSystem,
   extractMessageHashes,
-  extractMessageHashesLegacy,
   generateConversationId,
 } from './utils/conversation-hash.js'
 

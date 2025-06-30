@@ -6,11 +6,7 @@
 
 import { Pool } from 'pg'
 import { config } from 'dotenv'
-import {
-  hashConversationStateWithSystem,
-  hashMessage,
-  hashSystemPrompt,
-} from '../../packages/shared/src/utils/conversation-hash.js'
+import { hashSystemPrompt } from '../../packages/shared/src/utils/conversation-hash.js'
 import { ConversationLinker } from '../../packages/shared/src/utils/conversation-linker.js'
 import { createLoggingPool } from './utils/create-logging-pool.js'
 
@@ -377,8 +373,8 @@ async function main() {
 
     // Test hash computation
     console.log('\n\nHash computation tests:')
-    const hash1_msg1 = hashMessage(msg1)
-    const hash2_msg1 = hashMessage(msg2)
+    const hash1_msg1 = linker.computeMessageHash([msg1])
+    const hash2_msg1 = linker.computeMessageHash([msg2])
     console.log(`First message hash only:`)
     console.log(`  Request 1: ${hash1_msg1}`)
     console.log(`  Request 2: ${hash2_msg1}`)
