@@ -1,4 +1,4 @@
-import { Pool } from 'pg'
+import { Pool, QueryResult } from 'pg'
 import { logger } from '../middleware/logger.js'
 
 /**
@@ -69,7 +69,7 @@ export function enableSqlLogging(
     }
 
     // Execute query and log duration
-    const result = originalQuery.apply(pool, args)
+    const result = originalQuery.apply(pool, args as any) as Promise<QueryResult> | undefined
 
     // Handle both promise and callback patterns
     if (result && typeof result.then === 'function') {
