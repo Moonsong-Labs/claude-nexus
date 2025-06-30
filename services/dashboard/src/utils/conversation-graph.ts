@@ -84,11 +84,11 @@ export interface GraphLayout {
 export async function calculateGraphLayout(
   graph: ConversationGraph,
   reversed: boolean = false,
-  requestMap?: Map<string, any>
+  _requestMap?: Map<string, any>
 ): Promise<GraphLayout> {
   if (reversed) {
     // For reversed layout, we need a custom approach
-    return calculateReversedLayout(graph, requestMap)
+    return calculateReversedLayout(graph, _requestMap)
   }
 
   // Use the simple layout algorithm
@@ -100,7 +100,7 @@ export async function calculateGraphLayout(
  */
 function calculateReversedLayout(
   graph: ConversationGraph,
-  requestMap?: Map<string, any>
+  _requestMap?: Map<string, any>
 ): GraphLayout {
   const nodeWidth = 100
   const nodeHeight = 40
@@ -125,34 +125,44 @@ function calculateReversedLayout(
   const branchLanes = new Map<string, number>()
   let nextLane = 0
 
-  // Track message count offset for compact branches
-  const branchOffsets = new Map<string, number>()
+  // Build a map of node distances from root
+  const nodeDistances = new Map<string, number>()
 
-  // Find max message count to reverse Y positions
-  // For compact branches, we need to adjust their count
-  let maxMessageCount = 0
-  graph.nodes.forEach(node => {
-    let messageCount = node.messageCount || 0
+  // Helper function to calculate distance from root
+  function calculateDistance(nodeId: string, visited = new Set<string>()): number {
+    if (visited.has(nodeId)) {
+      return 0
+    } // Prevent cycles
+    visited.add(nodeId)
 
-    // Adjust for compact branches
-    if (node.branchId.startsWith('compact_')) {
-      // Check if we already have an offset for this branch
-      if (!branchOffsets.has(node.branchId) && node.parentId && requestMap) {
-        // This is the first node in the compact branch, calculate offset
-        const parentRequest = requestMap.get(node.parentId)
-        if (parentRequest && parentRequest.message_count) {
-          // Store the offset for this entire branch
-          branchOffsets.set(node.branchId, parentRequest.message_count - 1)
-        }
-      }
-
-      // Apply the offset to all nodes in this compact branch
-      const offset = branchOffsets.get(node.branchId) || 0
-      messageCount = (node.messageCount || 0) + offset
+    const cached = nodeDistances.get(nodeId)
+    if (cached !== undefined) {
+      return cached
     }
 
-    maxMessageCount = Math.max(maxMessageCount, messageCount)
+    const node = nodeMap.get(nodeId)
+    if (!node || !node.parentId) {
+      // Root node or no parent
+      nodeDistances.set(nodeId, node?.messageCount || 1)
+      return node?.messageCount || 1
+    }
+
+    // Calculate parent's distance first
+    const parentDistance = calculateDistance(node.parentId, visited)
+    const distance = parentDistance + 1
+    nodeDistances.set(nodeId, distance)
+    return distance
+  }
+
+  // Calculate distances for all nodes
+  graph.nodes.forEach(node => {
+    if (!node.id.endsWith('-subtasks')) {
+      calculateDistance(node.id)
+    }
   })
+
+  // Find max distance for positioning
+  const maxDistance = Math.max(...Array.from(nodeDistances.values()), 0)
 
   // First pass: position regular nodes
   const layoutNodes: LayoutNode[] = []
@@ -173,17 +183,12 @@ function calculateReversedLayout(
       }
 
       const lane = branchLanes.get(node.branchId) || 0
-      let messageCount = node.messageCount || 0
 
-      // Special handling for compact branches
-      if (node.branchId.startsWith('compact_')) {
-        // Apply the offset we calculated earlier for this branch
-        const offset = branchOffsets.get(node.branchId) || 0
-        messageCount = (node.messageCount || 0) + offset
-      }
+      // Use the pre-calculated distance for positioning
+      const distance = nodeDistances.get(node.id) || node.messageCount || 0
 
-      // Y position is based on reversed message count (newest at top)
-      const y = (maxMessageCount - messageCount) * verticalSpacing
+      // Y position is based on reversed distance (newest at top)
+      const y = (maxDistance - distance) * verticalSpacing
       nodeYPositions.set(node.id, y)
 
       // X position is based on branch lane
