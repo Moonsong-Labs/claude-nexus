@@ -16,6 +16,17 @@ config()
 // Batch size for processing requests (default 1000 ~= 1GB memory)
 const BATCH_SIZE = 1000
 
+// Memory monitoring utilities
+const formatMemoryUsage = () => {
+  const used = process.memoryUsage()
+  return {
+    heap: `${Math.round(used.heapUsed / 1024 / 1024)}MB / ${Math.round(used.heapTotal / 1024 / 1024)}MB`,
+    heapUsed: used.heapUsed,
+    external: Math.round(used.external / 1024 / 1024),
+    rss: Math.round(used.rss / 1024 / 1024),
+  }
+}
+
 interface DbRequest {
   request_id: string
   domain: string
@@ -56,7 +67,12 @@ class ConversationRebuilderV2 {
     limit: number | null = null,
     debugMode: boolean = false
   ) {
-    this.pool = createLoggingPool(databaseUrl)
+    // Reduce pool size for batch processing to prevent connection accumulation
+    this.pool = createLoggingPool(databaseUrl, {
+      max: 5, // Reduced from default 10
+      idleTimeoutMillis: 30000, // 30 seconds
+      connectionTimeoutMillis: 5000,
+    })
     this.dryRun = dryRun
     this.domainFilter = domainFilter
     this.limit = limit
@@ -94,6 +110,12 @@ class ConversationRebuilderV2 {
     console.log('Starting conversation rebuild (v2)...')
     console.log('Using ConversationLinker for all linking logic')
     console.log(`Processing in batches of ${BATCH_SIZE} requests to optimize memory usage`)
+    console.log('')
+
+    // Track initial memory baseline
+    const initialMemory = formatMemoryUsage()
+    const heapBaseline = initialMemory.heapUsed
+    console.log(`Initial memory: Heap ${initialMemory.heap}, RSS ${initialMemory.rss}MB`)
     console.log('')
 
     try {
@@ -272,6 +294,21 @@ class ConversationRebuilderV2 {
           requests.length === currentBatchSize &&
           (this.limit === null || totalProcessed < this.limit)
 
+        // Clear request array to release references
+        requests.length = 0
+
+        // Memory tracking after batch
+        const currentMemory = formatMemoryUsage()
+        const heapDelta = (currentMemory.heapUsed - heapBaseline) / 1024 / 1024
+        console.log(
+          `   Memory: Heap ${currentMemory.heap} (Δ${heapDelta > 0 ? '+' : ''}${heapDelta.toFixed(1)}MB from baseline)`
+        )
+
+        // Warn if memory is growing significantly
+        if (heapDelta > 200) {
+          console.warn(`   ⚠️  WARNING: Heap has grown by ${heapDelta.toFixed(1)}MB since start`)
+        }
+
         // Show overall progress
         if (this.limit) {
           console.log(
@@ -279,6 +316,17 @@ class ConversationRebuilderV2 {
           )
         } else {
           console.log(`Overall progress: ${totalProcessed} requests processed`)
+        }
+
+        // Optional garbage collection between batches
+        if (global.gc && process.argv.includes('--gc')) {
+          const beforeGC = process.memoryUsage().heapUsed
+          global.gc()
+          const afterGC = process.memoryUsage().heapUsed
+          const gcFreed = (beforeGC - afterGC) / 1024 / 1024
+          if (this.debugMode) {
+            console.log(`   GC freed ${gcFreed.toFixed(1)}MB`)
+          }
         }
       }
 
@@ -296,6 +344,13 @@ class ConversationRebuilderV2 {
       if (totalPreservedOrphans > 0) {
         console.log(`Total preserved orphan conversation IDs: ${totalPreservedOrphans}`)
       }
+
+      // Final memory statistics
+      const finalMemory = formatMemoryUsage()
+      const totalHeapDelta = (finalMemory.heapUsed - heapBaseline) / 1024 / 1024
+      console.log(
+        `\nFinal memory: Heap ${finalMemory.heap} (Δ${totalHeapDelta > 0 ? '+' : ''}${totalHeapDelta.toFixed(1)}MB from baseline)`
+      )
 
       // Step 3: Show statistics
       await this.showStatistics()
@@ -420,27 +475,33 @@ function parseArgs() {
     domain: domainIndex !== -1 && args[domainIndex + 1] ? args[domainIndex + 1] : null,
     limit: limitIndex !== -1 && args[limitIndex + 1] ? parseInt(args[limitIndex + 1], 10) : null,
     debug: args.includes('--debug'),
+    gc: args.includes('--gc'),
     help: args.includes('--help') || args.includes('-h'),
   }
 }
 
 // Main execution
 async function main() {
-  const { dryRun, domain, limit, debug, help } = parseArgs()
+  const { dryRun, domain, limit, debug, gc, help } = parseArgs()
 
   if (help) {
     console.log(`
 Usage: bun run scripts/db/rebuild-conversations.ts [options]
 
 This version uses the ConversationLinker class for all linking logic.
-Processes requests in batches of ${BATCH_SIZE} to optimize memory usage (~1GB per batch).
+Processes requests in batches of ${BATCH_SIZE} to optimize memory usage.
 
 Options:
   --dry-run    Run in dry-run mode (no database changes)
   --domain     Filter by specific domain
   --limit      Limit the number of requests to process
   --debug      Show detailed debug information
+  --gc         Enable manual garbage collection between batches (requires: node --expose-gc)
   --help, -h   Show this help message
+
+Memory Management:
+  The script monitors memory usage and warns if heap grows beyond 200MB from baseline.
+  Use --gc flag with node --expose-gc for aggressive memory cleanup between batches.
 
 Examples:
   # Rebuild all conversations
@@ -448,6 +509,9 @@ Examples:
 
   # Dry run for a specific domain
   bun run scripts/db/rebuild-conversations.ts --dry-run --domain example.com
+
+  # Process with garbage collection
+  node --expose-gc $(which bun) run scripts/db/rebuild-conversations.ts --gc
 
   # Process first 100 requests with debug info
   bun run scripts/db/rebuild-conversations.ts --limit 100 --debug
@@ -484,6 +548,14 @@ Examples:
 
   if (debug) {
     console.log('🐛 Debug mode enabled')
+  }
+
+  if (gc) {
+    if (global.gc) {
+      console.log('♻️  Garbage collection enabled')
+    } else {
+      console.warn('⚠️  --gc flag provided but global.gc not available. Run with: node --expose-gc')
+    }
   }
 
   // Extract and display database name
