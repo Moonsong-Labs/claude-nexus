@@ -553,6 +553,30 @@ curl "http://localhost:3000/api/conversations?accountId=acc_f9e1c2d3b4a5" \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
+### Copy Conversation Between Databases
+
+```bash
+# Copy a conversation from one database to another
+bun run db:copy-conversation --conversation-id <uuid> --dest-db <url> [options]
+
+# Example: Copy to staging database (same table names)
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db"
+
+# Dry run to preview what would be copied
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db" --dry-run
+
+# Copy with streaming chunks
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db" --include-chunks
+
+# Use custom table names (e.g., from api_requests to api_requests_backup)
+bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@staging-host:5432/staging_db" \
+  --source-table api_requests --dest-table api_requests_backup
+```
+
 ## Maintenance
 
 ### Grooming

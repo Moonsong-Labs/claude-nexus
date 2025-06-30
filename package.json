@@ -52,6 +52,7 @@
     "db:backup": "bun run scripts/db/backup-database.ts",
     "db:backup:file": "bun run scripts/db/backup-database.ts --file",
     "db:migrate:token-usage": "bun run scripts/migrate-token-usage.ts",
+    "db:copy-conversation": "bun run scripts/copy-conversation.ts",
     "auth:generate-key": "bun run scripts/auth/generate-api-key.ts",
     "auth:oauth-status": "bun run scripts/auth/check-oauth-status.ts",
     "auth:oauth-refresh": "bun run scripts/auth/oauth-refresh-all.ts",
@@ -77,6 +78,6 @@
   },
   "dependencies": {
     "dotenv": "^16.4.7",
-    "pg": "^8.13.1"
+    "pg": "^8.16.3"
   }
 }
