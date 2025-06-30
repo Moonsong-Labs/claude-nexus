@@ -6,12 +6,7 @@ import {
   type LinkingRequest,
   type ParentQueryCriteria,
 } from '../conversation-linker'
-import {
-  hashMessagesOnly,
-  hashSystemPrompt,
-  hashConversationState,
-  hashConversationStateWithSystem,
-} from '../conversation-hash.js'
+import { hashMessagesOnly, hashSystemPrompt } from '../conversation-hash.js'
 import type { ClaudeMessage } from '../../types/index.js'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
@@ -541,18 +536,19 @@ describe('Dual Hash System - Message and System Hashing', () => {
       expect(hash1).toBe(hash2)
     })
 
-    test('should handle empty messages array', () => {
-      const hash = hashMessagesOnly([])
-      expect(hash).toBe('')
-    })
-
     test('should deduplicate tool use messages', () => {
       const messagesWithDuplicates: ClaudeMessage[] = [
         {
           role: 'assistant',
           content: [
             { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } },
-            { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } }, // Duplicate
+            { type: 'text', text: 'Using calculator' },
+          ],
+        },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'tool-1', name: 'calculator', input: { a: 1 } },
             { type: 'text', text: 'Using calculator' },
           ],
         },
@@ -633,20 +629,6 @@ describe('Dual Hash System - Message and System Hashing', () => {
   })
 
   describe('hashConversationState with dual hash system', () => {
-    test('should include both message and system hashes', () => {
-      const messages: ClaudeMessage[] = [
-        { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Hi there!' },
-      ]
-      const system = 'You are a helpful assistant'
-
-      const hashWithSystem = hashConversationStateWithSystem(messages, system)
-      const hashWithoutSystem = hashConversationState(messages)
-
-      // Should be different when system is included
-      expect(hashWithSystem).not.toBe(hashWithoutSystem)
-    })
-
     test('should produce same hash regardless of system changes when using messages only', () => {
       const messages: ClaudeMessage[] = [
         { role: 'user', content: 'Hello' },

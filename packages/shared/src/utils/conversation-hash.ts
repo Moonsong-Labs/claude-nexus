@@ -1,31 +1,27 @@
+/**
+ * Conversation hashing utilities
+ *
+ * IMPORTANT: ConversationLinker is the source of truth for message hashing.
+ * This file only contains:
+ * - hashSystemPrompt: Used by ConversationLinker for system prompt hashing
+ * - hashMessagesOnly: Wrapper around ConversationLinker.computeMessageHash
+ * - extractMessageHashes: Dual hash system for conversation tracking
+ * - generateConversationId: UUID generation for new conversations
+ *
+ * Test-only functions have been moved to test-utilities/conversation-hash-test-utils.ts
+ */
+
 import { createHash } from 'crypto'
 import type { ClaudeMessage } from '../types/claude.js'
 import { stripSystemReminder } from './system-reminder.js'
+import { ConversationLinker } from './conversation-linker.js'
+
+// Note: hashMessage has been moved to test-utilities/conversation-hash-test-utils.ts
+// Use ConversationLinker.computeMessageHash for production code
 
 /**
- * Generates a deterministic SHA-256 hash for a Claude message
- * @param message - The message to hash
- * @returns A 64-character hex string hash
- */
-export function hashMessage(message: ClaudeMessage): string {
-  // Normalize the message for consistent hashing
-  const normalizedContent = normalizeMessageContent(message.content)
-
-  // Create a deterministic string representation
-  const messageString = `${message.role}:${normalizedContent}`
-
-  // Generate SHA-256 hash
-  return createHash('sha256').update(messageString, 'utf8').digest('hex')
-}
-
-/**
- * Normalizes message content for consistent hashing
- * Handles both string and array content types
- *
- * Important: This function deduplicates tool_use and tool_result items by their IDs
- * to handle cases where the Claude API might send duplicate messages. Only the first
- * occurrence of each unique tool_use ID or tool_result tool_use_id is included in
- * the hash computation.
+ * Internal function for normalizing message content used by hashSystemPrompt
+ * @private
  */
 function normalizeMessageContent(content: string | any[]): string {
   if (typeof content === 'string') {
@@ -105,23 +101,8 @@ function normalizeMessageContent(content: string | any[]): string {
     .join('|')
 }
 
-/**
- * Generates a hash for an entire conversation state (all messages)
- * @param messages - Array of messages
- * @returns A hash representing the full conversation state
- */
-export function hashConversationState(messages: ClaudeMessage[]): string {
-  if (!messages || messages.length === 0) {
-    return ''
-  }
-
-  // Create a deterministic representation of all messages
-  const conversationString = messages
-    .map((msg, index) => `[${index}]${msg.role}:${normalizeMessageContent(msg.content)}`)
-    .join('||')
-
-  return createHash('sha256').update(conversationString, 'utf8').digest('hex')
-}
+// Note: hashConversationState has been moved to test-utilities/conversation-hash-test-utils.ts
+// Use ConversationLinker.computeMessageHash for production code
 
 /**
  * Removes transient/volatile context from system prompts to ensure stable hashing
@@ -195,37 +176,8 @@ function getStableSystemPrompt(systemPrompt: string | any[]): string {
   return normalizeMessageContent(systemPrompt)
 }
 
-/**
- * Generates a hash for conversation state including system prompt
- * @param messages - Array of messages
- * @param system - Optional system prompt (string or array of content blocks)
- * @returns A hash representing the full conversation state including system
- */
-export function hashConversationStateWithSystem(
-  messages: ClaudeMessage[],
-  system?: string | any[]
-): string {
-  if (!messages || messages.length === 0) {
-    return ''
-  }
-
-  let conversationString = ''
-
-  // Include stable system prompt in the hash if present
-  if (system) {
-    const stableSystemContent = getStableSystemPrompt(system)
-    if (stableSystemContent) {
-      conversationString = `[SYSTEM]${stableSystemContent}||`
-    }
-  }
-
-  // Add all messages
-  conversationString += messages
-    .map((msg, index) => `[${index}]${msg.role}:${normalizeMessageContent(msg.content)}`)
-    .join('||')
-
-  return createHash('sha256').update(conversationString, 'utf8').digest('hex')
-}
+// Note: hashConversationStateWithSystem has been moved to test-utilities/conversation-hash-test-utils.ts
+// Use ConversationLinker for production code
 
 /**
  * Hashes only the messages without system prompt
@@ -233,16 +185,12 @@ export function hashConversationStateWithSystem(
  * @returns A hash representing the messages only
  */
 export function hashMessagesOnly(messages: ClaudeMessage[]): string {
-  if (!messages || messages.length === 0) {
-    return ''
-  }
-
-  // Create a deterministic representation of all messages
-  const conversationString = messages
-    .map((msg, index) => `[${index}]${msg.role}:${normalizeMessageContent(msg.content)}`)
-    .join('||')
-
-  return createHash('sha256').update(conversationString, 'utf8').digest('hex')
+  // Use ConversationLinker as the source of truth for hashing
+  const linker = new ConversationLinker(
+    async () => [], // Dummy query executor - we only need the hash method
+    async () => null // Dummy compact search executor
+  )
+  return linker.computeMessageHash(messages)
 }
 
 /**
@@ -321,45 +269,8 @@ export function extractMessageHashes(
   return { currentMessageHash, parentMessageHash, systemHash }
 }
 
-/**
- * Legacy function for backward compatibility
- * @deprecated Use extractMessageHashes which returns the dual hash system
- */
-export function extractMessageHashesLegacy(
-  messages: ClaudeMessage[],
-  system?: string | any[]
-): {
-  currentMessageHash: string
-  parentMessageHash: string | null
-} {
-  if (!messages || messages.length === 0) {
-    throw new Error('Cannot extract hashes from empty messages array')
-  }
-
-  // Current hash is the hash of the entire conversation state including system
-  const currentMessageHash = hashConversationStateWithSystem(messages, system)
-
-  // For parent hash, we need to find the previous request state
-  // If we have 3+ messages, the parent likely had all messages except the last 2 (user + assistant)
-  // If we have 1-2 messages, this is likely a new conversation
-  let parentMessageHash: string | null = null
-
-  if (messages.length === 1) {
-    // First message in conversation, no parent
-    parentMessageHash = null
-  } else if (messages.length === 2) {
-    // This shouldn't happen in normal Claude conversations (should be user -> assistant -> user)
-    // But handle it anyway - parent would be first message only
-    parentMessageHash = hashConversationStateWithSystem(messages.slice(0, 1), system)
-  } else {
-    // Normal case: we have at least 3 messages
-    // The parent request would have had all messages except the last 2
-    // (removing the most recent user message and the assistant response before it)
-    parentMessageHash = hashConversationStateWithSystem(messages.slice(0, -2), system)
-  }
-
-  return { currentMessageHash, parentMessageHash }
-}
+// Note: extractMessageHashesLegacy has been moved to test-utilities/conversation-hash-test-utils.ts
+// Use extractMessageHashes for the dual hash system
 
 /**
  * Generates a new conversation ID

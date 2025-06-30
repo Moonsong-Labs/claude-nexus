@@ -4,10 +4,7 @@
  * produce the same hash
  */
 
-import {
-  hashMessage,
-  normalizeMessageContent,
-} from '../packages/shared/src/utils/conversation-hash'
+import { hashMessageLegacy as hashMessage } from '../packages/shared/src/utils/test-utilities/conversation-hash-test-utils'
 import type { ClaudeMessage } from '../packages/shared/src/types/claude'
 
 // Test case 1: Message without system reminder

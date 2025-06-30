@@ -125,10 +125,26 @@ export class ConversationLinker {
         }
       }
 
-      // Case 2: Multiple messages - compute parent hash
+      // Case 2: Multiple messages - check if we can compute parent hash
+      // First deduplicate to see how many unique messages we have
+      const deduplicatedMessages = this.deduplicateMessages(messages)
+
+      // If after deduplication we have fewer than 3 messages, we can't compute parent hash
+      if (deduplicatedMessages.length < MIN_MESSAGES_FOR_PARENT_HASH) {
+        // Treat as a new conversation or single-message-like scenario
+        return {
+          conversationId: null,
+          parentRequestId: null,
+          branchId: BRANCH_MAIN,
+          currentMessageHash,
+          parentMessageHash: null,
+          systemHash,
+        }
+      }
+
       let parentMessageHash: string
       try {
-        parentMessageHash = this.computeParentHash(messages)
+        parentMessageHash = this.computeParentHashFromDeduplicated(deduplicatedMessages)
       } catch (error) {
         console.error('Failed to compute parent hash:', error)
         // Return as new conversation if parent hash computation fails
@@ -243,7 +259,10 @@ export class ConversationLinker {
         throw new Error('Cannot compute hash for empty messages array')
       }
 
-      for (const message of messages) {
+      // Deduplicate messages first
+      const deduplicatedMessages = this.deduplicateMessages(messages)
+
+      for (const message of deduplicatedMessages) {
         if (!message || !message.role) {
           throw new Error('Invalid message: missing role')
         }
@@ -265,6 +284,37 @@ export class ConversationLinker {
     }
   }
 
+  // This version does NOT deduplicate - for internal use when messages are already deduplicated
+  private computeMessageHashNoDedupe(messages: ClaudeMessage[]): string {
+    try {
+      const hash = createHash('sha256')
+
+      if (!messages || messages.length === 0) {
+        throw new Error('Cannot compute hash for empty messages array')
+      }
+
+      for (const message of messages) {
+        if (!message || !message.role) {
+          throw new Error('Invalid message: missing role')
+        }
+
+        hash.update(message.role)
+        hash.update('\n')
+
+        const normalizedContent = this.normalizeMessageContent(message.content)
+        hash.update(normalizedContent)
+        hash.update('\n')
+      }
+
+      return hash.digest('hex')
+    } catch (error) {
+      console.error('Error in computeMessageHashNoDedupe:', error)
+      throw new Error(
+        `Failed to compute message hash: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
   private normalizeMessageContent(content: string | ClaudeContent[]): string {
     if (typeof content === 'string') {
       return this.normalizeStringContent(content)
@@ -272,8 +322,7 @@ export class ConversationLinker {
 
     // For array content, create a deterministic string representation
     const filteredContent = this.filterSystemReminders(content)
-    const dedupedContent = this.deduplicateToolItems(filteredContent)
-    return this.serializeContentItems(dedupedContent)
+    return this.serializeContentItems(filteredContent)
   }
 
   private normalizeStringContent(content: string): string {
@@ -294,25 +343,46 @@ export class ConversationLinker {
     })
   }
 
-  private deduplicateToolItems(content: ClaudeContent[]): ClaudeContent[] {
-    // Deduplicate tool_use and tool_result items by their IDs
+  // This is because of bug https://github.com/anthropics/claude-code-action/issues/200
+  private deduplicateMessages(messages: ClaudeMessage[]): ClaudeMessage[] {
+    // Track seen tool IDs across all messages
     const seenToolUseIds = new Set<string>()
     const seenToolResultIds = new Set<string>()
+    const deduplicatedMessages: ClaudeMessage[] = []
 
-    return content.filter(item => {
-      if (item.type === 'tool_use' && item.id) {
-        if (seenToolUseIds.has(item.id)) {
-          return false
-        }
-        seenToolUseIds.add(item.id)
-      } else if (item.type === 'tool_result' && item.tool_use_id) {
-        if (seenToolResultIds.has(item.tool_use_id)) {
-          return false
-        }
-        seenToolResultIds.add(item.tool_use_id)
+    for (const message of messages) {
+      // For non-array content, always keep the message
+      if (typeof message.content === 'string') {
+        deduplicatedMessages.push(message)
+        continue
       }
-      return true
-    })
+
+      // Filter the content to remove duplicate tool uses/results
+      const filteredContent = message.content.filter(item => {
+        if (item.type === 'tool_use' && item.id) {
+          if (seenToolUseIds.has(item.id)) {
+            return false // Skip duplicate tool_use
+          }
+          seenToolUseIds.add(item.id)
+          return true
+        } else if (item.type === 'tool_result' && item.tool_use_id) {
+          if (seenToolResultIds.has(item.tool_use_id)) {
+            return false // Skip duplicate tool_result
+          }
+          seenToolResultIds.add(item.tool_use_id)
+          return true
+        }
+        // Keep all non-tool content
+        return true
+      })
+
+      // Only include the message if no duplicates were found
+      if (filteredContent.length === message.content.length) {
+        deduplicatedMessages.push(message)
+      }
+    }
+
+    return deduplicatedMessages
   }
 
   private serializeContentItems(content: ClaudeContent[]): string {
@@ -367,16 +437,17 @@ export class ConversationLinker {
     return `[${index}]tool_result:${item.tool_use_id}:${contentStr}`
   }
 
-  private computeParentHash(messages: ClaudeMessage[]): string {
+  private computeParentHashFromDeduplicated(deduplicatedMessages: ClaudeMessage[]): string {
     // Parent hash is all messages except the last 2
-    if (messages.length < MIN_MESSAGES_FOR_PARENT_HASH) {
+    if (deduplicatedMessages.length < MIN_MESSAGES_FOR_PARENT_HASH) {
       throw new Error(
-        `Cannot compute parent hash for less than ${MIN_MESSAGES_FOR_PARENT_HASH} messages`
+        `Cannot compute parent hash for less than ${MIN_MESSAGES_FOR_PARENT_HASH} messages: ${deduplicatedMessages.length}`
       )
     }
 
-    const parentMessages = messages.slice(0, -2)
-    return this.computeMessageHash(parentMessages)
+    const parentMessages = deduplicatedMessages.slice(0, -2)
+    // Use the non-deduplicating version since messages are already deduplicated
+    return this.computeMessageHashNoDedupe(parentMessages)
   }
 
   private detectCompactConversation(message: ClaudeMessage): CompactInfo | null {
