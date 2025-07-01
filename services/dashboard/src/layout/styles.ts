@@ -279,8 +279,9 @@ export const dashboardStyles = `
   .message-actions {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-end;
     gap: 0.25rem;
+    margin-left: auto;
   }
 
   /* Navigation arrows container */
