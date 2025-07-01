@@ -95,9 +95,10 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
 
   // First pass: collect all tool uses
   for (const request of requests) {
-    const messages = request.body?.messages || []
     const timestamp = new Date(request.timestamp)
 
+    // Check in request body messages
+    const messages = request.body?.messages || []
     for (const message of messages) {
       if (message.role === 'assistant') {
         const toolUses = extractToolUses(message)
@@ -107,6 +108,22 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
             timestamp,
             name: tool.name,
           })
+        }
+      }
+    }
+
+    // Also check in response body for tool uses
+    if (request.response_body?.content) {
+      const responseContent = request.response_body.content
+      if (Array.isArray(responseContent)) {
+        for (const item of responseContent) {
+          if (item.type === 'tool_use' && item.id) {
+            toolUseMap.set(item.id, {
+              requestId: request.request_id,
+              timestamp,
+              name: item.name || 'unknown',
+            })
+          }
         }
       }
     }

@@ -585,6 +585,7 @@ export class StorageReader {
           current_message_hash, parent_message_hash, branch_id, message_count,
           parent_task_request_id, is_subtask, task_tool_invocation, parent_request_id,
           response_body,
+          body,
           CASE 
             WHEN body -> 'messages' IS NOT NULL AND jsonb_array_length(body -> 'messages') > 0 THEN
               body -> 'messages' -> -1
@@ -624,7 +625,7 @@ export class StorageReader {
         is_subtask: row.is_subtask,
         task_tool_invocation: row.task_tool_invocation,
         parent_request_id: row.parent_request_id,
-        body: { last_message: row.last_message },
+        body: row.body || { last_message: row.last_message },
         response_body: row.response_body,
       }))
 
