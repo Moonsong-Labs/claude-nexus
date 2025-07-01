@@ -325,6 +325,10 @@ export const dashboardStyles = `
     overflow: hidden;
     position: relative;
     opacity: 0.6;
+    display: flex;
+    align-items: center;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
 
   .hide-tools .message-tool-use .message-content::after,
@@ -357,6 +361,8 @@ export const dashboardStyles = `
     font-weight: 600;
     color: #92400e;
     margin-right: 0.5rem;
+    display: inline-block;
+    line-height: 1;
   }
 
   .message-time {
