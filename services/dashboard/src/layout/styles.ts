@@ -565,9 +565,11 @@ export const dashboardStyles = `
   /* View toggle styles */
   .view-toggle {
     display: flex;
-    gap: 0.5rem;
+    justify-content: space-between;
+    align-items: center;
     margin: 1rem 0;
     border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0;
   }
 
   .view-toggle button {

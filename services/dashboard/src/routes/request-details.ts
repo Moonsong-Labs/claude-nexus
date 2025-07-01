@@ -437,19 +437,18 @@ requestDetailsRoutes.get('/request/:id', async c => {
         </div>
       </div>
 
-      <!-- View Toggle -->
-      <div class="view-toggle">
-        <button class="active" onclick="showView('conversation')">Conversation</button>
-        <button onclick="showView('raw')">Raw JSON</button>
-        <button onclick="showView('headers')">Headers & Metadata</button>
-      </div>
-
-      <!-- Conversation Controls -->
+      <!-- View Toggle with Controls -->
       <div
-        style="margin-bottom: 1rem; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"
+        class="view-toggle"
+        style="display: flex; justify-content: space-between; align-items: center;"
       >
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="active" onclick="showView('conversation')">Conversation</button>
+          <button onclick="showView('raw')">Raw JSON</button>
+          <button onclick="showView('headers')">Headers & Metadata</button>
+        </div>
         <label
-          style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #374151;"
+          style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #374151; margin-bottom: 0;"
         >
           <input
             type="checkbox"
