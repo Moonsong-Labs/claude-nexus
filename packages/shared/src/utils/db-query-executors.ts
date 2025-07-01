@@ -48,6 +48,11 @@ export function createQueryExecutors(pool: Pool): {
       query += ` AND timestamp < $${params.length}`
     }
 
+    if (criteria.conversationId) {
+      params.push(criteria.conversationId)
+      query += ` AND conversation_id = $${params.length}`
+    }
+
     const result = await pool.query(query, params)
     return result.rows
   }
