@@ -286,7 +286,8 @@ export const dashboardStyles = `
   /* Navigation arrows container */
   .nav-arrows-container {
     display: flex;
-    gap: 0.25rem;
+    flex-direction: column;
+    gap: 0.125rem;
   }
 
   /* Navigation arrows for user messages */
