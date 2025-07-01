@@ -350,16 +350,6 @@ export const dashboardStyles = `
     display: none;
   }
 
-  .hide-tools .message-tool-use .message-content::after,
-  .hide-tools .message-tool-result .message-content::after {
-    content: '...';
-    position: absolute;
-    bottom: 0;
-    right: 1rem;
-    background: linear-gradient(to right, transparent, #f9fafb 20%);
-    padding-left: 2rem;
-    font-weight: 500;
-  }
 
   .hide-tools .message-tool-use .message-content {
     background: #fef3c7;
