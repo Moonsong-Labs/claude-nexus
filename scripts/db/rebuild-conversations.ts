@@ -59,13 +59,15 @@ class ConversationRebuilderV2 {
   private domainFilter: string | null
   private limit: number | null
   private debugMode: boolean
+  private requestIds: string[] | null
 
   constructor(
     databaseUrl: string,
     dryRun: boolean = false,
     domainFilter: string | null = null,
     limit: number | null = null,
-    debugMode: boolean = false
+    debugMode: boolean = false,
+    requestIds: string[] | null = null
   ) {
     // Reduce pool size for batch processing to prevent connection accumulation
     this.pool = createLoggingPool(databaseUrl, {
@@ -77,6 +79,7 @@ class ConversationRebuilderV2 {
     this.domainFilter = domainFilter
     this.limit = limit
     this.debugMode = debugMode
+    this.requestIds = requestIds
 
     // Create query executors using shared implementation
     const { queryExecutor, compactSearchExecutor } = createQueryExecutors(this.pool)
@@ -290,9 +293,14 @@ class ConversationRebuilderV2 {
         }
 
         // Check if we have more batches
-        hasMoreBatches =
-          requests.length === currentBatchSize &&
-          (this.limit === null || totalProcessed < this.limit)
+        // Skip pagination when filtering by specific request IDs
+        if (this.requestIds && this.requestIds.length > 0) {
+          hasMoreBatches = false
+        } else {
+          hasMoreBatches =
+            requests.length === currentBatchSize &&
+            (this.limit === null || totalProcessed < this.limit)
+        }
 
         // Clear request array to release references
         requests.length = 0
@@ -385,13 +393,19 @@ class ConversationRebuilderV2 {
     `
     const params: any[] = []
 
+    // Filter by specific request IDs if provided
+    if (this.requestIds && this.requestIds.length > 0) {
+      params.push(this.requestIds)
+      query += ` AND r.request_id = ANY($${params.length}::uuid[])`
+    }
+
     if (this.domainFilter) {
       params.push(this.domainFilter)
       query += ` AND r.domain = $${params.length}`
     }
 
-    // Key-set pagination for better performance
-    if (lastSeenId) {
+    // Key-set pagination for better performance (skip if filtering by request IDs)
+    if (lastSeenId && (!this.requestIds || this.requestIds.length === 0)) {
       params.push(lastSeenId)
       query += ` AND (r.timestamp, r.request_id) > (
         SELECT timestamp, request_id FROM api_requests WHERE request_id = $${params.length}::uuid
@@ -399,7 +413,11 @@ class ConversationRebuilderV2 {
     }
 
     query += ' ORDER BY r.timestamp ASC, r.request_id ASC'
-    query += ` LIMIT ${batchLimit}`
+
+    // Skip limit if filtering by specific request IDs
+    if (!this.requestIds || this.requestIds.length === 0) {
+      query += ` LIMIT ${batchLimit}`
+    }
 
     const result = await this.pool.query(query, params)
     return result.rows
@@ -469,11 +487,19 @@ function parseArgs() {
   const args = process.argv.slice(2)
   const domainIndex = args.findIndex(arg => arg === '--domain')
   const limitIndex = args.findIndex(arg => arg === '--limit')
+  const requestsIndex = args.findIndex(arg => arg === '--requests')
+
+  // Parse request IDs
+  let requestIds: string[] | null = null
+  if (requestsIndex !== -1 && args[requestsIndex + 1]) {
+    requestIds = args[requestsIndex + 1].split(',').map(id => id.trim())
+  }
 
   return {
     dryRun: args.includes('--dry-run'),
     domain: domainIndex !== -1 && args[domainIndex + 1] ? args[domainIndex + 1] : null,
     limit: limitIndex !== -1 && args[limitIndex + 1] ? parseInt(args[limitIndex + 1], 10) : null,
+    requestIds,
     debug: args.includes('--debug'),
     gc: args.includes('--gc'),
     help: args.includes('--help') || args.includes('-h'),
@@ -483,7 +509,7 @@ function parseArgs() {
 
 // Main execution
 async function main() {
-  const { dryRun, domain, limit, debug, gc, help, yes } = parseArgs()
+  const { dryRun, domain, limit, requestIds, debug, gc, help, yes } = parseArgs()
 
   if (help) {
     console.log(`
@@ -496,6 +522,7 @@ Options:
   --dry-run    Run in dry-run mode (no database changes)
   --domain     Filter by specific domain
   --limit      Limit the number of requests to process
+  --requests   Process specific request IDs (comma-separated)
   --debug      Show detailed debug information
   --gc         Enable manual garbage collection between batches (requires: node --expose-gc)
   --yes, -y    Automatically accept the warning prompt
@@ -511,6 +538,9 @@ Examples:
 
   # Dry run for a specific domain
   bun run scripts/db/rebuild-conversations.ts --dry-run --domain example.com
+
+  # Process specific request IDs
+  bun run scripts/db/rebuild-conversations.ts --requests "id1,id2,id3"
 
   # Process with garbage collection
   node --expose-gc $(which bun) run scripts/db/rebuild-conversations.ts --gc
@@ -551,6 +581,10 @@ Examples:
     console.log(`📊 Limiting to ${limit} requests`)
   }
 
+  if (requestIds && requestIds.length > 0) {
+    console.log(`🎯 Processing specific requests: ${requestIds.join(', ')}`)
+  }
+
   if (debug) {
     console.log('🐛 Debug mode enabled')
   }
@@ -583,7 +617,14 @@ Examples:
     }
   }
 
-  const rebuilder = new ConversationRebuilderV2(databaseUrl, dryRun, domain, limit, debug)
+  const rebuilder = new ConversationRebuilderV2(
+    databaseUrl,
+    dryRun,
+    domain,
+    limit,
+    debug,
+    requestIds
+  )
 
   try {
     await rebuilder.rebuild()
