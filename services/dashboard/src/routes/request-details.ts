@@ -181,18 +181,18 @@ requestDetailsRoutes.get('/request/:id', async c => {
             const hasNext = currentUserIndex > 0
 
             navigationButtons = `
-              <button class="nav-arrow nav-prev" ${!hasPrev ? 'disabled' : ''} 
+              <button class="nav-arrow nav-up" ${!hasPrev ? 'disabled' : ''} 
                 onclick="${hasPrev ? `document.getElementById('message-${userMessageIndices[currentUserIndex + 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
                 title="Previous user message">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M15 18l-6-6 6-6"/>
+                  <path d="M18 15l-6-6-6 6"/>
                 </svg>
               </button>
-              <button class="nav-arrow nav-next" ${!hasNext ? 'disabled' : ''} 
+              <button class="nav-arrow nav-down" ${!hasNext ? 'disabled' : ''} 
                 onclick="${hasNext ? `document.getElementById('message-${userMessageIndices[currentUserIndex - 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
                 title="Next user message">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6"/>
+                  <path d="M6 9l6 6 6-6"/>
                 </svg>
               </button>
             `
@@ -200,18 +200,19 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
           return `
         <div class="${messageClass}" id="message-${idx}" data-message-index="${idx}">
-          <div class="message-index">${idx + 1}</div>
+          <div class="message-index">${conversation.messages.length - idx}</div>
           <div class="message-meta">
             <div class="message-role">${roleDisplay}</div>
             <button class="copy-message-link" data-message-index="${idx}" title="Copy link to this message">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
               </svg>
             </button>
             ${navigationButtons}
           </div>
           <div class="message-content">
+            ${msg.isToolUse && msg.toolName ? `<span class="tool-name-label">${msg.toolName}</span>` : ''}
             ${
               msg.isLong
                 ? `

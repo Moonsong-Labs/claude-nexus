@@ -279,11 +279,12 @@ export const dashboardStyles = `
   .nav-arrow {
     background: none;
     border: none;
-    padding: 0.25rem;
+    padding: 0.125rem;
     cursor: pointer;
     color: #6b7280;
     transition: color 0.2s;
-    margin: 0 0.125rem;
+    display: block;
+    margin: 0.125rem 0;
   }
 
   .nav-arrow:hover:not(:disabled) {
@@ -325,6 +326,19 @@ export const dashboardStyles = `
 
   .hide-tools .message-tool-result .message-content {
     background: #dcfce7;
+  }
+
+  /* Hide copy button for collapsed tool messages */
+  .hide-tools .message-tool-use .copy-message-link,
+  .hide-tools .message-tool-result .copy-message-link {
+    display: none;
+  }
+
+  /* Tool name label for collapsed messages */
+  .tool-name-label {
+    font-weight: 600;
+    color: #92400e;
+    margin-right: 0.5rem;
   }
 
   .message-time {
