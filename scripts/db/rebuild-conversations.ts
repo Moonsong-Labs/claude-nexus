@@ -7,7 +7,12 @@
 import { Pool } from 'pg'
 import { config } from 'dotenv'
 import { createLoggingPool } from './utils/create-logging-pool.js'
-import { ConversationLinker, createQueryExecutors } from '../../packages/shared/src/index.js'
+import {
+  ConversationLinker,
+  createQueryExecutors,
+  type TaskContext,
+  type TaskInvocation,
+} from '../../packages/shared/src/index.js'
 import { generateConversationId } from '../../packages/shared/src/utils/conversation-hash.js'
 
 // Load environment variables
@@ -41,6 +46,7 @@ interface DbRequest {
   message_count: number | null
   created_at: Date
   is_subtask: boolean | null
+  parent_task_request_id: string | null
 }
 
 interface ConversationUpdate {
@@ -52,6 +58,7 @@ interface ConversationUpdate {
   parent_message_hash: string | null
   system_hash: string | null
   is_subtask: boolean
+  parent_task_request_id?: string | null
 }
 
 class ConversationRebuilderV2 {
@@ -85,7 +92,27 @@ class ConversationRebuilderV2 {
 
     // Create query executors using shared implementation
     const { queryExecutor, compactSearchExecutor } = createQueryExecutors(this.pool)
-    this.conversationLinker = new ConversationLinker(queryExecutor, compactSearchExecutor)
+
+    // Create request by ID executor for subtask detection
+    const requestByIdExecutor = async (requestId: string) => {
+      const query = `
+        SELECT request_id, conversation_id, branch_id, current_message_hash, system_hash
+        FROM api_requests
+        WHERE request_id = $1
+        LIMIT 1
+      `
+      const result = await this.pool.query(query, [requestId])
+      if (result.rows.length > 0) {
+        return result.rows[0]
+      }
+      return null
+    }
+
+    this.conversationLinker = new ConversationLinker(
+      queryExecutor,
+      compactSearchExecutor,
+      requestByIdExecutor
+    )
   }
 
   /**
@@ -178,6 +205,9 @@ class ConversationRebuilderV2 {
           }
 
           try {
+            // Load recent task invocations for this domain (30 second window)
+            const taskContext = await this.loadTaskContext(request.domain, request.timestamp)
+
             // Use ConversationLinker to determine conversation linkage
             const linkingResult = await this.conversationLinker.linkConversation({
               domain: request.domain,
@@ -186,6 +216,7 @@ class ConversationRebuilderV2 {
               requestId: request.request_id,
               messageCount: request.body.messages.length,
               timestamp: request.timestamp,
+              taskContext,
             })
 
             // Special handling for orphan requests (no parent)
@@ -226,17 +257,12 @@ class ConversationRebuilderV2 {
               }
             }
 
-            // Single-message conversations are potential subtasks. The proxy service
-            // performs the actual matching against Task tool invocations, but we mark
-            // all single-message conversations as potential subtasks for consistency.
-            const isSubtask = request.message_count === 1
-
-            // Track subtask detection
-            if (isSubtask) {
+            // Track subtask detection from ConversationLinker
+            if (linkingResult.isSubtask) {
               subtasksDetected++
               if (this.debugMode) {
                 console.log(
-                  `   Subtask detected for request ${request.request_id}`
+                  `   Subtask detected for request ${request.request_id} -> parent: ${linkingResult.parentTaskRequestId}`
                 )
               }
             }
@@ -249,7 +275,8 @@ class ConversationRebuilderV2 {
               request.current_message_hash !== linkingResult.currentMessageHash ||
               request.parent_message_hash !== linkingResult.parentMessageHash ||
               request.system_hash !== linkingResult.systemHash ||
-              request.is_subtask !== isSubtask
+              request.is_subtask !== (linkingResult.isSubtask || false) ||
+              request.parent_task_request_id !== linkingResult.parentTaskRequestId
 
             if (needsUpdate) {
               updates.push({
@@ -260,7 +287,8 @@ class ConversationRebuilderV2 {
                 current_message_hash: linkingResult.currentMessageHash,
                 parent_message_hash: linkingResult.parentMessageHash,
                 system_hash: linkingResult.systemHash,
-                is_subtask: isSubtask,
+                is_subtask: linkingResult.isSubtask || false,
+                parent_task_request_id: linkingResult.parentTaskRequestId,
               })
 
               // Apply update immediately for visibility
@@ -273,7 +301,8 @@ class ConversationRebuilderV2 {
                   current_message_hash: linkingResult.currentMessageHash,
                   parent_message_hash: linkingResult.parentMessageHash,
                   system_hash: linkingResult.systemHash,
-                  is_subtask: isSubtask,
+                  is_subtask: linkingResult.isSubtask || false,
+                  parent_task_request_id: linkingResult.parentTaskRequestId,
                 })
               }
             }
@@ -397,6 +426,59 @@ class ConversationRebuilderV2 {
     }
   }
 
+  /**
+   * Load recent Task tool invocations for subtask detection
+   */
+  private async loadTaskContext(domain: string, timestamp: Date): Promise<TaskContext | undefined> {
+    // Query for Task tool invocations within 24 hours before this request
+    const timeWindowStart = new Date(timestamp.getTime() - 24 * 60 * 60 * 1000) // 24 hours
+
+    const query = `
+      SELECT 
+        r.request_id,
+        r.response_body,
+        r.timestamp
+      FROM api_requests r
+      WHERE r.domain = $1
+        AND r.timestamp >= $2
+        AND r.timestamp <= $3
+        AND r.response_body IS NOT NULL
+        AND r.response_body::text LIKE '%"name":"Task"%'
+      ORDER BY r.timestamp DESC
+      LIMIT 100
+    `
+
+    try {
+      const result = await this.pool.query(query, [domain, timeWindowStart, timestamp])
+      const recentInvocations: TaskInvocation[] = []
+
+      for (const row of result.rows) {
+        if (row.response_body?.content) {
+          // Extract Task tool invocations from response
+          for (const content of row.response_body.content) {
+            if (content.type === 'tool_use' && content.name === 'Task' && content.input?.prompt) {
+              recentInvocations.push({
+                requestId: row.request_id,
+                toolUseId: content.id,
+                prompt: content.input.prompt,
+                timestamp: new Date(row.timestamp),
+              })
+            }
+          }
+        }
+      }
+
+      // Filter to only recent invocations (30 second window for matching)
+      const recentCutoff = new Date(timestamp.getTime() - 30000)
+      const filteredInvocations = recentInvocations.filter(inv => inv.timestamp >= recentCutoff)
+
+      return filteredInvocations.length > 0 ? { recentInvocations: filteredInvocations } : undefined
+    } catch (error) {
+      console.warn(`Failed to load task context for domain ${domain}:`, error)
+      return undefined
+    }
+  }
+
   private async loadRequests(
     lastSeenId: string | null = null,
     batchLimit: number = BATCH_SIZE
@@ -415,7 +497,8 @@ class ConversationRebuilderV2 {
         r.message_count,
         r.parent_request_id,
         r.created_at,
-        r.is_subtask
+        r.is_subtask,
+        r.parent_task_request_id
       FROM api_requests r
       WHERE r.request_type = 'inference'
     `
@@ -461,7 +544,8 @@ class ConversationRebuilderV2 {
         current_message_hash = $5,
         parent_message_hash = $6,
         system_hash = $7,
-        is_subtask = $8
+        is_subtask = $8,
+        parent_task_request_id = $9::uuid
       WHERE request_id = $1::uuid
     `
 
@@ -474,6 +558,7 @@ class ConversationRebuilderV2 {
       update.parent_message_hash,
       update.system_hash,
       update.is_subtask,
+      update.parent_task_request_id,
     ])
   }
 

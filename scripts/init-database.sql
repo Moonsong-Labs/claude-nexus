@@ -88,6 +88,23 @@ ON api_requests(parent_request_id);
 CREATE INDEX IF NOT EXISTS idx_api_requests_system_hash 
 ON api_requests(system_hash);
 
+-- Create indexes for Task invocation queries (from migration 008)
+-- GIN index for faster JSONB searches on response_body
+CREATE INDEX IF NOT EXISTS idx_api_requests_response_body_task
+ON api_requests USING gin (response_body)
+WHERE response_body IS NOT NULL;
+
+-- Composite index for domain + timestamp queries
+CREATE INDEX IF NOT EXISTS idx_api_requests_domain_timestamp_response
+ON api_requests(domain, timestamp DESC)
+WHERE response_body IS NOT NULL;
+
+-- Functional index for faster text searches
+CREATE INDEX IF NOT EXISTS idx_api_requests_task_name
+ON api_requests ((response_body::text))
+WHERE response_body IS NOT NULL 
+  AND response_body::text LIKE '%"name":"Task"%';
+
 -- Create indexes for streaming_chunks
 CREATE INDEX IF NOT EXISTS idx_chunks_request_id ON streaming_chunks(request_id);
 

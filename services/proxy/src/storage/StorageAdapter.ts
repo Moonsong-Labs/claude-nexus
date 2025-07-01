@@ -11,8 +11,9 @@ import {
   type ClaudeMessage,
   type ParentQueryCriteria,
   type TaskInvocation,
+  type TaskContext,
 } from '@claude-nexus/shared'
-import { TaskInvocationCache } from './TaskInvocationCache.js'
+// import { TaskInvocationCache } from './TaskInvocationCache.js' // Removed - using SQL query instead
 
 /**
  * Storage adapter that provides a simplified interface for MetricsService
@@ -21,7 +22,6 @@ import { TaskInvocationCache } from './TaskInvocationCache.js'
 export class StorageAdapter {
   private writer: StorageWriter
   private conversationLinker: ConversationLinker
-  private taskInvocationCache: TaskInvocationCache
   private requestIdMap: Map<string, { uuid: string; timestamp: number }> = new Map() // Map nanoid to UUID with timestamp
   private cleanupTimer: NodeJS.Timeout | null = null
   private isClosed: boolean = false
@@ -40,7 +40,6 @@ export class StorageAdapter {
     })
 
     this.writer = new StorageWriter(loggingPool)
-    this.taskInvocationCache = new TaskInvocationCache()
 
     // Create query executor for ConversationLinker
     const queryExecutor: QueryExecutor = async (criteria: ParentQueryCriteria) => {
@@ -316,8 +315,8 @@ export class StorageAdapter {
       }
     }
 
-    // Get recent task invocations from cache
-    const recentInvocations = this.taskInvocationCache.getRecent(domain, 30000) // 30 second window
+    // Load task context from database (24 hour window)
+    const taskContext = await this.loadTaskContext(domain, new Date())
 
     const result = await this.conversationLinker.linkConversation({
       domain,
@@ -325,7 +324,7 @@ export class StorageAdapter {
       systemPrompt,
       requestId: uuid,
       messageCount,
-      taskContext: recentInvocations.length > 0 ? { recentInvocations } : undefined,
+      taskContext,
     })
 
     // Log if subtask was detected
@@ -345,12 +344,69 @@ export class StorageAdapter {
   }
 
   /**
+   * Load recent Task tool invocations from database
+   */
+  private async loadTaskContext(domain: string, timestamp: Date): Promise<TaskContext | undefined> {
+    // Query for Task tool invocations within 24 hours before this request
+    const timeWindowStart = new Date(timestamp.getTime() - 24 * 60 * 60 * 1000) // 24 hours
+
+    const query = `
+      SELECT 
+        r.request_id,
+        r.response_body,
+        r.timestamp
+      FROM api_requests r
+      WHERE r.domain = $1
+        AND r.timestamp >= $2
+        AND r.timestamp <= $3
+        AND r.response_body IS NOT NULL
+        AND r.response_body::text LIKE '%"name":"Task"%'
+      ORDER BY r.timestamp DESC
+      LIMIT 100
+    `
+
+    try {
+      const result = await this.pool.query(query, [domain, timeWindowStart, timestamp])
+      const recentInvocations: TaskInvocation[] = []
+
+      for (const row of result.rows) {
+        if (row.response_body?.content) {
+          // Extract Task tool invocations from response
+          for (const content of row.response_body.content) {
+            if (content.type === 'tool_use' && content.name === 'Task' && content.input?.prompt) {
+              recentInvocations.push({
+                requestId: row.request_id,
+                toolUseId: content.id,
+                prompt: content.input.prompt,
+                timestamp: new Date(row.timestamp),
+              })
+            }
+          }
+        }
+      }
+
+      // Filter to only recent invocations (30 second window for matching)
+      const recentCutoff = new Date(timestamp.getTime() - 30000)
+      const filteredInvocations = recentInvocations.filter(inv => inv.timestamp >= recentCutoff)
+
+      return filteredInvocations.length > 0 ? { recentInvocations: filteredInvocations } : undefined
+    } catch (error) {
+      logger.warn(`Failed to load task context for domain ${domain}:`, {
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return undefined
+    }
+  }
+
+  /**
    * Process Task tool invocations in a response
    */
   async processTaskToolInvocations(
     requestId: string,
     responseBody: any,
-    domain: string
+    _domain: string
   ): Promise<void> {
     const taskInvocations = this.writer.findTaskToolInvocations(responseBody)
 
@@ -383,26 +439,11 @@ export class StorageAdapter {
         uuid = mapping.uuid
       }
 
-      // Cache task invocations for quick lookup
-      const timestamp = new Date()
-      for (const invocation of taskInvocations) {
-        // Extract prompt from input - the Task tool typically has a 'prompt' field in its input
-        const prompt = invocation.input?.prompt || invocation.input?.description || ''
-
-        const taskInvocation: TaskInvocation = {
-          requestId: uuid,
-          toolUseId: invocation.id,
-          prompt: typeof prompt === 'string' ? prompt : JSON.stringify(prompt),
-          timestamp,
-        }
-        this.taskInvocationCache.add(domain, taskInvocation)
-      }
-
       // Mark the request as having task invocations in the database
       await this.writer.markTaskToolInvocations(uuid, taskInvocations)
 
-      // Task invocations are now tracked in both cache and database
-      // Linking will happen when new conversations are stored
+      // Task invocations are now tracked in the database
+      // Linking will happen when new conversations are stored via SQL query
     }
   }
 
@@ -509,9 +550,6 @@ export class StorageAdapter {
 
     // Clear the request ID map
     this.requestIdMap.clear()
-
-    // Destroy the task invocation cache
-    this.taskInvocationCache.destroy()
 
     // Close the writer
     await this.writer.cleanup()

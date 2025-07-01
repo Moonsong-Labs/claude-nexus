@@ -343,17 +343,26 @@ The proxy can collect real request samples for test development:
 The project includes comprehensive tests for conversation and subtask linking:
 
 - **Conversation Linking Tests**: `packages/shared/src/utils/__tests__/conversation-linker.test.ts`
+
   - Tests message hashing, branch detection, and conversation linking
   - Includes JSON fixture tests for real-world scenarios
-  - Tests subtask potential detection
+  - Tests integrated subtask detection within ConversationLinker
 
-- **Subtask Linking Tests**: `packages/shared/src/utils/__tests__/subtask-linker.test.ts`
-  - Simulates two-phase subtask detection
+- **Subtask Detection Tests**: `packages/shared/src/utils/__tests__/subtask-detection.test.ts`
+
+  - Tests complete subtask detection logic in ConversationLinker
+  - Validates TaskContext handling and invocation matching
+  - Tests conversation inheritance and branch naming
+  - Covers edge cases like multi-message conversations
+
+- **Subtask Linking Simulation**: `packages/shared/src/utils/__tests__/subtask-linker.test.ts`
+  - Simulates the old two-phase subtask detection (for reference)
   - Tests Task tool invocation matching
   - Validates time window enforcement
   - Includes JSON fixtures for various subtask scenarios
 
 Run tests with:
+
 ```bash
 # All tests
 bun test
@@ -420,6 +429,9 @@ for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 - 003: Add sub-task tracking
 - 004: Optimize window function queries
 - 005: Populate account IDs
+- 006: Split conversation hashes
+- 007: Add parent_request_id
+- 008: Update subtask conversation IDs and optimize Task queries
 
 See `docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md` for details.
 
@@ -467,30 +479,36 @@ open http://localhost:3001
 
 ### Sub-task Detection
 
-The proxy automatically detects and tracks sub-tasks spawned using the Task tool through a two-phase process:
+The proxy automatically detects and tracks sub-tasks spawned using the Task tool through an integrated single-phase process:
 
-**Phase 1 - Potential Detection (ConversationLinker):**
-- Identifies single-message user conversations as potential subtasks
-- Sets `isPotentialSubtask` flag for downstream processing
-- Runs efficiently as part of conversation linking
+**Single-Phase Detection (ConversationLinker):**
 
-**Phase 2 - Task Matching (Proxy Service):**
-- Extracts Task tool invocations from Claude responses
-- Matches potential subtasks against stored invocations within 30-second window
+- Complete subtask detection happens within ConversationLinker
+- SQL queries retrieve Task invocations from database (24-hour window)
+- Matches single-message user conversations against recent Task invocations (30-second window)
 - Sets `is_subtask=true` and links to parent via `parent_task_request_id`
+- Subtasks inherit parent's conversation_id with unique branch naming (subtask_1, subtask_2, etc.)
+
+**Architecture Components:**
+
+- **SQL-based Task Retrieval**: Queries response_body for Task tool invocations
+- **ConversationLinker**: Central component handling all conversation and subtask linking logic
+- **TaskContext**: Contains recent Task invocations passed to ConversationLinker
+- **RequestByIdExecutor**: Fetches parent task details for conversation inheritance
+- **Optimized Indexes**: GIN indexes on response_body for efficient queries
 
 **Database Fields:**
 
 - `parent_task_request_id` - Links sub-task requests to their parent task
 - `is_subtask` - Boolean flag indicating if a request is a confirmed sub-task
-- `task_tool_invocation` - JSONB array storing Task tool invocations
+- `task_tool_invocation` - JSONB array storing Task tool invocations (for historical queries)
 
 **Sub-task Linking:**
 
 - Sub-tasks are linked by exact matching of user message to Task tool invocation prompts
 - The system creates parent-child relationships between tasks and their sub-tasks
 - Multiple sub-tasks can be spawned from a single parent request
-- Sub-tasks maintain separate conversation IDs but are linked via parent_task_request_id
+- Sub-tasks inherit parent task's conversation_id with sequential branch IDs (subtask_1, subtask_2, etc.)
 
 ### Dashboard Visualization
 

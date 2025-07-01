@@ -50,9 +50,11 @@ We needed a way to automatically detect and link these sub-tasks to provide bett
 
 ## Decision
 
-We will implement **two-phase subtask detection** to automatically detect and link sub-tasks:
-1. **Phase 1 (ConversationLinker)**: Detect potential subtasks based on message structure
-2. **Phase 2 (Proxy Service)**: Match against actual Task tool invocations
+We implemented **single-phase subtask detection** entirely within the ConversationLinker component:
+
+- In-memory caching of Task tool invocations via TaskInvocationCache
+- Complete subtask detection during conversation linking
+- Subtasks inherit parent conversation ID with unique branch naming
 
 ### Implementation Details
 
@@ -66,7 +68,7 @@ We will implement **two-phase subtask detection** to automatically detect and li
      if (messages[0].role !== 'user') return false
 
      const textContent = this.extractTextContent(messages[0])
-     
+
      // This is a broad, first-pass filter. We intentionally flag ANY non-empty
      // single user message as a potential sub-task. The downstream proxy service
      // is responsible for the precise matching against actual Task tool invocations.
@@ -105,7 +107,7 @@ We will implement **two-phase subtask detection** to automatically detect and li
      if (!request.isPotentialSubtask) return
 
      const userMessage = extractTextContent(request.messages[0])
-     
+
      // Find recent Task invocations
      const recentTasks = await findTaskInvocations({
        since: new Date(request.timestamp - TASK_MATCH_WINDOW),
@@ -155,6 +157,7 @@ We will implement **two-phase subtask detection** to automatically detect and li
 The two-phase approach separates concerns:
 
 1. **ConversationLinker** (Phase 1) focuses on conversation structure and linking
+
    - Identifies potential subtasks based on message patterns
    - Doesn't need database access for Task invocations
    - Can run efficiently as part of conversation processing
@@ -232,32 +235,55 @@ This separation allows subtasks to be separate conversations (different conversa
 
 ## Architecture Evolution (2025-01)
 
-### Moving Subtask Logic to ConversationLinker
+### Single-Phase Subtask Detection in ConversationLinker
 
-We are evolving the architecture to move all subtask detection logic into the ConversationLinker component:
+In January 2025, we completed a major architectural evolution to consolidate all subtask detection logic into the ConversationLinker component:
 
-**Current Architecture**:
-- ConversationLinker detects potential subtasks (Phase 1)
-- StorageAdapter/Writer performs Task matching (Phase 2)
-- Subtasks get separate conversation IDs
+**Previous Architecture (Two-Phase)**:
 
-**New Architecture**:
-- TaskInvocationCache stores recent Task invocations in memory
-- ConversationLinker performs complete subtask detection
+- ConversationLinker detected potential subtasks (Phase 1)
+- StorageAdapter/Writer performed Task matching (Phase 2)
+- Subtasks got separate conversation IDs
+- Required database queries during write operations
+
+**Current Architecture (Single-Phase)**:
+
+- SQL queries retrieve Task invocations from database (24-hour window)
+- ConversationLinker performs complete subtask detection in one phase
 - Subtasks inherit parent's conversation_id with unique branch_id
-- No database queries needed during conversation linking
+- Optimized indexes for efficient Task tool queries
+- StorageAdapter passes TaskContext to ConversationLinker
 
-**Benefits**:
-1. **Single Responsibility**: ConversationLinker handles all linking logic
-2. **Performance**: In-memory cache eliminates database lookups
-3. **Unified Conversations**: Subtasks share parent's conversation_id
-4. **Cleaner Dashboard**: All related messages in one conversation tree
+**Implementation Details**:
 
-**Implementation Components**:
-- `TaskInvocationCache`: In-memory cache with 5-minute retention
-- `RequestByIdExecutor`: Fetches parent task details
-- `subtask_N` branch naming for clear identification
-- Database migration to update existing subtask conversation IDs
+1. **SQL-based Task Retrieval** (StorageAdapter.loadTaskContext):
+
+   - Queries last 24 hours of Task invocations per domain
+   - Filters to 30-second window for actual matching
+   - Optimized with GIN indexes on JSONB response_body
+   - No memory overhead from caching
+
+2. **ConversationLinker Updates**:
+
+   - Added `detectSubtask()` method for complete detection
+   - Accepts optional `TaskContext` with recent invocations
+   - Uses `RequestByIdExecutor` to fetch parent task details
+   - Assigns sequential `subtask_N` branch IDs
+
+3. **Database Migration** (008-update-subtask-conversation-ids.ts):
+   - Updates existing subtasks to inherit parent conversation IDs
+   - Fixes branch numbering for consistency
+   - Creates optimized indexes for Task invocation queries
+   - Maintains backward compatibility
+
+**Benefits Achieved**:
+
+1. **Single Responsibility**: All linking logic in one component
+2. **Persistence**: Survives proxy restarts, no cache warming needed
+3. **Unified Conversations**: Related messages stay together
+4. **Cleaner Dashboard**: Single conversation tree for task hierarchies
+5. **Simpler Testing**: All logic testable in isolation
+6. **Extended Window**: 24-hour lookback for better subtask detection
 
 ## Future Enhancements
 
@@ -275,5 +301,6 @@ We are evolving the architecture to move all subtask detection logic into the Co
 
 ---
 
-Date: 2024-06-25
+Date: 2024-06-25 (Initial)
+Updated: 2025-01-07 (Single-phase architecture)
 Authors: Development Team
