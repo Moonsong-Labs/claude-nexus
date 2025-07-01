@@ -88,73 +88,110 @@ function hasVisibleText(message: any): boolean {
 
 /**
  * Find tool execution pairs across requests
+ * This function now works with the optimized query where only the last request per branch has full body
  */
 function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   const executions: ToolExecution[] = []
-  const toolUseMap = new Map<string, { requestId: string; timestamp: Date; name: string }>()
 
-  // First pass: collect all tool uses
-  for (const request of requests) {
-    const timestamp = new Date(request.timestamp)
+  // First, check all requests for response_body with tool uses
+  // This is the most reliable source since response bodies are always included
+  const toolUsesByRequest = new Map<string, Array<{ id: string; name: string }>>()
 
-    // Check in request body messages
-    const messages = request.body?.messages || []
-    for (const message of messages) {
-      if (message.role === 'assistant') {
-        const toolUses = extractToolUses(message)
-        for (const tool of toolUses) {
-          toolUseMap.set(tool.id, {
-            requestId: request.request_id,
-            timestamp,
-            name: tool.name,
+  requests.forEach(request => {
+    if (request.response_body?.content && Array.isArray(request.response_body.content)) {
+      const toolUses: Array<{ id: string; name: string }> = []
+      request.response_body.content.forEach((item: any) => {
+        if (item.type === 'tool_use' && item.id) {
+          toolUses.push({
+            id: item.id,
+            name: item.name || 'unknown',
           })
         }
+      })
+      if (toolUses.length > 0) {
+        toolUsesByRequest.set(request.request_id, toolUses)
       }
     }
+  })
 
-    // Also check in response body for tool uses
-    if (request.response_body?.content) {
-      const responseContent = request.response_body.content
-      if (Array.isArray(responseContent)) {
-        for (const item of responseContent) {
-          if (item.type === 'tool_use' && item.id) {
-            toolUseMap.set(item.id, {
-              requestId: request.request_id,
-              timestamp,
-              name: item.name || 'unknown',
-            })
-          }
-        }
-      }
-    }
-  }
+  // Now look for tool results in subsequent requests
+  // We need to check the requests that have full body data
+  const requestsWithBody = requests.filter(r => r.body?.messages)
 
-  // Second pass: find matching tool results
-  for (const request of requests) {
-    const messages = request.body?.messages || []
-    const timestamp = new Date(request.timestamp)
+  requestsWithBody.forEach(request => {
+    const messages = request.body.messages || []
 
-    for (const message of messages) {
+    // Look for tool results in user messages
+    messages.forEach(message => {
       if (message.role === 'user') {
         const toolResults = extractToolResults(message)
-        for (const toolId of toolResults) {
-          const toolUse = toolUseMap.get(toolId)
-          if (toolUse) {
-            executions.push({
-              toolUseRequestId: toolUse.requestId,
-              toolResultRequestId: request.request_id,
-              toolUseTimestamp: toolUse.timestamp,
-              toolResultTimestamp: timestamp,
-              durationMs: timestamp.getTime() - toolUse.timestamp.getTime(),
-              toolName: toolUse.name,
-            })
-            // Remove to handle duplicates properly
-            toolUseMap.delete(toolId)
+
+        toolResults.forEach(toolResultId => {
+          // Find which request had this tool use
+          let foundToolUse = false
+
+          for (const [toolUseRequestId, toolUses] of toolUsesByRequest.entries()) {
+            const matchingTool = toolUses.find(t => t.id === toolResultId)
+            if (matchingTool) {
+              // Find the requests to get timestamps
+              const toolUseRequest = requests.find(r => r.request_id === toolUseRequestId)
+              if (toolUseRequest) {
+                const toolUseTime = new Date(toolUseRequest.timestamp)
+                const toolResultTime = new Date(request.timestamp)
+
+                // Only add if result comes after use
+                if (toolResultTime > toolUseTime) {
+                  executions.push({
+                    toolUseRequestId: toolUseRequestId,
+                    toolResultRequestId: request.request_id,
+                    toolUseTimestamp: toolUseTime,
+                    toolResultTimestamp: toolResultTime,
+                    durationMs: toolResultTime.getTime() - toolUseTime.getTime(),
+                    toolName: matchingTool.name,
+                  })
+                  foundToolUse = true
+                  break
+                }
+              }
+            }
           }
-        }
+
+          // If we didn't find the tool use in response bodies, check message history
+          if (!foundToolUse) {
+            // Look through all assistant messages in the conversation for this tool use
+            for (let i = messages.length - 1; i >= 0; i--) {
+              const msg = messages[i]
+              if (msg.role === 'assistant') {
+                const toolUses = extractToolUses(msg)
+                const matchingTool = toolUses.find(t => t.id === toolResultId)
+                if (matchingTool) {
+                  // Estimate timing based on message position
+                  // This is less accurate but better than nothing
+                  const messageRatio = i / messages.length
+                  const firstRequestTime = new Date(requests[0].timestamp).getTime()
+                  const lastRequestTime = new Date(
+                    requests[requests.length - 1].timestamp
+                  ).getTime()
+                  const estimatedToolUseTime =
+                    firstRequestTime + (lastRequestTime - firstRequestTime) * messageRatio
+
+                  executions.push({
+                    toolUseRequestId: request.request_id, // We don't know the exact request
+                    toolResultRequestId: request.request_id,
+                    toolUseTimestamp: new Date(estimatedToolUseTime),
+                    toolResultTimestamp: new Date(request.timestamp),
+                    durationMs: new Date(request.timestamp).getTime() - estimatedToolUseTime,
+                    toolName: matchingTool.name,
+                  })
+                  break
+                }
+              }
+            }
+          }
+        })
       }
-    }
-  }
+    })
+  })
 
   return executions
 }
