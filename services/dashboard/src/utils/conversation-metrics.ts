@@ -128,6 +128,7 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
 
 /**
  * Find user reply intervals and calculate net duration excluding tool execution
+ * Simple approach: user reply time = user message timestamp - assistant message timestamp
  */
 function findReplyIntervals(
   requests: ConversationRequest[],
@@ -135,51 +136,58 @@ function findReplyIntervals(
 ): ReplyInterval[] {
   const intervals: ReplyInterval[] = []
 
-  // Find assistant messages with visible text
-  const assistantRequests = requests.filter(req => {
-    const messages = req.body?.messages || []
-    const lastMessage = messages[messages.length - 1]
-    return lastMessage?.role === 'assistant' && hasVisibleText(lastMessage)
-  })
+  // For each request, check if it has an assistant response
+  requests.forEach((request, index) => {
+    // Check if this request has an assistant response with visible text
+    if (request.response_body?.content && Array.isArray(request.response_body.content)) {
+      const hasAssistantText = request.response_body.content.some(
+        (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
+      )
 
-  // For each assistant message, find the next user message
-  for (const assistantReq of assistantRequests) {
-    const assistantTime = new Date(assistantReq.timestamp)
-    const assistantIdx = requests.findIndex(r => r.request_id === assistantReq.request_id)
+      if (hasAssistantText) {
+        // Look for the next user request
+        for (let i = index + 1; i < requests.length; i++) {
+          const nextRequest = requests[i]
 
-    // Look for next user message with visible text
-    for (let i = assistantIdx + 1; i < requests.length; i++) {
-      const userReq = requests[i]
-      const messages = userReq.body?.messages || []
-      const lastMessage = messages[messages.length - 1]
+          // Check if the next request has user content with visible text
+          if (nextRequest.body?.messages && Array.isArray(nextRequest.body.messages)) {
+            const lastMessage = nextRequest.body.messages[nextRequest.body.messages.length - 1]
 
-      if (lastMessage?.role === 'user' && hasVisibleText(lastMessage)) {
-        const userTime = new Date(userReq.timestamp)
-        const rawDuration = userTime.getTime() - assistantTime.getTime()
+            if (lastMessage?.role === 'user' && hasVisibleText(lastMessage)) {
+              // Calculate time difference
+              const assistantTime = new Date(request.timestamp)
+              const userTime = new Date(nextRequest.timestamp)
+              const rawDuration = userTime.getTime() - assistantTime.getTime()
 
-        // Calculate tool execution time that overlaps this interval
-        let toolExecutionMs = 0
-        for (const exec of toolExecutions) {
-          // Tool execution must start after assistant message and complete before user message
-          if (exec.toolUseTimestamp >= assistantTime && exec.toolResultTimestamp <= userTime) {
-            toolExecutionMs += exec.durationMs
+              // Calculate tool execution time that overlaps this interval
+              let toolExecutionMs = 0
+              for (const exec of toolExecutions) {
+                // Tool execution must start after assistant message and complete before user message
+                if (
+                  exec.toolUseTimestamp >= assistantTime &&
+                  exec.toolResultTimestamp <= userTime
+                ) {
+                  toolExecutionMs += exec.durationMs
+                }
+              }
+
+              intervals.push({
+                assistantRequestId: request.request_id,
+                userRequestId: nextRequest.request_id,
+                assistantTimestamp: assistantTime,
+                userTimestamp: userTime,
+                rawDurationMs: rawDuration,
+                toolExecutionMs,
+                netDurationMs: rawDuration - toolExecutionMs,
+              })
+
+              break // Found the next user message
+            }
           }
         }
-
-        intervals.push({
-          assistantRequestId: assistantReq.request_id,
-          userRequestId: userReq.request_id,
-          assistantTimestamp: assistantTime,
-          userTimestamp: userTime,
-          rawDurationMs: rawDuration,
-          toolExecutionMs,
-          netDurationMs: rawDuration - toolExecutionMs,
-        })
-
-        break // Found the next user message, move to next assistant message
       }
     }
-  }
+  })
 
   return intervals
 }
