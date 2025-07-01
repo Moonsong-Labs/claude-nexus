@@ -282,7 +282,72 @@ describe('ConversationLinker', () => {
   })
 
   describe('Branch detection', () => {
-    test('should create new branch when parent has existing children', async () => {
+    test('should NOT create branch for second message even with common first message', async () => {
+      // This tests the bug fix: second message in a new conversation should stay on main branch
+      // even when the first message content appears in other conversations
+      const messages = [
+        { role: 'user', content: 'You are a Rust SDK upgrade specialist...' }, // Common first message
+        { role: 'assistant', content: 'I can help with the upgrade' },
+        { role: 'user', content: 'Please proceed' },
+      ]
+
+      mockQueryExecutor = async criteria => {
+        // When looking for parent by hash
+        if (criteria.currentMessageHash && !criteria.parentMessageHash) {
+          // Simulate finding the parent in SAME conversation
+          return [
+            {
+              request_id: 'first-request',
+              conversation_id: 'new-conv-123',
+              branch_id: 'main',
+              current_message_hash: criteria.currentMessageHash,
+              system_hash: 'some-hash',
+            },
+          ]
+        }
+
+        // When checking for existing children in OTHER conversations
+        if (criteria.parentMessageHash && !criteria.conversationId) {
+          // This simulates the bug: finding children in OTHER conversations
+          return [
+            {
+              request_id: 'other-conv-child',
+              conversation_id: 'OTHER-CONV-456', // Different conversation!
+              branch_id: 'main',
+              current_message_hash: 'some-other-hash',
+              system_hash: 'other-system-hash',
+            },
+          ]
+        }
+
+        // When checking for children in SAME conversation (after fix)
+        if (criteria.parentMessageHash && criteria.conversationId === 'new-conv-123') {
+          // No children in same conversation - correct!
+          return []
+        }
+
+        return []
+      }
+
+      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages,
+        systemPrompt: 'You are a helpful assistant',
+        requestId: 'second-request',
+        messageCount: 3,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      // The second message should stay on 'main' branch, NOT create a new branch
+      expect(result.conversationId).toBe('new-conv-123')
+      expect(result.parentRequestId).toBe('first-request')
+      expect(result.branchId).toBe('main') // Should stay on main branch!
+    })
+
+    test('should create new branch when parent has existing children in SAME conversation', async () => {
       const messages = [
         { role: 'user', content: 'First' },
         { role: 'assistant', content: 'Second' },
@@ -291,26 +356,29 @@ describe('ConversationLinker', () => {
 
       let childrenQueried = false
       mockQueryExecutor = async criteria => {
-        if (criteria.parentMessageHash) {
+        // First find the parent
+        if (criteria.currentMessageHash && !criteria.parentMessageHash) {
+          return [
+            {
+              request_id: 'parent-request',
+              conversation_id: 'same-conv-789',
+              branch_id: 'main',
+              current_message_hash: criteria.currentMessageHash,
+              system_hash: 'sys-hash',
+            },
+          ]
+        }
+
+        // Then check for children in same conversation
+        if (criteria.parentMessageHash && criteria.conversationId === 'same-conv-789') {
           childrenQueried = true
-          // Return existing children
+          // Return existing children IN SAME CONVERSATION
           return [
             {
               request_id: 'existing-child',
-              conversation_id: 'conv-1',
+              conversation_id: 'same-conv-789',
               branch_id: 'main',
               current_message_hash: 'child-hash',
-              system_hash: null,
-            },
-          ]
-        } else if (criteria.currentMessageHash) {
-          // Return parent match
-          return [
-            {
-              request_id: 'parent-1',
-              conversation_id: 'conv-1',
-              branch_id: 'main',
-              current_message_hash: criteria.currentMessageHash,
               system_hash: null,
             },
           ]
@@ -330,8 +398,9 @@ describe('ConversationLinker', () => {
       const result = await linker.linkConversation(request)
 
       expect(childrenQueried).toBe(true)
-      expect(result.conversationId).toBe('conv-1')
-      expect(result.branchId).toMatch(/^branch_\d+$/)
+      expect(result.conversationId).toBe('same-conv-789')
+      expect(result.parentRequestId).toBe('parent-request')
+      expect(result.branchId).toMatch(/^branch_\d+$/) // Should create a branch!
     })
   })
 })

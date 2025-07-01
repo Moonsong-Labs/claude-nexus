@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../middleware/logger.js'
+import type { ParentQueryCriteria } from '@claude-nexus/shared'
 
 interface StorageRequest {
   requestId: string
@@ -294,15 +295,7 @@ export class StorageWriter {
    * Find parent requests based on criteria
    * Used by ConversationLinker
    */
-  async findParentRequests(criteria: {
-    domain: string
-    messageCount?: number
-    parentMessageHash?: string
-    currentMessageHash?: string
-    systemHash?: string | null
-    excludeRequestId?: string
-    beforeTimestamp?: Date
-  }): Promise<
+  async findParentRequests(criteria: ParentQueryCriteria): Promise<
     Array<{
       request_id: string
       conversation_id: string
@@ -350,6 +343,12 @@ export class StorageWriter {
         paramCount++
         conditions.push(`timestamp < $${paramCount}`)
         values.push(criteria.beforeTimestamp)
+      }
+
+      if (criteria.conversationId) {
+        paramCount++
+        conditions.push(`conversation_id = $${paramCount}`)
+        values.push(criteria.conversationId)
       }
 
       const query = `

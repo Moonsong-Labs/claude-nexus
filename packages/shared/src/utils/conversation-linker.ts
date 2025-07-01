@@ -48,6 +48,7 @@ export interface ParentQueryCriteria {
   systemHash?: string | null
   excludeRequestId?: string
   beforeTimestamp?: Date
+  conversationId?: string
 }
 
 interface ParentRequest {
@@ -212,7 +213,8 @@ export class ConversationLinker {
             domain,
             parent.current_message_hash,
             requestId,
-            timestamp
+            timestamp,
+            parent.conversation_id
           )
           branchId =
             existingChildren.length > 0 ? this.generateBranchId(timestamp) : parent.branch_id
@@ -588,7 +590,8 @@ export class ConversationLinker {
     domain: string,
     parentMessageHash: string,
     excludeRequestId: string,
-    beforeTimestamp?: Date
+    beforeTimestamp?: Date,
+    conversationId?: string
   ): Promise<ParentRequest[]> {
     try {
       const criteria: ParentQueryCriteria = {
@@ -596,6 +599,7 @@ export class ConversationLinker {
         parentMessageHash,
         excludeRequestId,
         beforeTimestamp,
+        conversationId,
       }
 
       return await this.queryExecutor(criteria)
