@@ -62,21 +62,24 @@ function hasVisibleText(message: any): boolean {
 
 /**
  * Find tool execution pairs across requests
- * This function now works with the optimized query where only the last request per branch has full body
+ * Simple approach: tool execution time = tool_result timestamp - tool_use timestamp
  */
 function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   const executions: ToolExecution[] = []
 
-  // Strategy: Only calculate metrics for tools where we have accurate timing information
-  // This means we need both tool_use and tool_result in response_body fields
-
-  // Build a map of all tool uses from response bodies with their request info
+  // Map to store tool uses by their ID
   const toolUseMap = new Map<string, { request: ConversationRequest; toolName: string }>()
 
+  // First pass: collect all tool uses
+  let toolUsesFound = 0
+  let toolResultsFound = 0
+
   requests.forEach(request => {
+    // Check response_body for tool uses
     if (request.response_body?.content && Array.isArray(request.response_body.content)) {
       request.response_body.content.forEach((item: any) => {
         if (item.type === 'tool_use' && item.id) {
+          toolUsesFound++
           toolUseMap.set(item.id, {
             request: request,
             toolName: item.name || 'unknown',
@@ -86,42 +89,51 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
     }
   })
 
-  // Now look for tool results in response bodies
+  // Second pass: find tool results in request bodies (user sends tool results)
   requests.forEach(request => {
-    if (request.response_body?.content && Array.isArray(request.response_body.content)) {
-      request.response_body.content.forEach((item: any) => {
-        if (item.type === 'tool_result' && item.tool_use_id) {
-          const toolUseInfo = toolUseMap.get(item.tool_use_id)
-          if (toolUseInfo) {
-            const toolUseTime = new Date(toolUseInfo.request.timestamp)
-            const toolResultTime = new Date(request.timestamp)
-            const durationMs = toolResultTime.getTime() - toolUseTime.getTime()
+    // Tool results come from the user in the request body
+    if (request.body?.messages && Array.isArray(request.body.messages)) {
+      // Look at the last message (which should be the user's message)
+      const lastMessage = request.body.messages[request.body.messages.length - 1]
+      if (
+        lastMessage?.role === 'user' &&
+        lastMessage.content &&
+        Array.isArray(lastMessage.content)
+      ) {
+        lastMessage.content.forEach((item: any) => {
+          if (item.type === 'tool_result' && item.tool_use_id) {
+            toolResultsFound++
+            const toolUseInfo = toolUseMap.get(item.tool_use_id)
+            if (toolUseInfo) {
+              // Simple calculation: tool_result timestamp - tool_use timestamp
+              const toolUseTime = new Date(toolUseInfo.request.timestamp)
+              const toolResultTime = new Date(request.timestamp)
+              const durationMs = toolResultTime.getTime() - toolUseTime.getTime()
 
-            // Sanity checks:
-            // 1. Result must come after use
-            // 2. Duration must be positive
-            // 3. Duration shouldn't exceed 5 minutes (tools shouldn't take that long)
-            const MAX_REASONABLE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
-
-            if (
-              toolResultTime > toolUseTime &&
-              durationMs > 0 &&
-              durationMs < MAX_REASONABLE_DURATION_MS
-            ) {
-              executions.push({
-                toolUseRequestId: toolUseInfo.request.request_id,
-                toolResultRequestId: request.request_id,
-                toolUseTimestamp: toolUseTime,
-                toolResultTimestamp: toolResultTime,
-                durationMs,
-                toolName: toolUseInfo.toolName,
-              })
+              // Only include if duration is positive (result after use)
+              if (durationMs > 0) {
+                executions.push({
+                  toolUseRequestId: toolUseInfo.request.request_id,
+                  toolResultRequestId: request.request_id,
+                  toolUseTimestamp: toolUseTime,
+                  toolResultTimestamp: toolResultTime,
+                  durationMs,
+                  toolName: toolUseInfo.toolName,
+                })
+              }
             }
           }
-        }
-      })
+        })
+      }
     }
   })
+
+  // Debug: Log what we found
+  if (toolUsesFound > 0 || toolResultsFound > 0) {
+    console.log(
+      `[Tool Metrics Debug] Found ${toolUsesFound} tool uses and ${toolResultsFound} tool results, matched ${executions.length} pairs`
+    )
+  }
 
   return executions
 }
