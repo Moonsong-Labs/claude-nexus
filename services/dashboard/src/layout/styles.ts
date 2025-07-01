@@ -332,6 +332,12 @@ export const dashboardStyles = `
     padding-bottom: 0.5rem;
   }
 
+  /* Hide truncation elements in collapsed tool messages */
+  .hide-tools .message-tool-use .message-truncated,
+  .hide-tools .message-tool-result .message-truncated {
+    display: none;
+  }
+
   .hide-tools .message-tool-use .message-content::after,
   .hide-tools .message-tool-result .message-content::after {
     content: '...';
