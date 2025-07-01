@@ -9,6 +9,10 @@ import {
   getBranchColor,
 } from '../utils/conversation-graph.js'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
+import {
+  calculateConversationMetrics,
+  formatDuration as formatMetricDuration,
+} from '../utils/conversation-metrics.js'
 import type { ConversationRequest } from '../types/conversation.js'
 
 export const conversationDetailRoutes = new Hono()
@@ -375,6 +379,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsWithTasks)
     }
 
+    // Calculate metrics using the new utility
+    const metrics = calculateConversationMetrics(filteredRequests)
+
     // Calculate stats for selected branch or total
     let displayStats
     if (selectedBranch && branchStats[selectedBranch]) {
@@ -408,9 +415,14 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         inferenceTime: inferenceTime,
         requestCount: filteredRequests.length,
         totalSubtasks: branchSubtasks,
+        toolExecution: metrics.toolExecution,
+        userReply: metrics.userReply,
       }
     } else {
       // Show total stats for all branches
+      // Calculate metrics for all requests
+      const allMetrics = calculateConversationMetrics(conversation.requests)
+
       displayStats = {
         messageCount: conversation.message_count || 0,
         totalTokens: conversation.total_tokens,
@@ -419,6 +431,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         inferenceTime: totalInferenceTime,
         requestCount: conversation.requests.length,
         totalSubtasks: totalSubtasksSpawned,
+        toolExecution: allMetrics.toolExecution,
+        userReply: allMetrics.userReply,
       }
     }
 
@@ -464,6 +478,22 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <div class="conversation-stat-card">
           <span class="conversation-stat-label">AI Inference:</span>
           <span class="conversation-stat-value">${formatDuration(displayStats.inferenceTime)}</span>
+        </div>
+        <div class="conversation-stat-card">
+          <span class="conversation-stat-label">Tool Execution:</span>
+          <span class="conversation-stat-value">
+            ${displayStats.toolExecution.count > 0
+              ? `${formatMetricDuration(displayStats.toolExecution.totalMs)} (avg ${formatMetricDuration(displayStats.toolExecution.averageMs)})`
+              : 'No tools used'}
+          </span>
+        </div>
+        <div class="conversation-stat-card">
+          <span class="conversation-stat-label">Time to Reply:</span>
+          <span class="conversation-stat-value">
+            ${displayStats.userReply.count > 0
+              ? `avg ${formatMetricDuration(displayStats.userReply.averageMs)}`
+              : 'No replies'}
+          </span>
         </div>
       </div>
 
