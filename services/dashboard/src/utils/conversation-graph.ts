@@ -1,4 +1,4 @@
-import { calculateSimpleLayout } from './simple-graph-layout.js'
+import { calculateSimpleLayout } from './simple-graph-layout.ts'
 
 /**
  * Escape HTML special characters

@@ -1,5 +1,5 @@
 import { html, raw } from 'hono/html'
-import { dashboardStyles } from './styles.js'
+import { dashboardStyles } from './styles.ts'
 
 /**
  * Dashboard HTML layout template

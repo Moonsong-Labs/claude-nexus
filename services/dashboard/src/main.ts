@@ -30,8 +30,8 @@ for (const envPath of envPaths) {
 
 // Now import other modules after env is loaded
 import { serve } from '@hono/node-server'
-import { createDashboardApp } from './app.js'
-import { container } from './container.js'
+import { createDashboardApp } from './app.ts'
+import { container } from './container.ts'
 
 // Parse command line arguments
 const args = process.argv.slice(2)

@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
-import { ProxyApiClient } from '../services/api-client.js'
+import { ProxyApiClient } from '../services/api-client.ts'
 
 // Import route modules
-import { authRoutes } from './auth.js'
-import { overviewRoutes } from './overview.js'
-import { requestsRoutes } from './requests.js'
-import { requestDetailsRoutes } from './request-details.js'
-import { tokenUsageRoutes } from './token-usage.js'
+import { authRoutes } from './auth.ts'
+import { overviewRoutes } from './overview.ts'
+import { requestsRoutes } from './requests.ts'
+import { requestDetailsRoutes } from './request-details.ts'
+import { tokenUsageRoutes } from './token-usage.ts'
 
 export const dashboardRoutes = new Hono<{
   Variables: {

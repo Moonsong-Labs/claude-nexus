@@ -1,4 +1,4 @@
-import { ConversationGraph, GraphLayout, LayoutNode, LayoutEdge } from './conversation-graph.js'
+import { ConversationGraph, GraphLayout, LayoutNode, LayoutEdge } from './conversation-graph.ts'
 
 /**
  * Simple layout algorithm for conversation graphs

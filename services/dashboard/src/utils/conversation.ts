@@ -1,7 +1,7 @@
 import { marked } from 'marked'
 import sanitizeHtml from 'sanitize-html'
-import { formatDuration as formatDurationUtil } from './formatters.js'
-import { isSparkRecommendation, parseSparkRecommendation } from './spark.js'
+import { formatDuration as formatDurationUtil } from './formatters.ts'
+import { isSparkRecommendation, parseSparkRecommendation } from './spark.ts'
 import { stripSystemReminder } from '@claude-nexus/shared'
 
 export interface ParsedMessage {

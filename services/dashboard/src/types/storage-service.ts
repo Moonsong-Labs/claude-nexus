@@ -2,7 +2,7 @@
  * Interface for storage service improvements
  */
 
-import type { ConversationSummary } from './conversation.js'
+import type { ConversationSummary } from './conversation.ts'
 
 export interface StorageServiceEnhancements {
   /**

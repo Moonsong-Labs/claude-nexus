@@ -1,14 +1,14 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 // Remove static file serving - will inline CSS instead
-import { container } from './container.js'
-import { loggingMiddleware, logger } from './middleware/logger.js'
+import { container } from './container.ts'
+import { loggingMiddleware, logger } from './middleware/logger.ts'
 // Use the new API-based dashboard routes
-import { dashboardRoutes } from './routes/dashboard-api.js'
-import { conversationDetailRoutes } from './routes/conversation-detail.js'
-import { dashboardAuth } from './middleware/auth.js'
+import { dashboardRoutes } from './routes/dashboard-api.ts'
+import { conversationDetailRoutes } from './routes/conversation-detail.ts'
+import { dashboardAuth } from './middleware/auth.ts'
 import { getErrorMessage, hasStatusCode } from '@claude-nexus/shared'
-import { sparkProxyRoutes } from './routes/spark-proxy.js'
+import { sparkProxyRoutes } from './routes/spark-proxy.ts'
 
 /**
  * Create and configure the Dashboard application

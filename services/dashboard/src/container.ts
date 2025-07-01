@@ -1,7 +1,7 @@
 import { Pool } from 'pg'
-import { StorageReader } from './storage/reader.js'
-import { ProxyApiClient } from './services/api-client.js'
-import { logger } from './middleware/logger.js'
+import { StorageReader } from './storage/reader.ts'
+import { ProxyApiClient } from './services/api-client.ts'
+import { logger } from './middleware/logger.ts'
 import { config } from '@claude-nexus/shared/config'
 
 /**
