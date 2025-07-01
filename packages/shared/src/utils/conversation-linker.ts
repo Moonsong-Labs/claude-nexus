@@ -33,6 +33,9 @@ export interface LinkingResult {
   currentMessageHash: string
   parentMessageHash: string | null
   systemHash: string | null
+  isPotentialSubtask?: boolean
+  parentTaskRequestId?: string
+  isSubtask?: boolean
 }
 
 interface CompactInfo {
@@ -115,6 +118,22 @@ export class ConversationLinker {
             }
           }
         }
+
+        // Check for potential sub-task (same priority as compact)
+        const isPotentialSubtask = this.detectPotentialSubtask(messages[0])
+        if (isPotentialSubtask) {
+          // Return with flag indicating this needs sub-task parent matching
+          return {
+            conversationId: null,
+            parentRequestId: null,
+            branchId: BRANCH_MAIN,
+            currentMessageHash,
+            parentMessageHash: null,
+            systemHash,
+            isPotentialSubtask: true,
+          }
+        }
+
         // Case b: Skip - no parent
         return {
           conversationId: null,
@@ -734,5 +753,30 @@ export class ConversationLinker {
     const minutes = date.getMinutes().toString().padStart(2, '0')
     const seconds = date.getSeconds().toString().padStart(2, '0')
     return `${COMPACT_PREFIX}${hours}${minutes}${seconds}`
+  }
+
+  private detectPotentialSubtask(message: ClaudeMessage): boolean {
+    // Check if this message could be a sub-task spawned by Task tool
+    // Pattern: Single user message that starts a fresh conversation
+    if (message.role !== 'user') {
+      return false
+    }
+
+    // Extract content
+    let textContent: string | null = null
+    if (typeof message.content === 'string') {
+      textContent = message.content
+    } else if (Array.isArray(message.content)) {
+      // Get the first text content
+      const textItem = message.content.find(item => item.type === 'text')
+      if (textItem && typeof textItem.text === 'string') {
+        textContent = textItem.text
+      }
+    }
+
+    // Sub-tasks typically have a specific pattern but we'll mark any single
+    // user message as potentially being a sub-task and let the proxy service
+    // do the actual matching against Task tool invocations
+    return textContent !== null && textContent.trim().length > 0
   }
 }

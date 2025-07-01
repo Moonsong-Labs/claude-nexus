@@ -655,7 +655,7 @@ export class StorageWriter {
   /**
    * Find a matching Task invocation in the last 60 seconds
    */
-  private async findMatchingTaskInvocation(
+  async findMatchingTaskInvocation(
     userContent: string,
     timestamp: Date
   ): Promise<{ request_id: string; timestamp: Date } | null> {
@@ -694,6 +694,38 @@ export class StorageWriter {
         metadata: {
           error: error instanceof Error ? error.message : String(error),
           query: error instanceof Error && 'message' in error ? error.message : undefined,
+        },
+      })
+      return null
+    }
+  }
+
+  /**
+   * Get request details for linking
+   */
+  async getRequestDetails(
+    requestId: string
+  ): Promise<{ conversation_id: string; branch_id: string } | null> {
+    try {
+      const query = `
+        SELECT conversation_id, branch_id
+        FROM api_requests
+        WHERE request_id = $1
+        LIMIT 1
+      `
+
+      const result = await this.pool.query(query, [requestId])
+
+      if (result.rows.length > 0) {
+        return result.rows[0]
+      }
+
+      return null
+    } catch (error) {
+      logger.error('Failed to get request details', {
+        metadata: {
+          requestId,
+          error: error instanceof Error ? error.message : String(error),
         },
       })
       return null

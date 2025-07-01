@@ -62,6 +62,9 @@ export class MetricsService {
       systemHash: string | null
       branchId?: string
       parentRequestId?: string
+      isPotentialSubtask?: boolean
+      parentTaskRequestId?: string
+      isSubtask?: boolean
     },
     responseHeaders?: Record<string, string>,
     fullResponseBody?: any,
@@ -250,6 +253,9 @@ export class MetricsService {
       systemHash: string | null
       branchId?: string
       parentRequestId?: string
+      isPotentialSubtask?: boolean
+      parentTaskRequestId?: string
+      isSubtask?: boolean
     },
     responseHeaders?: Record<string, string>,
     fullResponseBody?: any,
@@ -305,6 +311,8 @@ export class MetricsService {
         systemHash: conversationData?.systemHash,
         messageCount: messageCount,
         parentRequestId: conversationData?.parentRequestId,
+        parentTaskRequestId: conversationData?.parentTaskRequestId,
+        isSubtask: conversationData?.isSubtask,
       })
 
       // Store response

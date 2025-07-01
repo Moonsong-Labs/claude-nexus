@@ -299,6 +299,53 @@ export class StorageAdapter {
       messageCount,
     })
 
+    // If this is a potential sub-task, try to find the parent task
+    if (result.isPotentialSubtask && messages.length > 0) {
+      const firstMessage = messages[0]
+      if (firstMessage.role === 'user') {
+        // Extract user content
+        let userContent: string | null = null
+        if (typeof firstMessage.content === 'string') {
+          userContent = firstMessage.content
+        } else if (Array.isArray(firstMessage.content)) {
+          const textItem = firstMessage.content.find(item => item.type === 'text')
+          if (textItem && typeof textItem.text === 'string') {
+            userContent = textItem.text
+          }
+        }
+
+        if (userContent) {
+          // Use writer to find matching task invocation
+          const match = await this.writer.findMatchingTaskInvocation(
+            userContent,
+            new Date() // Current timestamp
+          )
+
+          if (match) {
+            // Found a parent task! Update the result
+            // First get the parent's conversation details
+            const parentDetails = await this.writer.getRequestDetails(match.request_id)
+            if (parentDetails) {
+              result.conversationId = parentDetails.conversation_id
+              result.parentRequestId = match.request_id
+              result.parentTaskRequestId = match.request_id
+              result.isSubtask = true
+              result.branchId = parentDetails.branch_id || 'main'
+
+              logger.info('Linked sub-task to parent conversation', {
+                requestId: uuid,
+                metadata: {
+                  parentTaskRequestId: match.request_id,
+                  conversationId: parentDetails.conversation_id,
+                  contentLength: userContent.length,
+                },
+              })
+            }
+          }
+        }
+      }
+    }
+
     return result
   }
 
