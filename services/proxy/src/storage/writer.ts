@@ -705,10 +705,16 @@ export class StorageWriter {
    */
   async getRequestDetails(
     requestId: string
-  ): Promise<{ conversation_id: string; branch_id: string } | null> {
+  ): Promise<{ 
+    request_id: string;
+    conversation_id: string; 
+    branch_id: string;
+    current_message_hash?: string;
+    system_hash?: string;
+  } | null> {
     try {
       const query = `
-        SELECT conversation_id, branch_id
+        SELECT request_id, conversation_id, branch_id, current_message_hash, system_hash
         FROM api_requests
         WHERE request_id = $1
         LIMIT 1

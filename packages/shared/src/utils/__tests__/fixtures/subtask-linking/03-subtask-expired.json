@@ -1,0 +1,32 @@
+{
+  "description": "Test sub-task detection but no linking when outside time window",
+  "type": "subtask",
+  "expectedIsSubtask": false,
+  "parent": {
+    "request_id": "parent-request-123",
+    "timestamp": "2024-01-01T10:00:00Z",
+    "task_invocations": [
+      {
+        "tool_use_id": "tool-use-456",
+        "prompt": "Search for all instances of hardcoded credentials in the authentication module",
+        "timestamp": "2024-01-01T10:00:00Z"
+      }
+    ]
+  },
+  "child": {
+    "request_id": "subtask-test-003",
+    "domain": "test.com",
+    "timestamp": "2024-01-01T10:01:00Z",
+    "body": {
+      "model": "claude-3-opus-20240229",
+      "stream": true,
+      "system": "You are a helpful assistant",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Search for all instances of hardcoded credentials in the authentication module"
+        }
+      ]
+    }
+  }
+}

@@ -62,7 +62,6 @@ export class MetricsService {
       systemHash: string | null
       branchId?: string
       parentRequestId?: string
-      isPotentialSubtask?: boolean
       parentTaskRequestId?: string
       isSubtask?: boolean
     },
@@ -253,7 +252,6 @@ export class MetricsService {
       systemHash: string | null
       branchId?: string
       parentRequestId?: string
-      isPotentialSubtask?: boolean
       parentTaskRequestId?: string
       isSubtask?: boolean
     },
@@ -334,7 +332,7 @@ export class MetricsService {
 
       // Process Task tool invocations if we have the full response body
       if (fullResponseBody) {
-        await this.storageService.processTaskToolInvocations(context.requestId, fullResponseBody)
+        await this.storageService.processTaskToolInvocations(context.requestId, fullResponseBody, context.host)
       }
     } catch (error) {
       logger.error('Failed to store request/response', {

@@ -117,7 +117,6 @@ export class ProxyService {
           branchId: linkingResult.branchId,
           isNewConversation: !linkingResult.conversationId,
           parentRequestId: linkingResult.parentRequestId,
-          isPotentialSubtask: linkingResult.isPotentialSubtask,
           parentTaskRequestId: linkingResult.parentTaskRequestId,
           isSubtask: linkingResult.isSubtask,
         })

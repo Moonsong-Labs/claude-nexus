@@ -7,9 +7,12 @@ import {
   ConversationLinker,
   type QueryExecutor,
   type CompactSearchExecutor,
+  type RequestByIdExecutor,
   type ClaudeMessage,
   type ParentQueryCriteria,
+  type TaskInvocation,
 } from '@claude-nexus/shared'
+import { TaskInvocationCache } from './TaskInvocationCache.js'
 
 /**
  * Storage adapter that provides a simplified interface for MetricsService
@@ -18,6 +21,7 @@ import {
 export class StorageAdapter {
   private writer: StorageWriter
   private conversationLinker: ConversationLinker
+  private taskInvocationCache: TaskInvocationCache
   private requestIdMap: Map<string, { uuid: string; timestamp: number }> = new Map() // Map nanoid to UUID with timestamp
   private cleanupTimer: NodeJS.Timeout | null = null
   private isClosed: boolean = false
@@ -36,6 +40,7 @@ export class StorageAdapter {
     })
 
     this.writer = new StorageWriter(loggingPool)
+    this.taskInvocationCache = new TaskInvocationCache()
 
     // Create query executor for ConversationLinker
     const queryExecutor: QueryExecutor = async (criteria: ParentQueryCriteria) => {
@@ -57,7 +62,27 @@ export class StorageAdapter {
       )
     }
 
-    this.conversationLinker = new ConversationLinker(queryExecutor, compactSearchExecutor)
+    // Create request by ID executor
+    const requestByIdExecutor: RequestByIdExecutor = async (requestId: string) => {
+      const details = await this.writer.getRequestDetails(requestId)
+      if (!details) {
+        return null
+      }
+
+      return {
+        request_id: details.request_id,
+        conversation_id: details.conversation_id,
+        branch_id: details.branch_id || 'main',
+        current_message_hash: details.current_message_hash || '',
+        system_hash: details.system_hash || null,
+      }
+    }
+
+    this.conversationLinker = new ConversationLinker(
+      queryExecutor,
+      compactSearchExecutor,
+      requestByIdExecutor
+    )
     this.scheduleNextCleanup()
   }
 
@@ -291,59 +316,29 @@ export class StorageAdapter {
       }
     }
 
+    // Get recent task invocations from cache
+    const recentInvocations = this.taskInvocationCache.getRecent(domain, 30000) // 30 second window
+
     const result = await this.conversationLinker.linkConversation({
       domain,
       messages,
       systemPrompt,
       requestId: uuid,
       messageCount,
+      taskContext: recentInvocations.length > 0 ? { recentInvocations } : undefined,
     })
 
-    // If this is a potential sub-task, try to find the parent task
-    if (result.isPotentialSubtask && messages.length > 0) {
-      const firstMessage = messages[0]
-      if (firstMessage.role === 'user') {
-        // Extract user content
-        let userContent: string | null = null
-        if (typeof firstMessage.content === 'string') {
-          userContent = firstMessage.content
-        } else if (Array.isArray(firstMessage.content)) {
-          const textItem = firstMessage.content.find(item => item.type === 'text')
-          if (textItem && typeof textItem.text === 'string') {
-            userContent = textItem.text
-          }
-        }
-
-        if (userContent) {
-          // Use writer to find matching task invocation
-          const match = await this.writer.findMatchingTaskInvocation(
-            userContent,
-            new Date() // Current timestamp
-          )
-
-          if (match) {
-            // Found a parent task! Update the result
-            // First get the parent's conversation details
-            const parentDetails = await this.writer.getRequestDetails(match.request_id)
-            if (parentDetails) {
-              result.conversationId = parentDetails.conversation_id
-              result.parentRequestId = match.request_id
-              result.parentTaskRequestId = match.request_id
-              result.isSubtask = true
-              result.branchId = parentDetails.branch_id || 'main'
-
-              logger.info('Linked sub-task to parent conversation', {
-                requestId: uuid,
-                metadata: {
-                  parentTaskRequestId: match.request_id,
-                  conversationId: parentDetails.conversation_id,
-                  contentLength: userContent.length,
-                },
-              })
-            }
-          }
-        }
-      }
+    // Log if subtask was detected
+    if (result.isSubtask) {
+      logger.info('Linked sub-task to parent conversation', {
+        requestId: uuid,
+        metadata: {
+          parentTaskRequestId: result.parentTaskRequestId,
+          conversationId: result.conversationId,
+          subtaskSequence: result.subtaskSequence,
+          branchId: result.branchId,
+        },
+      })
     }
 
     return result
@@ -352,7 +347,11 @@ export class StorageAdapter {
   /**
    * Process Task tool invocations in a response
    */
-  async processTaskToolInvocations(requestId: string, responseBody: any): Promise<void> {
+  async processTaskToolInvocations(
+    requestId: string,
+    responseBody: any,
+    domain: string
+  ): Promise<void> {
     const taskInvocations = this.writer.findTaskToolInvocations(responseBody)
 
     if (taskInvocations.length > 0) {
@@ -384,10 +383,25 @@ export class StorageAdapter {
         uuid = mapping.uuid
       }
 
-      // Mark the request as having task invocations
+      // Cache task invocations for quick lookup
+      const timestamp = new Date()
+      for (const invocation of taskInvocations) {
+        // Extract prompt from input - the Task tool typically has a 'prompt' field in its input
+        const prompt = invocation.input?.prompt || invocation.input?.description || ''
+
+        const taskInvocation: TaskInvocation = {
+          requestId: uuid,
+          toolUseId: invocation.id,
+          prompt: typeof prompt === 'string' ? prompt : JSON.stringify(prompt),
+          timestamp,
+        }
+        this.taskInvocationCache.add(domain, taskInvocation)
+      }
+
+      // Mark the request as having task invocations in the database
       await this.writer.markTaskToolInvocations(uuid, taskInvocations)
 
-      // Task invocations are now tracked in the database
+      // Task invocations are now tracked in both cache and database
       // Linking will happen when new conversations are stored
     }
   }
@@ -495,6 +509,9 @@ export class StorageAdapter {
 
     // Clear the request ID map
     this.requestIdMap.clear()
+
+    // Destroy the task invocation cache
+    this.taskInvocationCache.destroy()
 
     // Close the writer
     await this.writer.cleanup()

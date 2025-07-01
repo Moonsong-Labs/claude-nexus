@@ -40,6 +40,7 @@ interface DbRequest {
   body: any
   message_count: number | null
   created_at: Date
+  is_subtask: boolean | null
 }
 
 interface ConversationUpdate {
@@ -50,6 +51,7 @@ interface ConversationUpdate {
   current_message_hash: string
   parent_message_hash: string | null
   system_hash: string | null
+  is_subtask: boolean
 }
 
 class ConversationRebuilderV2 {
@@ -130,6 +132,7 @@ class ConversationRebuilderV2 {
       let totalChangedConversations = 0
       let totalBranchesDetected = 0
       let totalUpdates = 0
+      let totalSubtasksDetected = 0
 
       let lastSeenId: string | null = null
       let batchNumber = 0
@@ -166,6 +169,7 @@ class ConversationRebuilderV2 {
         let preservedConversations = 0
         let changedConversations = 0
         let branchesDetected = 0
+        let subtasksDetected = 0
 
         for (const request of requests) {
           if (!request.body?.messages || request.body.messages.length === 0) {
@@ -222,6 +226,21 @@ class ConversationRebuilderV2 {
               }
             }
 
+            // Single-message conversations are potential subtasks. The proxy service
+            // performs the actual matching against Task tool invocations, but we mark
+            // all single-message conversations as potential subtasks for consistency.
+            const isSubtask = request.message_count === 1
+
+            // Track subtask detection
+            if (isSubtask) {
+              subtasksDetected++
+              if (this.debugMode) {
+                console.log(
+                  `   Subtask detected for request ${request.request_id}`
+                )
+              }
+            }
+
             // Check if update is needed
             const needsUpdate =
               request.conversation_id !== conversationId ||
@@ -229,7 +248,8 @@ class ConversationRebuilderV2 {
               request.parent_request_id !== linkingResult.parentRequestId ||
               request.current_message_hash !== linkingResult.currentMessageHash ||
               request.parent_message_hash !== linkingResult.parentMessageHash ||
-              request.system_hash !== linkingResult.systemHash
+              request.system_hash !== linkingResult.systemHash ||
+              request.is_subtask !== isSubtask
 
             if (needsUpdate) {
               updates.push({
@@ -240,6 +260,7 @@ class ConversationRebuilderV2 {
                 current_message_hash: linkingResult.currentMessageHash,
                 parent_message_hash: linkingResult.parentMessageHash,
                 system_hash: linkingResult.systemHash,
+                is_subtask: isSubtask,
               })
 
               // Apply update immediately for visibility
@@ -252,6 +273,7 @@ class ConversationRebuilderV2 {
                   current_message_hash: linkingResult.currentMessageHash,
                   parent_message_hash: linkingResult.parentMessageHash,
                   system_hash: linkingResult.systemHash,
+                  is_subtask: isSubtask,
                 })
               }
             }
@@ -277,6 +299,9 @@ class ConversationRebuilderV2 {
         if (branchesDetected > 0) {
           console.log(`   Branches detected: ${branchesDetected}`)
         }
+        if (subtasksDetected > 0) {
+          console.log(`   Subtasks detected: ${subtasksDetected}`)
+        }
 
         // Accumulate totals
         totalProcessed += processed
@@ -286,6 +311,7 @@ class ConversationRebuilderV2 {
         totalPreservedConversations += preservedConversations
         totalChangedConversations += changedConversations
         totalBranchesDetected += branchesDetected
+        totalSubtasksDetected += subtasksDetected
 
         // Update lastSeenId for next batch
         if (requests.length > 0) {
@@ -347,6 +373,7 @@ class ConversationRebuilderV2 {
       }
       console.log(`Total updates applied: ${totalUpdates}`)
       console.log(`Total branches detected: ${totalBranchesDetected}`)
+      console.log(`Total subtasks detected: ${totalSubtasksDetected}`)
       console.log(`Total preserved conversation IDs: ${totalPreservedConversations}`)
       console.log(`Total changed conversation IDs: ${totalChangedConversations}`)
       if (totalPreservedOrphans > 0) {
@@ -387,7 +414,8 @@ class ConversationRebuilderV2 {
         r.body,
         r.message_count,
         r.parent_request_id,
-        r.created_at
+        r.created_at,
+        r.is_subtask
       FROM api_requests r
       WHERE r.request_type = 'inference'
     `
@@ -432,7 +460,8 @@ class ConversationRebuilderV2 {
         parent_request_id = $4::uuid,
         current_message_hash = $5,
         parent_message_hash = $6,
-        system_hash = $7
+        system_hash = $7,
+        is_subtask = $8
       WHERE request_id = $1::uuid
     `
 
@@ -444,6 +473,7 @@ class ConversationRebuilderV2 {
       update.current_message_hash,
       update.parent_message_hash,
       update.system_hash,
+      update.is_subtask,
     ])
   }
 
@@ -456,7 +486,8 @@ class ConversationRebuilderV2 {
         COUNT(DISTINCT branch_id) as total_branches,
         COUNT(*) as total_requests,
         COUNT(*) FILTER (WHERE branch_id != 'main') as branched_requests,
-        COUNT(*) FILTER (WHERE parent_request_id IS NOT NULL) as linked_requests
+        COUNT(*) FILTER (WHERE parent_request_id IS NOT NULL) as linked_requests,
+        COUNT(*) FILTER (WHERE is_subtask = true) as subtask_requests
       FROM api_requests
       WHERE conversation_id IS NOT NULL
     `
@@ -479,6 +510,7 @@ class ConversationRebuilderV2 {
     console.log(`   Total requests with conversations: ${row.total_requests}`)
     console.log(`   Requests on non-main branches: ${row.branched_requests}`)
     console.log(`   Requests with parent links: ${row.linked_requests}`)
+    console.log(`   Subtask requests: ${row.subtask_requests}`)
   }
 }
 

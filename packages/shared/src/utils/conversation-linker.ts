@@ -17,6 +17,17 @@ const COMPACT_SEARCH_DAYS = 7 // Search window for compact conversations
 // const QUERY_LIMIT = 10 // Reserved for future use0
 const MIN_MESSAGES_FOR_PARENT_HASH = 3
 
+export interface TaskInvocation {
+  requestId: string
+  toolUseId: string
+  prompt: string
+  timestamp: Date
+}
+
+export interface TaskContext {
+  recentInvocations: TaskInvocation[]
+}
+
 export interface LinkingRequest {
   domain: string
   messages: ClaudeMessage[]
@@ -24,6 +35,7 @@ export interface LinkingRequest {
   requestId: string
   messageCount: number
   timestamp?: Date
+  taskContext?: TaskContext
 }
 
 export interface LinkingResult {
@@ -33,9 +45,9 @@ export interface LinkingResult {
   currentMessageHash: string
   parentMessageHash: string | null
   systemHash: string | null
-  isPotentialSubtask?: boolean
   parentTaskRequestId?: string
   isSubtask?: boolean
+  subtaskSequence?: number
 }
 
 interface CompactInfo {
@@ -71,10 +83,13 @@ export type CompactSearchExecutor = (
   beforeTimestamp?: Date
 ) => Promise<ParentRequest | null>
 
+export type RequestByIdExecutor = (requestId: string) => Promise<ParentRequest | null>
+
 export class ConversationLinker {
   constructor(
     private queryExecutor: QueryExecutor,
-    private compactSearchExecutor?: CompactSearchExecutor
+    private compactSearchExecutor?: CompactSearchExecutor,
+    private requestByIdExecutor?: RequestByIdExecutor
   ) {}
 
   async linkConversation(request: LinkingRequest): Promise<LinkingResult> {
@@ -103,6 +118,26 @@ export class ConversationLinker {
 
       // Case 1: Single message handling
       if (messages.length === 1) {
+        // Check for subtask first
+        const subtaskResult = this.detectSubtask(request)
+        if (subtaskResult.isSubtask && subtaskResult.parentTaskRequestId) {
+          // Find the parent task request to inherit its conversation ID
+          const parentTaskRequest = await this.findRequestById(subtaskResult.parentTaskRequestId)
+          if (parentTaskRequest) {
+            return {
+              conversationId: parentTaskRequest.conversation_id,
+              parentRequestId: subtaskResult.parentTaskRequestId,
+              branchId: `subtask_${subtaskResult.subtaskSequence}`,
+              currentMessageHash,
+              parentMessageHash: null, // Subtasks don't have parent message hash
+              systemHash,
+              isSubtask: true,
+              parentTaskRequestId: subtaskResult.parentTaskRequestId,
+              subtaskSequence: subtaskResult.subtaskSequence,
+            }
+          }
+        }
+
         const compactInfo = this.detectCompactConversation(messages[0])
         if (compactInfo) {
           // Case a: Compact conversation continuation
@@ -116,21 +151,6 @@ export class ConversationLinker {
               parentMessageHash: parent.current_message_hash,
               systemHash,
             }
-          }
-        }
-
-        // Check for potential sub-task (same priority as compact)
-        const isPotentialSubtask = this.detectPotentialSubtask(messages[0])
-        if (isPotentialSubtask) {
-          // Return with flag indicating this needs sub-task parent matching
-          return {
-            conversationId: null,
-            parentRequestId: null,
-            branchId: BRANCH_MAIN,
-            currentMessageHash,
-            parentMessageHash: null,
-            systemHash,
-            isPotentialSubtask: true,
           }
         }
 
@@ -224,12 +244,7 @@ export class ConversationLinker {
         try {
           const grandparentHash = this.computeGrandparentHashFromDeduplicated(deduplicatedMessages)
 
-          console.log('[ConversationLinker] No parent found, attempting grandparent fallback', {
-            domain,
-            messageCount: deduplicatedMessages.length,
-            grandparentHash,
-            requestId,
-          })
+          // No parent found, attempting grandparent fallback
 
           // Look for a request whose current_message_hash matches our computed grandparent hash
           // Using findParentByHash which searches by currentMessageHash = parentMessageHash parameter
@@ -244,11 +259,7 @@ export class ConversationLinker {
           if (grandparentMatches.length > 0) {
             const grandparent = this.selectBestParent(grandparentMatches)
             if (grandparent) {
-              console.log('[ConversationLinker] Grandparent fallback successful', {
-                grandparentRequestId: grandparent.request_id,
-                conversationId: grandparent.conversation_id,
-                requestId,
-              })
+              // Grandparent fallback successful
 
               // Use grandparent's conversation_id and request_id as parent
               // but keep our original message hashes unchanged
@@ -651,6 +662,20 @@ export class ConversationLinker {
     }
   }
 
+  private async findRequestById(requestId: string): Promise<ParentRequest | null> {
+    try {
+      if (!this.requestByIdExecutor) {
+        // Without request by ID capability, we can't find the parent
+        return null
+      }
+
+      return await this.requestByIdExecutor(requestId)
+    } catch (error) {
+      console.error('Error finding request by ID:', error)
+      return null
+    }
+  }
+
   private normalizeSummaryForComparison(summary: string): string {
     // Remove common variations in formatting
     return summary
@@ -755,28 +780,76 @@ export class ConversationLinker {
     return `${COMPACT_PREFIX}${hours}${minutes}${seconds}`
   }
 
-  private detectPotentialSubtask(message: ClaudeMessage): boolean {
-    // Check if this message could be a sub-task spawned by Task tool
-    // Pattern: Single user message that starts a fresh conversation
-    if (message.role !== 'user') {
-      return false
+  private detectSubtask(request: LinkingRequest): {
+    isSubtask: boolean
+    parentTaskRequestId?: string
+    subtaskSequence?: number
+  } {
+    // Only single-message user conversations can be subtasks
+    if (request.messages.length !== 1 || request.messages[0].role !== 'user') {
+      return { isSubtask: false }
     }
 
-    // Extract content
-    let textContent: string | null = null
-    if (typeof message.content === 'string') {
-      textContent = message.content
-    } else if (Array.isArray(message.content)) {
-      // Get the first text content
-      const textItem = message.content.find(item => item.type === 'text')
-      if (textItem && typeof textItem.text === 'string') {
-        textContent = textItem.text
+    // Check if we have task context with recent invocations
+    if (!request.taskContext || request.taskContext.recentInvocations.length === 0) {
+      return { isSubtask: false }
+    }
+
+    // Extract the user message content
+    const message = request.messages[0]
+    const userContent = this.extractContentText(message.content)
+    if (!userContent) {
+      return { isSubtask: false }
+    }
+
+    // Find matching task invocation
+    let matchingInvocation: TaskInvocation | undefined
+    let subtaskSequence = 1
+
+    // Sort invocations by timestamp to assign sequence numbers correctly
+    const sortedInvocations = [...request.taskContext.recentInvocations].sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+    )
+
+    // Track sequence numbers by parent request ID
+    const sequenceByParent = new Map<string, number>()
+
+    for (const invocation of sortedInvocations) {
+      // Count subtasks per parent request
+      const currentSequence = (sequenceByParent.get(invocation.requestId) || 0) + 1
+      sequenceByParent.set(invocation.requestId, currentSequence)
+
+      // Check for exact match
+      if (invocation.prompt === userContent) {
+        matchingInvocation = invocation
+        subtaskSequence = currentSequence
+        break
       }
     }
 
-    // Sub-tasks typically have a specific pattern but we'll mark any single
-    // user message as potentially being a sub-task and let the proxy service
-    // do the actual matching against Task tool invocations
-    return textContent !== null && textContent.trim().length > 0
+    if (matchingInvocation) {
+      return {
+        isSubtask: true,
+        parentTaskRequestId: matchingInvocation.requestId,
+        subtaskSequence,
+      }
+    }
+
+    return { isSubtask: false }
+  }
+
+  private extractContentText(content: string | ClaudeContent[]): string {
+    if (typeof content === 'string') {
+      return content
+    }
+
+    if (Array.isArray(content)) {
+      return content
+        .filter(item => item.type === 'text')
+        .map(item => item.text || '')
+        .join('\n')
+    }
+
+    return ''
   }
 }
