@@ -344,6 +344,12 @@ export const dashboardStyles = `
     display: none !important;
   }
 
+  /* Hide pre elements in collapsed tool messages */
+  .hide-tools .message-tool-use .message-content pre,
+  .hide-tools .message-tool-result .message-content pre {
+    display: none;
+  }
+
   .hide-tools .message-tool-use .message-content::after,
   .hide-tools .message-tool-result .message-content::after {
     content: '...';
