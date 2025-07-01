@@ -128,73 +128,71 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
 
 /**
  * Find user reply intervals and calculate net duration excluding tool execution
- * Simple approach: user reply time = user message timestamp - assistant message timestamp
+ * Time to reply = time between assistant text response and next user text message
+ * Only counts direct consecutive pairs to avoid overlapping intervals
  */
 function findReplyIntervals(
   requests: ConversationRequest[],
   toolExecutions: ToolExecution[]
 ): ReplyInterval[] {
   const intervals: ReplyInterval[] = []
-  const usedUserRequests = new Set<string>() // Track which user requests have been used
+  let lastAssistantTextIndex = -1
 
-  // For each request, check if it has an assistant response
-  requests.forEach((request, index) => {
-    // Check if this request has an assistant response with visible text
+  // Go through requests in order
+  for (let i = 0; i < requests.length; i++) {
+    const request = requests[i]
+
+    // First check if this request has user content with visible text
+    const lastMessage =
+      request.body?.last_message ||
+      (request.body?.messages &&
+        Array.isArray(request.body.messages) &&
+        request.body.messages[request.body.messages.length - 1])
+
+    if (lastMessage?.role === 'user' && hasVisibleText(lastMessage)) {
+      // If we have a previous assistant text response, create an interval
+      if (lastAssistantTextIndex >= 0 && lastAssistantTextIndex < i) {
+        const assistantRequest = requests[lastAssistantTextIndex]
+        const assistantTime = new Date(assistantRequest.timestamp)
+        const userTime = new Date(request.timestamp)
+        const rawDuration = userTime.getTime() - assistantTime.getTime()
+
+        // Calculate tool execution time that overlaps this interval
+        let toolExecutionMs = 0
+        for (const exec of toolExecutions) {
+          // Tool execution must start after assistant message and complete before user message
+          if (exec.toolUseTimestamp >= assistantTime && exec.toolResultTimestamp <= userTime) {
+            toolExecutionMs += exec.durationMs
+          }
+        }
+
+        intervals.push({
+          assistantRequestId: assistantRequest.request_id,
+          userRequestId: request.request_id,
+          assistantTimestamp: assistantTime,
+          userTimestamp: userTime,
+          rawDurationMs: rawDuration,
+          toolExecutionMs,
+          netDurationMs: rawDuration - toolExecutionMs,
+        })
+
+        // Reset so we don't pair this assistant response again
+        lastAssistantTextIndex = -1
+      }
+    }
+
+    // Then check if this request has an assistant response with visible text
+    // Do this after user check to handle requests that have both
     if (request.response_body?.content && Array.isArray(request.response_body.content)) {
       const hasAssistantText = request.response_body.content.some(
         (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
       )
 
       if (hasAssistantText) {
-        // Look for the next user request
-        for (let i = index + 1; i < requests.length; i++) {
-          const nextRequest = requests[i]
-
-          // Skip if this user request was already paired with a previous assistant response
-          if (usedUserRequests.has(nextRequest.request_id)) {
-            continue
-          }
-
-          // Check if the next request has user content with visible text
-          const lastMessage =
-            nextRequest.body?.last_message ||
-            (nextRequest.body?.messages &&
-              Array.isArray(nextRequest.body.messages) &&
-              nextRequest.body.messages[nextRequest.body.messages.length - 1])
-          if (lastMessage?.role === 'user' && hasVisibleText(lastMessage)) {
-            // Calculate time difference
-            const assistantTime = new Date(request.timestamp)
-            const userTime = new Date(nextRequest.timestamp)
-            const rawDuration = userTime.getTime() - assistantTime.getTime()
-
-            // Calculate tool execution time that overlaps this interval
-            let toolExecutionMs = 0
-            for (const exec of toolExecutions) {
-              // Tool execution must start after assistant message and complete before user message
-              if (exec.toolUseTimestamp >= assistantTime && exec.toolResultTimestamp <= userTime) {
-                toolExecutionMs += exec.durationMs
-              }
-            }
-
-            // Mark this user request as used
-            usedUserRequests.add(nextRequest.request_id)
-
-            intervals.push({
-              assistantRequestId: request.request_id,
-              userRequestId: nextRequest.request_id,
-              assistantTimestamp: assistantTime,
-              userTimestamp: userTime,
-              rawDurationMs: rawDuration,
-              toolExecutionMs,
-              netDurationMs: rawDuration - toolExecutionMs,
-            })
-
-            break // Found the next user message
-          }
-        }
+        lastAssistantTextIndex = i
       }
     }
-  })
+  }
 
   return intervals
 }
