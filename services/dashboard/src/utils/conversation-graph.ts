@@ -123,9 +123,21 @@ function calculateReversedLayout(
     childrenMap.set(node.parentId, children)
   })
 
-  // Track branch lanes
+  // Track branch lanes with column availability
   const branchLanes = new Map<string, number>()
-  let nextLane = 0
+  // Track column availability: each column stores the highest Y position occupied
+  const columnAvailability: number[] = [] // Array index = column, value = busy until Y position
+
+  // Helper to find first available column at a given Y position
+  function findAvailableColumn(startY: number): number {
+    for (let col = 0; col < columnAvailability.length; col++) {
+      if (columnAvailability[col] <= startY) {
+        return col
+      }
+    }
+    // If no existing column is available, create a new one
+    return columnAvailability.length
+  }
 
   // Build a map of node distances from root
   const nodeDistances = new Map<string, number>()
@@ -173,15 +185,54 @@ function calculateReversedLayout(
   // Create a map to track actual Y positions for each node
   const nodeYPositions = new Map<string, number>()
 
+  // First, calculate Y positions for all non-subtask nodes
+  const nodeYData: Array<{ node: ConversationNode; y: number }> = []
+  graph.nodes.forEach(node => {
+    if (!node.id.endsWith('-subtasks')) {
+      const distance = nodeDistances.get(node.id) || node.messageCount || 0
+      const y = (maxDistance - distance) * verticalSpacing
+      nodeYPositions.set(node.id, y)
+      nodeYData.push({ node, y })
+    }
+  })
+
+  // Sort nodes by Y position (bottom to top) to assign columns optimally
+  nodeYData.sort((a, b) => b.y - a.y)
+
+  // Track which Y ranges each branch occupies
+  const branchYRanges = new Map<string, { minY: number; maxY: number }>()
+
+  // Calculate Y ranges for each branch
+  nodeYData.forEach(({ node, y }) => {
+    const range = branchYRanges.get(node.branchId) || { minY: y, maxY: y }
+    range.minY = Math.min(range.minY, y)
+    range.maxY = Math.max(range.maxY, y)
+    branchYRanges.set(node.branchId, range)
+  })
+
   // Separate regular nodes and subtask nodes
   graph.nodes.forEach(node => {
     if (node.id.endsWith('-subtasks')) {
       subtaskNodes.push(node)
     } else {
-      // Process regular nodes first
+      // Process regular nodes
       // Assign lane to branch if not already assigned
       if (!branchLanes.has(node.branchId)) {
-        branchLanes.set(node.branchId, nextLane++)
+        const branchRange = branchYRanges.get(node.branchId)
+        if (branchRange) {
+          // Find available column for this branch
+          const column = findAvailableColumn(branchRange.minY)
+          branchLanes.set(node.branchId, column)
+
+          // Mark column as busy for the Y range of this branch
+          // Extend the range to prevent branches from being too close
+          const extendedMaxY = branchRange.maxY + nodeHeight
+          if (column >= columnAvailability.length) {
+            columnAvailability.push(extendedMaxY)
+          } else {
+            columnAvailability[column] = Math.max(columnAvailability[column], extendedMaxY)
+          }
+        }
       }
 
       const lane = branchLanes.get(node.branchId) || 0
@@ -191,7 +242,6 @@ function calculateReversedLayout(
 
       // Y position is based on reversed distance (newest at top)
       const y = (maxDistance - distance) * verticalSpacing
-      nodeYPositions.set(node.id, y)
 
       // X position is based on branch lane
       const x = lane * horizontalSpacing
