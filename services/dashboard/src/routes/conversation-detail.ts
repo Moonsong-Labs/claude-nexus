@@ -141,6 +141,22 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         parentId = parentReq?.request_id
       }
 
+      // Check if request contains a user message (not just tool results)
+      let hasUserMessage = false
+      if (req.body?.messages && Array.isArray(req.body.messages)) {
+        const lastMessage = req.body.messages[req.body.messages.length - 1]
+        if (lastMessage?.role === 'user' && lastMessage.content) {
+          // Check if it's a text message, not just tool results
+          if (typeof lastMessage.content === 'string') {
+            hasUserMessage = lastMessage.content.trim().length > 0
+          } else if (Array.isArray(lastMessage.content)) {
+            hasUserMessage = lastMessage.content.some(
+              (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
+            )
+          }
+        }
+      }
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
@@ -156,6 +172,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         isSubtask: req.is_subtask,
         hasSubtasks: finalHasSubtasks,
         subtaskCount: finalSubtaskCount,
+        hasUserMessage: hasUserMessage,
       })
     })
 
@@ -485,7 +502,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           <span class="conversation-stat-label">Tool Execution:</span>
           <span class="conversation-stat-value">
             ${displayStats.toolExecution.count > 0
-              ? `${formatMetricDuration(displayStats.toolExecution.totalMs)} (avg ${formatMetricDuration(displayStats.toolExecution.averageMs)})`
+              ? `${formatMetricDuration(displayStats.toolExecution.totalMs)} (${displayStats.toolExecution.count} tools, avg ${formatMetricDuration(displayStats.toolExecution.averageMs)})`
               : 'No tools used'}
           </span>
         </div>
@@ -493,7 +510,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           <span class="conversation-stat-label">Time to Reply:</span>
           <span class="conversation-stat-value">
             ${displayStats.userReply.count > 0
-              ? `avg ${formatMetricDuration(displayStats.userReply.averageMs)}`
+              ? `${formatMetricDuration(displayStats.userReply.totalMs)} (avg ${formatMetricDuration(displayStats.userReply.averageMs)})`
               : 'No replies'}
           </span>
         </div>

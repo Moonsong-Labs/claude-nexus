@@ -30,6 +30,7 @@ export interface ConversationNode {
   subtaskCount?: number
   linkedConversationId?: string
   subtaskPrompt?: string
+  hasUserMessage?: boolean
 }
 
 export interface ConversationGraph {
@@ -58,6 +59,7 @@ export interface LayoutNode {
   subtaskCount?: number
   linkedConversationId?: string
   subtaskPrompt?: string
+  hasUserMessage?: boolean
 }
 
 export interface LayoutEdge {
@@ -215,6 +217,7 @@ function calculateReversedLayout(
         subtaskCount: node.subtaskCount,
         linkedConversationId: node.linkedConversationId,
         subtaskPrompt: node.subtaskPrompt,
+        hasUserMessage: node.hasUserMessage,
       })
     }
   })
@@ -257,6 +260,7 @@ function calculateReversedLayout(
         subtaskCount: node.subtaskCount,
         linkedConversationId: node.linkedConversationId,
         subtaskPrompt: node.subtaskPrompt,
+        hasUserMessage: node.hasUserMessage,
       })
     }
   })
@@ -493,6 +497,11 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       // Add message count number on the left
       if (node.messageCount !== undefined && node.messageCount > 0) {
         svg += `    <text x="${x + 15}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 13px; fill: ${color};">${node.messageCount}</text>\n`
+      }
+
+      // Add user icon if this request has a user message
+      if (node.hasUserMessage) {
+        svg += `    <text x="${x + 32}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="User message">👤</text>\n`
       }
 
       // Add request ID (first 8 chars) in the center
