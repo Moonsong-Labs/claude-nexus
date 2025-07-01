@@ -182,15 +182,15 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
             navigationButtons = `
               <div class="nav-arrows-container">
-                <button class="nav-arrow nav-up" ${!hasPrev ? 'disabled' : ''} 
-                  onclick="${hasPrev ? `document.getElementById('message-${userMessageIndices[currentUserIndex + 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                <button class="nav-arrow nav-up" ${!hasNext ? 'disabled' : ''} 
+                  onclick="${hasNext ? `document.getElementById('message-${userMessageIndices[currentUserIndex - 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
                   title="Previous user message">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 15l-6-6-6 6"/>
                   </svg>
                 </button>
-                <button class="nav-arrow nav-down" ${!hasNext ? 'disabled' : ''} 
-                  onclick="${hasNext ? `document.getElementById('message-${userMessageIndices[currentUserIndex - 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                <button class="nav-arrow nav-down" ${!hasPrev ? 'disabled' : ''} 
+                  onclick="${hasPrev ? `document.getElementById('message-${userMessageIndices[currentUserIndex + 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
                   title="Next user message">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M6 9l6 6 6-6"/>
