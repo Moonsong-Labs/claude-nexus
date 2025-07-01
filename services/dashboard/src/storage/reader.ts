@@ -577,7 +577,15 @@ export class StorageReader {
       const conversationRow = conversationRows[0]
 
       // Now get all requests for this conversation with optimized last_message and response_body
+      // Only fetch full body for the last request per branch (for metrics calculation)
       const requestsQuery = `
+        WITH ranked_requests AS (
+          SELECT 
+            *,
+            ROW_NUMBER() OVER (PARTITION BY COALESCE(branch_id, 'main') ORDER BY timestamp DESC) as rn
+          FROM api_requests 
+          WHERE conversation_id = $1
+        )
         SELECT 
           request_id, domain, timestamp, model, 
           input_tokens, output_tokens, total_tokens, duration_ms,
@@ -585,15 +593,15 @@ export class StorageReader {
           current_message_hash, parent_message_hash, branch_id, message_count,
           parent_task_request_id, is_subtask, task_tool_invocation, parent_request_id,
           response_body,
-          body,
+          -- Only include full body for last request per branch
+          CASE WHEN rn = 1 THEN body ELSE NULL END as body,
           CASE 
             WHEN body -> 'messages' IS NOT NULL AND jsonb_array_length(body -> 'messages') > 0 THEN
               body -> 'messages' -> -1
             ELSE 
               NULL
           END as last_message
-        FROM api_requests 
-        WHERE conversation_id = $1
+        FROM ranked_requests
         ORDER BY timestamp ASC
       `
 

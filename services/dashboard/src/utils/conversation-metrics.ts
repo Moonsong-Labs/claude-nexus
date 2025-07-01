@@ -218,12 +218,56 @@ function findReplyIntervals(
 }
 
 /**
+ * Count user interactions from messages in the last request
+ */
+function countUserInteractionsFromLastRequest(lastRequest: ConversationRequest): {
+  count: number
+  requests: string[]
+} {
+  const messages = lastRequest.body?.messages || []
+  let userCount = 0
+
+  // Count user messages with visible text
+  for (const message of messages) {
+    if (message.role === 'user' && hasVisibleText(message)) {
+      userCount++
+    }
+  }
+
+  return {
+    count: userCount,
+    requests: [], // We don't have individual request IDs from just the messages
+  }
+}
+
+/**
  * Count user interactions (requests with user messages containing visible text)
  */
 function countUserInteractions(requests: ConversationRequest[]): {
   count: number
   requests: string[]
 } {
+  // Find the last request per branch (which should have full body)
+  const lastRequestPerBranch = new Map<string, ConversationRequest>()
+
+  for (const request of requests) {
+    const branch = request.branch_id || 'main'
+    if (
+      request.body?.messages &&
+      (!lastRequestPerBranch.has(branch) ||
+        new Date(request.timestamp) > new Date(lastRequestPerBranch.get(branch)!.timestamp))
+    ) {
+      lastRequestPerBranch.set(branch, request)
+    }
+  }
+
+  // If we have a last request with full body, use it
+  if (lastRequestPerBranch.size > 0) {
+    const lastRequest = Array.from(lastRequestPerBranch.values())[0]
+    return countUserInteractionsFromLastRequest(lastRequest)
+  }
+
+  // Fallback to old method if no full body available
   const userRequests: string[] = []
 
   for (const request of requests) {
