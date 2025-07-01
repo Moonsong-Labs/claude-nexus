@@ -125,13 +125,15 @@ function calculateReversedLayout(
 
   // Track branch lanes with column availability
   const branchLanes = new Map<string, number>()
-  // Track column availability: each column stores the highest Y position occupied
-  const columnAvailability: number[] = [] // Array index = column, value = busy until Y position
+  // Track column availability: each column stores the lowest Y position occupied (busy until)
+  // Since tree is reversed (lower Y = higher up), a column is available if its value < branch's maxY
+  const columnAvailability: number[] = [] // Array index = column, value = lowest Y occupied
 
-  // Helper to find first available column at a given Y position
-  function findAvailableColumn(startY: number): number {
+  // Helper to find first available column for a branch
+  // Since Y coordinates are reversed (lower Y = higher position), we check if column is free at the top of the branch
+  function findAvailableColumn(maxY: number): number {
     for (let col = 0; col < columnAvailability.length; col++) {
-      if (columnAvailability[col] <= startY) {
+      if (columnAvailability[col] >= maxY) {
         return col
       }
     }
@@ -210,26 +212,28 @@ function calculateReversedLayout(
     branchYRanges.set(node.branchId, range)
   })
 
-  // Sort branches by their minimum Y position (bottom to top) for optimal column assignment
+  // Sort branches by their maximum Y position (bottom to top) for optimal column assignment
+  // Higher maxY values = branches that start lower in the tree (should be processed first)
   const branchesInOrder = Array.from(branchYRanges.entries())
-    .sort((a, b) => b[1].minY - a[1].minY)
+    .sort((a, b) => b[1].maxY - a[1].maxY)
     .map(([branchId]) => branchId)
 
   // Assign columns to branches in order
   branchesInOrder.forEach(branchId => {
     const branchRange = branchYRanges.get(branchId)
     if (branchRange) {
-      // Find available column for this branch
-      const column = findAvailableColumn(branchRange.minY)
+      // Find available column for this branch (check if column is free at the top of the branch)
+      const column = findAvailableColumn(branchRange.maxY)
       branchLanes.set(branchId, column)
 
-      // Mark column as busy for the Y range of this branch
-      // Extend the range to prevent branches from being too close
-      const extendedMaxY = branchRange.maxY + nodeHeight
+      // Mark column as busy down to the bottom of this branch
+      // Since lower Y = higher position, we store minY as the "busy until" value
+      // Subtract nodeHeight to add some spacing between branches
+      const busyUntil = branchRange.minY - nodeHeight
       if (column >= columnAvailability.length) {
-        columnAvailability.push(extendedMaxY)
+        columnAvailability.push(busyUntil)
       } else {
-        columnAvailability[column] = Math.max(columnAvailability[column], extendedMaxY)
+        columnAvailability[column] = Math.min(columnAvailability[column], busyUntil)
       }
     }
   })

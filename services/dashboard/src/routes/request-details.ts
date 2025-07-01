@@ -294,6 +294,9 @@ requestDetailsRoutes.get('/request/:id', async c => {
                   `
                 : ''}
 
+              <dt class="text-gray-600">Branch:</dt>
+              <dd>${details.branchId || 'main'}</dd>
+
               <dt class="text-gray-600">Domain:</dt>
               <dd>${details.domain}</dd>
 
