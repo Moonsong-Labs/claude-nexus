@@ -72,6 +72,7 @@ describe('CSS Validation', () => {
         !trimmedLine.startsWith('/*') &&
         !trimmedLine.startsWith('*') &&
         !trimmedLine.startsWith('@') &&
+        !trimmedLine.endsWith(',') && // Allow selectors that end with comma
         trimmedLine.includes('-')
       ) {
         throw new Error(`Line ${index + 1} might be missing colon: "${trimmedLine}"`)

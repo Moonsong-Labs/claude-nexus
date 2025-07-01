@@ -107,6 +107,17 @@ requestDetailsRoutes.get('/request/:id', async c => {
       }
     }
 
+    // Track user message indices for navigation (only text/image messages, no tools)
+    const userMessageIndices: number[] = []
+    conversation.messages
+      .slice()
+      .reverse()
+      .forEach((msg, idx) => {
+        if (msg.role === 'user' && !msg.isToolUse && !msg.isToolResult) {
+          userMessageIndices.push(idx)
+        }
+      })
+
     // Format messages for display - reverse order to show newest first
     const messagesHtml = await Promise.all(
       conversation.messages
@@ -162,24 +173,56 @@ requestDetailsRoutes.get('/request/:id', async c => {
             roleDisplay = 'Result ✅'
           }
 
+          // Add navigation buttons for user messages (only text/image content, no tools)
+          let navigationButtons = ''
+          if (msg.role === 'user' && !msg.isToolUse && !msg.isToolResult) {
+            const currentUserIndex = userMessageIndices.indexOf(idx)
+            const hasPrev = currentUserIndex < userMessageIndices.length - 1
+            const hasNext = currentUserIndex > 0
+
+            navigationButtons = `
+              <div class="nav-arrows-container">
+                <button class="nav-arrow nav-up" ${!hasNext ? 'disabled' : ''} 
+                  onclick="${hasNext ? `document.getElementById('message-${userMessageIndices[currentUserIndex - 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                  title="Previous user message">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 15l-6-6-6 6"/>
+                  </svg>
+                </button>
+                <button class="nav-arrow nav-down" ${!hasPrev ? 'disabled' : ''} 
+                  onclick="${hasPrev ? `document.getElementById('message-${userMessageIndices[currentUserIndex + 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                  title="Next user message">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6"/>
+                  </svg>
+                </button>
+              </div>
+            `
+          }
+
           return `
         <div class="${messageClass}" id="message-${idx}" data-message-index="${idx}">
+          <div class="message-index">${conversation.messages.length - idx}</div>
           <div class="message-meta">
             <div class="message-role">${roleDisplay}</div>
-            <button class="copy-message-link" data-message-index="${idx}" title="Copy link to this message">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-            </button>
+            <div class="message-actions">
+              <button class="copy-message-link" data-message-index="${idx}" title="Copy link to this message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+              </button>
+              ${navigationButtons}
+            </div>
           </div>
           <div class="message-content">
+            ${msg.isToolUse && msg.toolName ? `<span class="tool-name-label">${msg.toolName}</span>` : ''}
             ${
               msg.isLong
                 ? `
               <div id="${truncatedId}" class="message-truncated">
                 ${msg.truncatedHtml}
-                <span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more</span>
+                <span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more${msg.hiddenLineCount ? ` (${msg.hiddenLineCount} lines)` : ''}</span>
               </div>
               <div id="${contentId}" class="hidden">
                 ${msg.htmlContent}
@@ -394,11 +437,27 @@ requestDetailsRoutes.get('/request/:id', async c => {
         </div>
       </div>
 
-      <!-- View Toggle -->
-      <div class="view-toggle">
-        <button class="active" onclick="showView('conversation')">Conversation</button>
-        <button onclick="showView('raw')">Raw JSON</button>
-        <button onclick="showView('headers')">Headers & Metadata</button>
+      <!-- View Toggle with Controls -->
+      <div
+        class="view-toggle"
+        style="display: flex; justify-content: space-between; align-items: center;"
+      >
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="active" onclick="showView('conversation')">Conversation</button>
+          <button onclick="showView('raw')">Raw JSON</button>
+          <button onclick="showView('headers')">Headers & Metadata</button>
+        </div>
+        <label
+          style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #374151; margin-bottom: 0;"
+        >
+          <input
+            type="checkbox"
+            id="hide-tools-checkbox"
+            onchange="toggleToolMessages()"
+            style="cursor: pointer;"
+          />
+          <span>Hide tool use/results</span>
+        </label>
       </div>
 
       <!-- Conversation View -->
@@ -562,8 +621,33 @@ requestDetailsRoutes.get('/request/:id', async c => {
           }
         }
 
+        // Function to toggle tool messages visibility
+        function toggleToolMessages() {
+          const checkbox = document.getElementById('hide-tools-checkbox')
+          const conversationView = document.getElementById('conversation-view')
+
+          if (checkbox.checked) {
+            conversationView.classList.add('hide-tools')
+            localStorage.setItem('hideToolMessages', 'true')
+          } else {
+            conversationView.classList.remove('hide-tools')
+            localStorage.setItem('hideToolMessages', 'false')
+          }
+        }
+
         // Add copy link functionality
         document.addEventListener('DOMContentLoaded', function () {
+          // Restore tool messages visibility preference
+          const hideToolsPref = localStorage.getItem('hideToolMessages')
+          if (hideToolsPref === 'true') {
+            const checkbox = document.getElementById('hide-tools-checkbox')
+            const conversationView = document.getElementById('conversation-view')
+            if (checkbox && conversationView) {
+              checkbox.checked = true
+              conversationView.classList.add('hide-tools')
+            }
+          }
+
           // Handle copy link buttons
           document.querySelectorAll('.copy-message-link').forEach(button => {
             button.addEventListener('click', function (e) {

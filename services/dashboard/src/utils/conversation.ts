@@ -10,6 +10,7 @@ export interface ParsedMessage {
   htmlContent: string
   isLong: boolean
   truncatedHtml?: string
+  hiddenLineCount?: number
   isToolUse?: boolean
   isToolResult?: boolean
   toolName?: string
@@ -314,9 +315,15 @@ async function parseMessage(
   // Check if message is long
   const isLong = content.length > MESSAGE_TRUNCATE_LENGTH
   let truncatedHtml
+  let hiddenLineCount = 0
 
   if (isLong) {
+    // Calculate number of hidden lines
+    const fullLines = content.split('\n')
     const truncatedContent = content.substring(0, MESSAGE_TRUNCATE_LENGTH) + '...'
+    const truncatedLines = truncatedContent.split('\n')
+    hiddenLineCount = Math.max(0, fullLines.length - truncatedLines.length + 1) // +1 because last line might be partial
+
     const dirtyTruncatedHtml = await marked.parse(truncatedContent)
     truncatedHtml = sanitizeHtml(dirtyTruncatedHtml, {
       allowedTags: sanitizeHtml.defaults.allowedTags.concat([
@@ -350,6 +357,7 @@ async function parseMessage(
     htmlContent,
     isLong,
     truncatedHtml,
+    hiddenLineCount,
     isToolUse,
     isToolResult,
     toolName,

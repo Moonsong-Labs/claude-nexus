@@ -196,6 +196,16 @@ export const dashboardStyles = `
     line-height: 1.5;
   }
 
+  .message-index {
+    flex-shrink: 0;
+    width: 30px;
+    padding-top: 0.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 500;
+  }
+
   .message-meta {
     flex-shrink: 0;
     width: 80px;
@@ -263,6 +273,105 @@ export const dashboardStyles = `
   .message-role {
     font-weight: 600;
     margin-top: 0.25rem;
+  }
+
+  /* Message actions container */
+  .message-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    margin-left: auto;
+  }
+
+  /* Navigation arrows container */
+  .nav-arrows-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  /* Navigation arrows for user messages */
+  .nav-arrow {
+    background: none;
+    border: none;
+    padding: 0.125rem;
+    cursor: pointer;
+    color: #6b7280;
+    transition: color 0.2s;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nav-arrow:hover:not(:disabled) {
+    color: #374151;
+  }
+
+  .nav-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .nav-arrow svg {
+    display: block;
+  }
+
+  /* Hide tools feature */
+  .hide-tools .message-tool-use .message-content,
+  .hide-tools .message-tool-result .message-content {
+    max-height: 2rem;
+    overflow: hidden;
+    position: relative;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* Hide truncation elements in collapsed tool messages */
+  .hide-tools .message-tool-use .message-truncated,
+  .hide-tools .message-tool-result .message-truncated {
+    display: none;
+  }
+
+  /* Hide full content divs in collapsed tool messages */
+  .hide-tools .message-tool-use .message-content > div[id^="content-"],
+  .hide-tools .message-tool-result .message-content > div[id^="content-"] {
+    display: none !important;
+  }
+
+  /* Hide pre elements in collapsed tool messages */
+  .hide-tools .message-tool-use .message-content pre,
+  .hide-tools .message-tool-result .message-content pre {
+    display: none;
+  }
+
+
+  .hide-tools .message-tool-use .message-content {
+    background: #fef3c7;
+  }
+
+  .hide-tools .message-tool-result .message-content {
+    background: #dcfce7;
+  }
+
+  /* Hide copy button for collapsed tool messages */
+  .hide-tools .message-tool-use .copy-message-link,
+  .hide-tools .message-tool-result .copy-message-link {
+    display: none;
+  }
+
+  /* Tool name label for collapsed messages */
+  .tool-name-label {
+    font-weight: 600;
+    color: #92400e;
+    margin-right: 0.5rem;
+    display: inline-block;
+    line-height: 1;
   }
 
   .message-time {
@@ -456,9 +565,11 @@ export const dashboardStyles = `
   /* View toggle styles */
   .view-toggle {
     display: flex;
-    gap: 0.5rem;
+    justify-content: space-between;
+    align-items: center;
     margin: 1rem 0;
     border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0;
   }
 
   .view-toggle button {
