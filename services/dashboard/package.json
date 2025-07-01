@@ -16,10 +16,10 @@
     "build:check": "bun run build:production",
     "start": "bun dist/index.js",
     "start:prod": "NODE_ENV=production bun dist/index.js",
-    "typecheck": "cd ../../packages/shared && tsc --build && cd - && tsc --build",
+    "typecheck": "bunx tsc --build ../../packages/shared && bunx tsc --build",
     "lint": "eslint src/**/*.ts",
     "test": "bun test",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist tsconfig.tsbuildinfo ../../packages/shared/dist ../../packages/shared/tsconfig.tsbuildinfo"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
