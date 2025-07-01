@@ -16,7 +16,7 @@
     "build:check": "bun run build:production",
     "start": "bun dist/index.js",
     "start:prod": "NODE_ENV=production bun dist/index.js",
-    "typecheck": "tsc --build",
+    "typecheck": "cd ../../packages/shared && tsc --build && cd - && tsc --build",
     "lint": "eslint src/**/*.ts",
     "test": "bun test",
     "clean": "rm -rf dist"
