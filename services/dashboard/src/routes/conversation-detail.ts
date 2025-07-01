@@ -414,29 +414,26 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
     // Calculate branch-specific stats if a branch is selected
     let selectedBranchStats = null
     if (selectedBranch) {
-      // Calculate metrics for filtered requests (branch level)
+      // Calculate metrics for filtered requests (includes parent branches)
       const branchMetrics = calculateConversationMetrics(filteredRequests)
 
-      // Get only the requests that are actually in the selected branch
-      const branchOnlyRequests = filteredRequests.filter(
-        r => r.branch_id === selectedBranch || (!r.branch_id && selectedBranch === 'main')
-      )
-      const branchTokens = branchOnlyRequests.reduce((sum, r) => sum + r.total_tokens, 0)
-      const branchInferenceTime = branchOnlyRequests.reduce(
+      // For cumulative stats, use all filtered requests (includes parent branches)
+      const cumulativeTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
+      const cumulativeInferenceTime = filteredRequests.reduce(
         (sum, req) => sum + (req.duration_ms || 0),
         0
       )
 
-      // Calculate branch duration (from first to last request in the branch)
-      let branchDuration = 0
-      if (branchOnlyRequests.length > 0) {
-        const branchTimestamps = branchOnlyRequests.map(r => new Date(r.timestamp).getTime())
-        branchDuration = Math.max(...branchTimestamps) - Math.min(...branchTimestamps)
+      // Calculate cumulative duration (from first to last request in filtered set)
+      let cumulativeDuration = 0
+      if (filteredRequests.length > 0) {
+        const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
+        cumulativeDuration = Math.max(...timestamps) - Math.min(...timestamps)
       }
 
-      // Calculate sub-tasks for branch only
-      let branchSubtasks = 0
-      const branchRequestIdsWithTasks = branchOnlyRequests
+      // Calculate sub-tasks for all filtered requests
+      let cumulativeSubtasks = 0
+      const cumulativeRequestIdsWithTasks = filteredRequests
         .filter(
           req =>
             req.task_tool_invocation &&
@@ -445,18 +442,23 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         )
         .map(req => req.request_id)
 
-      if (branchRequestIdsWithTasks.length > 0) {
-        branchSubtasks = await storageService.countSubtasksForRequests(branchRequestIdsWithTasks)
+      if (cumulativeRequestIdsWithTasks.length > 0) {
+        cumulativeSubtasks = await storageService.countSubtasksForRequests(
+          cumulativeRequestIdsWithTasks
+        )
       }
+
+      // Get the maximum message count from filtered requests (cumulative)
+      const maxMessageCount = Math.max(...filteredRequests.map(r => r.message_count || 0), 0)
 
       selectedBranchStats = {
         branchName: selectedBranch,
-        messageCount: branchStats[selectedBranch]?.count || 0,
-        totalTokens: branchTokens,
-        duration: branchDuration,
-        inferenceTime: branchInferenceTime,
-        requestCount: branchOnlyRequests.length,
-        totalSubtasks: branchSubtasks,
+        messageCount: maxMessageCount,
+        totalTokens: cumulativeTokens,
+        duration: cumulativeDuration,
+        inferenceTime: cumulativeInferenceTime,
+        requestCount: filteredRequests.length,
+        totalSubtasks: cumulativeSubtasks,
         toolExecution: branchMetrics.toolExecution,
         userReply: branchMetrics.userReply,
         userInteractions: branchMetrics.userInteractions,
@@ -531,12 +533,15 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       ${selectedBranchStats
         ? html`
             <div style="margin-bottom: 2rem;">
-              <h3 style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600;">
+              <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; font-weight: 600;">
                 Branch Details:
                 <span style="color: ${getBranchColor(selectedBranchStats.branchName)};"
                   >${selectedBranchStats.branchName}</span
                 >
               </h3>
+              <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #6b7280;">
+                Includes parent branch history up to this branch
+              </p>
               <div class="conversation-stats-grid">
                 <div class="conversation-stat-card">
                   <span class="conversation-stat-label">Branch Messages:</span>
