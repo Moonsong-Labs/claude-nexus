@@ -503,12 +503,13 @@ function parseArgs() {
     debug: args.includes('--debug'),
     gc: args.includes('--gc'),
     help: args.includes('--help') || args.includes('-h'),
+    yes: args.includes('--yes') || args.includes('-y'),
   }
 }
 
 // Main execution
 async function main() {
-  const { dryRun, domain, limit, requestIds, debug, gc, help } = parseArgs()
+  const { dryRun, domain, limit, requestIds, debug, gc, help, yes } = parseArgs()
 
   if (help) {
     console.log(`
@@ -524,6 +525,7 @@ Options:
   --requests   Process specific request IDs (comma-separated)
   --debug      Show detailed debug information
   --gc         Enable manual garbage collection between batches (requires: node --expose-gc)
+  --yes, -y    Automatically accept the warning prompt
   --help, -h   Show this help message
 
 Memory Management:
@@ -545,6 +547,9 @@ Examples:
 
   # Process first 100 requests with debug info
   bun run scripts/db/rebuild-conversations.ts --limit 100 --debug
+
+  # Skip warning prompt for automated scripts
+  bun run scripts/db/rebuild-conversations.ts --yes
 `)
     process.exit(0)
   }
@@ -592,6 +597,10 @@ Examples:
     }
   }
 
+  if (yes && !dryRun) {
+    console.log('✅ Auto-accepting warning prompt (--yes flag provided)')
+  }
+
   // Extract and display database name
   const dbName = ConversationRebuilderV2.extractDatabaseName(databaseUrl)
   if (dbName) {
@@ -600,7 +609,7 @@ Examples:
 
   console.log('')
 
-  if (!dryRun) {
+  if (!dryRun && !yes) {
     const response = prompt('Do you want to continue? (yes/no): ')
     if (response?.toLowerCase() !== 'yes') {
       console.log('Operation cancelled.')
