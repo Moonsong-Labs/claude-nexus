@@ -13,12 +13,13 @@ NC='\033[0m' # No Color
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 [--env {prod|staging}] {up|down|status} [server-name]"
+    echo "Usage: $0 [--env {prod|staging}] {up|down|status|exec} [server-name|command]"
     echo ""
     echo "Commands:"
     echo "  up      - Enable/start the claude-nexus-proxy container"
     echo "  down    - Disable/stop the claude-nexus-proxy container"
     echo "  status  - Check the status of the claude-nexus-proxy container"
+    echo "  exec    - Execute a bash command on the server(s)"
     echo ""
     echo "Options:"
     echo "  --env {prod|staging} - Filter servers by environment tag (optional)"
@@ -28,6 +29,9 @@ usage() {
     echo "  $0 status                       # Check status on all servers"
     echo "  $0 --env prod up               # Start proxy on all production servers"
     echo "  $0 --env staging status server1 # Check status on specific staging server"
+    echo "  $0 exec \"ls -la\"               # List files on all servers"
+    echo "  $0 exec \"docker ps\"            # Show docker containers on all servers"
+    echo "  $0 exec server1 \"df -h\"        # Check disk space on specific server"
     echo ""
     echo "The script will dynamically fetch EC2 instances with 'Nexus Proxy' in their name,"
     echo "filtered by environment tag if specified."
@@ -38,6 +42,7 @@ usage() {
 ENV_FILTER=""
 COMMAND=""
 SERVER_NAME=""
+EXEC_COMMAND=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -61,6 +66,17 @@ while [[ $# -gt 0 ]]; do
             COMMAND="$1"
             shift
             ;;
+        exec)
+            if [[ -n "$COMMAND" ]]; then
+                echo -e "${RED}Error: Command already specified as '$COMMAND'${NC}"
+                usage
+            fi
+            COMMAND="$1"
+            shift
+            # Capture all remaining arguments as the command to execute
+            EXEC_COMMAND="$*"
+            break  # Stop parsing to preserve the command
+            ;;
         *)
             if [[ -z "$COMMAND" ]]; then
                 echo -e "${RED}Error: Unknown option or command '$1'${NC}"
@@ -83,9 +99,16 @@ if [[ -z "$COMMAND" ]]; then
 fi
 
 # Validate command
-if [[ ! "$COMMAND" =~ ^(up|down|status)$ ]]; then
+if [[ ! "$COMMAND" =~ ^(up|down|status|exec)$ ]]; then
     echo -e "${RED}Error: Invalid command '$COMMAND'${NC}"
     usage
+fi
+
+# Special validation for exec command
+if [[ "$COMMAND" == "exec" ]] && [[ -z "$EXEC_COMMAND" ]]; then
+    echo -e "${RED}Error: 'exec' command requires a bash command to execute${NC}"
+    echo "Example: $0 exec \"ls -la\""
+    exit 1
 fi
 
 # Check if AWS CLI is configured
@@ -223,6 +246,10 @@ execute_on_server_async() {
                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
                     "docker ps -a --filter name=claude-nexus-proxy --format 'table {{.Names}}\t{{.Status}}'" 2>&1
                 ;;
+            "exec")
+                # Execute the custom command - SSH handles escaping properly
+                ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip "$EXEC_COMMAND" 2>&1
+                ;;
         esac
         
         if [ $? -eq 0 ]; then
@@ -277,6 +304,10 @@ execute_on_server() {
         "status")
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
                 "docker ps -a --filter name=claude-nexus-proxy --format 'table {{.Names}}\t{{.Status}}'" 2>&1
+            ;;
+        "exec")
+            # Execute the custom command - SSH handles escaping properly
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip "$EXEC_COMMAND" 2>&1
             ;;
     esac
     
