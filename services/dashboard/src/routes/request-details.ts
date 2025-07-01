@@ -107,6 +107,17 @@ requestDetailsRoutes.get('/request/:id', async c => {
       }
     }
 
+    // Track user message indices for navigation
+    const userMessageIndices: number[] = []
+    conversation.messages
+      .slice()
+      .reverse()
+      .forEach((msg, idx) => {
+        if (msg.role === 'user') {
+          userMessageIndices.push(idx)
+        }
+      })
+
     // Format messages for display - reverse order to show newest first
     const messagesHtml = await Promise.all(
       conversation.messages
@@ -162,16 +173,43 @@ requestDetailsRoutes.get('/request/:id', async c => {
             roleDisplay = 'Result ✅'
           }
 
+          // Add navigation buttons for user messages
+          let navigationButtons = ''
+          if (msg.role === 'user') {
+            const currentUserIndex = userMessageIndices.indexOf(idx)
+            const hasPrev = currentUserIndex < userMessageIndices.length - 1
+            const hasNext = currentUserIndex > 0
+
+            navigationButtons = `
+              <button class="nav-arrow nav-prev" ${!hasPrev ? 'disabled' : ''} 
+                onclick="${hasPrev ? `document.getElementById('message-${userMessageIndices[currentUserIndex + 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                title="Previous user message">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 18l-6-6 6-6"/>
+                </svg>
+              </button>
+              <button class="nav-arrow nav-next" ${!hasNext ? 'disabled' : ''} 
+                onclick="${hasNext ? `document.getElementById('message-${userMessageIndices[currentUserIndex - 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                title="Next user message">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            `
+          }
+
           return `
         <div class="${messageClass}" id="message-${idx}" data-message-index="${idx}">
+          <div class="message-index">${idx + 1}</div>
           <div class="message-meta">
             <div class="message-role">${roleDisplay}</div>
             <button class="copy-message-link" data-message-index="${idx}" title="Copy link to this message">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
               </svg>
             </button>
+            ${navigationButtons}
           </div>
           <div class="message-content">
             ${
@@ -179,7 +217,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                 ? `
               <div id="${truncatedId}" class="message-truncated">
                 ${msg.truncatedHtml}
-                <span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more</span>
+                <span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more${msg.hiddenLineCount ? ` (${msg.hiddenLineCount} lines)` : ''}</span>
               </div>
               <div id="${contentId}" class="hidden">
                 ${msg.htmlContent}
@@ -401,6 +439,23 @@ requestDetailsRoutes.get('/request/:id', async c => {
         <button onclick="showView('headers')">Headers & Metadata</button>
       </div>
 
+      <!-- Conversation Controls -->
+      <div
+        style="margin-bottom: 1rem; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"
+      >
+        <label
+          style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #374151;"
+        >
+          <input
+            type="checkbox"
+            id="hide-tools-checkbox"
+            onchange="toggleToolMessages()"
+            style="cursor: pointer;"
+          />
+          <span>Hide tool use/results</span>
+        </label>
+      </div>
+
       <!-- Conversation View -->
       <div id="conversation-view" class="conversation-container">${raw(messagesHtml.join(''))}</div>
 
@@ -562,8 +617,33 @@ requestDetailsRoutes.get('/request/:id', async c => {
           }
         }
 
+        // Function to toggle tool messages visibility
+        function toggleToolMessages() {
+          const checkbox = document.getElementById('hide-tools-checkbox')
+          const conversationView = document.getElementById('conversation-view')
+
+          if (checkbox.checked) {
+            conversationView.classList.add('hide-tools')
+            localStorage.setItem('hideToolMessages', 'true')
+          } else {
+            conversationView.classList.remove('hide-tools')
+            localStorage.setItem('hideToolMessages', 'false')
+          }
+        }
+
         // Add copy link functionality
         document.addEventListener('DOMContentLoaded', function () {
+          // Restore tool messages visibility preference
+          const hideToolsPref = localStorage.getItem('hideToolMessages')
+          if (hideToolsPref === 'true') {
+            const checkbox = document.getElementById('hide-tools-checkbox')
+            const conversationView = document.getElementById('conversation-view')
+            if (checkbox && conversationView) {
+              checkbox.checked = true
+              conversationView.classList.add('hide-tools')
+            }
+          }
+
           // Handle copy link buttons
           document.querySelectorAll('.copy-message-link').forEach(button => {
             button.addEventListener('click', function (e) {

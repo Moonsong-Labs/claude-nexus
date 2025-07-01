@@ -196,6 +196,16 @@ export const dashboardStyles = `
     line-height: 1.5;
   }
 
+  .message-index {
+    flex-shrink: 0;
+    width: 30px;
+    padding-top: 0.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 500;
+  }
+
   .message-meta {
     flex-shrink: 0;
     width: 80px;
@@ -263,6 +273,58 @@ export const dashboardStyles = `
   .message-role {
     font-weight: 600;
     margin-top: 0.25rem;
+  }
+
+  /* Navigation arrows for user messages */
+  .nav-arrow {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: #6b7280;
+    transition: color 0.2s;
+    margin: 0 0.125rem;
+  }
+
+  .nav-arrow:hover:not(:disabled) {
+    color: #374151;
+  }
+
+  .nav-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .nav-arrow svg {
+    display: block;
+  }
+
+  /* Hide tools feature */
+  .hide-tools .message-tool-use .message-content,
+  .hide-tools .message-tool-result .message-content {
+    max-height: 2rem;
+    overflow: hidden;
+    position: relative;
+    opacity: 0.6;
+  }
+
+  .hide-tools .message-tool-use .message-content::after,
+  .hide-tools .message-tool-result .message-content::after {
+    content: '...';
+    position: absolute;
+    bottom: 0;
+    right: 1rem;
+    background: linear-gradient(to right, transparent, #f9fafb 20%);
+    padding-left: 2rem;
+    font-weight: 500;
+  }
+
+  .hide-tools .message-tool-use .message-content {
+    background: #fef3c7;
+  }
+
+  .hide-tools .message-tool-result .message-content {
+    background: #dcfce7;
   }
 
   .message-time {
