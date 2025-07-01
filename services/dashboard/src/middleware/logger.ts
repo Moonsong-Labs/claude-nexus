@@ -1,12 +1,5 @@
 import { Context, Next } from 'hono'
-import { customAlphabet } from 'nanoid'
 import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
-
-// Generate short request IDs
-const generateRequestId = customAlphabet(
-  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',
-  12
-)
 
 // Log levels
 export enum LogLevel {
@@ -175,11 +168,9 @@ export const logger = new Logger()
 // Logging middleware
 export function loggingMiddleware() {
   return async (c: Context, next: Next) => {
-    const requestId = generateRequestId()
+    // Get request ID from context (set by request-id middleware)
+    const requestId = c.get('requestId') || 'system'
     const startTime = Date.now()
-
-    // Attach request ID to context
-    c.set('requestId', requestId)
 
     // Extract request info
     const domain = c.req.header('host') || 'unknown'

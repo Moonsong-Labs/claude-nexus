@@ -271,11 +271,31 @@ export class StorageAdapter {
   ) {
     const messageCount = messages?.length || 0
 
+    // Convert nanoid to UUID before passing to ConversationLinker
+    let uuid: string
+    if (this.isValidUUID(requestId)) {
+      uuid = requestId
+    } else {
+      const mapping = this.requestIdMap.get(requestId)
+      if (!mapping) {
+        logger.warn('No UUID mapping found for request in linkConversation', {
+          requestId,
+          metadata: {
+            mapSize: this.requestIdMap.size,
+          },
+        })
+        // Generate a new UUID as fallback
+        uuid = randomUUID()
+      } else {
+        uuid = mapping.uuid
+      }
+    }
+
     const result = await this.conversationLinker.linkConversation({
       domain,
       messages,
       systemPrompt,
-      requestId,
+      requestId: uuid,
       messageCount,
     })
 
