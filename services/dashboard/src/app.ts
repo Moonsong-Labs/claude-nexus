@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 // Remove static file serving - will inline CSS instead
 import { container } from './container.js'
 import { loggingMiddleware, logger } from './middleware/logger.js'
+import { requestIdMiddleware } from './middleware/request-id.js'
 // Use the new API-based dashboard routes
 import { dashboardRoutes } from './routes/dashboard-api.js'
 import { conversationDetailRoutes } from './routes/conversation-detail.js'
@@ -41,7 +42,8 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
 
   // Global middleware
   app.use('*', cors())
-  app.use('*', loggingMiddleware())
+  app.use('*', requestIdMiddleware()) // Generate request ID first
+  app.use('*', loggingMiddleware()) // Then use it for logging
 
   // Health check
   app.get('/health', async c => {

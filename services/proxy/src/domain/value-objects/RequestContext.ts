@@ -20,7 +20,12 @@ export class RequestContext {
    * Create from Hono context
    */
   static fromHono(c: Context): RequestContext {
-    const requestId = c.get('requestId') || generateRequestId()
+    const requestId = c.get('requestId')
+    if (!requestId) {
+      throw new Error(
+        'RequestContext: requestId not found in context. Ensure request-id middleware is applied.'
+      )
+    }
     const host = c.req.header('host') || 'unknown'
     // Only accept Bearer tokens from Authorization header (not x-api-key)
     const apiKey = c.req.header('authorization')
@@ -68,8 +73,4 @@ export class RequestContext {
       timestamp: new Date(this.startTime).toISOString(),
     }
   }
-}
-
-function generateRequestId(): string {
-  return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 }
