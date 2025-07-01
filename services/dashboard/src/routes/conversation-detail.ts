@@ -417,6 +417,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         totalSubtasks: branchSubtasks,
         toolExecution: metrics.toolExecution,
         userReply: metrics.userReply,
+        userInteractions: metrics.userInteractions,
       }
     } else {
       // Show total stats for all branches
@@ -433,6 +434,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         totalSubtasks: totalSubtasksSpawned,
         toolExecution: allMetrics.toolExecution,
         userReply: allMetrics.userReply,
+        userInteractions: allMetrics.userInteractions,
       }
     }
 
@@ -494,6 +496,10 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               ? `avg ${formatMetricDuration(displayStats.userReply.averageMs)}`
               : 'No replies'}
           </span>
+        </div>
+        <div class="conversation-stat-card">
+          <span class="conversation-stat-label">User Interactions:</span>
+          <span class="conversation-stat-value">${displayStats.userInteractions.count}</span>
         </div>
       </div>
 

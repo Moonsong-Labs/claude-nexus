@@ -37,6 +37,10 @@ export interface ConversationMetrics {
     count: number
     intervals: ReplyInterval[]
   }
+  userInteractions: {
+    count: number
+    requests: string[]
+  }
 }
 
 /**
@@ -197,6 +201,31 @@ function findReplyIntervals(
 }
 
 /**
+ * Count user interactions (requests with user messages containing visible text)
+ */
+function countUserInteractions(requests: ConversationRequest[]): {
+  count: number
+  requests: string[]
+} {
+  const userRequests: string[] = []
+
+  for (const request of requests) {
+    const messages = request.body?.messages || []
+    const lastMessage = messages[messages.length - 1]
+
+    // Count requests where the last message is from user and has visible text
+    if (lastMessage?.role === 'user' && hasVisibleText(lastMessage)) {
+      userRequests.push(request.request_id)
+    }
+  }
+
+  return {
+    count: userRequests.length,
+    requests: userRequests,
+  }
+}
+
+/**
  * Calculate conversation metrics for tool execution and user reply times
  */
 export function calculateConversationMetrics(requests: ConversationRequest[]): ConversationMetrics {
@@ -210,6 +239,9 @@ export function calculateConversationMetrics(requests: ConversationRequest[]): C
 
   // Find reply intervals
   const replyIntervals = findReplyIntervals(sortedRequests, toolExecutions)
+
+  // Count user interactions
+  const userInteractions = countUserInteractions(sortedRequests)
 
   // Calculate tool execution metrics
   const toolTotalMs = toolExecutions.reduce((sum, exec) => sum + exec.durationMs, 0)
@@ -232,6 +264,7 @@ export function calculateConversationMetrics(requests: ConversationRequest[]): C
       count: replyCount,
       intervals: replyIntervals,
     },
+    userInteractions: userInteractions,
   }
 }
 
