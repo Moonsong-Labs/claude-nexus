@@ -141,9 +141,17 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         parentId = parentReq?.request_id
       }
 
-      // Check if request contains a user message (not just tool results)
+      // Check if this request introduced a new user message
+      // In a conversation, each request builds on the previous one, so we need to check
+      // if this request has more messages than expected based on its position
       let hasUserMessage = false
-      if (req.body?.messages && Array.isArray(req.body.messages)) {
+
+      // For the first request (index 0), it always has a user message
+      if (index === 0) {
+        hasUserMessage = true
+      } else if (req.body?.messages && Array.isArray(req.body.messages)) {
+        // For subsequent requests, check if the last message is from user
+        // This indicates the user sent a new message in this request
         const lastMessage = req.body.messages[req.body.messages.length - 1]
         if (lastMessage?.role === 'user' && lastMessage.content) {
           // Check if it's a text message, not just tool results
