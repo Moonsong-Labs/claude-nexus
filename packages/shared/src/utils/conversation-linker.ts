@@ -198,6 +198,62 @@ export class ConversationLinker {
         parent = this.selectBestParent(fallbackMatches)
       }
 
+      // Grandparent fallback: If no parent found and we have enough messages,
+      // try to find the grandparent request. This handles cases where the immediate
+      // parent request failed to be stored due to transient storage issues.
+      if (!parent && deduplicatedMessages.length > 4) {
+        try {
+          const grandparentHash = this.computeGrandparentHashFromDeduplicated(deduplicatedMessages)
+
+          console.log('[ConversationLinker] No parent found, attempting grandparent fallback', {
+            domain,
+            messageCount: deduplicatedMessages.length,
+            grandparentHash,
+            requestId,
+          })
+
+          // Look for a request whose current_message_hash matches our computed grandparent hash
+          // Using findParentByHash which searches by currentMessageHash = parentMessageHash parameter
+          const grandparentMatches = await this.findParentByHash(
+            domain,
+            grandparentHash,
+            null, // No system hash filter for grandparent lookup
+            requestId,
+            timestamp
+          )
+
+          if (grandparentMatches.length > 0) {
+            const grandparent = this.selectBestParent(grandparentMatches)
+            if (grandparent) {
+              console.log('[ConversationLinker] Grandparent fallback successful', {
+                grandparentRequestId: grandparent.request_id,
+                conversationId: grandparent.conversation_id,
+                requestId,
+              })
+
+              // Use grandparent's conversation_id and request_id as parent
+              // but keep our original message hashes unchanged
+              parent = {
+                ...grandparent,
+                // Override to use grandparent's request_id as our parent
+                request_id: grandparent.request_id,
+                // Keep the grandparent's conversation_id
+                conversation_id: grandparent.conversation_id,
+                // Use grandparent's branch_id
+                branch_id: grandparent.branch_id,
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[ConversationLinker] Grandparent fallback failed', {
+            error,
+            requestId,
+            messageCount: deduplicatedMessages.length,
+          })
+          // Continue without grandparent - will create new conversation
+        }
+      }
+
       if (parent) {
         // Check if the parent is on a compact branch
         const isParentCompactBranch = parent.branch_id.startsWith(COMPACT_PREFIX)
@@ -452,6 +508,29 @@ export class ConversationLinker {
     const parentMessages = deduplicatedMessages.slice(0, -2)
     // Use the non-deduplicating version since messages are already deduplicated
     return this.computeMessageHashNoDedupe(parentMessages)
+  }
+
+  /**
+   * Computes the grandparent hash from deduplicated messages by removing the last 4 messages.
+   * This is used as a fallback when the parent request is missing due to storage failures.
+   *
+   * @param deduplicatedMessages - Already deduplicated messages array
+   * @returns SHA-256 hash of messages excluding the last 4
+   * @throws Error if there are fewer than 5 messages
+   */
+  private computeGrandparentHashFromDeduplicated(deduplicatedMessages: ClaudeMessage[]): string {
+    // Grandparent hash requires at least 5 messages (to remove last 4)
+    const MIN_MESSAGES_FOR_GRANDPARENT_HASH = 5
+
+    if (deduplicatedMessages.length < MIN_MESSAGES_FOR_GRANDPARENT_HASH) {
+      throw new Error(
+        `Cannot compute grandparent hash for less than ${MIN_MESSAGES_FOR_GRANDPARENT_HASH} messages: ${deduplicatedMessages.length}`
+      )
+    }
+
+    const grandparentMessages = deduplicatedMessages.slice(0, -4)
+    // Use the non-deduplicating version since messages are already deduplicated
+    return this.computeMessageHashNoDedupe(grandparentMessages)
   }
 
   private detectCompactConversation(message: ClaudeMessage): CompactInfo | null {
