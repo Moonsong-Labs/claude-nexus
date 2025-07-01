@@ -338,6 +338,12 @@ export const dashboardStyles = `
     display: none;
   }
 
+  /* Hide full content divs in collapsed tool messages */
+  .hide-tools .message-tool-use .message-content > div[id^="content-"],
+  .hide-tools .message-tool-result .message-content > div[id^="content-"] {
+    display: none !important;
+  }
+
   .hide-tools .message-tool-use .message-content::after,
   .hide-tools .message-tool-result .message-content::after {
     content: '...';
