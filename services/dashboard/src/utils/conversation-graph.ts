@@ -210,31 +210,36 @@ function calculateReversedLayout(
     branchYRanges.set(node.branchId, range)
   })
 
+  // Sort branches by their minimum Y position (bottom to top) for optimal column assignment
+  const branchesInOrder = Array.from(branchYRanges.entries())
+    .sort((a, b) => b[1].minY - a[1].minY)
+    .map(([branchId]) => branchId)
+
+  // Assign columns to branches in order
+  branchesInOrder.forEach(branchId => {
+    const branchRange = branchYRanges.get(branchId)
+    if (branchRange) {
+      // Find available column for this branch
+      const column = findAvailableColumn(branchRange.minY)
+      branchLanes.set(branchId, column)
+
+      // Mark column as busy for the Y range of this branch
+      // Extend the range to prevent branches from being too close
+      const extendedMaxY = branchRange.maxY + nodeHeight
+      if (column >= columnAvailability.length) {
+        columnAvailability.push(extendedMaxY)
+      } else {
+        columnAvailability[column] = Math.max(columnAvailability[column], extendedMaxY)
+      }
+    }
+  })
+
   // Separate regular nodes and subtask nodes
   graph.nodes.forEach(node => {
     if (node.id.endsWith('-subtasks')) {
       subtaskNodes.push(node)
     } else {
-      // Process regular nodes
-      // Assign lane to branch if not already assigned
-      if (!branchLanes.has(node.branchId)) {
-        const branchRange = branchYRanges.get(node.branchId)
-        if (branchRange) {
-          // Find available column for this branch
-          const column = findAvailableColumn(branchRange.minY)
-          branchLanes.set(node.branchId, column)
-
-          // Mark column as busy for the Y range of this branch
-          // Extend the range to prevent branches from being too close
-          const extendedMaxY = branchRange.maxY + nodeHeight
-          if (column >= columnAvailability.length) {
-            columnAvailability.push(extendedMaxY)
-          } else {
-            columnAvailability[column] = Math.max(columnAvailability[column], extendedMaxY)
-          }
-        }
-      }
-
+      // Process regular nodes - lane is already assigned
       const lane = branchLanes.get(node.branchId) || 0
 
       // Use the pre-calculated distance for positioning
