@@ -44,32 +44,6 @@ export interface ConversationMetrics {
 }
 
 /**
- * Extract tool use content blocks from a message
- */
-function extractToolUses(message: any): Array<{ id: string; name: string }> {
-  if (!message?.content || typeof message.content === 'string') {
-    return []
-  }
-
-  return message.content
-    .filter((item: any) => item.type === 'tool_use' && item.id)
-    .map((item: any) => ({ id: item.id, name: item.name || 'unknown' }))
-}
-
-/**
- * Extract tool result content blocks from a message
- */
-function extractToolResults(message: any): string[] {
-  if (!message?.content || typeof message.content === 'string') {
-    return []
-  }
-
-  return message.content
-    .filter((item: any) => item.type === 'tool_result' && item.tool_use_id)
-    .map((item: any) => item.tool_use_id)
-}
-
-/**
  * Check if a message contains user-visible text (not just tool operations)
  */
 function hasVisibleText(message: any): boolean {
@@ -93,104 +67,60 @@ function hasVisibleText(message: any): boolean {
 function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   const executions: ToolExecution[] = []
 
-  // First, check all requests for response_body with tool uses
-  // This is the most reliable source since response bodies are always included
-  const toolUsesByRequest = new Map<string, Array<{ id: string; name: string }>>()
+  // Strategy: Only calculate metrics for tools where we have accurate timing information
+  // This means we need both tool_use and tool_result in response_body fields
+
+  // Build a map of all tool uses from response bodies with their request info
+  const toolUseMap = new Map<string, { request: ConversationRequest; toolName: string }>()
 
   requests.forEach(request => {
     if (request.response_body?.content && Array.isArray(request.response_body.content)) {
-      const toolUses: Array<{ id: string; name: string }> = []
       request.response_body.content.forEach((item: any) => {
         if (item.type === 'tool_use' && item.id) {
-          toolUses.push({
-            id: item.id,
-            name: item.name || 'unknown',
+          toolUseMap.set(item.id, {
+            request: request,
+            toolName: item.name || 'unknown',
           })
         }
       })
-      if (toolUses.length > 0) {
-        toolUsesByRequest.set(request.request_id, toolUses)
-      }
     }
   })
 
-  // Now look for tool results in subsequent requests
-  // We need to check the requests that have full body data
-  const requestsWithBody = requests.filter(r => r.body?.messages)
+  // Now look for tool results in response bodies
+  requests.forEach(request => {
+    if (request.response_body?.content && Array.isArray(request.response_body.content)) {
+      request.response_body.content.forEach((item: any) => {
+        if (item.type === 'tool_result' && item.tool_use_id) {
+          const toolUseInfo = toolUseMap.get(item.tool_use_id)
+          if (toolUseInfo) {
+            const toolUseTime = new Date(toolUseInfo.request.timestamp)
+            const toolResultTime = new Date(request.timestamp)
+            const durationMs = toolResultTime.getTime() - toolUseTime.getTime()
 
-  requestsWithBody.forEach(request => {
-    const messages = request.body.messages || []
+            // Sanity checks:
+            // 1. Result must come after use
+            // 2. Duration must be positive
+            // 3. Duration shouldn't exceed 5 minutes (tools shouldn't take that long)
+            const MAX_REASONABLE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 
-    // Look for tool results in user messages
-    messages.forEach(message => {
-      if (message.role === 'user') {
-        const toolResults = extractToolResults(message)
-
-        toolResults.forEach(toolResultId => {
-          // Find which request had this tool use
-          let foundToolUse = false
-
-          for (const [toolUseRequestId, toolUses] of toolUsesByRequest.entries()) {
-            const matchingTool = toolUses.find(t => t.id === toolResultId)
-            if (matchingTool) {
-              // Find the requests to get timestamps
-              const toolUseRequest = requests.find(r => r.request_id === toolUseRequestId)
-              if (toolUseRequest) {
-                const toolUseTime = new Date(toolUseRequest.timestamp)
-                const toolResultTime = new Date(request.timestamp)
-
-                // Only add if result comes after use
-                if (toolResultTime > toolUseTime) {
-                  executions.push({
-                    toolUseRequestId: toolUseRequestId,
-                    toolResultRequestId: request.request_id,
-                    toolUseTimestamp: toolUseTime,
-                    toolResultTimestamp: toolResultTime,
-                    durationMs: toolResultTime.getTime() - toolUseTime.getTime(),
-                    toolName: matchingTool.name,
-                  })
-                  foundToolUse = true
-                  break
-                }
-              }
+            if (
+              toolResultTime > toolUseTime &&
+              durationMs > 0 &&
+              durationMs < MAX_REASONABLE_DURATION_MS
+            ) {
+              executions.push({
+                toolUseRequestId: toolUseInfo.request.request_id,
+                toolResultRequestId: request.request_id,
+                toolUseTimestamp: toolUseTime,
+                toolResultTimestamp: toolResultTime,
+                durationMs,
+                toolName: toolUseInfo.toolName,
+              })
             }
           }
-
-          // If we didn't find the tool use in response bodies, check message history
-          if (!foundToolUse) {
-            // Look through all assistant messages in the conversation for this tool use
-            for (let i = messages.length - 1; i >= 0; i--) {
-              const msg = messages[i]
-              if (msg.role === 'assistant') {
-                const toolUses = extractToolUses(msg)
-                const matchingTool = toolUses.find(t => t.id === toolResultId)
-                if (matchingTool) {
-                  // Estimate timing based on message position
-                  // This is less accurate but better than nothing
-                  const messageRatio = i / messages.length
-                  const firstRequestTime = new Date(requests[0].timestamp).getTime()
-                  const lastRequestTime = new Date(
-                    requests[requests.length - 1].timestamp
-                  ).getTime()
-                  const estimatedToolUseTime =
-                    firstRequestTime + (lastRequestTime - firstRequestTime) * messageRatio
-
-                  executions.push({
-                    toolUseRequestId: request.request_id, // We don't know the exact request
-                    toolResultRequestId: request.request_id,
-                    toolUseTimestamp: new Date(estimatedToolUseTime),
-                    toolResultTimestamp: new Date(request.timestamp),
-                    durationMs: new Date(request.timestamp).getTime() - estimatedToolUseTime,
-                    toolName: matchingTool.name,
-                  })
-                  break
-                }
-              }
-            }
-          }
-        })
-      }
-    })
+        }
+      })
+    }
   })
 
   return executions
