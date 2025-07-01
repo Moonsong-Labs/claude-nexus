@@ -71,15 +71,11 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   const toolUseMap = new Map<string, { request: ConversationRequest; toolName: string }>()
 
   // First pass: collect all tool uses
-  let toolUsesFound = 0
-  let toolResultsFound = 0
-
   requests.forEach(request => {
     // Check response_body for tool uses
     if (request.response_body?.content && Array.isArray(request.response_body.content)) {
       request.response_body.content.forEach((item: any) => {
         if (item.type === 'tool_use' && item.id) {
-          toolUsesFound++
           toolUseMap.set(item.id, {
             request: request,
             toolName: item.name || 'unknown',
@@ -102,7 +98,6 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
       ) {
         lastMessage.content.forEach((item: any) => {
           if (item.type === 'tool_result' && item.tool_use_id) {
-            toolResultsFound++
             const toolUseInfo = toolUseMap.get(item.tool_use_id)
             if (toolUseInfo) {
               // Simple calculation: tool_result timestamp - tool_use timestamp
@@ -127,13 +122,6 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
       }
     }
   })
-
-  // Debug: Log what we found
-  if (toolUsesFound > 0 || toolResultsFound > 0) {
-    console.log(
-      `[Tool Metrics Debug] Found ${toolUsesFound} tool uses and ${toolResultsFound} tool results, matched ${executions.length} pairs`
-    )
-  }
 
   return executions
 }
