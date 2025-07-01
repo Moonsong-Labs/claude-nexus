@@ -62,7 +62,8 @@ function hasVisibleText(message: any): boolean {
 
 /**
  * Find tool execution pairs across requests
- * Simple approach: tool execution time = tool_result timestamp - tool_use timestamp
+ * Counts tool_result messages in the last_message of each request
+ * and pairs them with corresponding tool_use for timing
  */
 function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   const executions: ToolExecution[] = []
@@ -85,41 +86,50 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
     }
   })
 
-  // Second pass: find tool results in request bodies (user sends tool results)
+  // Second pass: find tool results in last_message or messages
   requests.forEach(request => {
-    // Tool results come from the user in the request body
-    if (request.body?.messages && Array.isArray(request.body.messages)) {
-      // Look at the last message (which should be the user's message)
-      const lastMessage = request.body.messages[request.body.messages.length - 1]
-      if (
-        lastMessage?.role === 'user' &&
-        lastMessage.content &&
-        Array.isArray(lastMessage.content)
-      ) {
-        lastMessage.content.forEach((item: any) => {
-          if (item.type === 'tool_result' && item.tool_use_id) {
-            const toolUseInfo = toolUseMap.get(item.tool_use_id)
-            if (toolUseInfo) {
-              // Simple calculation: tool_result timestamp - tool_use timestamp
-              const toolUseTime = new Date(toolUseInfo.request.timestamp)
-              const toolResultTime = new Date(request.timestamp)
-              const durationMs = toolResultTime.getTime() - toolUseTime.getTime()
+    // Check last_message first (optimized field)
+    const lastMessage =
+      request.body?.last_message ||
+      (request.body?.messages &&
+        Array.isArray(request.body.messages) &&
+        request.body.messages[request.body.messages.length - 1])
 
-              // Only include if duration is positive (result after use)
-              if (durationMs > 0) {
-                executions.push({
-                  toolUseRequestId: toolUseInfo.request.request_id,
-                  toolResultRequestId: request.request_id,
-                  toolUseTimestamp: toolUseTime,
-                  toolResultTimestamp: toolResultTime,
-                  durationMs,
-                  toolName: toolUseInfo.toolName,
-                })
-              }
+    if (lastMessage?.role === 'user' && lastMessage.content && Array.isArray(lastMessage.content)) {
+      lastMessage.content.forEach((item: any) => {
+        if (item.type === 'tool_result' && item.tool_use_id) {
+          const toolUseInfo = toolUseMap.get(item.tool_use_id)
+          if (toolUseInfo) {
+            // Simple calculation: tool_result timestamp - tool_use timestamp
+            const toolUseTime = new Date(toolUseInfo.request.timestamp)
+            const toolResultTime = new Date(request.timestamp)
+            const durationMs = toolResultTime.getTime() - toolUseTime.getTime()
+
+            // Only include if duration is positive (result after use)
+            if (durationMs > 0) {
+              executions.push({
+                toolUseRequestId: toolUseInfo.request.request_id,
+                toolResultRequestId: request.request_id,
+                toolUseTimestamp: toolUseTime,
+                toolResultTimestamp: toolResultTime,
+                durationMs,
+                toolName: toolUseInfo.toolName,
+              })
             }
+          } else {
+            // Even if we can't find the matching tool_use, count this tool_result
+            // This handles cases where tool_use might be from a different conversation/branch
+            executions.push({
+              toolUseRequestId: '',
+              toolResultRequestId: request.request_id,
+              toolUseTimestamp: new Date(request.timestamp),
+              toolResultTimestamp: new Date(request.timestamp),
+              durationMs: 0,
+              toolName: 'unknown',
+            })
           }
-        })
-      }
+        }
+      })
     }
   })
 
