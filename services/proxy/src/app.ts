@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { container } from './container.js'
 import { config, validateConfig } from '@claude-nexus/shared/config'
 import { loggingMiddleware, logger } from './middleware/logger.js'
+import { requestIdMiddleware } from './middleware/request-id.js'
 import { validationMiddleware } from './middleware/validation.js'
 import { createRateLimiter, createDomainRateLimiter } from './middleware/rate-limit.js'
 import { createHealthRoutes } from './routes/health.js'
@@ -69,7 +70,8 @@ export async function createProxyApp(): Promise<
 
   // Global middleware
   app.use('*', cors())
-  app.use('*', loggingMiddleware())
+  app.use('*', requestIdMiddleware()) // Generate request ID first
+  app.use('*', loggingMiddleware()) // Then use it for logging
 
   // Domain extraction for all routes
   app.use('*', domainExtractorMiddleware())

@@ -32,7 +32,7 @@
     "docker:logs": "docker-compose logs -f",
     "docker:logs:proxy": "docker-compose logs -f proxy",
     "docker:logs:dashboard": "docker-compose logs -f dashboard",
-    "typecheck": "tsc --build",
+    "typecheck": "tsc --build --force",
     "typecheck:proxy": "tsc --build services/proxy",
     "typecheck:dashboard": "tsc --build services/dashboard",
     "typecheck:ci": "tsc --build || (echo '❌ Type errors found! Run \"bun run typecheck\" to see details.' && exit 1)",
