@@ -143,17 +143,15 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
       // Check if the last message in the request is a user message with text content
       let hasUserMessage = false
-      if (req.body?.messages && Array.isArray(req.body.messages) && req.body.messages.length > 0) {
-        const lastMessage = req.body.messages[req.body.messages.length - 1]
-        if (lastMessage?.role === 'user') {
-          // Check if content has text type
-          if (typeof lastMessage.content === 'string') {
-            hasUserMessage = lastMessage.content.trim().length > 0
-          } else if (Array.isArray(lastMessage.content)) {
-            hasUserMessage = lastMessage.content.some(
-              (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
-            )
-          }
+      const lastMessage = req.body.last_message
+      if (lastMessage?.role === 'user') {
+        // Check if content has text type
+        if (typeof lastMessage.content === 'string') {
+          hasUserMessage = lastMessage.content.trim().length > 0
+        } else if (Array.isArray(lastMessage.content)) {
+          hasUserMessage = lastMessage.content.some(
+            (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
+          )
         }
       }
 
