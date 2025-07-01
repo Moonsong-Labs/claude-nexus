@@ -522,10 +522,6 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
                 : 'No replies'}
             </span>
           </div>
-          <div class="conversation-stat-card">
-            <span class="conversation-stat-label">Total User Interactions:</span>
-            <span class="conversation-stat-value">${conversationStats.userInteractions.count}</span>
-          </div>
         </div>
       </div>
 
@@ -588,12 +584,6 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
                       ? `${formatMetricDuration(selectedBranchStats.userReply.totalMs)} (${selectedBranchStats.userReply.count} intervals)`
                       : 'No replies'}
                   </span>
-                </div>
-                <div class="conversation-stat-card">
-                  <span class="conversation-stat-label">Branch User Interactions:</span>
-                  <span class="conversation-stat-value"
-                    >${selectedBranchStats.userInteractions.count}</span
-                  >
                 </div>
               </div>
             </div>
