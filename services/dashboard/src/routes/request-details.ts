@@ -107,13 +107,13 @@ requestDetailsRoutes.get('/request/:id', async c => {
       }
     }
 
-    // Track user message indices for navigation
+    // Track user message indices for navigation (only text/image messages, no tools)
     const userMessageIndices: number[] = []
     conversation.messages
       .slice()
       .reverse()
       .forEach((msg, idx) => {
-        if (msg.role === 'user') {
+        if (msg.role === 'user' && !msg.isToolUse && !msg.isToolResult) {
           userMessageIndices.push(idx)
         }
       })
@@ -173,28 +173,30 @@ requestDetailsRoutes.get('/request/:id', async c => {
             roleDisplay = 'Result ✅'
           }
 
-          // Add navigation buttons for user messages
+          // Add navigation buttons for user messages (only text/image content, no tools)
           let navigationButtons = ''
-          if (msg.role === 'user') {
+          if (msg.role === 'user' && !msg.isToolUse && !msg.isToolResult) {
             const currentUserIndex = userMessageIndices.indexOf(idx)
             const hasPrev = currentUserIndex < userMessageIndices.length - 1
             const hasNext = currentUserIndex > 0
 
             navigationButtons = `
-              <button class="nav-arrow nav-up" ${!hasPrev ? 'disabled' : ''} 
-                onclick="${hasPrev ? `document.getElementById('message-${userMessageIndices[currentUserIndex + 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
-                title="Previous user message">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 15l-6-6-6 6"/>
-                </svg>
-              </button>
-              <button class="nav-arrow nav-down" ${!hasNext ? 'disabled' : ''} 
-                onclick="${hasNext ? `document.getElementById('message-${userMessageIndices[currentUserIndex - 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
-                title="Next user message">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M6 9l6 6 6-6"/>
-                </svg>
-              </button>
+              <div class="nav-arrows-container">
+                <button class="nav-arrow nav-up" ${!hasPrev ? 'disabled' : ''} 
+                  onclick="${hasPrev ? `document.getElementById('message-${userMessageIndices[currentUserIndex + 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                  title="Previous user message">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 15l-6-6-6 6"/>
+                  </svg>
+                </button>
+                <button class="nav-arrow nav-down" ${!hasNext ? 'disabled' : ''} 
+                  onclick="${hasNext ? `document.getElementById('message-${userMessageIndices[currentUserIndex - 1]}').scrollIntoView({behavior: 'smooth', block: 'center'})` : ''}"
+                  title="Next user message">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6"/>
+                  </svg>
+                </button>
+              </div>
             `
           }
 
@@ -203,13 +205,15 @@ requestDetailsRoutes.get('/request/:id', async c => {
           <div class="message-index">${conversation.messages.length - idx}</div>
           <div class="message-meta">
             <div class="message-role">${roleDisplay}</div>
-            <button class="copy-message-link" data-message-index="${idx}" title="Copy link to this message">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-            </button>
-            ${navigationButtons}
+            <div class="message-actions">
+              <button class="copy-message-link" data-message-index="${idx}" title="Copy link to this message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+              </button>
+              ${navigationButtons}
+            </div>
           </div>
           <div class="message-content">
             ${msg.isToolUse && msg.toolName ? `<span class="tool-name-label">${msg.toolName}</span>` : ''}

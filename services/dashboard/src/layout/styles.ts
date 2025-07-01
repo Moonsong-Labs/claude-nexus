@@ -275,6 +275,20 @@ export const dashboardStyles = `
     margin-top: 0.25rem;
   }
 
+  /* Message actions container */
+  .message-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  /* Navigation arrows container */
+  .nav-arrows-container {
+    display: flex;
+    gap: 0.25rem;
+  }
+
   /* Navigation arrows for user messages */
   .nav-arrow {
     background: none;
@@ -283,8 +297,11 @@ export const dashboardStyles = `
     cursor: pointer;
     color: #6b7280;
     transition: color 0.2s;
-    display: block;
-    margin: 0.125rem 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .nav-arrow:hover:not(:disabled) {
