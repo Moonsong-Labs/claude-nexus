@@ -573,6 +573,10 @@ describe('ConversationLinker - JSON File Tests', () => {
 
       const result = await linker.linkConversation(request)
 
+      if (testCase.expectedParentTaskRequestId !== undefined) {
+        expect(result.parentTaskRequestId).toBe(testCase.expectedParentTaskRequestId)
+      }
+
       // Verify the linking worked correctly
       if (testCase.expectedLink && testCase.parent) {
         expect(result.conversationId).toBe(testCase.parent.conversation_id)
