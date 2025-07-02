@@ -120,18 +120,7 @@ class ConversationRebuilderFinal {
 
         console.log(`[Batch ${batchNumber}] Found ${requests.length} requests to process`)
 
-        const updates: Array<{
-          requestId: string
-          conversationId: string
-          branchId: string
-          parentMessageHash: string | null
-          currentMessageHash: string
-          systemHash: string | null
-          parentRequestId: string | null
-          isSubtask: boolean
-          parentTaskRequestId: string | null
-        }> = []
-
+        let batchUpdates = 0
         let batchSubtasks = 0
 
         for (const request of requests) {
@@ -176,31 +165,30 @@ class ConversationRebuilderFinal {
               request.parent_task_request_id !== linkingResult.parentTaskRequestId
 
             if (needsUpdate) {
-              updates.push({
-                requestId: request.request_id,
-                conversationId: conversationId,
-                branchId: linkingResult.branchId,
-                parentMessageHash: linkingResult.parentMessageHash,
-                currentMessageHash: linkingResult.currentMessageHash,
-                systemHash: linkingResult.systemHash,
-                parentRequestId: linkingResult.parentRequestId,
-                isSubtask: linkingResult.isSubtask,
-                parentTaskRequestId: linkingResult.parentTaskRequestId || null,
-              })
+              // Apply update immediately to ensure next requests can find this one as parent
+              if (!this.dryRun) {
+                await this.applySingleUpdate({
+                  requestId: request.request_id,
+                  conversationId: conversationId,
+                  branchId: linkingResult.branchId,
+                  parentMessageHash: linkingResult.parentMessageHash,
+                  currentMessageHash: linkingResult.currentMessageHash,
+                  systemHash: linkingResult.systemHash,
+                  parentRequestId: linkingResult.parentRequestId,
+                  isSubtask: linkingResult.isSubtask,
+                  parentTaskRequestId: linkingResult.parentTaskRequestId || null,
+                })
+              }
+              batchUpdates++
             }
           } catch (error) {
             console.error(`   ❌ Failed to process request ${request.request_id}:`, error)
           }
         }
 
-        // Apply updates if not in dry run mode
-        if (!this.dryRun && updates.length > 0) {
-          await this.applyUpdates(updates)
-        }
-
         // Update overall counters
         totalProcessed += requests.length
-        totalUpdates += updates.length
+        totalUpdates += batchUpdates
         totalSubtasksDetected += batchSubtasks
 
         // Report batch completion
@@ -210,7 +198,7 @@ class ConversationRebuilderFinal {
 
         console.log(`[Batch ${batchNumber}] Complete:`)
         console.log(`   Processed: ${requests.length} requests`)
-        console.log(`   Updates needed: ${updates.length}`)
+        console.log(`   Updates applied: ${batchUpdates}`)
         console.log(`   Subtasks detected: ${batchSubtasks}`)
         console.log(`   Memory: Heap ${currentMemory.heap} (Δ+${memoryDelta}MB from baseline)`)
         console.log(`Overall progress: ${totalProcessed} requests processed`)
@@ -289,19 +277,17 @@ class ConversationRebuilderFinal {
     return result.rows
   }
 
-  private async applyUpdates(
-    updates: Array<{
-      requestId: string
-      conversationId: string
-      branchId: string
-      parentMessageHash: string | null
-      currentMessageHash: string
-      systemHash: string | null
-      parentRequestId: string | null
-      isSubtask: boolean
-      parentTaskRequestId: string | null
-    }>
-  ) {
+  private async applySingleUpdate(update: {
+    requestId: string
+    conversationId: string
+    branchId: string
+    parentMessageHash: string | null
+    currentMessageHash: string
+    systemHash: string | null
+    parentRequestId: string | null
+    isSubtask: boolean
+    parentTaskRequestId: string | null
+  }) {
     const query = `
       UPDATE api_requests
       SET 
@@ -316,19 +302,17 @@ class ConversationRebuilderFinal {
       WHERE request_id = $1
     `
 
-    for (const update of updates) {
-      await this.pool.query(query, [
-        update.requestId,
-        update.conversationId,
-        update.branchId,
-        update.parentMessageHash,
-        update.currentMessageHash,
-        update.systemHash,
-        update.parentRequestId,
-        update.isSubtask,
-        update.parentTaskRequestId,
-      ])
-    }
+    await this.pool.query(query, [
+      update.requestId,
+      update.conversationId,
+      update.branchId,
+      update.parentMessageHash,
+      update.currentMessageHash,
+      update.systemHash,
+      update.parentRequestId,
+      update.isSubtask,
+      update.parentTaskRequestId,
+    ])
   }
 
   private async showFinalStats() {
