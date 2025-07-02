@@ -133,7 +133,8 @@ function calculateReversedLayout(
   // Since Y coordinates are reversed (lower Y = higher position), we check if column is free at the top of the branch
   function findAvailableColumn(maxY: number): number {
     for (let col = 0; col < columnAvailability.length; col++) {
-      if (columnAvailability[col] >= maxY) {
+      // A column is available if its lowest occupied Y is greater than the branch's highest Y (with some buffer)
+      if (columnAvailability[col] > maxY) {
         return col
       }
     }
@@ -558,9 +559,36 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         svg += `    <text x="${x + 15}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 13px; fill: ${color};">${node.messageCount}</text>\n`
       }
 
-      // Add user icon if this request has a user message
-      if (node.hasUserMessage) {
-        svg += `    <text x="${x + 32}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="User message">👤</text>\n`
+      // Add appropriate icon based on branch type and user message
+      let showIcon = false
+      let icon = '👤'
+      let title = 'User message'
+
+      // Check if this is the first node of a subtask or compact branch
+      if (
+        node.branchId &&
+        (node.branchId.startsWith('subtask_') || node.branchId.startsWith('compact_'))
+      ) {
+        // Check if parent node has a different branch
+        const parentNode = layout.nodes.find(n => n.id === node.parentId)
+        const isFirstInBranch = !parentNode || parentNode.branchId !== node.branchId
+
+        if (isFirstInBranch) {
+          showIcon = true
+          if (node.branchId.startsWith('subtask_')) {
+            icon = '💻'
+            title = 'Subtask branch'
+          } else if (node.branchId.startsWith('compact_')) {
+            icon = '🗜️'
+            title = 'Compact branch'
+          }
+        }
+      } else if (node.hasUserMessage) {
+        showIcon = true
+      }
+
+      if (showIcon) {
+        svg += `    <text x="${x + 32}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="${title}">${icon}</text>\n`
       }
 
       // Add request ID (first 8 chars) in the center
