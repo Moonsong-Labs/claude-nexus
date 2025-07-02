@@ -30,6 +30,7 @@ export interface ConversationNode {
   subtaskCount?: number
   linkedConversationId?: string
   subtaskPrompt?: string
+  hasUserMessage?: boolean
 }
 
 export interface ConversationGraph {
@@ -58,6 +59,7 @@ export interface LayoutNode {
   subtaskCount?: number
   linkedConversationId?: string
   subtaskPrompt?: string
+  hasUserMessage?: boolean
 }
 
 export interface LayoutEdge {
@@ -121,9 +123,24 @@ function calculateReversedLayout(
     childrenMap.set(node.parentId, children)
   })
 
-  // Track branch lanes
+  // Track branch lanes with column availability
   const branchLanes = new Map<string, number>()
-  let nextLane = 0
+  // Track column availability: each column stores the lowest Y position occupied (busy until)
+  // Since tree is reversed (lower Y = higher up), a column is available if its value < branch's maxY
+  const columnAvailability: number[] = [] // Array index = column, value = lowest Y occupied
+
+  // Helper to find first available column for a branch
+  // Since Y coordinates are reversed (lower Y = higher position), we check if column is free at the top of the branch
+  function findAvailableColumn(maxY: number): number {
+    for (let col = 0; col < columnAvailability.length; col++) {
+      // A column is available if its lowest occupied Y is greater than the branch's highest Y (with some buffer)
+      if (columnAvailability[col] > maxY) {
+        return col
+      }
+    }
+    // If no existing column is available, create a new one
+    return columnAvailability.length
+  }
 
   // Build a map of node distances from root
   const nodeDistances = new Map<string, number>()
@@ -171,17 +188,63 @@ function calculateReversedLayout(
   // Create a map to track actual Y positions for each node
   const nodeYPositions = new Map<string, number>()
 
+  // First, calculate Y positions for all non-subtask nodes
+  const nodeYData: Array<{ node: ConversationNode; y: number }> = []
+  graph.nodes.forEach(node => {
+    if (!node.id.endsWith('-subtasks')) {
+      const distance = nodeDistances.get(node.id) || node.messageCount || 0
+      const y = (maxDistance - distance) * verticalSpacing
+      nodeYPositions.set(node.id, y)
+      nodeYData.push({ node, y })
+    }
+  })
+
+  // Sort nodes by Y position (bottom to top) to assign columns optimally
+  nodeYData.sort((a, b) => b.y - a.y)
+
+  // Track which Y ranges each branch occupies
+  const branchYRanges = new Map<string, { minY: number; maxY: number }>()
+
+  // Calculate Y ranges for each branch
+  nodeYData.forEach(({ node, y }) => {
+    const range = branchYRanges.get(node.branchId) || { minY: y, maxY: y }
+    range.minY = Math.min(range.minY, y)
+    range.maxY = Math.max(range.maxY, y)
+    branchYRanges.set(node.branchId, range)
+  })
+
+  // Sort branches by their maximum Y position (bottom to top) for optimal column assignment
+  // Higher maxY values = branches that start lower in the tree (should be processed first)
+  const branchesInOrder = Array.from(branchYRanges.entries())
+    .sort((a, b) => b[1].maxY - a[1].maxY)
+    .map(([branchId]) => branchId)
+
+  // Assign columns to branches in order
+  branchesInOrder.forEach(branchId => {
+    const branchRange = branchYRanges.get(branchId)
+    if (branchRange) {
+      // Find available column for this branch (check if column is free at the top of the branch)
+      const column = findAvailableColumn(branchRange.maxY)
+      branchLanes.set(branchId, column)
+
+      // Mark column as busy down to the bottom of this branch
+      // Since lower Y = higher position, we store minY as the "busy until" value
+      // Subtract nodeHeight to add some spacing between branches
+      const busyUntil = branchRange.minY - nodeHeight
+      if (column >= columnAvailability.length) {
+        columnAvailability.push(busyUntil)
+      } else {
+        columnAvailability[column] = Math.min(columnAvailability[column], busyUntil)
+      }
+    }
+  })
+
   // Separate regular nodes and subtask nodes
   graph.nodes.forEach(node => {
     if (node.id.endsWith('-subtasks')) {
       subtaskNodes.push(node)
     } else {
-      // Process regular nodes first
-      // Assign lane to branch if not already assigned
-      if (!branchLanes.has(node.branchId)) {
-        branchLanes.set(node.branchId, nextLane++)
-      }
-
+      // Process regular nodes - lane is already assigned
       const lane = branchLanes.get(node.branchId) || 0
 
       // Use the pre-calculated distance for positioning
@@ -189,7 +252,6 @@ function calculateReversedLayout(
 
       // Y position is based on reversed distance (newest at top)
       const y = (maxDistance - distance) * verticalSpacing
-      nodeYPositions.set(node.id, y)
 
       // X position is based on branch lane
       const x = lane * horizontalSpacing
@@ -215,6 +277,7 @@ function calculateReversedLayout(
         subtaskCount: node.subtaskCount,
         linkedConversationId: node.linkedConversationId,
         subtaskPrompt: node.subtaskPrompt,
+        hasUserMessage: node.hasUserMessage,
       })
     }
   })
@@ -257,6 +320,7 @@ function calculateReversedLayout(
         subtaskCount: node.subtaskCount,
         linkedConversationId: node.linkedConversationId,
         subtaskPrompt: node.subtaskPrompt,
+        hasUserMessage: node.hasUserMessage,
       })
     }
   })
@@ -419,7 +483,23 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         path = `M${startX},${startY} L${endX},${endY}`
       }
 
-      svg += `  <path d="${path}" class="graph-edge" />\n`
+      // Check if this edge connects to a subtask branch
+      const isToSubtask =
+        targetNode && targetNode.branchId.startsWith('subtask_') && targetNode.messageCount === 1
+
+      if (isToSubtask) {
+        // Draw edge with special styling for subtask connections
+        svg += `  <path d="${path}" class="graph-edge" style="stroke-dasharray: 5,5;" />\n`
+
+        // Add bidirectional arrow indicator at the midpoint
+        const midX = (startX + endX) / 2
+        const midY = (startY + endY) / 2
+
+        // Add arrow symbols
+        svg += `  <text x="${midX}" y="${midY - 5}" text-anchor="middle" style="font-size: 16px; fill: #6b7280;">⇄</text>\n`
+      } else {
+        svg += `  <path d="${path}" class="graph-edge" />\n`
+      }
     }
   }
   svg += '</g>\n'
@@ -493,6 +573,33 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       // Add message count number on the left
       if (node.messageCount !== undefined && node.messageCount > 0) {
         svg += `    <text x="${x + 15}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 13px; fill: ${color};">${node.messageCount}</text>\n`
+      }
+
+      // Add appropriate icon based on branch type and user message
+      let showIcon = false
+      let icon = '👤'
+      let title = 'User message'
+
+      // Check if this is the first node of a subtask or compact branch (message_count === 1)
+      if (
+        node.branchId &&
+        node.messageCount === 1 &&
+        (node.branchId.startsWith('subtask_') || node.branchId.startsWith('compact_'))
+      ) {
+        showIcon = true
+        if (node.branchId.startsWith('subtask_')) {
+          icon = '💻'
+          title = 'Subtask branch'
+        } else if (node.branchId.startsWith('compact_')) {
+          icon = '🗜️'
+          title = 'Compact branch'
+        }
+      } else if (node.hasUserMessage) {
+        showIcon = true
+      }
+
+      if (showIcon) {
+        svg += `    <text x="${x + 32}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="${title}">${icon}</text>\n`
       }
 
       // Add request ID (first 8 chars) in the center

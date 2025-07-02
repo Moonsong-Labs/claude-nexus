@@ -9,6 +9,10 @@ import {
   getBranchColor,
 } from '../utils/conversation-graph.js'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
+import {
+  calculateConversationMetrics,
+  formatDuration as formatMetricDuration,
+} from '../utils/conversation-metrics.js'
 import type { ConversationRequest } from '../types/conversation.js'
 
 export const conversationDetailRoutes = new Hono()
@@ -137,6 +141,20 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         parentId = parentReq?.request_id
       }
 
+      // Check if the last message in the request is a user message with text content
+      let hasUserMessage = false
+      const lastMessage = req.last_message
+      if (lastMessage?.role === 'user') {
+        // Check if content has text type
+        if (typeof lastMessage.content === 'string') {
+          hasUserMessage = lastMessage.content.trim().length > 0
+        } else if (Array.isArray(lastMessage.content)) {
+          hasUserMessage = lastMessage.content.some(
+            (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
+          )
+        }
+      }
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
@@ -152,6 +170,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         isSubtask: req.is_subtask,
         hasSubtasks: finalHasSubtasks,
         subtaskCount: finalSubtaskCount,
+        hasUserMessage: hasUserMessage,
       })
     })
 
@@ -375,19 +394,46 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       totalSubtasksSpawned = await storageService.countSubtasksForRequests(requestIdsWithTasks)
     }
 
-    // Calculate stats for selected branch or total
-    let displayStats
-    if (selectedBranch && branchStats[selectedBranch]) {
-      // For branch stats, use the filtered requests which include main branch history
-      const maxMessageCount = Math.max(...filteredRequests.map(r => r.message_count || 0), 0)
-      const totalTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
-      const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
-      const duration = timestamps.length > 0 ? Math.max(...timestamps) - Math.min(...timestamps) : 0
-      const inferenceTime = filteredRequests.reduce((sum, req) => sum + (req.duration_ms || 0), 0)
+    // Calculate metrics for all requests (conversation level)
+    const allMetrics = calculateConversationMetrics(conversation.requests)
 
-      // Calculate sub-tasks for filtered branch
-      let branchSubtasks = 0
-      const branchRequestIdsWithTasks = filteredRequests
+    // Calculate conversation-level stats
+    const conversationStats = {
+      messageCount: conversation.message_count || 0,
+      totalTokens: conversation.total_tokens,
+      branchCount: Object.keys(branchStats).length,
+      duration: totalDuration,
+      inferenceTime: totalInferenceTime,
+      requestCount: conversation.requests.length,
+      totalSubtasks: totalSubtasksSpawned,
+      toolExecution: allMetrics.toolExecution,
+      userReply: allMetrics.userReply,
+      userInteractions: allMetrics.userInteractions,
+    }
+
+    // Calculate branch-specific stats if a branch is selected
+    let selectedBranchStats = null
+    if (selectedBranch) {
+      // Calculate metrics for filtered requests (includes parent branches)
+      const branchMetrics = calculateConversationMetrics(filteredRequests)
+
+      // For cumulative stats, use all filtered requests (includes parent branches)
+      const cumulativeTokens = filteredRequests.reduce((sum, r) => sum + r.total_tokens, 0)
+      const cumulativeInferenceTime = filteredRequests.reduce(
+        (sum, req) => sum + (req.duration_ms || 0),
+        0
+      )
+
+      // Calculate cumulative duration (from first to last request in filtered set)
+      let cumulativeDuration = 0
+      if (filteredRequests.length > 0) {
+        const timestamps = filteredRequests.map(r => new Date(r.timestamp).getTime())
+        cumulativeDuration = Math.max(...timestamps) - Math.min(...timestamps)
+      }
+
+      // Calculate sub-tasks for all filtered requests
+      let cumulativeSubtasks = 0
+      const cumulativeRequestIdsWithTasks = filteredRequests
         .filter(
           req =>
             req.task_tool_invocation &&
@@ -396,29 +442,26 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         )
         .map(req => req.request_id)
 
-      if (branchRequestIdsWithTasks.length > 0) {
-        branchSubtasks = await storageService.countSubtasksForRequests(branchRequestIdsWithTasks)
+      if (cumulativeRequestIdsWithTasks.length > 0) {
+        cumulativeSubtasks = await storageService.countSubtasksForRequests(
+          cumulativeRequestIdsWithTasks
+        )
       }
 
-      displayStats = {
+      // Get the maximum message count from filtered requests (cumulative)
+      const maxMessageCount = Math.max(...filteredRequests.map(r => r.message_count || 0), 0)
+
+      selectedBranchStats = {
+        branchName: selectedBranch,
         messageCount: maxMessageCount,
-        totalTokens: totalTokens,
-        branchCount: 1,
-        duration: duration,
-        inferenceTime: inferenceTime,
+        totalTokens: cumulativeTokens,
+        duration: cumulativeDuration,
+        inferenceTime: cumulativeInferenceTime,
         requestCount: filteredRequests.length,
-        totalSubtasks: branchSubtasks,
-      }
-    } else {
-      // Show total stats for all branches
-      displayStats = {
-        messageCount: conversation.message_count || 0,
-        totalTokens: conversation.total_tokens,
-        branchCount: Object.keys(branchStats).length,
-        duration: totalDuration,
-        inferenceTime: totalInferenceTime,
-        requestCount: conversation.requests.length,
-        totalSubtasks: totalSubtasksSpawned,
+        totalSubtasks: cumulativeSubtasks,
+        toolExecution: branchMetrics.toolExecution,
+        userReply: branchMetrics.userReply,
+        userInteractions: branchMetrics.userInteractions,
       }
     }
 
@@ -427,45 +470,125 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
       </div>
 
-      <h2 style="margin: 0 0 1.5rem 0;">Conversation Details</h2>
-
-      <!-- Stats Grid -->
-      <div class="conversation-stats-grid">
-        <div class="conversation-stat-card">
-          <span class="conversation-stat-label"
-            >${selectedBranch ? 'Branch' : 'Total'} Messages:</span
-          >
-          <span class="conversation-stat-value">${displayStats.messageCount}</span>
-        </div>
-        <div class="conversation-stat-card">
-          <span class="conversation-stat-label"
-            >${selectedBranch ? 'Branch' : 'Total'} Sub-tasks:</span
-          >
-          <span class="conversation-stat-value">${displayStats.totalSubtasks}</span>
-        </div>
-        <div class="conversation-stat-card">
-          <span class="conversation-stat-label"
-            >${selectedBranch ? 'Branch' : 'Total'} Tokens:</span
-          >
-          <span class="conversation-stat-value">${displayStats.totalTokens.toLocaleString()}</span>
-        </div>
-        <div class="conversation-stat-card">
-          <span class="conversation-stat-label"
-            >${selectedBranch ? 'Branch Requests' : 'Branches'}:</span
-          >
-          <span class="conversation-stat-value"
-            >${selectedBranch ? displayStats.requestCount : displayStats.branchCount}</span
-          >
-        </div>
-        <div class="conversation-stat-card">
-          <span class="conversation-stat-label">Duration:</span>
-          <span class="conversation-stat-value">${formatDuration(displayStats.duration)}</span>
-        </div>
-        <div class="conversation-stat-card">
-          <span class="conversation-stat-label">AI Inference:</span>
-          <span class="conversation-stat-value">${formatDuration(displayStats.inferenceTime)}</span>
+      <!-- Conversation Details Panel -->
+      <div style="margin-bottom: 2rem;">
+        <h3 style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600;">
+          Conversation Details
+        </h3>
+        <div class="conversation-stats-grid">
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Total Messages:</span>
+            <span class="conversation-stat-value">${conversationStats.messageCount}</span>
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Total Sub-tasks:</span>
+            <span class="conversation-stat-value">${conversationStats.totalSubtasks}</span>
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Total Tokens:</span>
+            <span class="conversation-stat-value"
+              >${conversationStats.totalTokens.toLocaleString()}</span
+            >
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Branches:</span>
+            <span class="conversation-stat-value">${conversationStats.branchCount}</span>
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Total Duration:</span>
+            <span class="conversation-stat-value"
+              >${formatDuration(conversationStats.duration)}</span
+            >
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Total AI Inference:</span>
+            <span class="conversation-stat-value"
+              >${formatDuration(conversationStats.inferenceTime)}</span
+            >
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Total Tool Execution:</span>
+            <span class="conversation-stat-value">
+              ${conversationStats.toolExecution.count > 0
+                ? `${formatMetricDuration(conversationStats.toolExecution.totalMs)} (${conversationStats.toolExecution.count} tools)`
+                : 'No tools used'}
+            </span>
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Total Time to Reply:</span>
+            <span class="conversation-stat-value">
+              ${conversationStats.userReply.count > 0
+                ? `${formatMetricDuration(conversationStats.userReply.totalMs)} (${conversationStats.userReply.count} intervals)`
+                : 'No replies'}
+            </span>
+          </div>
         </div>
       </div>
+
+      <!-- Branch Details Panel (only show when a branch is selected) -->
+      ${selectedBranchStats
+        ? html`
+            <div style="margin-bottom: 2rem;">
+              <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; font-weight: 600;">
+                Branch Details:
+                <span style="color: ${getBranchColor(selectedBranchStats.branchName)};"
+                  >${selectedBranchStats.branchName}</span
+                >
+              </h3>
+              <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #6b7280;">
+                Includes parent branch history up to this branch
+              </p>
+              <div class="conversation-stats-grid">
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch Messages:</span>
+                  <span class="conversation-stat-value">${selectedBranchStats.messageCount}</span>
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch Sub-tasks:</span>
+                  <span class="conversation-stat-value">${selectedBranchStats.totalSubtasks}</span>
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch Tokens:</span>
+                  <span class="conversation-stat-value"
+                    >${selectedBranchStats.totalTokens.toLocaleString()}</span
+                  >
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch Requests:</span>
+                  <span class="conversation-stat-value">${selectedBranchStats.requestCount}</span>
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch Duration:</span>
+                  <span class="conversation-stat-value"
+                    >${formatDuration(selectedBranchStats.duration)}</span
+                  >
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch AI Inference:</span>
+                  <span class="conversation-stat-value"
+                    >${formatDuration(selectedBranchStats.inferenceTime)}</span
+                  >
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch Tool Execution:</span>
+                  <span class="conversation-stat-value">
+                    ${selectedBranchStats.toolExecution.count > 0
+                      ? `${formatMetricDuration(selectedBranchStats.toolExecution.totalMs)} (${selectedBranchStats.toolExecution.count} tools)`
+                      : 'No tools used'}
+                  </span>
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Branch Time to Reply:</span>
+                  <span class="conversation-stat-value">
+                    ${selectedBranchStats.userReply.count > 0
+                      ? `${formatMetricDuration(selectedBranchStats.userReply.totalMs)} (${selectedBranchStats.userReply.count} intervals)`
+                      : 'No replies'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          `
+        : ''}
 
       <!-- Branch Filter -->
       <div class="branch-filter" id="branch-filter">
@@ -713,8 +836,8 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 function getLastMessageContent(req: ConversationRequest): string {
   try {
     // Check if we have the optimized last_message field
-    if (req.body && req.body.last_message) {
-      const lastMessage = req.body.last_message
+    if (req.last_message) {
+      const lastMessage = req.last_message
 
       // Handle the last message directly
       if (typeof lastMessage.content === 'string') {

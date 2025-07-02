@@ -50,7 +50,6 @@ interface RequestSummary {
   responseStatus: number
   error?: string
   requestType?: string
-  conversationId?: string
 }
 
 interface RequestDetails extends RequestSummary {
@@ -63,6 +62,9 @@ interface RequestDetails extends RequestSummary {
     data: string
     tokenCount: number
   }>
+  conversationId?: string
+  branchId?: string
+  parentRequestId?: string
 }
 
 export const apiRoutes = new Hono<{
@@ -313,6 +315,7 @@ apiRoutes.get('/requests/:id', async c => {
         error,
         request_type,
         conversation_id,
+        branch_id,
         parent_request_id,
         body as request_body,
         response_body,
@@ -350,6 +353,8 @@ apiRoutes.get('/requests/:id', async c => {
       error: row.error,
       requestType: row.request_type,
       conversationId: row.conversation_id,
+      branchId: row.branch_id,
+      parentRequestId: row.parent_request_id,
       requestBody: row.request_body,
       responseBody: row.response_body,
       usageData: row.usage_data,
