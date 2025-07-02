@@ -1,0 +1,92 @@
+{
+  "name": "Streaming response test",
+  "description": "Tests streaming responses and chunk storage",
+  "authentication": {
+    "domain": "e2e-test.com",
+    "clientApiKey": "cnp_test_1234567890",
+    "claudeApiKey": "sk-ant-test-key"
+  },
+  "steps": [
+    {
+      "stepName": "1_streaming_request",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Write a short poem about coding"
+            }
+          ],
+          "max_tokens": 150,
+          "stream": true
+        }
+      },
+      "context": {
+        "save": {
+          "streamRequestId": "requestId",
+          "conversationId": "conversationId"
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200,
+          "stream_chunks_count": {
+            "operator": ">=",
+            "value": 3
+          }
+        },
+        "dbState": {
+          "table": "api_requests",
+          "where": {
+            "request_id": "REF_STEP:1_streaming_request.requestId"
+          },
+          "assert": {
+            "conversation_id": "IS_UUID",
+            "branch_id": "main",
+            "stream": true
+          }
+        }
+      }
+    },
+    {
+      "stepName": "2_verify_chunks_stored",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Write a short poem about coding"
+            },
+            {
+              "role": "assistant",
+              "content": "Lines of logic, pure and bright..."
+            },
+            {
+              "role": "user",
+              "content": "Nice! Can you make it longer?"
+            }
+          ],
+          "max_tokens": 200,
+          "stream": false
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200
+        },
+        "dbState": {
+          "table": "streaming_chunks",
+          "where": {
+            "api_request_id": "${context.streamRequestId}"
+          },
+          "count": {
+            "operator": ">=",
+            "value": 3
+          }
+        }
+      }
+    }
+  ]
+}

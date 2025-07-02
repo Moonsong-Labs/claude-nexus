@@ -1,0 +1,22 @@
+{
+  "name": "@claude-nexus-proxy/e2e-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun --env-file=.env.test test src/test-harness.ts",
+    "test:watch": "bun --env-file=.env.test test --watch src/test-harness.ts",
+    "export": "bun run src/export-conversation.ts",
+    "docker:up": "docker-compose -f docker-compose.e2e.yml up -d",
+    "docker:down": "docker-compose -f docker-compose.e2e.yml down -v",
+    "docker:logs": "docker-compose -f docker-compose.e2e.yml logs -f"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "nanoid": "^5.0.4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pg": "^8.10.9"
+  }
+}
