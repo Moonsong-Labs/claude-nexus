@@ -105,6 +105,7 @@ class ConversationRebuilderFinal {
       let totalUpdates = 0
       let totalSubtasksDetected = 0
       let batchNumber = 0
+      const overallChangeTypes = new Map<string, number>()
 
       while (true) {
         batchNumber++
@@ -122,6 +123,7 @@ class ConversationRebuilderFinal {
 
         let batchUpdates = 0
         let batchSubtasks = 0
+        const changeTypes = new Map<string, number>()
 
         for (const request of requests) {
           try {
@@ -153,18 +155,87 @@ class ConversationRebuilderFinal {
             const conversationId =
               linkingResult.conversationId || request.conversation_id || generateConversationId()
 
-            // Check if update is needed
-            const needsUpdate =
-              request.conversation_id !== conversationId ||
-              request.branch_id !== linkingResult.branchId ||
-              request.current_message_hash !== linkingResult.currentMessageHash ||
-              request.parent_message_hash !== linkingResult.parentMessageHash ||
-              request.system_hash !== linkingResult.systemHash ||
-              request.parent_request_id !== linkingResult.parentRequestId ||
-              request.is_subtask !== linkingResult.isSubtask ||
-              request.parent_task_request_id !== linkingResult.parentTaskRequestId
+            // Build list of changes
+            const changes: string[] = []
+
+            if (request.conversation_id !== conversationId) {
+              changes.push(
+                `conversation_id: ${request.conversation_id || 'null'} → ${conversationId}`
+              )
+              changeTypes.set('conversation_id', (changeTypes.get('conversation_id') || 0) + 1)
+            }
+            if (request.branch_id !== linkingResult.branchId) {
+              changes.push(`branch_id: ${request.branch_id || 'null'} → ${linkingResult.branchId}`)
+              changeTypes.set('branch_id', (changeTypes.get('branch_id') || 0) + 1)
+            }
+            if (request.current_message_hash !== linkingResult.currentMessageHash) {
+              const oldHash = request.current_message_hash
+                ? `${request.current_message_hash.substring(0, 8)}...`
+                : 'null'
+              const newHash = linkingResult.currentMessageHash
+                ? `${linkingResult.currentMessageHash.substring(0, 8)}...`
+                : 'null'
+              changes.push(`current_message_hash: ${oldHash} → ${newHash}`)
+              changeTypes.set(
+                'current_message_hash',
+                (changeTypes.get('current_message_hash') || 0) + 1
+              )
+            }
+            if (request.parent_message_hash !== linkingResult.parentMessageHash) {
+              const oldHash = request.parent_message_hash
+                ? `${request.parent_message_hash.substring(0, 8)}...`
+                : 'null'
+              const newHash = linkingResult.parentMessageHash
+                ? `${linkingResult.parentMessageHash.substring(0, 8)}...`
+                : 'null'
+              changes.push(`parent_message_hash: ${oldHash} → ${newHash}`)
+              changeTypes.set(
+                'parent_message_hash',
+                (changeTypes.get('parent_message_hash') || 0) + 1
+              )
+            }
+            if (request.system_hash !== linkingResult.systemHash) {
+              const oldHash = request.system_hash
+                ? `${request.system_hash.substring(0, 8)}...`
+                : 'null'
+              const newHash = linkingResult.systemHash
+                ? `${linkingResult.systemHash.substring(0, 8)}...`
+                : 'null'
+              changes.push(`system_hash: ${oldHash} → ${newHash}`)
+              changeTypes.set('system_hash', (changeTypes.get('system_hash') || 0) + 1)
+            }
+            if (request.parent_request_id !== linkingResult.parentRequestId) {
+              changes.push(
+                `parent_request_id: ${request.parent_request_id || 'null'} → ${linkingResult.parentRequestId || 'null'}`
+              )
+              changeTypes.set('parent_request_id', (changeTypes.get('parent_request_id') || 0) + 1)
+            }
+            if (request.is_subtask !== linkingResult.isSubtask) {
+              changes.push(
+                `is_subtask: ${request.is_subtask || false} → ${linkingResult.isSubtask || false}`
+              )
+              changeTypes.set('is_subtask', (changeTypes.get('is_subtask') || 0) + 1)
+              if (linkingResult.isSubtask) {
+                batchSubtasks++
+              }
+            }
+            if (request.parent_task_request_id !== linkingResult.parentTaskRequestId) {
+              changes.push(
+                `parent_task_request_id: ${request.parent_task_request_id || 'null'} → ${linkingResult.parentTaskRequestId || 'null'}`
+              )
+              changeTypes.set(
+                'parent_task_request_id',
+                (changeTypes.get('parent_task_request_id') || 0) + 1
+              )
+            }
+
+            const needsUpdate = changes.length > 0
 
             if (needsUpdate) {
+              // Log the changes
+              console.log(`   [${request.request_id}] Changes:`)
+              changes.forEach(change => console.log(`     - ${change}`))
+
               // Apply update immediately to ensure next requests can find this one as parent
               if (!this.dryRun) {
                 await this.applySingleUpdate({
@@ -191,6 +262,11 @@ class ConversationRebuilderFinal {
         totalUpdates += batchUpdates
         totalSubtasksDetected += batchSubtasks
 
+        // Accumulate overall change types
+        for (const [type, count] of changeTypes) {
+          overallChangeTypes.set(type, (overallChangeTypes.get(type) || 0) + count)
+        }
+
         // Report batch completion
         const batchDuration = Date.now() - batchStartTime
         const currentMemory = formatMemoryUsage()
@@ -200,7 +276,18 @@ class ConversationRebuilderFinal {
         console.log(`   Processed: ${requests.length} requests`)
         console.log(`   Updates applied: ${batchUpdates}`)
         console.log(`   Subtasks detected: ${batchSubtasks}`)
+
+        // Show change type breakdown if there were updates
+        if (batchUpdates > 0 && changeTypes.size > 0) {
+          console.log(`   Changes by type:`)
+          const sortedTypes = Array.from(changeTypes.entries()).sort((a, b) => b[1] - a[1])
+          for (const [type, count] of sortedTypes) {
+            console.log(`     - ${type}: ${count}`)
+          }
+        }
+
         console.log(`   Memory: Heap ${currentMemory.heap} (Δ+${memoryDelta}MB from baseline)`)
+        console.log(`   Duration: ${(batchDuration / 1000).toFixed(2)}s`)
         console.log(`Overall progress: ${totalProcessed} requests processed`)
 
         // Stop if we've hit the limit
@@ -214,6 +301,16 @@ class ConversationRebuilderFinal {
       console.log(`Total requests processed: ${totalProcessed}`)
       console.log(`Total updates applied: ${this.dryRun ? 0 : totalUpdates}`)
       console.log(`Total subtasks detected: ${totalSubtasksDetected}`)
+
+      // Show overall change type breakdown
+      if (totalUpdates > 0 && overallChangeTypes.size > 0) {
+        console.log(`\nOverall changes by type:`)
+        const sortedTypes = Array.from(overallChangeTypes.entries()).sort((a, b) => b[1] - a[1])
+        for (const [type, count] of sortedTypes) {
+          const percentage = ((count / totalUpdates) * 100).toFixed(1)
+          console.log(`  - ${type}: ${count} (${percentage}% of updates)`)
+        }
+      }
 
       const finalMemory = formatMemoryUsage()
       const totalMemoryDelta = Math.round((finalMemory.heapUsed - initialMemory) / 1024 / 1024)
