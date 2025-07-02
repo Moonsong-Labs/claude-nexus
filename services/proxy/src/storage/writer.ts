@@ -302,6 +302,7 @@ export class StorageWriter {
     systemHash?: string | null
     excludeRequestId?: string
     beforeTimestamp?: Date
+    conversationId?: string
   }): Promise<
     Array<{
       request_id: string
@@ -350,6 +351,12 @@ export class StorageWriter {
         paramCount++
         conditions.push(`timestamp < $${paramCount}`)
         values.push(criteria.beforeTimestamp)
+      }
+
+      if (criteria.conversationId) {
+        paramCount++
+        conditions.push(`conversation_id = $${paramCount}`)
+        values.push(criteria.conversationId)
       }
 
       const query = `
@@ -703,14 +710,12 @@ export class StorageWriter {
   /**
    * Get request details for linking
    */
-  async getRequestDetails(
-    requestId: string
-  ): Promise<{ 
-    request_id: string;
-    conversation_id: string; 
-    branch_id: string;
-    current_message_hash?: string;
-    system_hash?: string;
+  async getRequestDetails(requestId: string): Promise<{
+    request_id: string
+    conversation_id: string
+    branch_id: string
+    current_message_hash?: string
+    system_hash?: string
   } | null> {
     try {
       const query = `
