@@ -464,7 +464,21 @@ requestDetailsRoutes.get('/request/:id', async c => {
       </div>
 
       <!-- Conversation View -->
-      <div id="conversation-view" class="conversation-container">${raw(messagesHtml.join(''))}</div>
+      <div id="conversation-view" class="conversation-container">
+        ${raw(
+          messagesHtml
+            .map((html, index) => {
+              // Add a separator after the first message (the response)
+              if (index === 0 && messagesHtml.length > 1) {
+                return (
+                  html + '<div style="border-bottom: 2px solid #e5e7eb; margin: 1.5rem 0;"></div>'
+                )
+              }
+              return html
+            })
+            .join('')
+        )}
+      </div>
 
       <!-- Raw JSON View (hidden by default) -->
       <div id="raw-view" class="hidden">
