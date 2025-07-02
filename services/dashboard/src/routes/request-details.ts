@@ -265,7 +265,41 @@ requestDetailsRoutes.get('/request/:id', async c => {
               style="display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; font-size: 0.875rem;"
             >
               <dt class="text-gray-600">Request ID:</dt>
-              <dd>${details.requestId}</dd>
+              <dd style="display: flex; align-items: center; gap: 0.5rem;">
+                <span class="font-mono">${details.requestId}</span>
+                <button
+                  class="copy-btn"
+                  onclick="copyToClipboard('${details.requestId}', this)"
+                  title="Copy request ID"
+                  style="
+                    padding: 0.25rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 0.25rem;
+                    background: white;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.2s;
+                  "
+                  onmouseover="this.style.backgroundColor='#f3f4f6'"
+                  onmouseout="this.style.backgroundColor='white'"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </dd>
 
               ${details.conversationId
                 ? html`
@@ -636,6 +670,35 @@ requestDetailsRoutes.get('/request/:id', async c => {
               truncated.classList.remove('hidden')
             }
           }
+        }
+
+        // Function to copy text to clipboard
+        function copyToClipboard(text, button) {
+          navigator.clipboard
+            .writeText(text)
+            .then(() => {
+              // Store original HTML
+              const originalHTML = button.innerHTML
+
+              // Show success icon
+              button.innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M20 6L9 17l-5-5"></path></svg>'
+              button.style.borderColor = '#10b981'
+
+              // Revert after 2 seconds
+              setTimeout(() => {
+                button.innerHTML = originalHTML
+                button.style.borderColor = '#e5e7eb'
+              }, 2000)
+            })
+            .catch(err => {
+              console.error('Failed to copy:', err)
+              // Show error feedback
+              button.style.borderColor = '#ef4444'
+              setTimeout(() => {
+                button.style.borderColor = '#e5e7eb'
+              }, 2000)
+            })
         }
 
         // Function to toggle tool messages visibility
