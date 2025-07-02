@@ -87,12 +87,30 @@ export type SubtaskQueryExecutor = (
   subtaskPrompt?: string
 ) => Promise<TaskInvocation[] | undefined>
 
+export type SubtaskSequenceQueryExecutor = (
+  conversationId: string,
+  beforeTimestamp: Date
+) => Promise<number>
+
+/**
+ * ConversationLinker handles linking requests into conversations by computing message hashes
+ * and finding parent-child relationships. It also supports subtask detection and branch management.
+ */
 export class ConversationLinker {
+  /**
+   * Creates a new ConversationLinker instance
+   * @param queryExecutor - Executes queries to find parent requests by various criteria
+   * @param compactSearchExecutor - Optional executor for finding compact conversation parents
+   * @param requestByIdExecutor - Optional executor for fetching request details by ID
+   * @param subtaskQueryExecutor - Optional executor for querying Task tool invocations
+   * @param subtaskSequenceQueryExecutor - Optional executor for finding max subtask sequence in a conversation
+   */
   constructor(
     private queryExecutor: QueryExecutor,
     private compactSearchExecutor?: CompactSearchExecutor,
     private requestByIdExecutor?: RequestByIdExecutor,
-    private subtaskQueryExecutor?: SubtaskQueryExecutor
+    private subtaskQueryExecutor?: SubtaskQueryExecutor,
+    private subtaskSequenceQueryExecutor?: SubtaskSequenceQueryExecutor
   ) {}
 
   async linkConversation(request: LinkingRequest): Promise<LinkingResult> {
@@ -123,20 +141,35 @@ export class ConversationLinker {
       if (messages.length === 1) {
         // Check for subtask first
         const subtaskResult = await this.detectSubtask(request)
-        if (subtaskResult.isSubtask && subtaskResult.parentTaskRequestId) {
+        if (
+          subtaskResult.isSubtask &&
+          subtaskResult.parentTaskRequestId &&
+          subtaskResult.subtaskSequence !== undefined
+        ) {
           // Find the parent task request to inherit its conversation ID
           const parentTaskRequest = await this.findRequestById(subtaskResult.parentTaskRequestId)
-          if (parentTaskRequest) {
+          if (parentTaskRequest?.conversation_id) {
+            const conversationId = parentTaskRequest.conversation_id
+            const invocationIndex = subtaskResult.subtaskSequence
+
+            // Query the database directly for base sequence
+            // Timestamp ensures proper isolation for historical rebuilds
+            const effectiveTimestamp = timestamp || new Date()
+            const baseSequence = this.subtaskSequenceQueryExecutor
+              ? await this.subtaskSequenceQueryExecutor(conversationId, effectiveTimestamp)
+              : 0
+            const finalSequence = baseSequence + invocationIndex
+
             return {
-              conversationId: parentTaskRequest.conversation_id,
+              conversationId: conversationId,
               parentRequestId: subtaskResult.parentTaskRequestId,
-              branchId: `subtask_${subtaskResult.subtaskSequence}`,
+              branchId: `subtask_${finalSequence}`,
               currentMessageHash,
               parentMessageHash: null, // Subtasks don't have parent message hash
               systemHash,
               isSubtask: true,
               parentTaskRequestId: subtaskResult.parentTaskRequestId,
-              subtaskSequence: subtaskResult.subtaskSequence,
+              subtaskSequence: finalSequence,
             }
           }
         }
@@ -845,6 +878,8 @@ export class ConversationLinker {
     }
 
     if (matchingInvocation) {
+      // Note: `subtaskSequence` here represents the 1-based index of the invocation
+      // within this turn. The final sequence number will be calculated in `linkConversation`.
       return {
         isSubtask: true,
         parentTaskRequestId: matchingInvocation.requestId,

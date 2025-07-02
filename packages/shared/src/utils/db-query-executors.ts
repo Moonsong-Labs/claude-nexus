@@ -1,5 +1,9 @@
 import { Pool } from 'pg'
-import type { QueryExecutor, CompactSearchExecutor } from './conversation-linker.js'
+import type {
+  QueryExecutor,
+  CompactSearchExecutor,
+  SubtaskSequenceQueryExecutor,
+} from './conversation-linker.js'
 
 /**
  * Create query executors for ConversationLinker using a database pool
@@ -8,6 +12,7 @@ import type { QueryExecutor, CompactSearchExecutor } from './conversation-linker
 export function createQueryExecutors(pool: Pool): {
   queryExecutor: QueryExecutor
   compactSearchExecutor: CompactSearchExecutor
+  subtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor
 } {
   const queryExecutor: QueryExecutor = async criteria => {
     let query = `
@@ -107,5 +112,24 @@ export function createQueryExecutors(pool: Pool): {
     return result.rows[0]
   }
 
-  return { queryExecutor, compactSearchExecutor }
+  const subtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor = async (
+    conversationId,
+    beforeTimestamp
+  ) => {
+    const query = `
+      SELECT COALESCE(
+        MAX(CAST(SUBSTRING(branch_id FROM 'subtask_(\\d+)') AS INTEGER)), 
+        0
+      ) as max_sequence
+      FROM api_requests 
+      WHERE conversation_id = $1 
+        AND branch_id LIKE 'subtask_%'
+        AND timestamp < $2
+    `
+
+    const result = await pool.query(query, [conversationId, beforeTimestamp])
+    return result.rows[0]?.max_sequence || 0
+  }
+
+  return { queryExecutor, compactSearchExecutor, subtaskSequenceQueryExecutor }
 }

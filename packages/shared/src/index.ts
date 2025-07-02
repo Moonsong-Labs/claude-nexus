@@ -35,6 +35,7 @@ export {
   type CompactSearchExecutor,
   type RequestByIdExecutor,
   type SubtaskQueryExecutor,
+  type SubtaskSequenceQueryExecutor,
   type LinkingRequest,
   type LinkingResult,
   type ParentQueryCriteria,

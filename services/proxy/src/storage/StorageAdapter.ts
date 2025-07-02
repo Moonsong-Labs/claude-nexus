@@ -9,6 +9,7 @@ import {
   type CompactSearchExecutor,
   type RequestByIdExecutor,
   type SubtaskQueryExecutor,
+  type SubtaskSequenceQueryExecutor,
   type ClaudeMessage,
   type ParentQueryCriteria,
   type TaskInvocation,
@@ -89,11 +90,20 @@ export class StorageAdapter {
       return this.loadTaskInvocations(domain, timestamp, debugMode, subtaskPrompt)
     }
 
+    // Create subtask sequence query executor
+    const subtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor = async (
+      conversationId: string,
+      beforeTimestamp: Date
+    ) => {
+      return await this.writer.getMaxSubtaskSequence(conversationId, beforeTimestamp)
+    }
+
     this.conversationLinker = new ConversationLinker(
       queryExecutor,
       compactSearchExecutor,
       requestByIdExecutor,
-      subtaskQueryExecutor
+      subtaskQueryExecutor,
+      subtaskSequenceQueryExecutor
     )
 
     this.scheduleNextCleanup()
@@ -290,9 +300,14 @@ export class StorageAdapter {
 
   /**
    * Find conversation ID by parent message hash
+   * @param parentHash - The parent message hash to search for
+   * @param beforeTimestamp - Timestamp to only consider conversations before this time
    */
-  async findConversationByParentHash(parentHash: string): Promise<string | null> {
-    return await this.writer.findConversationByParentHash(parentHash)
+  async findConversationByParentHash(
+    parentHash: string,
+    beforeTimestamp: Date
+  ): Promise<string | null> {
+    return await this.writer.findConversationByParentHash(parentHash, beforeTimestamp)
   }
 
   /**
