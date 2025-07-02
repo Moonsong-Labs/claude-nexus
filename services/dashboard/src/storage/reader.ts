@@ -26,6 +26,7 @@ interface ApiRequest {
   parent_request_id?: string
   body?: any
   last_message?: any
+  response_body?: any
 }
 
 interface RequestDetails {
