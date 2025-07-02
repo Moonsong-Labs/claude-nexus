@@ -87,7 +87,10 @@ export type SubtaskQueryExecutor = (
   subtaskPrompt?: string
 ) => Promise<TaskInvocation[] | undefined>
 
-export type SubtaskSequenceQueryExecutor = (conversationId: string) => Promise<number>
+export type SubtaskSequenceQueryExecutor = (
+  conversationId: string,
+  beforeTimestamp: Date
+) => Promise<number>
 
 /**
  * ConversationLinker handles linking requests into conversations by computing message hashes
@@ -155,12 +158,15 @@ export class ConversationLinker {
             const invocationIndex = subtaskResult.subtaskSequence
 
             // Use cache to prevent redundant DB calls for parallel subtasks
-            let baseSequencePromise = this.baseSequenceCache.get(conversationId)
+            // Include timestamp in cache key to ensure proper isolation for historical rebuilds
+            const effectiveTimestamp = timestamp || new Date()
+            const cacheKey = `${conversationId}_${effectiveTimestamp.toISOString()}`
+            let baseSequencePromise = this.baseSequenceCache.get(cacheKey)
             if (!baseSequencePromise) {
               baseSequencePromise = this.subtaskSequenceQueryExecutor
-                ? this.subtaskSequenceQueryExecutor(conversationId)
+                ? this.subtaskSequenceQueryExecutor(conversationId, effectiveTimestamp)
                 : Promise.resolve(0)
-              this.baseSequenceCache.set(conversationId, baseSequencePromise)
+              this.baseSequenceCache.set(cacheKey, baseSequencePromise)
             }
 
             const baseSequence = await baseSequencePromise

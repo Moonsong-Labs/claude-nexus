@@ -112,7 +112,10 @@ export function createQueryExecutors(pool: Pool): {
     return result.rows[0]
   }
 
-  const subtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor = async conversationId => {
+  const subtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor = async (
+    conversationId,
+    beforeTimestamp
+  ) => {
     const query = `
       SELECT COALESCE(
         MAX(CAST(SUBSTRING(branch_id FROM 'subtask_(\\d+)') AS INTEGER)), 
@@ -121,9 +124,10 @@ export function createQueryExecutors(pool: Pool): {
       FROM api_requests 
       WHERE conversation_id = $1 
         AND branch_id LIKE 'subtask_%'
+        AND timestamp < $2
     `
 
-    const result = await pool.query(query, [conversationId])
+    const result = await pool.query(query, [conversationId, beforeTimestamp])
     return result.rows[0]?.max_sequence || 0
   }
 

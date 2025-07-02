@@ -92,9 +92,10 @@ export class StorageAdapter {
 
     // Create subtask sequence query executor
     const subtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor = async (
-      conversationId: string
+      conversationId: string,
+      beforeTimestamp: Date
     ) => {
-      return await this.writer.getMaxSubtaskSequence(conversationId)
+      return await this.writer.getMaxSubtaskSequence(conversationId, beforeTimestamp)
     }
 
     this.conversationLinker = new ConversationLinker(
@@ -299,9 +300,14 @@ export class StorageAdapter {
 
   /**
    * Find conversation ID by parent message hash
+   * @param parentHash - The parent message hash to search for
+   * @param beforeTimestamp - Timestamp to only consider conversations before this time
    */
-  async findConversationByParentHash(parentHash: string): Promise<string | null> {
-    return await this.writer.findConversationByParentHash(parentHash)
+  async findConversationByParentHash(
+    parentHash: string,
+    beforeTimestamp: Date
+  ): Promise<string | null> {
+    return await this.writer.findConversationByParentHash(parentHash, beforeTimestamp)
   }
 
   /**
