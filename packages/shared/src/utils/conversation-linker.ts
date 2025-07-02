@@ -89,12 +89,24 @@ export type SubtaskQueryExecutor = (
 
 export type SubtaskSequenceQueryExecutor = (conversationId: string) => Promise<number>
 
+/**
+ * ConversationLinker handles linking requests into conversations by computing message hashes
+ * and finding parent-child relationships. It also supports subtask detection and branch management.
+ */
 export class ConversationLinker {
   // Cache for subtask base sequences to prevent redundant DB queries.
   // IMPORTANT: This cache assumes ConversationLinker is instantiated per-request.
   // If ConversationLinker becomes a singleton/long-lived service, implement cache eviction.
   private readonly baseSequenceCache = new Map<string, Promise<number>>()
 
+  /**
+   * Creates a new ConversationLinker instance
+   * @param queryExecutor - Executes queries to find parent requests by various criteria
+   * @param compactSearchExecutor - Optional executor for finding compact conversation parents
+   * @param requestByIdExecutor - Optional executor for fetching request details by ID
+   * @param subtaskQueryExecutor - Optional executor for querying Task tool invocations
+   * @param subtaskSequenceQueryExecutor - Optional executor for finding max subtask sequence in a conversation
+   */
   constructor(
     private queryExecutor: QueryExecutor,
     private compactSearchExecutor?: CompactSearchExecutor,

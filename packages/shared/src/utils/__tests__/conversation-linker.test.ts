@@ -25,7 +25,13 @@ describe('ConversationLinker', () => {
       return null
     }
 
-    linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+    linker = new ConversationLinker(
+      mockQueryExecutor,
+      mockCompactSearchExecutor,
+      undefined,
+      undefined,
+      undefined
+    )
   })
 
   describe('linkConversation', () => {
@@ -198,7 +204,13 @@ describe('ConversationLinker', () => {
         }
         return null
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const result = await linker.linkConversation(request)
 
@@ -342,7 +354,13 @@ describe('ConversationLinker', () => {
         }
         return []
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const request: LinkingRequest = {
         domain: 'test.com',
@@ -381,7 +399,13 @@ describe('ConversationLinker', () => {
         }
         return []
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const request: LinkingRequest = {
         domain: 'test.com',
@@ -434,7 +458,13 @@ describe('ConversationLinker', () => {
         }
         return []
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const request: LinkingRequest = {
         domain: 'test.com',
@@ -483,7 +513,10 @@ describe('ConversationLinker - JSON File Tests', () => {
         // Create a temporary linker just to compute the hash
         const tempLinker = new ConversationLinker(
           async () => [],
-          async () => null
+          async () => null,
+          undefined,
+          undefined,
+          undefined
         )
         computedParentHash = tempLinker.computeMessageHash(testCase.parent.body.messages)
 
@@ -790,7 +823,10 @@ describe('Dual Hash System - Message and System Hashing', () => {
     test('should properly separate system and message hashes in linking result', async () => {
       const linker = new ConversationLinker(
         async () => [], // mockQueryExecutor
-        async () => null // mockCompactSearchExecutor
+        async () => null, // mockCompactSearchExecutor
+        undefined,
+        undefined,
+        undefined
       )
 
       const request: LinkingRequest = {
@@ -827,7 +863,10 @@ describe('Dual Hash System - Message and System Hashing', () => {
           }
           return []
         },
-        async () => null
+        async () => null,
+        undefined,
+        undefined,
+        undefined
       )
 
       // First request with original system prompt

@@ -188,7 +188,10 @@ export function hashMessagesOnly(messages: ClaudeMessage[]): string {
   // Use ConversationLinker as the source of truth for hashing
   const linker = new ConversationLinker(
     async () => [], // Dummy query executor - we only need the hash method
-    async () => null // Dummy compact search executor
+    async () => null, // Dummy compact search executor
+    undefined, // requestByIdExecutor
+    undefined, // subtaskQueryExecutor
+    undefined // subtaskSequenceQueryExecutor
   )
   return linker.computeMessageHash(messages)
 }
