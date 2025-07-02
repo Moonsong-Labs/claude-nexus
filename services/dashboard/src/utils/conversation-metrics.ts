@@ -90,7 +90,7 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   requests.forEach(request => {
     // Check last_message first (optimized field)
     const lastMessage =
-      request.body?.last_message ||
+      request.last_message ||
       (request.body?.messages &&
         Array.isArray(request.body.messages) &&
         request.body.messages[request.body.messages.length - 1])
@@ -154,7 +154,7 @@ function findReplyIntervals(
 
     // First check if this request has user content with visible text
     const lastMessage =
-      request.body?.last_message ||
+      request.last_message ||
       (request.body?.messages &&
         Array.isArray(request.body.messages) &&
         request.body.messages[request.body.messages.length - 1])

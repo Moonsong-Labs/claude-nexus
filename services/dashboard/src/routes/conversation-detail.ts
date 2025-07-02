@@ -143,7 +143,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
       // Check if the last message in the request is a user message with text content
       let hasUserMessage = false
-      const lastMessage = req.body.last_message
+      const lastMessage = req.last_message
       if (lastMessage?.role === 'user') {
         // Check if content has text type
         if (typeof lastMessage.content === 'string') {
@@ -836,8 +836,8 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 function getLastMessageContent(req: ConversationRequest): string {
   try {
     // Check if we have the optimized last_message field
-    if (req.body && req.body.last_message) {
-      const lastMessage = req.body.last_message
+    if (req.last_message) {
+      const lastMessage = req.last_message
 
       // Handle the last message directly
       if (typeof lastMessage.content === 'string') {

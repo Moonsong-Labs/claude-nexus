@@ -24,6 +24,7 @@ export interface ConversationRequest {
   task_tool_invocation?: any
   parent_request_id?: string
   body?: any
+  last_message?: any
   response_body?: any
 }
 

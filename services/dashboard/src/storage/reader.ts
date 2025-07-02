@@ -25,6 +25,7 @@ interface ApiRequest {
   task_tool_invocation?: any
   parent_request_id?: string
   body?: any
+  last_message?: any
 }
 
 interface RequestDetails {
@@ -156,6 +157,7 @@ export class StorageReader {
         parent_task_request_id: row.parent_task_request_id,
         is_subtask: row.is_subtask,
         task_tool_invocation: row.task_tool_invocation,
+        parent_request_id: row.parent_request_id,
       }))
 
       // Only cache if TTL > 0
@@ -491,7 +493,7 @@ export class StorageReader {
           parent_task_request_id: row.parent_task_request_id,
           is_subtask: row.is_subtask,
           task_tool_invocation: row.task_tool_invocation,
-          body: { last_message: row.last_message },
+          last_message: row.last_message,
         }
 
         if (!requestsByConversation[row.conversation_id]) {
@@ -633,7 +635,8 @@ export class StorageReader {
         is_subtask: row.is_subtask,
         task_tool_invocation: row.task_tool_invocation,
         parent_request_id: row.parent_request_id,
-        body: row.body || { last_message: row.last_message },
+        body: row.body,
+        last_message: row.last_message,
         response_body: row.response_body,
       }))
 
@@ -846,6 +849,7 @@ export class StorageReader {
         parent_task_request_id: row.parent_task_request_id,
         is_subtask: row.is_subtask,
         task_tool_invocation: row.task_tool_invocation,
+        parent_request_id: row.parent_request_id,
       }))
     } catch (error) {
       logger.error('Failed to get sub-tasks for request', {
