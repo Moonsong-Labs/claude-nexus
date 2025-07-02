@@ -12,6 +12,7 @@ import { config } from 'dotenv'
 import { createLoggingPool } from './utils/create-logging-pool.js'
 import { enableSqlLogging } from '../../services/proxy/src/utils/sql-logger.js'
 import { StorageAdapter } from '../../services/proxy/src/storage/StorageAdapter.js'
+import { generateConversationId } from '@claude-nexus/shared'
 
 // Load environment variables
 config()
@@ -159,9 +160,12 @@ class ConversationRebuilderFinal {
               batchSubtasks++
             }
 
+            // If no conversation ID was found, generate a new one (same as proxy does)
+            const conversationId = linkingResult.conversationId || generateConversationId()
+
             // Check if update is needed
             const needsUpdate =
-              request.conversation_id !== linkingResult.conversationId ||
+              request.conversation_id !== conversationId ||
               request.branch_id !== linkingResult.branchId ||
               request.current_message_hash !== linkingResult.currentMessageHash ||
               request.parent_message_hash !== linkingResult.parentMessageHash ||
@@ -173,7 +177,7 @@ class ConversationRebuilderFinal {
             if (needsUpdate) {
               updates.push({
                 requestId: request.request_id,
-                conversationId: linkingResult.conversationId,
+                conversationId: conversationId,
                 branchId: linkingResult.branchId,
                 parentMessageHash: linkingResult.parentMessageHash,
                 currentMessageHash: linkingResult.currentMessageHash,
