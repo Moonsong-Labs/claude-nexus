@@ -160,8 +160,9 @@ class ConversationRebuilderFinal {
               batchSubtasks++
             }
 
-            // If no conversation ID was found, generate a new one (same as proxy does)
-            const conversationId = linkingResult.conversationId || generateConversationId()
+            // If no conversation ID was found, keep the existing one or generate a new one if none exists
+            const conversationId =
+              linkingResult.conversationId || request.conversation_id || generateConversationId()
 
             // Check if update is needed
             const needsUpdate =
