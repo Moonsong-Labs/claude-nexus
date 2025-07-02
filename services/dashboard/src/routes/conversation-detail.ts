@@ -155,6 +155,16 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         }
       }
 
+      // Calculate context tokens for this request
+      let contextTokens = 0
+      if (req.response_body?.usage) {
+        const usage = req.response_body.usage
+        contextTokens =
+          (usage.input_tokens || 0) +
+          (usage.cache_read_input_tokens || 0) +
+          (usage.cache_creation_input_tokens || 0)
+      }
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
@@ -171,6 +181,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         hasSubtasks: finalHasSubtasks,
         subtaskCount: finalSubtaskCount,
         hasUserMessage: hasUserMessage,
+        contextTokens: contextTokens,
       })
     })
 
@@ -323,11 +334,37 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       0
     )
 
+    // Calculate current context size (last request of conversation)
+    // Total input tokens = input_tokens + cache_read_input_tokens + cache_creation_input_tokens
+    let currentContextSize = 0
+    const lastRequest = conversation.requests[conversation.requests.length - 1]
+    if (lastRequest?.response_body?.usage) {
+      const usage = lastRequest.response_body.usage
+      currentContextSize =
+        (usage.input_tokens || 0) +
+        (usage.cache_read_input_tokens || 0) +
+        (usage.cache_creation_input_tokens || 0)
+    }
+
     const branchStats = conversation.branches.reduce(
       (acc, branch) => {
         const branchRequests = conversation.requests.filter(r => (r.branch_id || 'main') === branch)
         // Get the max message count from the branch (latest request has the highest count)
         const maxMessageCount = Math.max(...branchRequests.map(r => r.message_count || 0), 0)
+
+        // Calculate context size for the last request of this branch
+        let branchContextSize = 0
+        if (branchRequests.length > 0) {
+          const lastBranchRequest = branchRequests[branchRequests.length - 1]
+          if (lastBranchRequest?.response_body?.usage) {
+            const usage = lastBranchRequest.response_body.usage
+            branchContextSize =
+              (usage.input_tokens || 0) +
+              (usage.cache_read_input_tokens || 0) +
+              (usage.cache_creation_input_tokens || 0)
+          }
+        }
+
         acc[branch] = {
           count: maxMessageCount,
           tokens: branchRequests.reduce((sum, r) => sum + r.total_tokens, 0),
@@ -340,6 +377,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             branchRequests.length > 0
               ? Math.max(...branchRequests.map(r => new Date(r.timestamp).getTime()))
               : 0,
+          contextSize: branchContextSize,
         }
         return acc
       },
@@ -351,6 +389,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           requests: number
           firstMessage: number
           lastMessage: number
+          contextSize: number
         }
       >
     )
@@ -360,6 +399,20 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const mainRequests = conversation.requests.filter(r => !r.branch_id || r.branch_id === 'main')
       // Get the max message count from the main branch
       const maxMessageCount = Math.max(...mainRequests.map(r => r.message_count || 0), 0)
+
+      // Calculate context size for the last request of main branch
+      let mainBranchContextSize = 0
+      if (mainRequests.length > 0) {
+        const lastMainRequest = mainRequests[mainRequests.length - 1]
+        if (lastMainRequest?.response_body?.usage) {
+          const usage = lastMainRequest.response_body.usage
+          mainBranchContextSize =
+            (usage.input_tokens || 0) +
+            (usage.cache_read_input_tokens || 0) +
+            (usage.cache_creation_input_tokens || 0)
+        }
+      }
+
       branchStats.main = {
         count: maxMessageCount,
         tokens: mainRequests.reduce((sum, r) => sum + r.total_tokens, 0),
@@ -372,6 +425,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           mainRequests.length > 0
             ? Math.max(...mainRequests.map(r => new Date(r.timestamp).getTime()))
             : 0,
+        contextSize: mainBranchContextSize,
       }
     }
 
@@ -409,6 +463,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       toolExecution: allMetrics.toolExecution,
       userReply: allMetrics.userReply,
       userInteractions: allMetrics.userInteractions,
+      currentContextSize: currentContextSize,
     }
 
     // Calculate branch-specific stats if a branch is selected
@@ -451,6 +506,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       // Get the maximum message count from filtered requests (cumulative)
       const maxMessageCount = Math.max(...filteredRequests.map(r => r.message_count || 0), 0)
 
+      // Get context size from branchStats
+      const branchContextSize = branchStats[selectedBranch]?.contextSize || 0
+
       selectedBranchStats = {
         branchName: selectedBranch,
         messageCount: maxMessageCount,
@@ -462,6 +520,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         toolExecution: branchMetrics.toolExecution,
         userReply: branchMetrics.userReply,
         userInteractions: branchMetrics.userInteractions,
+        currentContextSize: branchContextSize,
       }
     }
 
@@ -488,6 +547,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             <span class="conversation-stat-label">Total Tokens:</span>
             <span class="conversation-stat-value"
               >${conversationStats.totalTokens.toLocaleString()}</span
+            >
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Current Context Size:</span>
+            <span class="conversation-stat-value"
+              >${conversationStats.currentContextSize.toLocaleString()} tokens</span
             >
           </div>
           <div class="conversation-stat-card">
@@ -551,6 +616,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
                   <span class="conversation-stat-label">Branch Tokens:</span>
                   <span class="conversation-stat-value"
                     >${selectedBranchStats.totalTokens.toLocaleString()}</span
+                  >
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Current Context Size:</span>
+                  <span class="conversation-stat-value"
+                    >${selectedBranchStats.currentContextSize.toLocaleString()} tokens</span
                   >
                 </div>
                 <div class="conversation-stat-card">

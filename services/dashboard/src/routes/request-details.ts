@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
-import { ProxyApiClient } from '../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import { parseConversation, calculateCost } from '../utils/conversation.js'
 import { formatDuration, escapeHtml } from '../utils/formatters.js'
@@ -10,7 +9,6 @@ import { renderSparkRecommendationInline } from '../components/spark-recommendat
 
 export const requestDetailsRoutes = new Hono<{
   Variables: {
-    apiClient?: ProxyApiClient
     domain?: string
   }
 }>()
@@ -19,20 +17,56 @@ export const requestDetailsRoutes = new Hono<{
  * Request details page with conversation view
  */
 requestDetailsRoutes.get('/request/:id', async c => {
-  const apiClient = c.get('apiClient')
   const requestId = c.req.param('id')
 
-  if (!apiClient) {
-    return c.html(
-      layout(
-        'Error',
-        html` <div class="error-banner"><strong>Error:</strong> API client not configured.</div> `
-      )
-    )
-  }
+  // Use storage service directly instead of API client
+  const { container } = await import('../container.js')
+  const storageService = container.getStorageService()
 
   try {
-    const details = await apiClient.getRequestDetails(requestId)
+    const requestDetails = await storageService.getRequestDetails(requestId)
+
+    if (!requestDetails.request) {
+      return c.html(
+        layout(
+          'Error',
+          html` <div class="error-banner"><strong>Error:</strong> Request not found.</div> `
+        )
+      )
+    }
+
+    // Map from storage format to API format
+    const details = {
+      requestId: requestDetails.request.request_id,
+      domain: requestDetails.request.domain,
+      model: requestDetails.request.model,
+      timestamp: requestDetails.request.timestamp,
+      inputTokens: requestDetails.request.input_tokens,
+      outputTokens: requestDetails.request.output_tokens,
+      totalTokens: requestDetails.request.total_tokens,
+      durationMs: requestDetails.request.duration_ms,
+      responseStatus: 200, // Not stored in request, default to 200
+      error: requestDetails.request.error,
+      requestType: requestDetails.request.request_type,
+      conversationId: requestDetails.request.conversation_id,
+      branchId: requestDetails.request.branch_id,
+      parentRequestId: requestDetails.request.parent_request_id,
+      requestBody: requestDetails.request_body,
+      responseBody: requestDetails.response_body,
+      streamingChunks: requestDetails.chunks.map(chunk => ({
+        chunkIndex: chunk.chunk_index,
+        timestamp: chunk.timestamp,
+        data: chunk.data,
+        tokenCount: chunk.token_count || 0,
+      })),
+      // Fields not in storage but expected by template
+      requestHeaders: undefined,
+      responseHeaders: undefined,
+      telemetry: undefined,
+      method: 'POST',
+      endpoint: '/v1/messages',
+      streaming: requestDetails.chunks.length > 0,
+    }
 
     // Parse conversation data
     const conversation = await parseConversation({
@@ -92,8 +126,10 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
     // Fetch existing feedback for Spark recommendations if any
     let sparkFeedbackMap: Record<string, any> = {}
-    if (sparkRecommendations.length > 0 && apiClient) {
+    if (sparkRecommendations.length > 0) {
       try {
+        // Get API client from container for Spark API calls
+        const apiClient = container.getApiClient()
         const sessionIds = sparkRecommendations.map(r => r.sessionId)
         const feedbackResponse = await apiClient.post('/api/spark/feedback/batch', {
           session_ids: sessionIds,
@@ -265,7 +301,41 @@ requestDetailsRoutes.get('/request/:id', async c => {
               style="display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; font-size: 0.875rem;"
             >
               <dt class="text-gray-600">Request ID:</dt>
-              <dd>${details.requestId}</dd>
+              <dd style="display: flex; align-items: center; gap: 0.5rem;">
+                <span class="font-mono">${details.requestId}</span>
+                <button
+                  class="copy-btn"
+                  onclick="copyToClipboard('${details.requestId}', this)"
+                  title="Copy request ID"
+                  style="
+                    padding: 0.25rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 0.25rem;
+                    background: white;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.2s;
+                  "
+                  onmouseover="this.style.backgroundColor='#f3f4f6'"
+                  onmouseout="this.style.backgroundColor='white'"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </dd>
 
               ${details.conversationId
                 ? html`
@@ -636,6 +706,35 @@ requestDetailsRoutes.get('/request/:id', async c => {
               truncated.classList.remove('hidden')
             }
           }
+        }
+
+        // Function to copy text to clipboard
+        function copyToClipboard(text, button) {
+          navigator.clipboard
+            .writeText(text)
+            .then(() => {
+              // Store original HTML
+              const originalHTML = button.innerHTML
+
+              // Show success icon
+              button.innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M20 6L9 17l-5-5"></path></svg>'
+              button.style.borderColor = '#10b981'
+
+              // Revert after 2 seconds
+              setTimeout(() => {
+                button.innerHTML = originalHTML
+                button.style.borderColor = '#e5e7eb'
+              }, 2000)
+            })
+            .catch(err => {
+              console.error('Failed to copy:', err)
+              // Show error feedback
+              button.style.borderColor = '#ef4444'
+              setTimeout(() => {
+                button.style.borderColor = '#e5e7eb'
+              }, 2000)
+            })
         }
 
         // Function to toggle tool messages visibility

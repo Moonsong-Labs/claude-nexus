@@ -12,6 +12,42 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;')
 }
 
+/**
+ * Model context limits
+ */
+const MODEL_CONTEXT_LIMITS: Record<string, number> = {
+  'claude-3-opus-20240229': 200000,
+  'claude-3-sonnet-20240229': 200000,
+  'claude-3-haiku-20240307': 200000,
+  'claude-3-5-sonnet-20240620': 200000,
+  'claude-3-5-sonnet-20241022': 200000,
+  'claude-3-5-haiku-20241022': 200000,
+  'claude-2.1': 200000,
+  'claude-2.0': 100000,
+  'claude-instant-1.2': 100000,
+  // Default fallback
+  default: 200000,
+}
+
+/**
+ * Get context limit for a model
+ */
+function getModelContextLimit(model: string): number {
+  // Try exact match first
+  if (MODEL_CONTEXT_LIMITS[model]) {
+    return MODEL_CONTEXT_LIMITS[model]
+  }
+
+  // Try partial match for variations (e.g., claude-3-opus)
+  for (const [key, value] of Object.entries(MODEL_CONTEXT_LIMITS)) {
+    if (model.includes(key.split('-20')[0])) {
+      return value
+    }
+  }
+
+  return MODEL_CONTEXT_LIMITS['default']
+}
+
 export interface ConversationNode {
   id: string
   label: string
@@ -31,6 +67,7 @@ export interface ConversationNode {
   linkedConversationId?: string
   subtaskPrompt?: string
   hasUserMessage?: boolean
+  contextTokens?: number
 }
 
 export interface ConversationGraph {
@@ -60,6 +97,7 @@ export interface LayoutNode {
   linkedConversationId?: string
   subtaskPrompt?: string
   hasUserMessage?: boolean
+  contextTokens?: number
 }
 
 export interface LayoutEdge {
@@ -278,6 +316,7 @@ function calculateReversedLayout(
         linkedConversationId: node.linkedConversationId,
         subtaskPrompt: node.subtaskPrompt,
         hasUserMessage: node.hasUserMessage,
+        contextTokens: node.contextTokens,
       })
     }
   })
@@ -321,6 +360,7 @@ function calculateReversedLayout(
         linkedConversationId: node.linkedConversationId,
         subtaskPrompt: node.subtaskPrompt,
         hasUserMessage: node.hasUserMessage,
+        contextTokens: node.contextTokens,
       })
     }
   })
@@ -609,6 +649,43 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       // Add timestamp on the right
       const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       svg += `    <text x="${x + node.width - 10}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-size: 10px; fill: #6b7280;">${time}</text>\n`
+
+      // Add battery icon for context size
+      if (node.contextTokens !== undefined && node.contextTokens > 0) {
+        const maxTokens = getModelContextLimit(node.model)
+        const percentage = (node.contextTokens / maxTokens) * 100
+        let batteryColor = '#4caf50' // green
+
+        if (percentage <= 20) {
+          batteryColor = '#4caf50' // green
+        } else if (percentage <= 40) {
+          batteryColor = '#8bc34a' // light green
+        } else if (percentage <= 60) {
+          batteryColor = '#ffc107' // amber
+        } else if (percentage <= 80) {
+          batteryColor = '#ff9800' // orange
+        } else {
+          batteryColor = '#f44336' // red
+        }
+
+        const batteryX = x + node.width - 38
+        const batteryY = y + 8
+        const batteryWidth = 22
+        const batteryHeight = 11
+
+        // Battery casing
+        svg += `    <rect x="${batteryX}" y="${batteryY}" width="${batteryWidth}" height="${batteryHeight}" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />\n`
+
+        // Battery nub (positive terminal)
+        svg += `    <rect x="${batteryX + batteryWidth}" y="${batteryY + 2.5}" width="2" height="4" rx="0" ry="1" style="fill: #888;" />\n`
+
+        // Battery level fill
+        const fillWidth = (batteryWidth - 2) * Math.min(percentage / 100, 1)
+        svg += `    <rect x="${batteryX + 1}" y="${batteryY + 1}" width="${fillWidth}" height="${batteryHeight - 2}" rx="1" ry="1" style="fill: ${batteryColor};" />\n`
+
+        // Tooltip on hover
+        svg += `    <title>${node.contextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens (${percentage.toFixed(1)}%)</title>\n`
+      }
 
       // Add sub-task indicators (removed as they would overlap with the new layout)
 
