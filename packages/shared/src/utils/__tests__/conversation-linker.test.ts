@@ -475,7 +475,11 @@ describe('ConversationLinker - JSON File Tests', () => {
 
       // Compute the actual parent hash from parent messages before creating mocks
       let computedParentHash: string | null = null
-      if (testCase.parent && testCase.parent.body?.messages && testCase.parent.body.messages.length > 0) {
+      if (
+        testCase.parent &&
+        testCase.parent.body?.messages &&
+        testCase.parent.body.messages.length > 0
+      ) {
         // Create a temporary linker just to compute the hash
         const tempLinker = new ConversationLinker(
           async () => [],
@@ -576,6 +580,9 @@ describe('ConversationLinker - JSON File Tests', () => {
 
         if (testCase.expectedBranchPattern) {
           expect(result.branchId).toMatch(new RegExp(testCase.expectedBranchPattern))
+        } else if (testCase.expectedBranchId) {
+          // If a specific branch ID is expected
+          expect(result.branchId).toBe(testCase.expectedBranchId)
         } else if (!testCase.existingChild) {
           // If no branch pattern is expected and there's no existing child (no branching),
           // the branch should be the same as the parent's branch
@@ -586,7 +593,6 @@ describe('ConversationLinker - JSON File Tests', () => {
         expect(result.conversationId).toBeNull()
         expect(result.parentRequestId).toBeNull()
       }
-
     }
   })
 })
