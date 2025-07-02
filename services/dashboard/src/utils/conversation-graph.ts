@@ -564,24 +564,19 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       let icon = '👤'
       let title = 'User message'
 
-      // Check if this is the first node of a subtask or compact branch
+      // Check if this is the first node of a subtask or compact branch (message_count === 1)
       if (
         node.branchId &&
+        node.messageCount === 1 &&
         (node.branchId.startsWith('subtask_') || node.branchId.startsWith('compact_'))
       ) {
-        // Check if parent node has a different branch
-        const parentNode = layout.nodes.find(n => n.id === node.parentId)
-        const isFirstInBranch = !parentNode || parentNode.branchId !== node.branchId
-
-        if (isFirstInBranch) {
-          showIcon = true
-          if (node.branchId.startsWith('subtask_')) {
-            icon = '💻'
-            title = 'Subtask branch'
-          } else if (node.branchId.startsWith('compact_')) {
-            icon = '🗜️'
-            title = 'Compact branch'
-          }
+        showIcon = true
+        if (node.branchId.startsWith('subtask_')) {
+          icon = '💻'
+          title = 'Subtask branch'
+        } else if (node.branchId.startsWith('compact_')) {
+          icon = '🗜️'
+          title = 'Compact branch'
         }
       } else if (node.hasUserMessage) {
         showIcon = true
