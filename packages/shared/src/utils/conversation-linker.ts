@@ -97,11 +97,6 @@ export type SubtaskSequenceQueryExecutor = (
  * and finding parent-child relationships. It also supports subtask detection and branch management.
  */
 export class ConversationLinker {
-  // Cache for subtask base sequences to prevent redundant DB queries.
-  // IMPORTANT: This cache assumes ConversationLinker is instantiated per-request.
-  // If ConversationLinker becomes a singleton/long-lived service, implement cache eviction.
-  private readonly baseSequenceCache = new Map<string, Promise<number>>()
-
   /**
    * Creates a new ConversationLinker instance
    * @param queryExecutor - Executes queries to find parent requests by various criteria
@@ -157,19 +152,12 @@ export class ConversationLinker {
             const conversationId = parentTaskRequest.conversation_id
             const invocationIndex = subtaskResult.subtaskSequence
 
-            // Use cache to prevent redundant DB calls for parallel subtasks
-            // Include timestamp in cache key to ensure proper isolation for historical rebuilds
+            // Query the database directly for base sequence
+            // Timestamp ensures proper isolation for historical rebuilds
             const effectiveTimestamp = timestamp || new Date()
-            const cacheKey = `${conversationId}_${effectiveTimestamp.toISOString()}`
-            let baseSequencePromise = this.baseSequenceCache.get(cacheKey)
-            if (!baseSequencePromise) {
-              baseSequencePromise = this.subtaskSequenceQueryExecutor
-                ? this.subtaskSequenceQueryExecutor(conversationId, effectiveTimestamp)
-                : Promise.resolve(0)
-              this.baseSequenceCache.set(cacheKey, baseSequencePromise)
-            }
-
-            const baseSequence = await baseSequencePromise
+            const baseSequence = this.subtaskSequenceQueryExecutor
+              ? await this.subtaskSequenceQueryExecutor(conversationId, effectiveTimestamp)
+              : 0
             const finalSequence = baseSequence + invocationIndex
 
             return {
