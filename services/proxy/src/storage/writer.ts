@@ -744,6 +744,24 @@ export class StorageWriter {
   }
 
   /**
+   * Get the maximum subtask sequence number for a conversation
+   */
+  async getMaxSubtaskSequence(conversationId: string): Promise<number> {
+    const query = `
+      SELECT COALESCE(
+        MAX(CAST(SUBSTRING(branch_id FROM 'subtask_(\\d+)') AS INTEGER)), 
+        0
+      ) as max_sequence
+      FROM api_requests 
+      WHERE conversation_id = $1 
+        AND branch_id LIKE 'subtask_%'
+    `
+
+    const result = await this.pool.query(query, [conversationId])
+    return result.rows[0]?.max_sequence || 0
+  }
+
+  /**
    * Cleanup
    */
   async cleanup(): Promise<void> {

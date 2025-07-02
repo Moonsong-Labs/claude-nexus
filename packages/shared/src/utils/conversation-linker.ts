@@ -87,12 +87,20 @@ export type SubtaskQueryExecutor = (
   subtaskPrompt?: string
 ) => Promise<TaskInvocation[] | undefined>
 
+export type SubtaskSequenceQueryExecutor = (conversationId: string) => Promise<number>
+
 export class ConversationLinker {
+  // Cache for subtask base sequences to prevent redundant DB queries.
+  // IMPORTANT: This cache assumes ConversationLinker is instantiated per-request.
+  // If ConversationLinker becomes a singleton/long-lived service, implement cache eviction.
+  private readonly baseSequenceCache = new Map<string, Promise<number>>()
+
   constructor(
     private queryExecutor: QueryExecutor,
     private compactSearchExecutor?: CompactSearchExecutor,
     private requestByIdExecutor?: RequestByIdExecutor,
-    private subtaskQueryExecutor?: SubtaskQueryExecutor
+    private subtaskQueryExecutor?: SubtaskQueryExecutor,
+    private subtaskSequenceQueryExecutor?: SubtaskSequenceQueryExecutor
   ) {}
 
   async linkConversation(request: LinkingRequest): Promise<LinkingResult> {
@@ -123,20 +131,39 @@ export class ConversationLinker {
       if (messages.length === 1) {
         // Check for subtask first
         const subtaskResult = await this.detectSubtask(request)
-        if (subtaskResult.isSubtask && subtaskResult.parentTaskRequestId) {
+        if (
+          subtaskResult.isSubtask &&
+          subtaskResult.parentTaskRequestId &&
+          subtaskResult.subtaskSequence !== undefined
+        ) {
           // Find the parent task request to inherit its conversation ID
           const parentTaskRequest = await this.findRequestById(subtaskResult.parentTaskRequestId)
-          if (parentTaskRequest) {
+          if (parentTaskRequest?.conversation_id) {
+            const conversationId = parentTaskRequest.conversation_id
+            const invocationIndex = subtaskResult.subtaskSequence
+
+            // Use cache to prevent redundant DB calls for parallel subtasks
+            let baseSequencePromise = this.baseSequenceCache.get(conversationId)
+            if (!baseSequencePromise) {
+              baseSequencePromise = this.subtaskSequenceQueryExecutor
+                ? this.subtaskSequenceQueryExecutor(conversationId)
+                : Promise.resolve(0)
+              this.baseSequenceCache.set(conversationId, baseSequencePromise)
+            }
+
+            const baseSequence = await baseSequencePromise
+            const finalSequence = baseSequence + invocationIndex
+
             return {
-              conversationId: parentTaskRequest.conversation_id,
+              conversationId: conversationId,
               parentRequestId: subtaskResult.parentTaskRequestId,
-              branchId: `subtask_${subtaskResult.subtaskSequence}`,
+              branchId: `subtask_${finalSequence}`,
               currentMessageHash,
               parentMessageHash: null, // Subtasks don't have parent message hash
               systemHash,
               isSubtask: true,
               parentTaskRequestId: subtaskResult.parentTaskRequestId,
-              subtaskSequence: subtaskResult.subtaskSequence,
+              subtaskSequence: finalSequence,
             }
           }
         }
@@ -845,6 +872,8 @@ export class ConversationLinker {
     }
 
     if (matchingInvocation) {
+      // Note: `subtaskSequence` here represents the 1-based index of the invocation
+      // within this turn. The final sequence number will be calculated in `linkConversation`.
       return {
         isSubtask: true,
         parentTaskRequestId: matchingInvocation.requestId,

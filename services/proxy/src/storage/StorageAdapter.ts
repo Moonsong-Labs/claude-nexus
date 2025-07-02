@@ -9,6 +9,7 @@ import {
   type CompactSearchExecutor,
   type RequestByIdExecutor,
   type SubtaskQueryExecutor,
+  type SubtaskSequenceQueryExecutor,
   type ClaudeMessage,
   type ParentQueryCriteria,
   type TaskInvocation,
@@ -89,11 +90,19 @@ export class StorageAdapter {
       return this.loadTaskInvocations(domain, timestamp, debugMode, subtaskPrompt)
     }
 
+    // Create subtask sequence query executor
+    const subtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor = async (
+      conversationId: string
+    ) => {
+      return await this.writer.getMaxSubtaskSequence(conversationId)
+    }
+
     this.conversationLinker = new ConversationLinker(
       queryExecutor,
       compactSearchExecutor,
       requestByIdExecutor,
-      subtaskQueryExecutor
+      subtaskQueryExecutor,
+      subtaskSequenceQueryExecutor
     )
 
     this.scheduleNextCleanup()
