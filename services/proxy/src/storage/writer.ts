@@ -683,7 +683,7 @@ export class StorageWriter {
         SELECT request_id, timestamp
         FROM api_requests
         WHERE task_tool_invocation IS NOT NULL
-        AND timestamp >= $1::timestamp - interval '600 seconds'
+        AND timestamp >= $1::timestamp - interval '30 seconds'
         AND timestamp < $1::timestamp
         AND jsonb_path_exists(
           task_tool_invocation,
