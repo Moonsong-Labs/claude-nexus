@@ -50,7 +50,6 @@ interface RequestSummary {
   responseStatus: number
   error?: string
   requestType?: string
-  conversationId?: string
 }
 
 interface RequestDetails extends RequestSummary {
@@ -63,6 +62,9 @@ interface RequestDetails extends RequestSummary {
     data: string
     tokenCount: number
   }>
+  conversationId?: string
+  branchId?: string
+  parentRequestId?: string
 }
 
 export const apiRoutes = new Hono<{
