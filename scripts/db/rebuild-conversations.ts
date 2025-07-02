@@ -210,7 +210,7 @@ class ConversationRebuilderFinal {
               )
               changeTypes.set('parent_request_id', (changeTypes.get('parent_request_id') || 0) + 1)
             }
-            if (request.is_subtask !== linkingResult.isSubtask) {
+            if ((request.is_subtask || false) !== (linkingResult.isSubtask || false)) {
               changes.push(
                 `is_subtask: ${request.is_subtask || false} → ${linkingResult.isSubtask || false}`
               )
@@ -219,7 +219,10 @@ class ConversationRebuilderFinal {
                 batchSubtasks++
               }
             }
-            if (request.parent_task_request_id !== linkingResult.parentTaskRequestId) {
+            if (
+              (request.parent_task_request_id || 'null') !==
+              (linkingResult.parentTaskRequestId || 'null')
+            ) {
               changes.push(
                 `parent_task_request_id: ${request.parent_task_request_id || 'null'} → ${linkingResult.parentTaskRequestId || 'null'}`
               )
