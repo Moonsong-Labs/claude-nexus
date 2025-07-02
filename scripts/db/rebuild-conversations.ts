@@ -363,9 +363,56 @@ class ConversationRebuilderFinal {
   }
 }
 
+// Show help information
+function showHelp() {
+  console.log(`
+Usage: bun run scripts/db/rebuild-conversations.ts [options]
+
+Rebuilds conversation and branch IDs for all requests by reprocessing them through
+the same StorageAdapter pipeline used by the proxy. This script does NOT implement
+any business logic - it simply fetches requests and processes them through the
+standard conversation linking logic.
+
+Options:
+  --help              Show this help message
+  --execute           Actually apply changes (default is dry run)
+  --domain <domain>   Filter by specific domain
+  --limit <number>    Limit number of requests to process
+  --requests <ids>    Process specific request IDs (comma-separated)
+  --debug             Enable debug logging and SQL query logging
+  --yes               Skip confirmation prompt (auto-accept)
+
+Examples:
+  # Dry run on all requests (shows what would change)
+  bun run scripts/db/rebuild-conversations.ts
+
+  # Actually apply changes to all requests
+  bun run scripts/db/rebuild-conversations.ts --execute --yes
+
+  # Process specific domain with debug output
+  bun run scripts/db/rebuild-conversations.ts --domain example.com --debug
+
+  # Process specific requests
+  bun run scripts/db/rebuild-conversations.ts --requests "id1,id2,id3" --execute
+
+  # Limit processing to first 100 requests
+  bun run scripts/db/rebuild-conversations.ts --limit 100 --execute
+
+Note: This script uses the StorageAdapter to ensure consistency with the proxy's
+conversation linking logic, including subtask detection and branch management.
+  `)
+}
+
 // Parse command line arguments
 function parseArgs() {
   const args = process.argv.slice(2)
+
+  // Check for help flag first
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp()
+    process.exit(0)
+  }
+
   const flags = {
     dryRun: !args.includes('--execute'),
     domain: null as string | null,
@@ -385,12 +432,23 @@ function parseArgs() {
   const limitIndex = args.indexOf('--limit')
   if (limitIndex !== -1 && args[limitIndex + 1]) {
     flags.limit = parseInt(args[limitIndex + 1], 10)
+    if (isNaN(flags.limit) || flags.limit <= 0) {
+      console.error('❌ Invalid limit value. Must be a positive number.')
+      process.exit(1)
+    }
   }
 
   // Parse requests flag (comma-separated list)
   const requestsIndex = args.indexOf('--requests')
   if (requestsIndex !== -1 && args[requestsIndex + 1]) {
-    flags.requests = args[requestsIndex + 1].split(',').map(id => id.trim())
+    flags.requests = args[requestsIndex + 1]
+      .split(',')
+      .map(id => id.trim())
+      .filter(id => id.length > 0)
+    if (flags.requests.length === 0) {
+      console.error('❌ No valid request IDs provided.')
+      process.exit(1)
+    }
   }
 
   return flags
