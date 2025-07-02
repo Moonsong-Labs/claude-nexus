@@ -483,7 +483,23 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         path = `M${startX},${startY} L${endX},${endY}`
       }
 
-      svg += `  <path d="${path}" class="graph-edge" />\n`
+      // Check if this edge connects to a subtask branch
+      const isToSubtask =
+        targetNode && targetNode.branchId.startsWith('subtask_') && targetNode.messageCount === 1
+
+      if (isToSubtask) {
+        // Draw edge with special styling for subtask connections
+        svg += `  <path d="${path}" class="graph-edge" style="stroke-dasharray: 5,5;" />\n`
+
+        // Add bidirectional arrow indicator at the midpoint
+        const midX = (startX + endX) / 2
+        const midY = (startY + endY) / 2
+
+        // Add arrow symbols
+        svg += `  <text x="${midX}" y="${midY - 5}" text-anchor="middle" style="font-size: 16px; fill: #6b7280;">⇄</text>\n`
+      } else {
+        svg += `  <path d="${path}" class="graph-edge" />\n`
+      }
     }
   }
   svg += '</g>\n'
@@ -574,8 +590,6 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         if (node.branchId.startsWith('subtask_')) {
           icon = '💻'
           title = 'Subtask branch'
-          // Add arrows after the icon to show bidirectional connection
-          icon += ' ⇄' // or alternatives: ↔️ ⇋ ⇌ ⇆
         } else if (node.branchId.startsWith('compact_')) {
           icon = '🗜️'
           title = 'Compact branch'
@@ -585,15 +599,12 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       }
 
       if (showIcon) {
-        // Adjust positioning for wider subtask icon
-        const iconX = node.branchId?.startsWith('subtask_') ? x + 40 : x + 32
-        svg += `    <text x="${iconX}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="${title}">${icon}</text>\n`
+        svg += `    <text x="${x + 32}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="${title}">${icon}</text>\n`
       }
 
       // Add request ID (first 8 chars) in the center
       const requestIdShort = node.id.substring(0, 8)
-      const textX = showIcon && node.branchId?.startsWith('subtask_') ? x + 65 : x + 50
-      svg += `    <text x="${textX}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
+      svg += `    <text x="${x + 50}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
 
       // Add timestamp on the right
       const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
