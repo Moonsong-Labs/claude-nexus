@@ -7,9 +7,13 @@ import {
   ConversationLinker,
   type QueryExecutor,
   type CompactSearchExecutor,
+  type RequestByIdExecutor,
+  type SubtaskQueryExecutor,
   type ClaudeMessage,
   type ParentQueryCriteria,
+  type TaskInvocation,
 } from '@claude-nexus/shared'
+// import { TaskInvocationCache } from './TaskInvocationCache.js' // Removed - using SQL query instead
 
 /**
  * Storage adapter that provides a simplified interface for MetricsService
@@ -25,6 +29,8 @@ export class StorageAdapter {
     Number(process.env.STORAGE_ADAPTER_CLEANUP_MS) || 5 * 60 * 1000 // 5 minutes
   private readonly RETENTION_TIME_MS =
     Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
+  private readonly QUERY_WINDOW_HOURS = 24
+  private readonly MATCH_WINDOW_SECONDS = 30
 
   constructor(private pool: Pool) {
     // Enable SQL logging on the pool if DEBUG or DEBUG_SQL is set
@@ -57,7 +63,39 @@ export class StorageAdapter {
       )
     }
 
-    this.conversationLinker = new ConversationLinker(queryExecutor, compactSearchExecutor)
+    // Create request by ID executor
+    const requestByIdExecutor: RequestByIdExecutor = async (requestId: string) => {
+      const details = await this.writer.getRequestDetails(requestId)
+      if (!details) {
+        return null
+      }
+
+      return {
+        request_id: details.request_id,
+        conversation_id: details.conversation_id,
+        branch_id: details.branch_id || 'main',
+        current_message_hash: details.current_message_hash || '',
+        system_hash: details.system_hash || null,
+      }
+    }
+
+    // Create subtask query executor that uses the provided timestamp and optional prompt
+    const subtaskQueryExecutor: SubtaskQueryExecutor = async (
+      domain: string,
+      timestamp: Date,
+      debugMode?: boolean,
+      subtaskPrompt?: string
+    ) => {
+      return this.loadTaskInvocations(domain, timestamp, debugMode, subtaskPrompt)
+    }
+
+    this.conversationLinker = new ConversationLinker(
+      queryExecutor,
+      compactSearchExecutor,
+      requestByIdExecutor,
+      subtaskQueryExecutor
+    )
+
     this.scheduleNextCleanup()
   }
 
@@ -259,6 +297,11 @@ export class StorageAdapter {
 
   /**
    * Link a conversation using the new ConversationLinker
+   * @param domain - The domain for the request
+   * @param messages - The conversation messages
+   * @param systemPrompt - The system prompt (string or array format)
+   * @param requestId - The request ID
+   * @param referenceTime - The timestamp of the request being processed
    */
   async linkConversation(
     domain: string,
@@ -267,7 +310,8 @@ export class StorageAdapter {
       | string
       | { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[]
       | undefined,
-    requestId: string
+    requestId: string,
+    referenceTime: Date
   ) {
     const messageCount = messages?.length || 0
 
@@ -291,13 +335,29 @@ export class StorageAdapter {
       }
     }
 
+    // ConversationLinker will now handle loading task invocations internally
+    // Use the provided referenceTime for task context
     const result = await this.conversationLinker.linkConversation({
       domain,
       messages,
       systemPrompt,
       requestId: uuid,
       messageCount,
+      timestamp: referenceTime, // Always use the request's timestamp
     })
+
+    // Log if subtask was detected
+    if (result.isSubtask) {
+      logger.info('Linked sub-task to parent conversation', {
+        requestId: uuid,
+        metadata: {
+          parentTaskRequestId: result.parentTaskRequestId,
+          conversationId: result.conversationId,
+          subtaskSequence: result.subtaskSequence,
+          branchId: result.branchId,
+        },
+      })
+    }
 
     return result
   }
@@ -305,7 +365,11 @@ export class StorageAdapter {
   /**
    * Process Task tool invocations in a response
    */
-  async processTaskToolInvocations(requestId: string, responseBody: any): Promise<void> {
+  async processTaskToolInvocations(
+    requestId: string,
+    responseBody: any,
+    _domain: string
+  ): Promise<void> {
     const taskInvocations = this.writer.findTaskToolInvocations(responseBody)
 
     if (taskInvocations.length > 0) {
@@ -337,11 +401,11 @@ export class StorageAdapter {
         uuid = mapping.uuid
       }
 
-      // Mark the request as having task invocations
+      // Mark the request as having task invocations in the database
       await this.writer.markTaskToolInvocations(uuid, taskInvocations)
 
       // Task invocations are now tracked in the database
-      // Linking will happen when new conversations are stored
+      // Linking will happen when new conversations are stored via SQL query
     }
   }
 
@@ -430,6 +494,128 @@ export class StorageAdapter {
       })
       // Re-throw to ensure the error is handled by the caller
       throw error
+    }
+  }
+
+  /**
+   * Load recent Task tool invocations for subtask detection.
+   * This method is called by ConversationLinker via the subtaskQueryExecutor.
+   * @param domain - The domain to search in
+   * @param timestamp - The reference timestamp for the search window
+   * @param debugMode - Whether to log debug information
+   * @param subtaskPrompt - Optional prompt to filter by (for optimization)
+   */
+  private async loadTaskInvocations(
+    domain: string,
+    timestamp: Date,
+    debugMode?: boolean,
+    subtaskPrompt?: string
+  ): Promise<TaskInvocation[] | undefined> {
+    // Query for Task tool invocations within the query window before this timestamp
+    const timeWindowStart = new Date(timestamp.getTime() - this.QUERY_WINDOW_HOURS * 60 * 60 * 1000)
+
+    // Use optimized query with @> operator when prompt is provided
+    let query: string
+    let params: any[]
+
+    if (subtaskPrompt) {
+      // Optimized query using @> containment operator for exact prompt matching
+      query = `
+        SELECT 
+          r.request_id,
+          r.response_body,
+          r.timestamp
+        FROM api_requests r
+        WHERE r.domain = $1
+          AND r.timestamp >= $2
+          AND r.timestamp <= $3
+          AND r.response_body IS NOT NULL
+          AND r.response_body @> jsonb_build_object(
+            'content', jsonb_build_array(
+              jsonb_build_object(
+                'type', 'tool_use',
+                'name', 'Task',
+                'input', jsonb_build_object('prompt', $4::text)
+              )
+            )
+          )
+        ORDER BY r.timestamp DESC
+        LIMIT 10
+      `
+      params = [domain, timeWindowStart, timestamp, subtaskPrompt]
+
+      if (debugMode) {
+        logger.debug('Using optimized subtask query with prompt filter', {
+          metadata: { prompt: subtaskPrompt.substring(0, 50) + '...' },
+        })
+      }
+    } else {
+      // Fallback to original query when no prompt is provided
+      query = `
+        SELECT 
+          r.request_id,
+          r.response_body,
+          r.timestamp
+        FROM api_requests r
+        WHERE r.domain = $1
+          AND r.timestamp >= $2
+          AND r.timestamp <= $3
+          AND r.response_body IS NOT NULL
+          AND jsonb_path_exists(r.response_body, '$.content[*] ? (@.type == "tool_use" && @.name == "Task")')
+        ORDER BY r.timestamp DESC
+        LIMIT 100
+      `
+      params = [domain, timeWindowStart, timestamp]
+    }
+
+    try {
+      const result = await this.pool.query(query, params)
+      const recentInvocations: TaskInvocation[] = []
+
+      if (debugMode && result.rows.length > 0) {
+        logger.debug(
+          `Found ${result.rows.length} requests with Task invocations in ${this.QUERY_WINDOW_HOURS}-hour window`
+        )
+      }
+
+      // Extract Task tool invocations from each response
+      for (const row of result.rows) {
+        if (row.response_body?.content) {
+          for (const content of row.response_body.content) {
+            if (content.type === 'tool_use' && content.name === 'Task' && content.input?.prompt) {
+              // If we're filtering by prompt, the database already ensured it matches
+              // Otherwise, include all Task invocations
+              recentInvocations.push({
+                requestId: row.request_id,
+                toolUseId: content.id,
+                prompt: content.input.prompt,
+                timestamp: new Date(row.timestamp),
+              })
+            }
+          }
+        }
+      }
+
+      // Filter to only recent invocations within the match window
+      const recentCutoff = new Date(timestamp.getTime() - this.MATCH_WINDOW_SECONDS * 1000)
+      const filteredInvocations = recentInvocations.filter(
+        inv => inv.timestamp >= recentCutoff && inv.timestamp <= timestamp
+      )
+
+      if (debugMode && filteredInvocations.length > 0) {
+        logger.debug(
+          `Found ${filteredInvocations.length} Task invocations within ${this.MATCH_WINDOW_SECONDS}s window`
+        )
+      }
+
+      return filteredInvocations.length > 0 ? filteredInvocations : undefined
+    } catch (error) {
+      logger.warn(`Failed to load task invocations for domain ${domain}:`, {
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return undefined
     }
   }
 

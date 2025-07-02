@@ -302,6 +302,7 @@ export class StorageWriter {
     systemHash?: string | null
     excludeRequestId?: string
     beforeTimestamp?: Date
+    conversationId?: string
   }): Promise<
     Array<{
       request_id: string
@@ -350,6 +351,12 @@ export class StorageWriter {
         paramCount++
         conditions.push(`timestamp < $${paramCount}`)
         values.push(criteria.beforeTimestamp)
+      }
+
+      if (criteria.conversationId) {
+        paramCount++
+        conditions.push(`conversation_id = $${paramCount}`)
+        values.push(criteria.conversationId)
       }
 
       const query = `
@@ -655,7 +662,7 @@ export class StorageWriter {
   /**
    * Find a matching Task invocation in the last 60 seconds
    */
-  private async findMatchingTaskInvocation(
+  async findMatchingTaskInvocation(
     userContent: string,
     timestamp: Date
   ): Promise<{ request_id: string; timestamp: Date } | null> {
@@ -694,6 +701,42 @@ export class StorageWriter {
         metadata: {
           error: error instanceof Error ? error.message : String(error),
           query: error instanceof Error && 'message' in error ? error.message : undefined,
+        },
+      })
+      return null
+    }
+  }
+
+  /**
+   * Get request details for linking
+   */
+  async getRequestDetails(requestId: string): Promise<{
+    request_id: string
+    conversation_id: string
+    branch_id: string
+    current_message_hash?: string
+    system_hash?: string
+  } | null> {
+    try {
+      const query = `
+        SELECT request_id, conversation_id, branch_id, current_message_hash, system_hash
+        FROM api_requests
+        WHERE request_id = $1
+        LIMIT 1
+      `
+
+      const result = await this.pool.query(query, [requestId])
+
+      if (result.rows.length > 0) {
+        return result.rows[0]
+      }
+
+      return null
+    } catch (error) {
+      logger.error('Failed to get request details', {
+        metadata: {
+          requestId,
+          error: error instanceof Error ? error.message : String(error),
         },
       })
       return null

@@ -50,14 +50,36 @@ We needed a way to automatically detect and link these sub-tasks to provide bett
 
 ## Decision
 
-We will implement **response analysis with message matching** to automatically detect and link sub-tasks.
+We implemented **single-phase subtask detection** entirely within the ConversationLinker component:
+
+- In-memory caching of Task tool invocations via TaskInvocationCache
+- Complete subtask detection during conversation linking
+- Subtasks inherit parent conversation ID with unique branch naming
 
 ### Implementation Details
 
-1. **Task Detection**:
+1. **Phase 1 - Potential Subtask Detection (ConversationLinker)**:
 
    ```typescript
-   // Scan response for Task tool invocations
+   // Detect potential subtasks in ConversationLinker
+   private detectPotentialSubtask(messages: Message[]): boolean {
+     // Single user message conversations are potential subtasks
+     if (messages.length !== 1) return false
+     if (messages[0].role !== 'user') return false
+
+     const textContent = this.extractTextContent(messages[0])
+
+     // This is a broad, first-pass filter. We intentionally flag ANY non-empty
+     // single user message as a potential sub-task. The downstream proxy service
+     // is responsible for the precise matching against actual Task tool invocations.
+     return textContent !== null && textContent.trim().length > 0
+   }
+   ```
+
+2. **Phase 2 - Task Invocation Extraction and Matching**:
+
+   ```typescript
+   // Extract Task tool invocations from response
    function extractTaskInvocations(response: any): TaskInvocation[] {
      const invocations = []
 
@@ -76,9 +98,31 @@ We will implement **response analysis with message matching** to automatically d
 
      return invocations
    }
+
+   // Match potential subtask against stored invocations
+   const TASK_MATCH_WINDOW = 30000 // 30-second window
+
+   async function linkSubtask(request: ProcessedRequest) {
+     // Only process if ConversationLinker flagged as potential subtask
+     if (!request.isPotentialSubtask) return
+
+     const userMessage = extractTextContent(request.messages[0])
+
+     // Find recent Task invocations
+     const recentTasks = await findTaskInvocations({
+       since: new Date(request.timestamp - TASK_MATCH_WINDOW),
+       matchingPrompt: userMessage,
+     })
+
+     if (recentTasks.length > 0) {
+       // Link to most recent matching task
+       request.is_subtask = true
+       request.parent_task_request_id = recentTasks[0].request_id
+     }
+   }
    ```
 
-2. **Database Schema**:
+3. **Database Schema**:
 
    ```sql
    ALTER TABLE api_requests ADD COLUMN is_subtask BOOLEAN DEFAULT FALSE;
@@ -87,29 +131,6 @@ We will implement **response analysis with message matching** to automatically d
 
    CREATE INDEX idx_subtask_parent ON api_requests(parent_task_request_id);
    CREATE INDEX idx_task_invocations ON api_requests USING gin(task_tool_invocation);
-   ```
-
-3. **Linking Algorithm**:
-
-   ```typescript
-   // 30-second window for matching
-   const TASK_MATCH_WINDOW = 30000
-
-   async function linkSubtask(userMessage: string, timestamp: Date) {
-     // Find recent Task invocations
-     const recentTasks = await findTaskInvocations({
-       since: new Date(timestamp - TASK_MATCH_WINDOW),
-       matchingPrompt: userMessage,
-     })
-
-     if (recentTasks.length > 0) {
-       // Link to most recent matching task
-       return {
-         is_subtask: true,
-         parent_task_request_id: recentTasks[0].request_id,
-       }
-     }
-   }
    ```
 
 4. **Visualization Data**:
@@ -131,6 +152,23 @@ We will implement **response analysis with message matching** to automatically d
    }
    ```
 
+## Why Two-Phase Detection?
+
+The two-phase approach separates concerns:
+
+1. **ConversationLinker** (Phase 1) focuses on conversation structure and linking
+
+   - Identifies potential subtasks based on message patterns
+   - Doesn't need database access for Task invocations
+   - Can run efficiently as part of conversation processing
+
+2. **Proxy Service** (Phase 2) handles the actual Task tool matching
+   - Has access to response data with Task invocations
+   - Can store and query Task invocations in the database
+   - Performs precise matching with time windows
+
+This separation allows subtasks to be separate conversations (different conversation_id) while still being tracked as subtasks through the `is_subtask` and `parent_task_request_id` fields.
+
 ## Consequences
 
 ### Positive
@@ -140,6 +178,7 @@ We will implement **response analysis with message matching** to automatically d
 - **Accurate Token Attribution**: Aggregate usage across task trees
 - **Rich Visualizations**: Dashboard shows task relationships
 - **Debugging Support**: Trace execution through sub-tasks
+- **Clean Architecture**: Separation of concerns between components
 
 ### Negative
 
@@ -147,6 +186,7 @@ We will implement **response analysis with message matching** to automatically d
 - **Timing Sensitivity**: 30-second window may miss slow tasks
 - **Storage Increase**: Additional JSONB data per request
 - **Potential Mismatches**: Similar prompts could link incorrectly
+- **Two-Phase Complexity**: Requires coordination between components
 
 ### Risks and Mitigations
 
@@ -166,10 +206,14 @@ We will implement **response analysis with message matching** to automatically d
 
 ## Implementation Notes
 
-- Part of PR #13 (conversation tracking enhancement)
+- Re-implemented in November 2024 after initial removal
+- Two-phase detection allows clean separation of concerns
+- ConversationLinker returns `isPotentialSubtask` flag for single-message user conversations
+- Proxy service performs actual Task tool matching and sets `is_subtask` field
 - 30-second window chosen based on typical Task execution time
 - Dashboard shows sub-tasks as gray boxes with tooltips
 - Supports multiple sub-tasks per parent request
+- Subtasks maintain separate conversation_ids but link via parent_task_request_id
 
 ## Dashboard Visualization
 
@@ -189,6 +233,58 @@ We will implement **response analysis with message matching** to automatically d
    - Click sub-task to view conversation
    - Hover for task prompt preview
 
+## Architecture Evolution (2025-01)
+
+### Single-Phase Subtask Detection in ConversationLinker
+
+In January 2025, we completed a major architectural evolution to consolidate all subtask detection logic into the ConversationLinker component:
+
+**Previous Architecture (Two-Phase)**:
+
+- ConversationLinker detected potential subtasks (Phase 1)
+- StorageAdapter/Writer performed Task matching (Phase 2)
+- Subtasks got separate conversation IDs
+- Required database queries during write operations
+
+**Current Architecture (Single-Phase)**:
+
+- SQL queries retrieve Task invocations from database (24-hour window)
+- ConversationLinker performs complete subtask detection in one phase
+- Subtasks inherit parent's conversation_id with unique branch_id
+- Optimized indexes for efficient Task tool queries
+- StorageAdapter passes TaskContext to ConversationLinker
+
+**Implementation Details**:
+
+1. **SQL-based Task Retrieval** (StorageAdapter.loadTaskContext):
+
+   - Queries last 24 hours of Task invocations per domain
+   - Filters to 30-second window for actual matching
+   - Optimized with GIN indexes on JSONB response_body
+   - No memory overhead from caching
+
+2. **ConversationLinker Updates**:
+
+   - Added `detectSubtask()` method for complete detection
+   - Accepts optional `TaskContext` with recent invocations
+   - Uses `RequestByIdExecutor` to fetch parent task details
+   - Assigns sequential `subtask_N` branch IDs
+
+3. **Database Migration** (008-update-subtask-conversation-ids.ts):
+   - Updates existing subtasks to inherit parent conversation IDs
+   - Fixes branch numbering for consistency
+   - Creates optimized indexes for Task invocation queries
+   - Maintains backward compatibility
+
+**Benefits Achieved**:
+
+1. **Single Responsibility**: All linking logic in one component
+2. **Persistence**: Survives proxy restarts, no cache warming needed
+3. **Unified Conversations**: Related messages stay together
+4. **Cleaner Dashboard**: Single conversation tree for task hierarchies
+5. **Simpler Testing**: All logic testable in isolation
+6. **Extended Window**: 24-hour lookback for better subtask detection
+
 ## Future Enhancements
 
 1. **Configurable Time Window**: Per-domain task matching windows
@@ -205,5 +301,6 @@ We will implement **response analysis with message matching** to automatically d
 
 ---
 
-Date: 2024-06-25
+Date: 2024-06-25 (Initial)
+Updated: 2025-01-07 (Single-phase architecture)
 Authors: Development Team

@@ -51,6 +51,123 @@ describe('ConversationLinker', () => {
       expect(result.currentMessageHash).toBeTruthy()
       expect(result.parentMessageHash).toBeNull()
       expect(result.systemHash).toBeTruthy()
+      // Single-message conversations can be potential sub-tasks
+    })
+
+    test('should handle single user message (potential sub-task)', async () => {
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages: [
+          {
+            role: 'user',
+            content: 'Analyze the security vulnerabilities in the authentication module',
+          },
+        ],
+        systemPrompt: 'You are a helpful assistant',
+        requestId: 'test-request-subtask',
+        messageCount: 1,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      expect(result.conversationId).toBeNull()
+      expect(result.parentRequestId).toBeNull()
+      expect(result.branchId).toBe('main')
+      // Single-message conversations are handled by the proxy service for sub-task detection
+      expect(result.parentTaskRequestId).toBeUndefined()
+      expect(result.isSubtask).toBeUndefined()
+    })
+
+    test('should handle single assistant message', async () => {
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'I can help with that analysis',
+          },
+        ],
+        systemPrompt: 'You are a helpful assistant',
+        requestId: 'test-assistant-message',
+        messageCount: 1,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      // No special handling for non-user messages
+      expect(result.conversationId).toBeNull()
+      expect(result.parentRequestId).toBeNull()
+    })
+
+    test('should handle empty user message', async () => {
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages: [
+          {
+            role: 'user',
+            content: '   \n \t ',
+          },
+        ],
+        systemPrompt: 'You are a helpful assistant',
+        requestId: 'test-empty-message',
+        messageCount: 1,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      // Empty messages are handled normally
+      expect(result.conversationId).toBeNull()
+      expect(result.parentRequestId).toBeNull()
+    })
+
+    test('should handle non-text content', async () => {
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/png',
+                  data: 'base64data',
+                },
+              },
+            ],
+          },
+        ],
+        systemPrompt: 'You are a helpful assistant',
+        requestId: 'test-image-only',
+        messageCount: 1,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      // Non-text content is handled normally
+      expect(result.conversationId).toBeNull()
+      expect(result.parentRequestId).toBeNull()
+    })
+
+    test('should handle multi-message conversations', async () => {
+      const request: LinkingRequest = {
+        domain: 'test.com',
+        messages: [
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi there!' },
+          { role: 'user', content: 'Can you help me?' },
+        ],
+        systemPrompt: 'You are a helpful assistant',
+        requestId: 'test-multi-message',
+        messageCount: 3,
+      }
+
+      const result = await linker.linkConversation(request)
+
+      // Multi-message conversations are not potential sub-tasks
+      expect(result.conversationId).toBeNull()
+      expect(result.parentRequestId).toBeNull()
     })
 
     test('should detect compact conversation in single message', async () => {
@@ -358,7 +475,11 @@ describe('ConversationLinker - JSON File Tests', () => {
 
       // Compute the actual parent hash from parent messages before creating mocks
       let computedParentHash: string | null = null
-      if (testCase.parent.body?.messages && testCase.parent.body.messages.length > 0) {
+      if (
+        testCase.parent &&
+        testCase.parent.body?.messages &&
+        testCase.parent.body.messages.length > 0
+      ) {
         // Create a temporary linker just to compute the hash
         const tempLinker = new ConversationLinker(
           async () => [],
@@ -376,12 +497,12 @@ describe('ConversationLinker - JSON File Tests', () => {
       }
 
       // Use computed hash if available, otherwise fall back to stored hash
-      const parentHashToUse = computedParentHash || testCase.parent.current_message_hash
+      const parentHashToUse = computedParentHash || testCase.parent?.current_message_hash
 
       // Create mock executors that return the parent when queried
       const mockQueryExecutor: QueryExecutor = async criteria => {
         // For normal linking, we look for parent by current_message_hash
-        if (criteria.currentMessageHash) {
+        if (criteria.currentMessageHash && testCase.parent && parentHashToUse) {
           // The child is looking for a parent whose current_message_hash matches
           // the child's parent_message_hash (first N-2 messages)
           if (parentHashToUse === criteria.currentMessageHash) {
@@ -417,7 +538,7 @@ describe('ConversationLinker - JSON File Tests', () => {
         _beforeTimestamp
       ) => {
         // Handle compact conversation cases if needed
-        if (testCase.type === 'compact' && testCase.expectedSummaryContent) {
+        if (testCase.type === 'compact' && testCase.expectedSummaryContent && testCase.parent) {
           // For compact conversations, check if the summaries match after normalization
           // The ConversationLinker has already normalized the summaryContent it passes here
           if (
@@ -428,7 +549,7 @@ describe('ConversationLinker - JSON File Tests', () => {
               request_id: testCase.parent.request_id,
               conversation_id: testCase.parent.conversation_id,
               branch_id: testCase.parent.branch_id || 'main',
-              current_message_hash: parentHashToUse,
+              current_message_hash: parentHashToUse || '',
               system_hash: testCase.parent.system_hash,
             }
           }
@@ -452,13 +573,20 @@ describe('ConversationLinker - JSON File Tests', () => {
 
       const result = await linker.linkConversation(request)
 
+      if (testCase.expectedParentTaskRequestId !== undefined) {
+        expect(result.parentTaskRequestId).toBe(testCase.expectedParentTaskRequestId)
+      }
+
       // Verify the linking worked correctly
-      if (testCase.expectedLink) {
+      if (testCase.expectedLink && testCase.parent) {
         expect(result.conversationId).toBe(testCase.parent.conversation_id)
         expect(result.parentRequestId).toBe(testCase.parent.request_id)
 
         if (testCase.expectedBranchPattern) {
           expect(result.branchId).toMatch(new RegExp(testCase.expectedBranchPattern))
+        } else if (testCase.expectedBranchId) {
+          // If a specific branch ID is expected
+          expect(result.branchId).toBe(testCase.expectedBranchId)
         } else if (!testCase.existingChild) {
           // If no branch pattern is expected and there's no existing child (no branching),
           // the branch should be the same as the parent's branch

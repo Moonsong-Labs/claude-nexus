@@ -33,9 +33,12 @@ export {
   ConversationLinker,
   type QueryExecutor,
   type CompactSearchExecutor,
+  type RequestByIdExecutor,
+  type SubtaskQueryExecutor,
   type LinkingRequest,
   type LinkingResult,
   type ParentQueryCriteria,
+  type TaskInvocation,
 } from './utils/conversation-linker.js'
 
 export { createQueryExecutors } from './utils/db-query-executors.js'

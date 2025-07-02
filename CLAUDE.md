@@ -339,12 +339,40 @@ The proxy can collect real request samples for test development:
 - Samples include headers, body, and metadata
 
 **Tests:**
-Currently no automated tests. When implementing:
 
-- Use Bun's built-in test runner
-- Test proxy logic, telemetry, token tracking
-- Test both streaming and non-streaming responses
-- Use collected samples as test data
+The project includes comprehensive tests for conversation and subtask linking:
+
+- **Conversation Linking Tests**: `packages/shared/src/utils/__tests__/conversation-linker.test.ts`
+
+  - Tests message hashing, branch detection, and conversation linking
+  - Includes JSON fixture tests for real-world scenarios
+  - Tests integrated subtask detection within ConversationLinker
+
+- **Subtask Detection Tests**: `packages/shared/src/utils/__tests__/subtask-detection.test.ts`
+
+  - Tests complete subtask detection logic in ConversationLinker
+  - Validates TaskContext handling and invocation matching
+  - Tests conversation inheritance and branch naming
+  - Covers edge cases like multi-message conversations
+
+- **Subtask Linking Simulation**: `packages/shared/src/utils/__tests__/subtask-linker.test.ts`
+  - Simulates the old two-phase subtask detection (for reference)
+  - Tests Task tool invocation matching
+  - Validates time window enforcement
+  - Includes JSON fixtures for various subtask scenarios
+
+Run tests with:
+
+```bash
+# All tests
+bun test
+
+# Specific package
+cd packages/shared && bun test
+
+# Specific test file
+bun test conversation-linker.test.ts
+```
 
 ## Important Notes
 
@@ -401,6 +429,9 @@ for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 - 003: Add sub-task tracking
 - 004: Optimize window function queries
 - 005: Populate account IDs
+- 006: Split conversation hashes
+- 007: Add parent_request_id
+- 008: Update subtask conversation IDs and optimize Task queries
 
 See `docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md` for details.
 
@@ -448,19 +479,54 @@ open http://localhost:3001
 
 ### Sub-task Detection
 
-The proxy automatically detects and tracks sub-tasks spawned using the Task tool:
+The proxy automatically detects and tracks sub-tasks spawned using the Task tool through an integrated single-phase process:
+
+**Single-Phase Detection (ConversationLinker):**
+
+- Complete subtask detection happens within ConversationLinker using the SubtaskQueryExecutor pattern
+- SQL queries retrieve Task invocations from database (24-hour window)
+- Matches single-message user conversations against recent Task invocations (30-second window)
+- Sets `is_subtask=true` and links to parent via `parent_task_request_id`
+- Subtasks inherit parent's conversation_id with unique branch naming (subtask_1, subtask_2, etc.)
+
+**Architecture Components:**
+
+- **SubtaskQueryExecutor**: Injected function that queries for Task tool invocations
+- **ConversationLinker**: Central component handling all conversation and subtask linking logic
+- **Optimized SQL Queries**: Uses PostgreSQL `@>` containment operator for exact prompt matching
+- **RequestByIdExecutor**: Fetches parent task details for conversation inheritance
+- **GIN Index**: Full JSONB index on response_body for efficient containment queries
+
+**Query Optimization:**
+
+When the subtask prompt is known, the system uses an optimized query:
+
+```sql
+response_body @> jsonb_build_object(
+  'content', jsonb_build_array(
+    jsonb_build_object(
+      'type', 'tool_use',
+      'name', 'Task',
+      'input', jsonb_build_object('prompt', $4::text)
+    )
+  )
+)
+```
+
+This leverages the GIN index for O(log n) lookup performance instead of scanning all Task invocations.
 
 **Database Fields:**
 
 - `parent_task_request_id` - Links sub-task requests to their parent task
-- `is_subtask` - Boolean flag indicating if a request is a sub-task
-- `task_tool_invocation` - JSONB array storing Task tool invocations
+- `is_subtask` - Boolean flag indicating if a request is a confirmed sub-task
+- `task_tool_invocation` - JSONB array storing Task tool invocations (for historical queries)
 
 **Sub-task Linking:**
 
-- Sub-tasks are linked by matching the user message to Task tool invocation prompts
+- Sub-tasks are linked by exact matching of user message to Task tool invocation prompts
 - The system creates parent-child relationships between tasks and their sub-tasks
 - Multiple sub-tasks can be spawned from a single parent request
+- Sub-tasks inherit parent task's conversation_id with sequential branch IDs (subtask_1, subtask_2, etc.)
 
 ### Dashboard Visualization
 

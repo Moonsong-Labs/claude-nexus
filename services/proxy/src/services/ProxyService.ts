@@ -81,6 +81,8 @@ export class ProxyService {
           systemHash: string | null
           branchId?: string
           parentRequestId?: string
+          parentTaskRequestId?: string
+          isSubtask?: boolean
         }
       | undefined
 
@@ -91,7 +93,8 @@ export class ProxyService {
           context.host,
           rawRequest.messages,
           rawRequest.system,
-          context.requestId
+          context.requestId,
+          new Date(context.startTime) // Pass the request timestamp
         )
 
         // If no conversation ID was found, generate a new one
@@ -104,6 +107,8 @@ export class ProxyService {
           systemHash: linkingResult.systemHash,
           branchId: linkingResult.branchId,
           parentRequestId: linkingResult.parentRequestId || undefined,
+          parentTaskRequestId: linkingResult.parentTaskRequestId || undefined,
+          isSubtask: linkingResult.isSubtask || undefined,
         }
 
         log.debug('Conversation tracking', {
@@ -113,6 +118,8 @@ export class ProxyService {
           branchId: linkingResult.branchId,
           isNewConversation: !linkingResult.conversationId,
           parentRequestId: linkingResult.parentRequestId,
+          parentTaskRequestId: linkingResult.parentTaskRequestId,
+          isSubtask: linkingResult.isSubtask,
         })
       } catch (error) {
         log.warn('Failed to extract conversation data', error as Error)
@@ -196,6 +203,8 @@ export class ProxyService {
       systemHash: string | null
       branchId?: string
       parentRequestId?: string
+      parentTaskRequestId?: string
+      isSubtask?: boolean
     },
     sampleId?: string
   ): Promise<Response> {
@@ -287,6 +296,8 @@ export class ProxyService {
       systemHash: string | null
       branchId?: string
       parentRequestId?: string
+      parentTaskRequestId?: string
+      isSubtask?: boolean
     },
     sampleId?: string
   ): Promise<Response> {
@@ -384,6 +395,8 @@ export class ProxyService {
       systemHash: string | null
       branchId?: string
       parentRequestId?: string
+      parentTaskRequestId?: string
+      isSubtask?: boolean
     },
     sampleId?: string
   ): Promise<void> {
