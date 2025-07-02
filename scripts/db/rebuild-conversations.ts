@@ -262,10 +262,6 @@ class ConversationRebuilderFinal {
       FROM api_requests r
       WHERE r.method = 'POST'
         AND r.request_type = 'inference'
-        AND r.body IS NOT NULL
-        AND jsonb_typeof(r.body) = 'object'
-        AND r.body->'messages' IS NOT NULL
-        AND jsonb_array_length(r.body->'messages') > 0
     `
 
     const params: any[] = []
