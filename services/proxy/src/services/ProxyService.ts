@@ -93,7 +93,8 @@ export class ProxyService {
           context.host,
           rawRequest.messages,
           rawRequest.system,
-          context.requestId
+          context.requestId,
+          new Date(context.startTime) // Pass the request timestamp
         )
 
         // If no conversation ID was found, generate a new one

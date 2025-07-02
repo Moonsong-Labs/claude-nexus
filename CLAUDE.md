@@ -483,7 +483,7 @@ The proxy automatically detects and tracks sub-tasks spawned using the Task tool
 
 **Single-Phase Detection (ConversationLinker):**
 
-- Complete subtask detection happens within ConversationLinker
+- Complete subtask detection happens within ConversationLinker using the SubtaskQueryExecutor pattern
 - SQL queries retrieve Task invocations from database (24-hour window)
 - Matches single-message user conversations against recent Task invocations (30-second window)
 - Sets `is_subtask=true` and links to parent via `parent_task_request_id`
@@ -491,11 +491,29 @@ The proxy automatically detects and tracks sub-tasks spawned using the Task tool
 
 **Architecture Components:**
 
-- **SQL-based Task Retrieval**: Queries response_body for Task tool invocations
+- **SubtaskQueryExecutor**: Injected function that queries for Task tool invocations
 - **ConversationLinker**: Central component handling all conversation and subtask linking logic
-- **TaskContext**: Contains recent Task invocations passed to ConversationLinker
+- **Optimized SQL Queries**: Uses PostgreSQL `@>` containment operator for exact prompt matching
 - **RequestByIdExecutor**: Fetches parent task details for conversation inheritance
-- **Optimized Indexes**: GIN indexes on response_body for efficient queries
+- **GIN Index**: Full JSONB index on response_body for efficient containment queries
+
+**Query Optimization:**
+
+When the subtask prompt is known, the system uses an optimized query:
+
+```sql
+response_body @> jsonb_build_object(
+  'content', jsonb_build_array(
+    jsonb_build_object(
+      'type', 'tool_use',
+      'name', 'Task',
+      'input', jsonb_build_object('prompt', $4::text)
+    )
+  )
+)
+```
+
+This leverages the GIN index for O(log n) lookup performance instead of scanning all Task invocations.
 
 **Database Fields:**
 

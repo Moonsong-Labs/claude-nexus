@@ -24,10 +24,6 @@ export interface TaskInvocation {
   timestamp: Date
 }
 
-export interface TaskContext {
-  recentInvocations: TaskInvocation[]
-}
-
 export interface LinkingRequest {
   domain: string
   messages: ClaudeMessage[]
@@ -35,7 +31,6 @@ export interface LinkingRequest {
   requestId: string
   messageCount: number
   timestamp?: Date
-  taskContext?: TaskContext
 }
 
 export interface LinkingResult {
@@ -85,11 +80,19 @@ export type CompactSearchExecutor = (
 
 export type RequestByIdExecutor = (requestId: string) => Promise<ParentRequest | null>
 
+export type SubtaskQueryExecutor = (
+  domain: string,
+  timestamp: Date,
+  debugMode?: boolean,
+  subtaskPrompt?: string
+) => Promise<TaskInvocation[] | undefined>
+
 export class ConversationLinker {
   constructor(
     private queryExecutor: QueryExecutor,
     private compactSearchExecutor?: CompactSearchExecutor,
-    private requestByIdExecutor?: RequestByIdExecutor
+    private requestByIdExecutor?: RequestByIdExecutor,
+    private subtaskQueryExecutor?: SubtaskQueryExecutor
   ) {}
 
   async linkConversation(request: LinkingRequest): Promise<LinkingResult> {
@@ -119,7 +122,7 @@ export class ConversationLinker {
       // Case 1: Single message handling
       if (messages.length === 1) {
         // Check for subtask first
-        const subtaskResult = this.detectSubtask(request)
+        const subtaskResult = await this.detectSubtask(request)
         if (subtaskResult.isSubtask && subtaskResult.parentTaskRequestId) {
           // Find the parent task request to inherit its conversation ID
           const parentTaskRequest = await this.findRequestById(subtaskResult.parentTaskRequestId)
@@ -780,25 +783,39 @@ export class ConversationLinker {
     return `${COMPACT_PREFIX}${hours}${minutes}${seconds}`
   }
 
-  private detectSubtask(request: LinkingRequest): {
+  private async detectSubtask(request: LinkingRequest): Promise<{
     isSubtask: boolean
     parentTaskRequestId?: string
     subtaskSequence?: number
-  } {
+  }> {
     // Only single-message user conversations can be subtasks
     if (request.messages.length !== 1 || request.messages[0].role !== 'user') {
       return { isSubtask: false }
     }
 
-    // Check if we have task context with recent invocations
-    if (!request.taskContext || request.taskContext.recentInvocations.length === 0) {
+    // Load task context if subtask executor is available
+    if (!this.subtaskQueryExecutor) {
       return { isSubtask: false }
     }
 
-    // Extract the user message content
+    // Extract the user message content first for optimization
     const message = request.messages[0]
     const userContent = this.extractContentText(message.content)
     if (!userContent) {
+      return { isSubtask: false }
+    }
+
+    const timestamp = request.timestamp || new Date()
+    // Pass the user content as the prompt filter for optimized querying
+    const recentInvocations = await this.subtaskQueryExecutor(
+      request.domain,
+      timestamp,
+      false, // debugMode - controlled by the executor
+      userContent // Pass the prompt for SQL-level filtering
+    )
+
+    // Check if we have task context with recent invocations
+    if (!recentInvocations || recentInvocations.length === 0) {
       return { isSubtask: false }
     }
 
@@ -807,7 +824,7 @@ export class ConversationLinker {
     let subtaskSequence = 1
 
     // Sort invocations by timestamp to assign sequence numbers correctly
-    const sortedInvocations = [...request.taskContext.recentInvocations].sort(
+    const sortedInvocations = [...recentInvocations].sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
     )
 
@@ -840,13 +857,14 @@ export class ConversationLinker {
 
   private extractContentText(content: string | ClaudeContent[]): string {
     if (typeof content === 'string') {
-      return content
+      return stripSystemReminder(content)
     }
 
     if (Array.isArray(content)) {
       return content
         .filter(item => item.type === 'text')
-        .map(item => item.text || '')
+        .map(item => stripSystemReminder(item.text || ''))
+        .filter(text => text.trim().length > 0) // Remove empty strings after stripping
         .join('\n')
     }
 
