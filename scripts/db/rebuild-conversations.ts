@@ -537,6 +537,8 @@ async function main() {
     process.exit(1)
   } finally {
     await pool.end()
+    // Ensure the process exits cleanly after pool is closed
+    process.exit(0)
   }
 }
 
