@@ -48,7 +48,7 @@ overviewRoutes.get('/', async c => {
 
   try {
     // Fetch conversations with account information from the API
-    const conversationsResult = await apiClient.getConversations({ domain, limit: 1000 })
+    const conversationsResult = await apiClient.getConversations({ domain, limit: 10000 })
     const apiConversations = conversationsResult.conversations
 
     // Create flat list of conversations (simplified for now)

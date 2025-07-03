@@ -138,7 +138,7 @@ export class ProxyApiClient {
     }
 
     if (this.apiKey) {
-      headers['X-Dashboard-Key'] = this.apiKey
+      headers['X-Api-Key'] = this.apiKey
     }
 
     return headers
