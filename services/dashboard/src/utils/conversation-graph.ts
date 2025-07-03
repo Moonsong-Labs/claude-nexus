@@ -33,6 +33,8 @@ export interface ConversationNode {
   subtaskPrompt?: string
   hasUserMessage?: boolean
   contextTokens?: number
+  lastMessageType?: 'user' | 'assistant' | 'tool_result'
+  toolResultStatus?: 'success' | 'error' | 'mixed'
 }
 
 export interface ConversationGraph {
@@ -63,6 +65,8 @@ export interface LayoutNode {
   subtaskPrompt?: string
   hasUserMessage?: boolean
   contextTokens?: number
+  lastMessageType?: 'user' | 'assistant' | 'tool_result'
+  toolResultStatus?: 'success' | 'error' | 'mixed'
 }
 
 export interface LayoutEdge {
@@ -282,6 +286,8 @@ function calculateReversedLayout(
         subtaskPrompt: node.subtaskPrompt,
         hasUserMessage: node.hasUserMessage,
         contextTokens: node.contextTokens,
+        lastMessageType: node.lastMessageType,
+        toolResultStatus: node.toolResultStatus,
       })
     }
   })
@@ -326,6 +332,8 @@ function calculateReversedLayout(
         subtaskPrompt: node.subtaskPrompt,
         hasUserMessage: node.hasUserMessage,
         contextTokens: node.contextTokens,
+        lastMessageType: node.lastMessageType,
+        toolResultStatus: node.toolResultStatus,
       })
     }
   })
@@ -515,7 +523,15 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
   let svg = `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">\n`
 
-  // Add CSS styles and arrow markers
+  // Collect patterns needed for mixed tool results
+  const patternsNeeded = new Set<string>()
+  layout.nodes.forEach(node => {
+    if (node.lastMessageType === 'tool_result' && node.toolResultStatus === 'mixed') {
+      patternsNeeded.add(node.id)
+    }
+  })
+
+  // Add CSS styles and patterns
   svg += `<defs>
     <style>
       .graph-edge { stroke: #e5e7eb; stroke-width: 2; fill: none; }
@@ -530,7 +546,14 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       .subtask-group:hover .subtask-tooltip { display: block; }
     </style>\n`
 
-  // No arrow markers needed
+  // Add patterns for mixed status nodes
+  patternsNeeded.forEach(nodeId => {
+    const patternId = `stripe-pattern-${nodeId.replace(/[^a-zA-Z0-9]/g, '-')}`
+    svg += `    <pattern id="${patternId}" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+      <rect width="5" height="10" fill="#dcfce7" />
+      <rect x="5" width="5" height="10" fill="#fee2e2" />
+    </pattern>\n`
+  })
 
   svg += `  </defs>\n`
 
@@ -689,7 +712,24 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
       // Draw rectangle with rounded corners
       const strokeDasharray = node.branchId.startsWith('subtask_') ? 'stroke-dasharray: 8,2;' : ''
-      svg += `    <rect x="${x}" y="${y}" width="${node.width}" height="${node.height}" rx="6" ry="6" class="${nodeClass}${interactive ? ' graph-node-clickable' : ''}" style="fill: white; stroke: ${node.hasError ? '#ef4444' : color}; stroke-width: 2; ${strokeDasharray}" />\n`
+
+      // Determine background color based on message type and status
+      let fillColor = 'white'
+
+      if (node.lastMessageType === 'tool_result' && node.toolResultStatus) {
+        if (node.toolResultStatus === 'success') {
+          fillColor = '#dcfce7' // light green
+        } else if (node.toolResultStatus === 'error') {
+          fillColor = '#fee2e2' // light red
+        } else if (node.toolResultStatus === 'mixed') {
+          // Use the pattern ID for this node
+          const patternId = `stripe-pattern-${node.id.replace(/[^a-zA-Z0-9]/g, '-')}`
+          fillColor = `url(#${patternId})`
+        }
+      }
+      // User messages stay white (default)
+
+      svg += `    <rect x="${x}" y="${y}" width="${node.width}" height="${node.height}" rx="6" ry="6" class="${nodeClass}${interactive ? ' graph-node-clickable' : ''}" style="fill: ${fillColor}; stroke: ${node.hasError ? '#ef4444' : color}; stroke-width: 2; ${strokeDasharray}" />\n`
 
       // Add message count number on the left
       if (node.messageCount !== undefined && node.messageCount > 0) {

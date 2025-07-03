@@ -165,6 +165,39 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           (usage.cache_creation_input_tokens || 0)
       }
 
+      // Determine the last message type and tool result status
+      let lastMessageType: 'user' | 'assistant' | 'tool_result' = 'assistant'
+      let toolResultStatus: 'success' | 'error' | 'mixed' | undefined
+
+      // Check if the response contains tool results
+      if (req.response_body?.content && Array.isArray(req.response_body.content)) {
+        const toolResults = req.response_body.content.filter(
+          (item: any) => item.type === 'tool_result'
+        )
+
+        if (toolResults.length > 0) {
+          lastMessageType = 'tool_result'
+
+          // Check for errors in tool results
+          const hasError = toolResults.some((result: any) => result.is_error === true)
+          const hasSuccess = toolResults.some((result: any) => result.is_error !== true)
+
+          if (hasError && hasSuccess) {
+            toolResultStatus = 'mixed'
+          } else if (hasError) {
+            toolResultStatus = 'error'
+          } else {
+            toolResultStatus = 'success'
+          }
+        }
+      }
+
+      // Override if last message is actually a user message
+      if (hasUserMessage) {
+        lastMessageType = 'user'
+        toolResultStatus = undefined
+      }
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
@@ -182,6 +215,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         subtaskCount: finalSubtaskCount,
         hasUserMessage: hasUserMessage,
         contextTokens: contextTokens,
+        lastMessageType: lastMessageType,
+        toolResultStatus: toolResultStatus,
       })
     })
 
