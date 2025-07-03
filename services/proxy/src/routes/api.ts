@@ -496,7 +496,7 @@ apiRoutes.get('/conversations', async c => {
           -- Add branch type counts for the new feature
           COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'subtask_%') as subtask_branch_count,
           COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'compact_%') as compact_branch_count,
-          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id IS NOT NULL AND branch_id NOT LIKE 'subtask_%' AND branch_id NOT LIKE 'compact_%') as user_branch_count,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id IS NOT NULL AND branch_id NOT LIKE 'subtask_%' AND branch_id NOT LIKE 'compact_%' AND branch_id != 'main') as user_branch_count,
           ARRAY_AGG(DISTINCT model) FILTER (WHERE model IS NOT NULL) as models_used,
           (array_agg(request_id ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_request_id,
           (array_agg(model ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_model,
