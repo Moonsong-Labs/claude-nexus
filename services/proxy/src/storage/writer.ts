@@ -697,7 +697,10 @@ export class StorageWriter {
         LIMIT 1
       `
 
-      const result = await this.pool.query(query, [timestamp.toISOString(), userContent])
+      const result = await this.pool.query(query, [
+        timestamp.toISOString(),
+        userContent.replace(/\\n/g, '\n'),
+      ])
 
       if (result.rows.length > 0) {
         // Found matching Task invocation
