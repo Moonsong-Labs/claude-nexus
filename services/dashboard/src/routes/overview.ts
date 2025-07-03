@@ -273,13 +273,19 @@ overviewRoutes.get('/', async c => {
                                     parts.push(`${branch.compactBranchCount}📦`)
                                   }
                                   if (branch.userBranchCount > 0) {
-                                    parts.push(`${branch.userBranchCount}🗨`)
+                                    parts.push(`${branch.userBranchCount}🌿`)
                                   }
 
-                                  // If no branches or only main branch, show default
-                                  let displayText = parts.length > 0 ? parts.join(', ') : '1🗨'
+                                  // If no special branches, just show the total branch count
+                                  let displayText
                                   const hasMultipleBranches = branch.branchCount > 1
 
+                                  if (parts.length > 0) {
+                                    displayText = parts.join(', ')
+                                  } else {
+                                    // Just show the number of branches (no icon for main-only conversations)
+                                    displayText = branch.branchCount.toString()
+                                  }
                                   // Truncate if too many branches to prevent UI overflow
                                   const totalBranches =
                                     branch.subtaskBranchCount +
@@ -291,9 +297,11 @@ overviewRoutes.get('/', async c => {
 
                                   // Add hover tooltip with full details if truncated or has branches
                                   const titleText =
-                                    totalBranches > 99 || hasMultipleBranches
-                                      ? `Branches: ${branch.subtaskBranchCount} subtasks, ${branch.compactBranchCount} compacted, ${branch.userBranchCount} user branches`
-                                      : ''
+                                    totalBranches > 0 || hasMultipleBranches
+                                      ? `Total branches: ${branch.branchCount} (${branch.subtaskBranchCount} subtasks, ${branch.compactBranchCount} compacted, ${branch.userBranchCount} user branches)`
+                                      : branch.branchCount === 1
+                                        ? 'Single branch (main)'
+                                        : ''
 
                                   return `<span style="color: ${hasMultipleBranches ? '#2563eb' : '#6b7280'}; font-weight: ${hasMultipleBranches ? '600' : 'normal'};" ${titleText ? `title="${titleText}"` : ''}>
                                     ${displayText}
