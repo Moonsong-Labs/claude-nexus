@@ -112,6 +112,8 @@ interface ConversationSummary {
   branchCount: number
   modelsUsed: string[]
   latestRequestId?: string
+  latestModel?: string
+  latestContextTokens?: number
   isSubtask?: boolean
   parentTaskRequestId?: string
   parentConversationId?: string
