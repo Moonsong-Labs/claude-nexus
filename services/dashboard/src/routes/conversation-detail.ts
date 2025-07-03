@@ -169,11 +169,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       let lastMessageType: 'user' | 'assistant' | 'tool_result' = 'assistant'
       let toolResultStatus: 'success' | 'error' | 'mixed' | undefined
 
-      // Check if the response contains tool results
-      if (req.response_body?.content && Array.isArray(req.response_body.content)) {
-        const toolResults = req.response_body.content.filter(
-          (item: any) => item.type === 'tool_result'
-        )
+      // Check if the last message in the request contains tool results
+      if (lastMessage && lastMessage.content && Array.isArray(lastMessage.content)) {
+        const toolResults = lastMessage.content.filter((item: any) => item.type === 'tool_result')
 
         if (toolResults.length > 0) {
           lastMessageType = 'tool_result'
