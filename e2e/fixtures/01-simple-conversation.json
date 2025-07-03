@@ -30,7 +30,11 @@
       },
       "expected": {
         "response": {
-          "statusCode": 200
+          "statusCode": 200,
+          "body": {
+            "type": "message",
+            "role": "assistant"
+          }
         },
         "dbState": {
           "table": "api_requests",
@@ -76,7 +80,11 @@
       },
       "expected": {
         "response": {
-          "statusCode": 200
+          "statusCode": 200,
+          "body": {
+            "type": "message",
+            "role": "assistant"
+          }
         },
         "dbState": {
           "table": "api_requests",

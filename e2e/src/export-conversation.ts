@@ -2,6 +2,29 @@
 import { Client } from 'pg'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
+import dotenv from 'dotenv'
+
+// Load environment variables from .env file
+// Try multiple locations to find the .env file
+const possibleEnvPaths = [
+  join(import.meta.dir, '../../../.env'), // When run from e2e/src
+  join(import.meta.dir, '../../.env'),    // When run from e2e
+  join(process.cwd(), '.env'),            // Current working directory
+  join(process.cwd(), '../.env'),         // Parent directory
+  join(process.cwd(), '../../.env'),      // Grandparent directory
+]
+
+for (const envPath of possibleEnvPaths) {
+  try {
+    const result = dotenv.config({ path: envPath })
+    if (!result.error) {
+      console.log(`Loaded .env from: ${envPath}`)
+      break
+    }
+  } catch (error) {
+    // Continue to next path
+  }
+}
 
 interface ExportOptions {
   conversationId?: string

@@ -33,12 +33,12 @@ async function checkDockerAvailable(): Promise<void> {
 async function startDockerCompose(): Promise<void> {
   await checkDockerAvailable()
   
-  console.log('Starting Docker Compose for PostgreSQL...')
+  console.log('Starting Docker Compose for PostgreSQL and Mock Claude API...')
   
   dockerComposeProcess = spawn([
     'docker-compose',
     '-f', join(import.meta.dir, '../docker-compose.e2e.yml'),
-    'up', '-d'
+    'up', '-d', '--build'
   ], {
     cwd: join(import.meta.dir, '..'),
     stdout: 'inherit',
@@ -47,8 +47,8 @@ async function startDockerCompose(): Promise<void> {
 
   await dockerComposeProcess.exited
 
-  // PostgreSQL readiness will be checked by connectWithRetry
-  console.log('PostgreSQL container started, connection will be tested during setup...')
+  // Wait for both services to be ready
+  console.log('Containers started, waiting for services to be ready...')
 }
 
 async function stopDockerCompose(): Promise<void> {
@@ -96,6 +96,7 @@ async function startProxyServer(): Promise<void> {
       CREDENTIALS_DIR: credentialsDir,
       PORT: PROXY_PORT,
       DEBUG: 'false',
+      CLAUDE_API_BASE_URL: 'http://localhost:8081',  // Point to mock service
     },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -123,7 +124,7 @@ async function startProxyServer(): Promise<void> {
       const text = decoder.decode(value)
       console.log('[PROXY]', text)
       
-      if (text.includes('Server running') || text.includes(`Listening on port ${PROXY_PORT}`)) {
+      if (text.includes('Listening on') || text.includes('Server started successfully')) {
         reader.releaseLock()
         console.log('Proxy server is ready')
         break

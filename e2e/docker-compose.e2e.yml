@@ -1,7 +1,8 @@
 version: '3.8'
 
 services:
-  postgres-test:
+  postgres-e2e:
+    container_name: claude-nexus-postgres-e2e
     image: postgres:15
     environment:
       POSTGRES_USER: testuser
@@ -16,3 +17,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  
+  mock-claude-e2e:
+    container_name: claude-mock-api-e2e
+    build:
+      context: ./mock-claude
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

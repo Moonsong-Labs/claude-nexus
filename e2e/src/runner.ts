@@ -78,8 +78,8 @@ export class TestRunner {
       await this.validateResponse(response, step.expected.response, context)
     }
 
-    // 4. Wait for database persistence (async storage)
-    if (response.requestId) {
+    // 4. Wait for database persistence (async storage) - only for successful requests
+    if (response.requestId && response.statusCode === 200) {
       await this.dbClient.waitForRequest(response.requestId, 5000)
     }
 

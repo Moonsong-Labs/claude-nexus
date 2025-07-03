@@ -3,24 +3,42 @@ import type { ApiRequest } from '../../packages/shared/src/types'
 
 export class DatabaseClient {
   private client: Client
+  private isConnected: boolean = false
 
   constructor(connectionString: string) {
     this.client = new Client({ connectionString })
   }
 
   async connect(): Promise<void> {
-    await this.client.connect()
+    if (!this.isConnected) {
+      await this.client.connect()
+      this.isConnected = true
+    }
   }
 
   async connectWithRetry(maxRetries: number = 30, delay: number = 1000): Promise<void> {
+    // Check if already connected
+    if (this.isConnected) {
+      console.log('Already connected to PostgreSQL')
+      return
+    }
+
     for (let i = 0; i < maxRetries; i++) {
       try {
         await this.client.connect()
         // Test the connection
         await this.client.query('SELECT 1')
+        this.isConnected = true
         console.log('Successfully connected to PostgreSQL')
         return
-      } catch (error) {
+      } catch (error: any) {
+        // Check if already connected error
+        if (error?.message?.includes('Client has already been connected')) {
+          this.isConnected = true
+          console.log('PostgreSQL client was already connected')
+          return
+        }
+        
         if (i === maxRetries - 1) {
           throw new Error(`Failed to connect to PostgreSQL after ${maxRetries} attempts: ${error}`)
         }
@@ -31,7 +49,10 @@ export class DatabaseClient {
   }
 
   async disconnect(): Promise<void> {
-    await this.client.end()
+    if (this.isConnected) {
+      await this.client.end()
+      this.isConnected = false
+    }
   }
 
   async cleanDatabase(): Promise<void> {
