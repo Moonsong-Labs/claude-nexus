@@ -28,7 +28,13 @@ describe('ConversationLinker - Subtask Detection', () => {
   }
 
   beforeEach(() => {
-    linker = new ConversationLinker(mockQueryExecutor, undefined, mockRequestByIdExecutor)
+    linker = new ConversationLinker(
+      mockQueryExecutor,
+      undefined,
+      mockRequestByIdExecutor,
+      undefined,
+      undefined
+    )
   })
 
   describe('detectSubtask', () => {

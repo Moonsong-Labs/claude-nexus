@@ -19,7 +19,10 @@ const system = 'You are a helpful assistant'
 // Create linker
 const linker = new ConversationLinker(
   async () => [],
-  async () => null
+  async () => null,
+  undefined, // requestByIdExecutor
+  undefined, // subtaskQueryExecutor
+  undefined // subtaskSequenceQueryExecutor
 )
 
 // Compute hashes

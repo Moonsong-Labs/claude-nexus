@@ -23,7 +23,10 @@ class SubtaskLinker {
   constructor() {
     this.conversationLinker = new ConversationLinker(
       async () => [],
-      async () => null
+      async () => null,
+      undefined,
+      undefined,
+      undefined
     )
   }
 

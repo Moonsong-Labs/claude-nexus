@@ -1,7 +1,7 @@
 {
   "description": "Test linking between 86bbf7a8-579e-45ca-9974-7a0a564e664c and 71e58c83-97f1-4ce0-8ca5-fd7aca9bd0b2",
   "type": "standard",
-  "expectedLink": false,
+  "expectedLink": true,
   "parent": {
     "request_id": "86bbf7a8-579e-45ca-9974-7a0a564e664c",
     "domain": "claude-datahaven.msldev.io",

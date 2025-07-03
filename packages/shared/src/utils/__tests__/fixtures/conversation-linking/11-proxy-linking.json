@@ -1,0 +1,81 @@
+{
+  "description": "Test linking between caff5888-89bc-40a3-af8f-b5e899e4ac96 and f87a8483-00df-496a-90e4-967fea9c3b11",
+  "type": "subtask",
+  "expectedLink": true,
+  "expectedParentTaskRequestId": "caff5888-89bc-40a3-af8f-b5e899e4ac96",
+  "expectedBranchPattern": "^subtask_\\d+$",
+  "parent": {
+    "request_id": "caff5888-89bc-40a3-af8f-b5e899e4ac96",
+    "domain": "localhost:3000",
+    "conversation_id": "fea68778-ba10-4b00-a0fc-1506f5136faf",
+    "branch_id": "main",
+    "current_message_hash": "d95ddb9abe3d7b16fbab0e50260754d3f503b26914a4ef465515f619b9d4ca25",
+    "parent_message_hash": "dc0813439dc79867f33df41ed8668f32423ac7542dacc1ea94ccc7dc9b9e019e",
+    "system_hash": "d5ec2819a5257932ec9cfc3a4e2c078eb058c9bd3d5ca292975d7a052ecc5971",
+    "body": {
+      "model": "claude-opus-4-20250514",
+      "stream": true,
+      "system": [
+        {
+          "text": "You are Claude Code, Anthropic's official CLI for Claude.",
+          "type": "text",
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "How many useful ADRs are they ?",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "response_body": {
+      "content": [
+        {
+          "id": "toolu_01CipzNqzcYbKnT7sLo82WUb",
+          "name": "Task",
+          "type": "tool_use",
+          "input": {
+            "prompt": "How many useful ADRs are they ?",
+            "description": "Count ADRs"
+          }
+        }
+      ]
+    }
+  },
+  "child": {
+    "request_id": "f87a8483-00df-496a-90e4-967fea9c3b11",
+    "domain": "localhost:3000",
+    "body": {
+      "model": "claude-opus-4-20250514",
+      "stream": true,
+      "system": [
+        {
+          "text": "You are Claude Code, Anthropic's official CLI for Claude.",
+          "type": "text",
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "How many useful ADRs are they ?",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -164,7 +164,34 @@ Future enhancements could include:
 - Conversation templates and patterns
 - System prompt change visualization in dashboard
 
+### Enhancement: Temporal Awareness for Historical Rebuilds (2025-07-02)
+
+To support accurate historical rebuilds and prevent future data from affecting past conversation linking, we've made timestamps mandatory for key query methods:
+
+**Changes:**
+
+1. **`getMaxSubtaskSequence(conversationId, beforeTimestamp)`**: Now requires a timestamp to only consider subtasks that existed before that time
+2. **`findConversationByParentHash(parentHash, beforeTimestamp)`**: Now requires a timestamp to only consider conversations that existed before that time
+3. **Updated `SubtaskSequenceQueryExecutor` type**: Made the `beforeTimestamp` parameter mandatory
+4. **Cache key updates**: ConversationLinker now includes timestamp in cache keys to prevent cross-temporal cache pollution
+
+**Benefits:**
+
+- Historical rebuilds accurately reflect the state at that point in time
+- Prevents future subtasks from being incorrectly included in past conversations
+- Ensures temporal integrity when rebuilding conversation links
+- Maintains data consistency across different time queries
+
+**Implementation Details:**
+
+- All queries now include `AND timestamp < $N` clauses
+- Cache keys incorporate timestamp: `${conversationId}_${timestamp.toISOString()}`
+- When timestamp is not provided at the API level, the system defaults to current time
+- Type system enforces timestamp awareness throughout the codebase
+
+This enhancement is particularly important for systems that need to rebuild or analyze historical conversation data, ensuring that the reconstructed state accurately reflects what existed at any given point in time.
+
 ---
 
-Date: 2024-02-01 (Updated: 2025-06-28)
+Date: 2024-02-01 (Updated: 2025-06-28, 2025-07-02)
 Authors: Development Team
