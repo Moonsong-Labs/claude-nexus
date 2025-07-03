@@ -12,9 +12,6 @@ COPY . .
 # Install all dependencies
 RUN bun install
 
-# Build shared package using root tsc build
-RUN bun x tsc --build packages/shared/tsconfig.json
-
 # Build production bundle
 RUN cd services/dashboard && bun run build:production
 
@@ -27,12 +24,11 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 
 # Create directories for runtime
-RUN mkdir -p services/dashboard/dist packages/shared/dist && \
+RUN mkdir -p services/dashboard/dist && \
     chmod -R 755 /app
 
 # Copy only necessary files from builder
 COPY --from=builder /app/services/dashboard/dist ./services/dashboard/dist
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 # Copy package files for dependencies
 COPY --from=builder /app/services/dashboard/dist/package.json ./services/dashboard/dist/
