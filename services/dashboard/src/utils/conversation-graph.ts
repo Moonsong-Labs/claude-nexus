@@ -622,23 +622,24 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         const batteryColor = getBatteryColor(percentage)
         const isOverflow = percentage > 1
 
-        const batteryX = x + node.width - 32
-        const batteryY = y + 8
-        const batteryWidth = 22
-        const batteryHeight = 11
+        const batteryX = x + node.width - 20
+        const batteryY = y + 4
+        const batteryWidth = 11
+        const batteryHeight = 22
 
         // Battery group with hover area
         svg += `    <g class="battery-group">\n`
 
+        // Battery nub (positive terminal)
+        svg += `      <rect x="${batteryX + 2.5}" y="${batteryY - 2}" width="4" height="2" rx="1" ry="0" style="fill: #888;" />\n`
+
         // Battery casing
         svg += `      <rect x="${batteryX}" y="${batteryY}" width="${batteryWidth}" height="${batteryHeight}" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />\n`
 
-        // Battery nub (positive terminal)
-        svg += `      <rect x="${batteryX + batteryWidth}" y="${batteryY + 2.5}" width="2" height="4" rx="0" ry="1" style="fill: #888;" />\n`
-
-        // Battery level fill
-        const fillWidth = (batteryWidth - 2) * Math.min(percentage, 1)
-        svg += `      <rect x="${batteryX + 1}" y="${batteryY + 1}" width="${fillWidth}" height="${batteryHeight - 2}" rx="1" ry="1" style="fill: ${batteryColor};" />\n`
+        // Battery level fill (from bottom to top)
+        const fillHeight = (batteryHeight - 2) * Math.min(percentage, 1)
+        const fillY = batteryY + 1 + (batteryHeight - 2) - fillHeight
+        svg += `      <rect x="${batteryX + 1}" y="${fillY}" width="${batteryWidth - 2}" height="${fillHeight}" rx="1" ry="1" style="fill: ${batteryColor};" />\n`
 
         // Add overflow exclamation mark if needed
         if (isOverflow) {

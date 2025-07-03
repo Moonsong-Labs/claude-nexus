@@ -344,14 +344,14 @@ overviewRoutes.get('/', async c => {
 
                                       return `
                                   <div style="display: inline-flex; align-items: center; gap: 4px;">
-                                    <svg width="30" height="16" viewBox="0 0 30 16" xmlns="http://www.w3.org/2000/svg">
-                                      <!-- Battery casing -->
-                                      <rect x="1" y="3" width="24" height="10" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />
+                                    <svg width="16" height="30" viewBox="0 0 16 30" xmlns="http://www.w3.org/2000/svg">
                                       <!-- Battery nub (positive terminal) -->
-                                      <rect x="25" y="6" width="3" height="4" rx="1" ry="1" style="fill: #888;" />
-                                      <!-- Battery level fill -->
-                                      <rect x="2" y="4" width="${Math.min(percentage, 1) * 22}" height="8" rx="1" ry="1" style="fill: ${batteryColor};" />
-                                      ${isOverflow ? '<text x="12" y="11" text-anchor="middle" style="font-size: 8px; font-weight: bold; fill: white;">!</text>' : ''}
+                                      <rect x="6" y="1" width="4" height="3" rx="1" ry="1" style="fill: #888;" />
+                                      <!-- Battery casing -->
+                                      <rect x="3" y="4" width="10" height="24" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />
+                                      <!-- Battery level fill (from bottom to top) -->
+                                      <rect x="4" y="${5 + (1 - Math.min(percentage, 1)) * 22}" width="8" height="${Math.min(percentage, 1) * 22}" rx="1" ry="1" style="fill: ${batteryColor};" />
+                                      ${isOverflow ? '<text x="8" y="18" text-anchor="middle" style="font-size: 8px; font-weight: bold; fill: white;">!</text>' : ''}
                                     </svg>
                                     <span style="font-size: 11px; color: #6b7280;" title="${branch.latestContextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens${isEstimate ? ' (estimated)' : ''}">${percentageText}%</span>
                                   </div>
