@@ -18,6 +18,7 @@ describe('ConversationLinker', () => {
   let linker: ConversationLinker
   let mockQueryExecutor: QueryExecutor
   let mockCompactSearchExecutor: CompactSearchExecutor
+  let mockLogger: any
 
   beforeEach(() => {
     mockQueryExecutor = async (_criteria: ParentQueryCriteria) => {
@@ -28,8 +29,17 @@ describe('ConversationLinker', () => {
       return null
     }
 
+    // Create a no-op logger for tests
+    mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
     linker = new ConversationLinker(
       mockQueryExecutor,
+      mockLogger,
       mockCompactSearchExecutor,
       undefined,
       undefined,
@@ -209,6 +219,7 @@ describe('ConversationLinker', () => {
       }
       linker = new ConversationLinker(
         mockQueryExecutor,
+        mockLogger,
         mockCompactSearchExecutor,
         undefined,
         undefined,
@@ -359,6 +370,7 @@ describe('ConversationLinker', () => {
       }
       linker = new ConversationLinker(
         mockQueryExecutor,
+        mockLogger,
         mockCompactSearchExecutor,
         undefined,
         undefined,
@@ -404,6 +416,7 @@ describe('ConversationLinker', () => {
       }
       linker = new ConversationLinker(
         mockQueryExecutor,
+        mockLogger,
         mockCompactSearchExecutor,
         undefined,
         undefined,
@@ -463,6 +476,7 @@ describe('ConversationLinker', () => {
       }
       linker = new ConversationLinker(
         mockQueryExecutor,
+        mockLogger,
         mockCompactSearchExecutor,
         undefined,
         undefined,
@@ -668,8 +682,17 @@ describe('ConversationLinker - JSON File Tests', () => {
           ? async () => 0 // Return 0 for base sequence
           : undefined
 
+      // Create a no-op logger for this test
+      const testLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
+
       const linker = new ConversationLinker(
         mockQueryExecutor,
+        testLogger,
         mockCompactSearchExecutor,
         mockRequestByIdExecutor,
         mockSubtaskQueryExecutor,
@@ -918,8 +941,17 @@ describe('Dual Hash System - Message and System Hashing', () => {
 
   describe('Integration with ConversationLinker', () => {
     test('should properly separate system and message hashes in linking result', async () => {
+      // Create a no-op logger for this test
+      const testLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
+
       const linker = new ConversationLinker(
         async () => [], // mockQueryExecutor
+        testLogger,
         async () => null, // mockCompactSearchExecutor
         undefined,
         undefined,
@@ -952,6 +984,14 @@ describe('Dual Hash System - Message and System Hashing', () => {
     test('should maintain conversation link when system prompt changes', async () => {
       let queryResults: ParentRequest[] = []
 
+      // Create a no-op logger for this test
+      const testLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
+
       const linker = new ConversationLinker(
         async criteria => {
           // Return our mock parent if searching by message hash
@@ -960,6 +1000,7 @@ describe('Dual Hash System - Message and System Hashing', () => {
           }
           return []
         },
+        testLogger,
         async () => null,
         undefined,
         undefined,

@@ -2,12 +2,14 @@ import { describe, it, expect, beforeEach } from 'bun:test'
 import {
   ConversationLinker,
   type LinkingRequest,
-  type TaskContext,
+  type TaskInvocation,
   type ParentRequest,
 } from '../conversation-linker.js'
 
 describe('ConversationLinker - Subtask Detection', () => {
   let linker: ConversationLinker
+  let mockLogger: any
+  let mockSubtaskInvocations: TaskInvocation[] = []
 
   // Mock query executor
   const mockQueryExecutor = async () => []
@@ -27,28 +29,67 @@ describe('ConversationLinker - Subtask Detection', () => {
     return null
   }
 
+  // Mock subtask query executor
+  const mockSubtaskQueryExecutor = async (
+    domain: string,
+    timestamp: Date,
+    debugMode?: boolean,
+    subtaskPrompt?: string
+  ): Promise<TaskInvocation[] | undefined> => {
+    // When a specific prompt is provided, we still need to return ALL invocations
+    // for the detectSubtask method to calculate sequences correctly
+    // The prompt filter is just an optimization hint for the SQL query
+    const timeWindowStart = new Date(timestamp.getTime() - 30000) // 30 seconds
+    const invocationsInWindow = mockSubtaskInvocations.filter(
+      inv => inv.timestamp >= timeWindowStart && inv.timestamp <= timestamp
+    )
+
+    // If a prompt is provided and no matching invocation exists, return empty
+    if (subtaskPrompt && !invocationsInWindow.some(inv => inv.prompt === subtaskPrompt)) {
+      return []
+    }
+
+    // Otherwise return all invocations in the window
+    return invocationsInWindow
+  }
+
+  // Mock subtask sequence query executor
+  const mockSubtaskSequenceQueryExecutor = async () => 0 // Always return 0 for base sequence
+
   beforeEach(() => {
+    // Reset mock invocations
+    mockSubtaskInvocations = []
+
+    // Create a no-op logger for tests
+    mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
     linker = new ConversationLinker(
       mockQueryExecutor,
+      mockLogger,
       undefined,
       mockRequestByIdExecutor,
-      undefined,
-      undefined
+      mockSubtaskQueryExecutor,
+      mockSubtaskSequenceQueryExecutor
     )
   })
 
   describe('detectSubtask', () => {
     it('should detect subtask from matching Task invocation', async () => {
-      const taskContext: TaskContext = {
-        recentInvocations: [
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-456',
-            prompt: 'Analyze this code for performance issues',
-            timestamp: new Date(),
-          },
-        ],
-      }
+      // Set up mock task invocation
+      const invocationTime = new Date()
+      mockSubtaskInvocations = [
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-456',
+          prompt: 'Analyze this code for performance issues',
+          timestamp: invocationTime,
+        },
+      ]
 
       const request: LinkingRequest = {
         domain: 'example.com',
@@ -60,7 +101,7 @@ describe('ConversationLinker - Subtask Detection', () => {
         ],
         requestId: 'subtask-request-789',
         messageCount: 1,
-        taskContext,
+        timestamp: new Date(invocationTime.getTime() + 5000), // 5 seconds after invocation
       }
 
       const result = await linker.linkConversation(request)
@@ -73,16 +114,16 @@ describe('ConversationLinker - Subtask Detection', () => {
     })
 
     it('should not detect subtask for multi-message conversations', async () => {
-      const taskContext: TaskContext = {
-        recentInvocations: [
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-456',
-            prompt: 'Test prompt',
-            timestamp: new Date(),
-          },
-        ],
-      }
+      // Set up mock task invocation
+      const invocationTime = new Date()
+      mockSubtaskInvocations = [
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-456',
+          prompt: 'Test prompt',
+          timestamp: invocationTime,
+        },
+      ]
 
       const request: LinkingRequest = {
         domain: 'example.com',
@@ -102,7 +143,7 @@ describe('ConversationLinker - Subtask Detection', () => {
         ],
         requestId: 'request-789',
         messageCount: 3,
-        taskContext,
+        timestamp: new Date(invocationTime.getTime() + 5000),
       }
 
       const result = await linker.linkConversation(request)
@@ -131,28 +172,28 @@ describe('ConversationLinker - Subtask Detection', () => {
     })
 
     it('should handle multiple subtasks with correct sequence numbers', async () => {
-      const taskContext: TaskContext = {
-        recentInvocations: [
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-1',
-            prompt: 'First subtask',
-            timestamp: new Date(Date.now() - 3000),
-          },
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-2',
-            prompt: 'Second subtask',
-            timestamp: new Date(Date.now() - 2000),
-          },
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-3',
-            prompt: 'Third subtask',
-            timestamp: new Date(Date.now() - 1000),
-          },
-        ],
-      }
+      // Set up multiple task invocations from the same parent
+      const baseTime = new Date()
+      mockSubtaskInvocations = [
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-1',
+          prompt: 'First subtask',
+          timestamp: new Date(baseTime.getTime() - 3000),
+        },
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-2',
+          prompt: 'Second subtask',
+          timestamp: new Date(baseTime.getTime() - 2000),
+        },
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-3',
+          prompt: 'Third subtask',
+          timestamp: new Date(baseTime.getTime() - 1000),
+        },
+      ]
 
       const request: LinkingRequest = {
         domain: 'example.com',
@@ -164,7 +205,7 @@ describe('ConversationLinker - Subtask Detection', () => {
         ],
         requestId: 'subtask-request-789',
         messageCount: 1,
-        taskContext,
+        timestamp: baseTime,
       }
 
       const result = await linker.linkConversation(request)
@@ -176,16 +217,16 @@ describe('ConversationLinker - Subtask Detection', () => {
     })
 
     it('should not detect subtask when message content does not match', async () => {
-      const taskContext: TaskContext = {
-        recentInvocations: [
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-456',
-            prompt: 'Analyze this code',
-            timestamp: new Date(),
-          },
-        ],
-      }
+      // Set up mock task invocation
+      const invocationTime = new Date()
+      mockSubtaskInvocations = [
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-456',
+          prompt: 'Analyze this code',
+          timestamp: invocationTime,
+        },
+      ]
 
       const request: LinkingRequest = {
         domain: 'example.com',
@@ -197,7 +238,7 @@ describe('ConversationLinker - Subtask Detection', () => {
         ],
         requestId: 'request-789',
         messageCount: 1,
-        taskContext,
+        timestamp: new Date(invocationTime.getTime() + 5000),
       }
 
       const result = await linker.linkConversation(request)
@@ -207,16 +248,16 @@ describe('ConversationLinker - Subtask Detection', () => {
     })
 
     it('should handle array content format in messages', async () => {
-      const taskContext: TaskContext = {
-        recentInvocations: [
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-456',
-            prompt: 'Analyze this code',
-            timestamp: new Date(),
-          },
-        ],
-      }
+      // Set up mock task invocation
+      const invocationTime = new Date()
+      mockSubtaskInvocations = [
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-456',
+          prompt: 'Analyze this code',
+          timestamp: invocationTime,
+        },
+      ]
 
       const request: LinkingRequest = {
         domain: 'example.com',
@@ -233,7 +274,7 @@ describe('ConversationLinker - Subtask Detection', () => {
         ],
         requestId: 'subtask-request-789',
         messageCount: 1,
-        taskContext,
+        timestamp: new Date(invocationTime.getTime() + 5000),
       }
 
       const result = await linker.linkConversation(request)
@@ -243,16 +284,16 @@ describe('ConversationLinker - Subtask Detection', () => {
     })
 
     it('should not detect subtask for assistant messages', async () => {
-      const taskContext: TaskContext = {
-        recentInvocations: [
-          {
-            requestId: 'parent-task-123',
-            toolUseId: 'tool-456',
-            prompt: 'Test prompt',
-            timestamp: new Date(),
-          },
-        ],
-      }
+      // Set up mock task invocation
+      const invocationTime = new Date()
+      mockSubtaskInvocations = [
+        {
+          requestId: 'parent-task-123',
+          toolUseId: 'tool-456',
+          prompt: 'Test prompt',
+          timestamp: invocationTime,
+        },
+      ]
 
       const request: LinkingRequest = {
         domain: 'example.com',
@@ -264,7 +305,7 @@ describe('ConversationLinker - Subtask Detection', () => {
         ],
         requestId: 'request-789',
         messageCount: 1,
-        taskContext,
+        timestamp: new Date(invocationTime.getTime() + 5000),
       }
 
       const result = await linker.linkConversation(request)

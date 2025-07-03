@@ -98,8 +98,25 @@ export class StorageAdapter {
       return await this.writer.getMaxSubtaskSequence(conversationId, beforeTimestamp)
     }
 
+    // Create a logger adapter that converts proxy logger to shared logger interface
+    const loggerAdapter = {
+      debug: (message: string, context?: any) => {
+        logger.debug(message, context)
+      },
+      info: (message: string, context?: any) => {
+        logger.info(message, context)
+      },
+      warn: (message: string, context?: any) => {
+        logger.warn(message, context)
+      },
+      error: (message: string, context?: any) => {
+        logger.error(message, context)
+      },
+    }
+
     this.conversationLinker = new ConversationLinker(
       queryExecutor,
+      loggerAdapter,
       compactSearchExecutor,
       requestByIdExecutor,
       subtaskQueryExecutor,

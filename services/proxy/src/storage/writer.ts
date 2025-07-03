@@ -402,34 +402,37 @@ export class StorageWriter {
     system_hash: string | null
   } | null> {
     try {
-      // Search for requests where the response contains the summary
-      // Escape SQL LIKE special characters to prevent injection
-      const escapedContent = summaryContent
-        .toLowerCase()
-        .replace(/[\\%_]/g, '\\$&') // Escape SQL LIKE wildcards
-        .replace(/\s+/g, ' ') // Normalize whitespace
+      // Clean up the summary content for better matching
+      const cleanSummary = summaryContent
+        .toLocaleLowerCase()
+        .replace(/^Analysis:/i, '<analysis>')
+        .replace(/\n\nSummary:/i, '\n</analysis>\n\n<summary>')
         .trim()
 
-      // Use parameterized query with proper escaping
       const query = `
         SELECT 
           request_id,
           conversation_id,
           branch_id,
           current_message_hash,
-          system_hash
+          system_hash,
+          response_body
         FROM api_requests
         WHERE domain = $1
           AND timestamp >= $2
           ${beforeTimestamp ? 'AND timestamp < $4' : ''}
+          AND request_type = 'inference'
           AND response_body IS NOT NULL
-          AND LOWER(response_body::text) LIKE '%' || $3 || '%'
-          AND conversation_id IS NOT NULL
+          AND jsonb_typeof(response_body->'content') = 'array'
+          AND (
+            starts_with(LOWER(response_body->'content'->0->>'text'), $3)
+          )
         ORDER BY timestamp DESC
         LIMIT 1
       `
 
-      const params: any[] = [domain, afterTimestamp, escapedContent]
+      const params = [domain, afterTimestamp, cleanSummary]
+
       if (beforeTimestamp) {
         params.push(beforeTimestamp)
       }

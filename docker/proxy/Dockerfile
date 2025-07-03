@@ -12,10 +12,6 @@ COPY . .
 # Install all dependencies
 RUN bun install
 
-# Build shared package using root tsc build
-RUN bun x tsc --build packages/shared/tsconfig.json
-RUN cd packages/shared && ls -la dist/
-
 # Build production bundle
 RUN cd services/proxy && bun run build:production
 
@@ -28,12 +24,11 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 
 # Create directories for runtime
-RUN mkdir -p credentials services/proxy/dist packages/shared/dist client-setup && \
+RUN mkdir -p credentials services/proxy/dist client-setup && \
     chmod -R 755 /app
 
 # Copy only necessary files from builder
 COPY --from=builder /app/services/proxy/dist ./services/proxy/dist
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/client-setup ./client-setup
 
 # Copy package files for dependencies
