@@ -43,12 +43,12 @@ describe('ConversationLinker - Subtask Detection', () => {
     const invocationsInWindow = mockSubtaskInvocations.filter(
       inv => inv.timestamp >= timeWindowStart && inv.timestamp <= timestamp
     )
-    
+
     // If a prompt is provided and no matching invocation exists, return empty
     if (subtaskPrompt && !invocationsInWindow.some(inv => inv.prompt === subtaskPrompt)) {
       return []
     }
-    
+
     // Otherwise return all invocations in the window
     return invocationsInWindow
   }
@@ -59,7 +59,7 @@ describe('ConversationLinker - Subtask Detection', () => {
   beforeEach(() => {
     // Reset mock invocations
     mockSubtaskInvocations = []
-    
+
     // Create a no-op logger for tests
     mockLogger = {
       debug: () => {},

@@ -948,7 +948,7 @@ describe('Dual Hash System - Message and System Hashing', () => {
         warn: () => {},
         error: () => {},
       }
-      
+
       const linker = new ConversationLinker(
         async () => [], // mockQueryExecutor
         testLogger,
