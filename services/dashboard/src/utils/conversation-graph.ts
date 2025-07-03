@@ -550,7 +550,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
   patternsNeeded.forEach(nodeId => {
     const patternId = `stripe-pattern-${nodeId.replace(/[^a-zA-Z0-9]/g, '-')}`
     svg += `    <pattern id="${patternId}" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
-      <rect width="5" height="10" fill="#dcfce7" />
+      <rect width="5" height="10" fill="#d1fae5" />
       <rect x="5" width="5" height="10" fill="#fee2e2" />
     </pattern>\n`
   })
@@ -718,9 +718,9 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
       if (node.lastMessageType === 'tool_result' && node.toolResultStatus) {
         if (node.toolResultStatus === 'success') {
-          fillColor = '#dcfce7' // light green
+          fillColor = '#d1fae5' // green-100 (matches green-500 branch style)
         } else if (node.toolResultStatus === 'error') {
-          fillColor = '#fee2e2' // light red
+          fillColor = '#fee2e2' // red-100 (matches red-500 branch style)
         } else if (node.toolResultStatus === 'mixed') {
           // Use the pattern ID for this node
           const patternId = `stripe-pattern-${node.id.replace(/[^a-zA-Z0-9]/g, '-')}`
