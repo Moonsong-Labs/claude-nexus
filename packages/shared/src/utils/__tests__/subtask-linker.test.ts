@@ -21,8 +21,17 @@ class SubtaskLinker {
   private conversationLinker: ConversationLinker
 
   constructor() {
+    // Create a no-op logger for tests
+    const mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
     this.conversationLinker = new ConversationLinker(
       async () => [],
+      mockLogger,
       async () => null,
       undefined,
       undefined,

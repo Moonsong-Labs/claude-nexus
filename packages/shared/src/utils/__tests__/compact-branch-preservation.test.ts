@@ -51,8 +51,17 @@ describe('Compact branch preservation', () => {
 
     const compactSearchExecutor: CompactSearchExecutor = async () => null
 
+    // Create a no-op logger for tests
+    const mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
     const linker = new ConversationLinker(
       queryExecutor,
+      mockLogger,
       compactSearchExecutor,
       undefined,
       undefined,
@@ -116,8 +125,17 @@ describe('Compact branch preservation', () => {
 
     const compactSearchExecutor: CompactSearchExecutor = async () => null
 
+    // Create a no-op logger for tests
+    const mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
     const linker = new ConversationLinker(
       queryExecutor,
+      mockLogger,
       compactSearchExecutor,
       undefined,
       undefined,
