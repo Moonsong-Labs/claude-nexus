@@ -234,10 +234,15 @@ export class ConversationLinker {
           })
 
           // Case a: Compact conversation continuation
-          const parent = await this.findCompactParent(domain, compactInfo.summaryContent, timestamp, traceMeta)
+          const parent = await this.findCompactParent(
+            domain,
+            compactInfo.summaryContent,
+            timestamp,
+            traceMeta
+          )
           if (parent) {
             const branchId = this.generateCompactBranchId(timestamp)
-            
+
             this.logger.info('Linked as compact conversation', {
               domain,
               metadata: {
@@ -320,7 +325,7 @@ export class ConversationLinker {
       let parentMessageHash: string
       try {
         parentMessageHash = this.computeParentHashFromDeduplicated(deduplicatedMessages)
-        
+
         this.logger.debug('Computed parent hash', {
           domain,
           metadata: {
@@ -370,7 +375,7 @@ export class ConversationLinker {
           traceMeta
         )
         parent = this.selectBestParent(exactMatches, traceMeta)
-        
+
         if (parent) {
           this.logger.debug('Found parent via exact match', {
             domain,
@@ -399,7 +404,7 @@ export class ConversationLinker {
           traceMeta
         )
         parent = this.selectBestParent(summarizationMatches, traceMeta)
-        
+
         if (parent) {
           this.logger.debug('Found parent via summarization match', {
             domain,
@@ -428,7 +433,7 @@ export class ConversationLinker {
           traceMeta
         )
         parent = this.selectBestParent(fallbackMatches, traceMeta)
-        
+
         if (parent) {
           this.logger.debug('Found parent via fallback match', {
             domain,
@@ -514,7 +519,7 @@ export class ConversationLinker {
           // If parent is on a compact branch, preserve that branch
           // This ensures follow-ups to compact conversations stay on the same branch
           branchId = parent.branch_id
-          
+
           this.logger.debug('Preserving compact branch', {
             domain,
             metadata: {
@@ -534,10 +539,10 @@ export class ConversationLinker {
             parent.conversation_id || undefined,
             traceMeta
           )
-          
+
           const isNewBranch = existingChildren.length > 0
           branchId = isNewBranch ? this.generateBranchId(timestamp) : parent.branch_id
-          
+
           if (isNewBranch) {
             this.logger.debug('Creating new branch', {
               domain,
@@ -1092,7 +1097,10 @@ export class ConversationLinker {
     }
   }
 
-  private selectBestParent(candidates: ParentRequest[], traceMeta: { linkingId: string }): ParentRequest | null {
+  private selectBestParent(
+    candidates: ParentRequest[],
+    traceMeta: { linkingId: string }
+  ): ParentRequest | null {
     if (candidates.length === 0) {
       return null
     }
@@ -1148,7 +1156,10 @@ export class ConversationLinker {
     return `${COMPACT_PREFIX}${hours}${minutes}${seconds}`
   }
 
-  private async detectSubtask(request: LinkingRequest, traceMeta: { linkingId: string }): Promise<{
+  private async detectSubtask(
+    request: LinkingRequest,
+    traceMeta: { linkingId: string }
+  ): Promise<{
     isSubtask: boolean
     parentTaskRequestId?: string
     subtaskSequence?: number
