@@ -686,7 +686,7 @@ export class StorageWriter {
         SELECT request_id, timestamp
         FROM api_requests
         WHERE task_tool_invocation IS NOT NULL
-        AND timestamp >= $1::timestamp - interval '30 seconds'
+        AND timestamp >= $1::timestamp - interval '12 hours'
         AND timestamp < $1::timestamp
         AND jsonb_path_exists(
           task_tool_invocation,
@@ -697,7 +697,10 @@ export class StorageWriter {
         LIMIT 1
       `
 
-      const result = await this.pool.query(query, [timestamp.toISOString(), userContent])
+      const result = await this.pool.query(query, [
+        timestamp.toISOString(),
+        userContent.replace(/\\n/g, '\n'),
+      ])
 
       if (result.rows.length > 0) {
         // Found matching Task invocation

@@ -286,7 +286,6 @@ overviewRoutes.get('/', async c => {
                                     // Just show the number of branches (no icon for main-only conversations)
                                     displayText = branch.branchCount.toString()
                                   }
-
                                   // Truncate if too many branches to prevent UI overflow
                                   const totalBranches =
                                     branch.subtaskBranchCount +
