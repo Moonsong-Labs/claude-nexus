@@ -807,9 +807,13 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <div
           id="tree-panel"
           class="conversation-graph"
-          style="display: ${view === 'tree' ? 'block' : 'none'}; width: 100%;"
+          style="display: ${view === 'tree'
+            ? 'block'
+            : 'none'}; width: 100%; position: relative; overflow: hidden; cursor: grab;"
         >
-          ${raw(svgGraph)}
+          <div id="tree-container" style="position: relative; transform: translate(0px, 0px);">
+            ${raw(svgGraph)}
+          </div>
         </div>
 
         <!-- Timeline -->
@@ -894,6 +898,89 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               })
             }
           })
+
+          // Add panning functionality to tree view
+          const treePanel = document.getElementById('tree-panel')
+          const treeContainer = document.getElementById('tree-container')
+
+          if (treePanel && treeContainer) {
+            let isPanning = false
+            let startX = 0
+            let startY = 0
+            let scrollLeft = 0
+            let scrollTop = 0
+            let currentTranslateX = 0
+            let currentTranslateY = 0
+
+            // Parse existing transform
+            const getTransform = () => {
+              const transform = treeContainer.style.transform
+              const match = transform.match(
+                /translate\\((-?\\d+(?:\\.\\d+)?)px,\\s*(-?\\d+(?:\\.\\d+)?)px\\)/
+              )
+              if (match) {
+                return {
+                  x: parseFloat(match[1]),
+                  y: parseFloat(match[2]),
+                }
+              }
+              return { x: 0, y: 0 }
+            }
+
+            treePanel.addEventListener('mousedown', e => {
+              // Only start panning if clicking on the panel itself or SVG elements
+              if (e.target.tagName === 'A' || e.target.closest('a')) {
+                return // Don't pan when clicking links
+              }
+
+              isPanning = true
+              treePanel.style.cursor = 'grabbing'
+              startX = e.pageX
+              startY = e.pageY
+
+              const currentTransform = getTransform()
+              currentTranslateX = currentTransform.x
+              currentTranslateY = currentTransform.y
+
+              e.preventDefault()
+            })
+
+            document.addEventListener('mousemove', e => {
+              if (!isPanning) return
+
+              e.preventDefault()
+              const deltaX = e.pageX - startX
+              const deltaY = e.pageY - startY
+
+              const newTranslateX = currentTranslateX + deltaX
+              const newTranslateY = currentTranslateY + deltaY
+
+              treeContainer.style.transform =
+                'translate(' + newTranslateX + 'px, ' + newTranslateY + 'px)'
+            })
+
+            document.addEventListener('mouseup', () => {
+              if (isPanning) {
+                isPanning = false
+                treePanel.style.cursor = 'grab'
+              }
+            })
+
+            // Handle mouse leave to stop panning
+            document.addEventListener('mouseleave', () => {
+              if (isPanning) {
+                isPanning = false
+                treePanel.style.cursor = 'grab'
+              }
+            })
+
+            // Prevent text selection while panning
+            treePanel.addEventListener('selectstart', e => {
+              if (isPanning) {
+                e.preventDefault()
+              }
+            })
+          }
         })
       </script>
     `

@@ -750,6 +750,22 @@ export const dashboardStyles = `
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
   }
+  
+  /* Panning styles for tree view */
+  #tree-panel {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+  
+  #tree-panel:active {
+    cursor: grabbing !important;
+  }
+  
+  #tree-container {
+    transition: none;
+  }
 
   .conversation-timeline {
     min-width: 0;
