@@ -283,8 +283,9 @@ overviewRoutes.get('/', async c => {
                                   if (parts.length > 0) {
                                     displayText = parts.join(', ')
                                   } else {
-                                    // Just show the number of branches (no icon for main-only conversations)
-                                    displayText = branch.branchCount.toString()
+                                    // Only show branch count if more than 1
+                                    displayText =
+                                      branch.branchCount > 1 ? branch.branchCount.toString() : ''
                                   }
                                   // Truncate if too many branches to prevent UI overflow
                                   const totalBranches =
@@ -299,9 +300,7 @@ overviewRoutes.get('/', async c => {
                                   const titleText =
                                     totalBranches > 0 || hasMultipleBranches
                                       ? `Total branches: ${branch.branchCount} (${branch.subtaskBranchCount} subtasks, ${branch.compactBranchCount} compacted, ${branch.userBranchCount} user branches)`
-                                      : branch.branchCount === 1
-                                        ? 'Single branch (main)'
-                                        : ''
+                                      : '' // No tooltip for single branch with no special types
 
                                   return `<span style="color: ${hasMultipleBranches ? '#2563eb' : '#6b7280'}; font-weight: ${hasMultipleBranches ? '600' : 'normal'};" ${titleText ? `title="${titleText}"` : ''}>
                                     ${displayText}
