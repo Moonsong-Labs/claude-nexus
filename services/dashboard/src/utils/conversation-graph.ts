@@ -607,13 +607,13 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         svg += `    <text x="${x + 32}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="${title}">${icon}</text>\n`
       }
 
-      // Add request ID (first 8 chars) in the center
+      // Add request ID (first 8 chars) shifted more to the left
       const requestIdShort = node.id.substring(0, 8)
-      svg += `    <text x="${x + 50}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
+      svg += `    <text x="${x + 45}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
 
-      // Add timestamp on the right
+      // Add timestamp shifted left to make room for battery
       const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      svg += `    <text x="${x + node.width - 10}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-size: 10px; fill: #6b7280;">${time}</text>\n`
+      svg += `    <text x="${x + node.width - 55}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-size: 10px; fill: #6b7280;">${time}</text>\n`
 
       // Add battery icon for context size
       if (node.contextTokens !== undefined && node.contextTokens > 0) {
@@ -622,7 +622,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         const batteryColor = getBatteryColor(percentage)
         const isOverflow = percentage > 1
 
-        const batteryX = x + node.width - 38
+        const batteryX = x + node.width - 32
         const batteryY = y + 8
         const batteryWidth = 22
         const batteryHeight = 11
@@ -647,7 +647,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
         // Add estimate warning icon if needed
         if (isEstimate) {
-          svg += `      <text x="${batteryX - 8}" y="${batteryY + batteryHeight / 2 + 3}" text-anchor="middle" style="font-size: 10px;" title="Context limit is estimated">⚠️</text>\n`
+          svg += `      <text x="${batteryX - 10}" y="${batteryY + batteryHeight / 2 + 3}" text-anchor="middle" style="font-size: 10px;" title="Context limit is estimated">⚠️</text>\n`
         }
 
         // Enhanced tooltip
