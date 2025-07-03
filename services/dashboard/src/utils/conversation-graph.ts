@@ -645,11 +645,6 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
           svg += `      <text x="${batteryX + batteryWidth / 2}" y="${batteryY + batteryHeight / 2 + 3}" text-anchor="middle" style="font-size: 9px; font-weight: bold; fill: white;">!</text>\n`
         }
 
-        // Add estimate warning icon if needed
-        if (isEstimate) {
-          svg += `      <text x="${batteryX - 10}" y="${batteryY + batteryHeight / 2 + 3}" text-anchor="middle" style="font-size: 10px;" title="Context limit is estimated">⚠️</text>\n`
-        }
-
         // Enhanced tooltip
         const percentageText = (percentage * 100).toFixed(1)
         const tooltipText = isEstimate

@@ -353,7 +353,6 @@ overviewRoutes.get('/', async c => {
                                       <rect x="2" y="4" width="${Math.min(percentage, 1) * 22}" height="8" rx="1" ry="1" style="fill: ${batteryColor};" />
                                       ${isOverflow ? '<text x="12" y="11" text-anchor="middle" style="font-size: 8px; font-weight: bold; fill: white;">!</text>' : ''}
                                     </svg>
-                                    ${isEstimate ? '<span style="font-size: 12px;" title="Context limit is estimated">⚠️</span>' : ''}
                                     <span style="font-size: 11px; color: #6b7280;" title="${branch.latestContextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens${isEstimate ? ' (estimated)' : ''}">${percentageText}%</span>
                                   </div>
                                 `
