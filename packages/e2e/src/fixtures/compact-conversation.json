@@ -1,0 +1,70 @@
+{
+  "description": "Test compact conversation detection and linking",
+  "requests": [
+    {
+      "domain": "test.example.com",
+      "body": {
+        "model": "claude-3-sonnet-20240229",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Tell me about Node.js"
+          }
+        ],
+        "max_tokens": 50
+      },
+      "expectDatabase": {
+        "conversationId": "$new",
+        "branchId": "$main",
+        "parentRequestId": "$null",
+        "messageCount": 1
+      }
+    },
+    {
+      "domain": "test.example.com",
+      "body": {
+        "model": "claude-3-sonnet-20240229",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Tell me about Node.js"
+          },
+          {
+            "role": "assistant",
+            "content": "Node.js is a JavaScript runtime built on Chrome's V8 engine."
+          },
+          {
+            "role": "user",
+            "content": "What are its key features?"
+          }
+        ],
+        "max_tokens": 50
+      },
+      "expectDatabase": {
+        "conversationId": "$same",
+        "branchId": "$main",
+        "parentRequestId": "$previous",
+        "messageCount": 3
+      }
+    },
+    {
+      "domain": "test.example.com",
+      "body": {
+        "model": "claude-3-sonnet-20240229",
+        "messages": [
+          {
+            "role": "user",
+            "content": "This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\n\nUser asked about Node.js. Assistant explained it's a JavaScript runtime.\n\nPlease continue discussing Node.js features."
+          }
+        ],
+        "max_tokens": 50
+      },
+      "expectDatabase": {
+        "conversationId": "$same",
+        "branchId": "$compact_*",
+        "parentRequestId": "$request:1",
+        "messageCount": 1
+      }
+    }
+  ]
+}

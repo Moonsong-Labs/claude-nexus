@@ -2,6 +2,7 @@
   "description": "Test that conversations don't link when parent has only 1 message but child expects 2-message parent",
   "type": "standard",
   "expectedLink": true,
+  "existingChild": true,
   "parent": {
     "request_id": "9484fa42-2685-4e2a-9198-79a88ae2199e",
     "domain": "claude-reviews.msldev.io",
