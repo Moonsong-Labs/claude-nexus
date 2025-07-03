@@ -1,4 +1,5 @@
 import { calculateSimpleLayout } from './simple-graph-layout.js'
+import { getModelContextLimit, getBatteryColor } from '@claude-nexus/shared'
 
 /**
  * Escape HTML special characters
@@ -10,42 +11,6 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-}
-
-/**
- * Model context limits
- */
-const MODEL_CONTEXT_LIMITS: Record<string, number> = {
-  'claude-3-opus-20240229': 200000,
-  'claude-3-sonnet-20240229': 200000,
-  'claude-3-haiku-20240307': 200000,
-  'claude-3-5-sonnet-20240620': 200000,
-  'claude-3-5-sonnet-20241022': 200000,
-  'claude-3-5-haiku-20241022': 200000,
-  'claude-2.1': 200000,
-  'claude-2.0': 100000,
-  'claude-instant-1.2': 100000,
-  // Default fallback
-  default: 200000,
-}
-
-/**
- * Get context limit for a model
- */
-function getModelContextLimit(model: string): number {
-  // Try exact match first
-  if (MODEL_CONTEXT_LIMITS[model]) {
-    return MODEL_CONTEXT_LIMITS[model]
-  }
-
-  // Try partial match for variations (e.g., claude-3-opus)
-  for (const [key, value] of Object.entries(MODEL_CONTEXT_LIMITS)) {
-    if (model.includes(key.split('-20')[0])) {
-      return value
-    }
-  }
-
-  return MODEL_CONTEXT_LIMITS['default']
 }
 
 export interface ConversationNode {
@@ -332,7 +297,7 @@ function calculateReversedLayout(
       const parentY = parentId ? nodeYPositions.get(parentId) || 0 : 0
 
       // Count how many subtask nodes are already positioned for this parent
-      const existingSubtaskNodes = layoutNodes.filter(
+      const _existingSubtaskNodes = layoutNodes.filter(
         ln =>
           ln.id.endsWith('-subtasks') &&
           subtaskNodes.find(n => n.id === ln.id)?.parentId === parentId
@@ -341,7 +306,7 @@ function calculateReversedLayout(
       layoutNodes.push({
         id: node.id,
         x: parentLane * horizontalSpacing + subtaskOffset,
-        y: parentY + existingSubtaskNodes * (subtaskNodeHeight + 10),
+        y: parentY, // Align exactly with parent Y
         width: subtaskNodeWidth,
         height: subtaskNodeHeight,
         branchId: node.branchId,
@@ -399,24 +364,99 @@ function calculateReversedLayout(
           ],
         })
       } else {
-        // In reversed layout, newer messages (higher count) are above
-        layoutEdges.push({
-          id: `e${idx}`,
-          source: edge.source,
-          target: edge.target,
-          sections: [
-            {
-              startPoint: {
-                x: sourceNode.x + sourceNode.width / 2,
-                y: sourceNode.y, // Top of source (parent/older)
+        // Check if this is a branch connection
+        const isBranchConnection = sourceNode.branchId !== targetNode.branchId
+
+        if (isBranchConnection) {
+          // Check if target is a normal branch (not compact or subtask)
+          const isNormalBranch =
+            !targetNode.branchId.startsWith('compact_') &&
+            !targetNode.branchId.startsWith('subtask_')
+
+          if (isNormalBranch) {
+            // For normal branches, connect from source side to target bottom
+            const sourceX =
+              sourceNode.x < targetNode.x
+                ? sourceNode.x + sourceNode.width // Right side of source
+                : sourceNode.x // Left side of source
+            const sourceY = sourceNode.y + sourceNode.height / 3
+            const targetX = targetNode.x + targetNode.width / 2
+            const targetY = targetNode.y + targetNode.height
+
+            // Create path that goes horizontal, then vertical, then to center bottom
+            const bendX = targetX
+
+            layoutEdges.push({
+              id: `e${idx}`,
+              source: edge.source,
+              target: edge.target,
+              sections: [
+                {
+                  startPoint: { x: sourceX, y: sourceY },
+                  endPoint: { x: targetX, y: targetY },
+                  bendPoints: [
+                    { x: bendX, y: sourceY }, // Go horizontally
+                    { x: bendX, y: targetY }, // Go vertically to target bottom
+                  ],
+                },
+              ],
+            })
+          } else {
+            // For compact/subtask branches, use side anchors
+            const sourceX =
+              sourceNode.x < targetNode.x
+                ? sourceNode.x + sourceNode.width // Right side of source
+                : sourceNode.x // Left side of source
+            const targetX =
+              sourceNode.x < targetNode.x
+                ? targetNode.x // Left side of target
+                : targetNode.x + targetNode.width // Right side of target
+
+            const sourceY = sourceNode.y + sourceNode.height / 3
+            const targetY = targetNode.y + (targetNode.height * 2) / 3
+
+            // Create a path that goes horizontal first, then vertical, then horizontal again
+            const horizontalOffset = 10 // Distance to travel horizontally before going vertical
+
+            const bendX =
+              targetNode.x > sourceNode.x ? targetX - horizontalOffset : targetX + horizontalOffset
+
+            layoutEdges.push({
+              id: `e${idx}`,
+              source: edge.source,
+              target: edge.target,
+              sections: [
+                {
+                  startPoint: { x: sourceX, y: sourceY },
+                  endPoint: { x: targetX, y: targetY },
+                  bendPoints: [
+                    { x: bendX, y: sourceY }, // Go horizontally to middle
+                    { x: bendX, y: targetY }, // Go vertically to target height
+                  ],
+                },
+              ],
+            })
+          }
+        } else {
+          // For same-branch connections, connect from bottom to top center
+          layoutEdges.push({
+            id: `e${idx}`,
+            source: edge.source,
+            target: edge.target,
+            sections: [
+              {
+                startPoint: {
+                  x: sourceNode.x + sourceNode.width / 2,
+                  y: sourceNode.y, // Top of source (parent/older)
+                },
+                endPoint: {
+                  x: targetNode.x + targetNode.width / 2,
+                  y: targetNode.y + targetNode.height, // Bottom of target (child/newer)
+                },
               },
-              endPoint: {
-                x: targetNode.x + targetNode.width / 2,
-                y: targetNode.y + targetNode.height, // Bottom of target (child/newer)
-              },
-            },
-          ],
-        })
+            ],
+          })
+        }
       }
     }
   })
@@ -475,7 +515,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
   let svg = `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">\n`
 
-  // Add CSS styles
+  // Add CSS styles and arrow markers
   svg += `<defs>
     <style>
       .graph-edge { stroke: #e5e7eb; stroke-width: 2; fill: none; }
@@ -488,8 +528,11 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       .graph-node-clickable:hover { opacity: 0.8; }
       .subtask-tooltip { display: none; }
       .subtask-group:hover .subtask-tooltip { display: block; }
-    </style>
-  </defs>\n`
+    </style>\n`
+
+  // No arrow markers needed
+
+  svg += `  </defs>\n`
 
   // Render edges
   svg += '<g class="graph-edges">\n'
@@ -514,10 +557,6 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
           path += ` L${bend.x + padding},${bend.y + padding}`
         })
         path += ` L${endX},${endY}`
-      } else if (isBranchDiverging && Math.abs(startX - endX) > 5) {
-        // For diverging branches, create a squared path with right angles
-        const midY = startY + (endY - startY) / 2
-        path = `M${startX},${startY} L${startX},${midY} L${endX},${midY} L${endX},${endY}`
       } else {
         // For regular edges, use straight line
         path = `M${startX},${startY} L${endX},${endY}`
@@ -527,22 +566,63 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       const isToSubtask =
         targetNode && targetNode.branchId.startsWith('subtask_') && targetNode.messageCount === 1
 
-      if (isToSubtask) {
+      if (isToSubtask && targetNode) {
         // Draw edge with special styling for subtask connections
-        svg += `  <path d="${path}" class="graph-edge" style="stroke-dasharray: 5,5;" />\n`
-
-        // Add bidirectional arrow indicator at the midpoint
-        const midX = (startX + endX) / 2
-        const midY = (startY + endY) / 2
-
-        // Add arrow symbols
-        svg += `  <text x="${midX}" y="${midY - 5}" text-anchor="middle" style="font-size: 16px; fill: #6b7280;">⇄</text>\n`
+        const branchColor = getBranchColor(targetNode.branchId)
+        svg += `  <path d="${path}" class="graph-edge" style="stroke: ${branchColor}; stroke-dasharray: 5,5;" />\n`
+      } else if (isBranchDiverging && targetNode) {
+        // For branch diverging edges, use target branch color
+        const branchColor = getBranchColor(targetNode.branchId)
+        svg += `  <path d="${path}" class="graph-edge" style="stroke: ${branchColor};" />\n`
       } else {
         svg += `  <path d="${path}" class="graph-edge" />\n`
       }
     }
   }
   svg += '</g>\n'
+
+  // Pre-compute which nodes need anchors and on which sides
+  const nodeAnchors = new Map<string, { left?: boolean; right?: boolean; bottom?: boolean }>()
+
+  // Check each node if it's first in branch or spawns children
+  layout.nodes.forEach(node => {
+    const anchors: { left?: boolean; right?: boolean; bottom?: boolean } = {}
+
+    // Check if this node is first in its branch (not main)
+    if (node.branchId !== 'main' && node.messageCount === 1) {
+      // Only add side anchors for compact and subtask branches
+      if (node.branchId.startsWith('compact_') || node.branchId.startsWith('subtask_')) {
+        // Find parent node to determine which side to anchor
+        const parentEdge = layout.edges.find(e => e.target === node.id)
+        if (parentEdge) {
+          const parentNode = layout.nodes.find(n => n.id === parentEdge.source)
+          if (parentNode && parentNode.x < node.x) {
+            anchors.left = true
+          } else if (parentNode && parentNode.x > node.x) {
+            anchors.right = true
+          }
+        }
+      }
+    }
+
+    // Check if this node spawns branches
+    const childrenInOtherBranches = layout.edges
+      .filter(e => e.source === node.id)
+      .map(e => layout.nodes.find(n => n.id === e.target))
+      .filter(child => child && child.branchId !== node.branchId)
+
+    childrenInOtherBranches.forEach(child => {
+      if (child && child.x > node.x) {
+        anchors.right = true
+      } else if (child && child.x < node.x) {
+        anchors.left = true
+      }
+    })
+
+    if (anchors.left || anchors.right) {
+      nodeAnchors.set(node.id, anchors)
+    }
+  })
 
   // Render nodes
   svg += '<g class="graph-nodes">\n'
@@ -608,11 +688,12 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       }
 
       // Draw rectangle with rounded corners
-      svg += `    <rect x="${x}" y="${y}" width="${node.width}" height="${node.height}" rx="6" ry="6" class="${nodeClass}${interactive ? ' graph-node-clickable' : ''}" style="fill: white; stroke: ${node.hasError ? '#ef4444' : color}; stroke-width: 2;" />\n`
+      const strokeDasharray = node.branchId.startsWith('subtask_') ? 'stroke-dasharray: 8,2;' : ''
+      svg += `    <rect x="${x}" y="${y}" width="${node.width}" height="${node.height}" rx="6" ry="6" class="${nodeClass}${interactive ? ' graph-node-clickable' : ''}" style="fill: white; stroke: ${node.hasError ? '#ef4444' : color}; stroke-width: 2; ${strokeDasharray}" />\n`
 
       // Add message count number on the left
       if (node.messageCount !== undefined && node.messageCount > 0) {
-        svg += `    <text x="${x + 15}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-weight: 700; font-size: 13px; fill: ${color};">${node.messageCount}</text>\n`
+        svg += `    <text x="${x + 25}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-weight: 700; font-size: 13px; fill: ${color};">${node.messageCount}</text>\n`
       }
 
       // Add appropriate icon based on branch type and user message
@@ -631,7 +712,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
           icon = '💻'
           title = 'Subtask branch'
         } else if (node.branchId.startsWith('compact_')) {
-          icon = '🗜️'
+          icon = '📦'
           title = 'Compact branch'
         }
       } else if (node.hasUserMessage) {
@@ -642,55 +723,93 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
         svg += `    <text x="${x + 32}" y="${y + node.height / 2 + 3}" text-anchor="middle" class="graph-node-label" style="font-size: 12px;" title="${title}">${icon}</text>\n`
       }
 
-      // Add request ID (first 8 chars) in the center
+      // Add request ID (first 8 chars) shifted more to the left
       const requestIdShort = node.id.substring(0, 8)
-      svg += `    <text x="${x + 50}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
+      svg += `    <text x="${x + 42}" y="${y + node.height / 2 + 3}" text-anchor="start" class="graph-node-label" style="font-weight: 500; font-size: 11px;">${requestIdShort}</text>\n`
 
-      // Add timestamp on the right
+      // Add timestamp aligned more to the right
       const time = node.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      svg += `    <text x="${x + node.width - 10}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-size: 10px; fill: #6b7280;">${time}</text>\n`
+      svg += `    <text x="${x + node.width - 22}" y="${y + node.height / 2 + 3}" text-anchor="end" class="graph-node-label" style="font-size: 10px; fill: #6b7280;">${time}</text>\n`
 
       // Add battery icon for context size
       if (node.contextTokens !== undefined && node.contextTokens > 0) {
-        const maxTokens = getModelContextLimit(node.model)
-        const percentage = (node.contextTokens / maxTokens) * 100
-        let batteryColor = '#4caf50' // green
+        const { limit: maxTokens, isEstimate } = getModelContextLimit(node.model)
+        const percentage = node.contextTokens / maxTokens
+        const batteryColor = getBatteryColor(percentage)
+        const isOverflow = percentage > 1
 
-        if (percentage <= 20) {
-          batteryColor = '#4caf50' // green
-        } else if (percentage <= 40) {
-          batteryColor = '#8bc34a' // light green
-        } else if (percentage <= 60) {
-          batteryColor = '#ffc107' // amber
-        } else if (percentage <= 80) {
-          batteryColor = '#ff9800' // orange
-        } else {
-          batteryColor = '#f44336' // red
-        }
-
-        const batteryX = x + node.width - 38
+        const batteryX = x + node.width - 16
         const batteryY = y + 8
-        const batteryWidth = 22
-        const batteryHeight = 11
+        const batteryWidth = 11
+        const batteryHeight = 18
 
-        // Battery casing
-        svg += `    <rect x="${batteryX}" y="${batteryY}" width="${batteryWidth}" height="${batteryHeight}" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />\n`
+        // Battery group with hover area
+        svg += `    <g class="battery-group">\n`
 
         // Battery nub (positive terminal)
-        svg += `    <rect x="${batteryX + batteryWidth}" y="${batteryY + 2.5}" width="2" height="4" rx="0" ry="1" style="fill: #888;" />\n`
+        svg += `      <rect x="${batteryX + 2.5}" y="${batteryY - 2}" width="4" height="2" rx="1" ry="0" style="fill: #888;" />\n`
 
-        // Battery level fill
-        const fillWidth = (batteryWidth - 2) * Math.min(percentage / 100, 1)
-        svg += `    <rect x="${batteryX + 1}" y="${batteryY + 1}" width="${fillWidth}" height="${batteryHeight - 2}" rx="1" ry="1" style="fill: ${batteryColor};" />\n`
+        // Battery casing
+        svg += `      <rect x="${batteryX}" y="${batteryY}" width="${batteryWidth}" height="${batteryHeight}" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />\n`
 
-        // Tooltip on hover
-        svg += `    <title>${node.contextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens (${percentage.toFixed(1)}%)</title>\n`
+        // Battery level fill (from bottom to top)
+        const fillHeight = (batteryHeight - 2) * Math.min(percentage, 1)
+        const fillY = batteryY + 1 + (batteryHeight - 2) - fillHeight
+        svg += `      <rect x="${batteryX + 1}" y="${fillY}" width="${batteryWidth - 2}" height="${fillHeight}" rx="1" ry="1" style="fill: ${batteryColor};" />\n`
+
+        // Add overflow exclamation mark if needed
+        if (isOverflow) {
+          svg += `      <text x="${batteryX + batteryWidth / 2}" y="${batteryY + batteryHeight / 2 + 3}" text-anchor="middle" style="font-size: 9px; font-weight: bold; fill: white;">!</text>\n`
+        }
+
+        // Enhanced tooltip
+        const percentageText = (percentage * 100).toFixed(1)
+        const tooltipText = isEstimate
+          ? `${node.contextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens (estimated)`
+          : `${node.contextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens (${percentageText}%)`
+
+        svg += `      <title>${tooltipText}</title>\n`
+        svg += `    </g>\n`
       }
 
       // Add sub-task indicators (removed as they would overlap with the new layout)
 
+      // Add anchor points if this node needs them
+      const anchors = nodeAnchors.get(node.id)
+      if (anchors) {
+        const anchorRadius = 4
+
+        if (anchors.left) {
+          // Determine if this is a source or target anchor based on edges
+          const isSource = layout.edges.some(
+            e =>
+              e.source === node.id &&
+              layout.nodes.find(n => n.id === e.target)?.branchId !== node.branchId
+          )
+          const anchorY = isSource ? y + node.height / 3 : y + (node.height * 2) / 3
+          svg += `    <circle cx="${x}" cy="${anchorY}" r="${anchorRadius}" style="fill: ${color}; stroke: white; stroke-width: 2;" />\n`
+        }
+
+        if (anchors.right) {
+          // Determine if this is a source or target anchor based on edges
+          const isSource = layout.edges.some(
+            e =>
+              e.source === node.id &&
+              layout.nodes.find(n => n.id === e.target)?.branchId !== node.branchId
+          )
+          const anchorY = isSource ? y + node.height / 3 : y + (node.height * 2) / 3
+          svg += `    <circle cx="${x + node.width}" cy="${anchorY}" r="${anchorRadius}" style="fill: ${color}; stroke: white; stroke-width: 2;" />\n`
+        }
+      }
+
       // Add connection point at the bottom
-      svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`
+      // Skip for first messages in compact/subtask branches, but keep for normal branches
+      const isFirstInSpecialBranch =
+        node.messageCount === 1 &&
+        (node.branchId.startsWith('compact_') || node.branchId.startsWith('subtask_'))
+      if (!isFirstInSpecialBranch) {
+        svg += `    <circle cx="${x + node.width / 2}" cy="${y + node.height}" r="${nodeRadius - 2}" class="${nodeClass}" style="${node.branchId !== 'main' && !node.hasError ? `fill: ${color};` : ''} stroke: white; stroke-width: 2;" />\n`
+      }
 
       if (interactive) {
         svg += `  </a>\n`

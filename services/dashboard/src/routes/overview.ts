@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
-import { getErrorMessage } from '@claude-nexus/shared'
+import { getErrorMessage, getModelContextLimit, getBatteryColor } from '@claude-nexus/shared'
 import {
   formatNumber,
   formatDuration,
@@ -48,7 +48,7 @@ overviewRoutes.get('/', async c => {
 
   try {
     // Fetch conversations with account information from the API
-    const conversationsResult = await apiClient.getConversations({ domain, limit: 1000 })
+    const conversationsResult = await apiClient.getConversations({ domain, limit: 10000 })
     const apiConversations = conversationsResult.conversations
 
     // Create flat list of conversations (simplified for now)
@@ -63,6 +63,8 @@ overviewRoutes.get('/', async c => {
       lastMessage: Date
       domain: string
       latestRequestId?: string
+      latestModel?: string
+      latestContextTokens?: number
       isSubtask?: boolean
       parentTaskRequestId?: string
       parentConversationId?: string
@@ -82,6 +84,8 @@ overviewRoutes.get('/', async c => {
         lastMessage: new Date(conv.lastMessageTime),
         domain: conv.domain,
         latestRequestId: conv.latestRequestId,
+        latestModel: conv.latestModel,
+        latestContextTokens: conv.latestContextTokens,
         isSubtask: conv.isSubtask,
         parentTaskRequestId: conv.parentTaskRequestId,
         parentConversationId: conv.parentConversationId,
@@ -148,7 +152,7 @@ overviewRoutes.get('/', async c => {
     const uniqueDomains = [...new Set(conversationBranches.map(branch => branch.domain))].sort()
 
     // Calculate totals from conversation branches
-    const totalMessages = conversationBranches.reduce((sum, branch) => sum + branch.messageCount, 0)
+    const totalRequests = conversationBranches.reduce((sum, branch) => sum + branch.messageCount, 0)
     const totalTokens = conversationBranches.reduce((sum, branch) => sum + branch.tokens, 0)
     const uniqueAccounts = [...new Set(conversationBranches.map(b => b.accountId).filter(Boolean))]
 
@@ -235,8 +239,8 @@ overviewRoutes.get('/', async c => {
           <div class="stat-meta">Unique account IDs</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Messages</div>
-          <div class="stat-value">${totalMessages}</div>
+          <div class="stat-label">Total Requests</div>
+          <div class="stat-value">${totalRequests}</div>
           <div class="stat-meta">Across all conversations</div>
         </div>
         <div class="stat-card">
@@ -266,8 +270,9 @@ overviewRoutes.get('/', async c => {
                       <th>Branches</th>
                       <th>Account</th>
                       <th>Domain</th>
-                      <th>Messages</th>
+                      <th>Requests</th>
                       <th>Tokens</th>
+                      <th>Context</th>
                       <th>Duration</th>
                       <th>Last Activity</th>
                       <th>Actions</th>
@@ -326,6 +331,34 @@ overviewRoutes.get('/', async c => {
                               <td class="text-sm">${escapeHtml(branch.domain)}</td>
                               <td class="text-sm">${branch.messageCount}</td>
                               <td class="text-sm">${formatNumber(branch.tokens)}</td>
+                              <td class="text-sm">${
+                                branch.latestContextTokens && branch.latestModel
+                                  ? (() => {
+                                      const { limit: maxTokens, isEstimate } = getModelContextLimit(
+                                        branch.latestModel
+                                      )
+                                      const percentage = branch.latestContextTokens / maxTokens
+                                      const batteryColor = getBatteryColor(percentage)
+                                      const isOverflow = percentage > 1
+                                      const percentageText = (percentage * 100).toFixed(1)
+
+                                      return `
+                                  <div style="display: inline-flex; align-items: center; gap: 4px;">
+                                    <svg width="16" height="30" viewBox="0 0 16 30" xmlns="http://www.w3.org/2000/svg">
+                                      <!-- Battery nub (positive terminal) -->
+                                      <rect x="6" y="1" width="4" height="3" rx="1" ry="1" style="fill: #888;" />
+                                      <!-- Battery casing -->
+                                      <rect x="3" y="4" width="10" height="24" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />
+                                      <!-- Battery level fill (from bottom to top) -->
+                                      <rect x="4" y="${5 + (1 - Math.min(percentage, 1)) * 22}" width="8" height="${Math.min(percentage, 1) * 22}" rx="1" ry="1" style="fill: ${batteryColor};" />
+                                      ${isOverflow ? '<text x="8" y="18" text-anchor="middle" style="font-size: 8px; font-weight: bold; fill: white;">!</text>' : ''}
+                                    </svg>
+                                    <span style="font-size: 11px; color: #6b7280;" title="${branch.latestContextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens${isEstimate ? ' (estimated)' : ''}">${percentageText}%</span>
+                                  </div>
+                                `
+                                    })()
+                                  : '<span class="text-gray-400">-</span>'
+                              }</td>
                               <td class="text-sm">${formatDuration(duration)}</td>
                               <td class="text-sm">${formatRelativeTime(branch.lastMessage)}</td>
                               <td class="text-sm">

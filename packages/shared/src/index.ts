@@ -42,3 +42,14 @@ export {
 } from './utils/conversation-linker.js'
 
 export { stripSystemReminder, containsSystemReminder } from './utils/system-reminder.js'
+
+// Export model limits configuration
+export {
+  MODEL_CONTEXT_RULES,
+  DEFAULT_CONTEXT_LIMIT,
+  BATTERY_THRESHOLDS,
+  getModelContextLimit,
+  getBatteryColor,
+  getBatteryLevel,
+  type ModelContextRule,
+} from './constants/model-limits.js'
