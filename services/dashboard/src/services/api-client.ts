@@ -110,6 +110,10 @@ interface ConversationSummary {
   messageCount: number
   totalTokens: number
   branchCount: number
+  // New branch type counts
+  subtaskBranchCount?: number
+  compactBranchCount?: number
+  userBranchCount?: number
   modelsUsed: string[]
   latestRequestId?: string
   latestModel?: string

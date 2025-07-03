@@ -493,6 +493,10 @@ apiRoutes.get('/conversations', async c => {
           COUNT(*) as message_count,
           SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
           COUNT(DISTINCT branch_id) as branch_count,
+          -- Add branch type counts for the new feature
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'subtask_%') as subtask_branch_count,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'compact_%') as compact_branch_count,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id IS NOT NULL AND branch_id NOT LIKE 'subtask_%' AND branch_id NOT LIKE 'compact_%') as user_branch_count,
           ARRAY_AGG(DISTINCT model) FILTER (WHERE model IS NOT NULL) as models_used,
           (array_agg(request_id ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_request_id,
           (array_agg(model ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_model,
@@ -537,6 +541,10 @@ apiRoutes.get('/conversations', async c => {
         messageCount: parseInt(row.message_count),
         totalTokens: parseInt(row.total_tokens),
         branchCount: parseInt(row.branch_count),
+        // Add new branch type counts
+        subtaskBranchCount: parseInt(row.subtask_branch_count || 0),
+        compactBranchCount: parseInt(row.compact_branch_count || 0),
+        userBranchCount: parseInt(row.user_branch_count || 0),
         modelsUsed: row.models_used,
         latestRequestId: row.latest_request_id,
         latestModel: row.latest_model,
