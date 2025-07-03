@@ -340,13 +340,45 @@ requestDetailsRoutes.get('/request/:id', async c => {
               ${details.conversationId
                 ? html`
                     <dt class="text-gray-600">Conversation ID:</dt>
-                    <dd>
+                    <dd style="display: flex; align-items: center; gap: 0.5rem;">
                       <a
                         href="/dashboard/conversation/${details.conversationId}"
                         class="font-mono text-blue-600 hover:text-blue-800 hover:underline"
                       >
                         ${details.conversationId}
                       </a>
+                      <button
+                        class="copy-btn"
+                        onclick="copyToClipboard('${details.conversationId}', this)"
+                        title="Copy conversation ID"
+                        style="
+                          padding: 0.25rem;
+                          border: 1px solid #e5e7eb;
+                          border-radius: 0.25rem;
+                          background: white;
+                          cursor: pointer;
+                          display: inline-flex;
+                          align-items: center;
+                          justify-content: center;
+                          transition: all 0.2s;
+                        "
+                        onmouseover="this.style.backgroundColor='#f3f4f6'"
+                        onmouseout="this.style.backgroundColor='white'"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                      </button>
                     </dd>
                   `
                 : ''}

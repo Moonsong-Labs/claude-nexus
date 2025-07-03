@@ -531,8 +531,44 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
       <!-- Conversation Details Panel -->
       <div style="margin-bottom: 2rem;">
-        <h3 style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600;">
+        <h3
+          style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600; display: flex; align-items: center; gap: 1rem;"
+        >
           Conversation Details
+          <span
+            style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: normal; color: #6b7280;"
+          >
+            <code
+              style="font-family: monospace; background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 0.25rem;"
+              >${conversationId}</code
+            >
+            <button
+              onclick="navigator.clipboard.writeText('${conversationId}').then(() => {
+                const btn = this;
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '✓';
+                btn.style.color = '#10b981';
+                setTimeout(() => {
+                  btn.innerHTML = originalHTML;
+                  btn.style.color = '';
+                }, 2000);
+              })"
+              style="background: none; border: none; cursor: pointer; padding: 0.25rem; color: #6b7280; hover:color: #374151;"
+              title="Copy conversation ID"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </span>
         </h3>
         <div class="conversation-stats-grid">
           <div class="conversation-stat-card">
