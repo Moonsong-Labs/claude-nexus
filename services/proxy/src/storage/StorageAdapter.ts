@@ -31,7 +31,7 @@ export class StorageAdapter {
   private readonly RETENTION_TIME_MS =
     Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
   private readonly QUERY_WINDOW_HOURS = 24
-  private readonly MATCH_WINDOW_SECONDS = 30
+  private readonly MATCH_WINDOW_HOURS = 24
 
   constructor(private pool: Pool) {
     // Enable SQL logging on the pool if DEBUG or DEBUG_SQL is set
@@ -562,19 +562,17 @@ export class StorageAdapter {
           AND r.timestamp >= $2
           AND r.timestamp <= $3
           AND r.response_body IS NOT NULL
-          AND r.response_body @> jsonb_build_object(
-            'content', jsonb_build_array(
-              jsonb_build_object(
-                'type', 'tool_use',
-                'name', 'Task',
-                'input', jsonb_build_object('prompt', $4::text)
-              )
+          AND r.response_body->'content' @> jsonb_build_array(
+            jsonb_build_object(
+              'type', 'tool_use',
+              'name', 'Task',
+              'input', jsonb_build_object('prompt', $4::text)
             )
           )
         ORDER BY r.timestamp DESC
         LIMIT 10
       `
-      params = [domain, timeWindowStart, timestamp, subtaskPrompt]
+      params = [domain, timeWindowStart, timestamp, subtaskPrompt.replace(/\\n/g, '\n')]
 
       if (debugMode) {
         logger.debug('Using optimized subtask query with prompt filter', {
@@ -629,14 +627,14 @@ export class StorageAdapter {
       }
 
       // Filter to only recent invocations within the match window
-      const recentCutoff = new Date(timestamp.getTime() - this.MATCH_WINDOW_SECONDS * 1000)
+      const recentCutoff = new Date(timestamp.getTime() - this.MATCH_WINDOW_HOURS * 60 * 60 * 1000)
       const filteredInvocations = recentInvocations.filter(
         inv => inv.timestamp >= recentCutoff && inv.timestamp <= timestamp
       )
 
       if (debugMode && filteredInvocations.length > 0) {
         logger.debug(
-          `Found ${filteredInvocations.length} Task invocations within ${this.MATCH_WINDOW_SECONDS}s window`
+          `Found ${filteredInvocations.length} Task invocations within ${this.MATCH_WINDOW_HOURS}h window`
         )
       }
 
