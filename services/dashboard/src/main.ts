@@ -31,6 +31,7 @@ for (const envPath of envPaths) {
 // Now import other modules after env is loaded
 import { serve } from '@hono/node-server'
 import { createDashboardApp } from './app.js'
+import { AnalysisWorker, cleanupStuckJobs } from './lib/analysis-worker.js'
 import { container } from './container.js'
 
 // Parse command line arguments
@@ -205,7 +206,21 @@ async function main() {
       // Ignore if we can't get network interfaces
     }
 
-    console.log('\nPress Ctrl+C to stop the server')
+    console.log(`
+Press Ctrl+C to stop the server`)
+
+    // Start analysis worker if enabled
+    if (process.env.ANALYSIS_ENABLED === 'true') {
+      const analysisWorker = new AnalysisWorker(container.getPool())
+      const workerInterval = parseInt(process.env.ANALYSIS_WORKER_POLL_INTERVAL || '5000')
+      const watchdogInterval = parseInt(process.env.ANALYSIS_WATCHDOG_INTERVAL || '60000')
+
+      setInterval(() => analysisWorker.processJob(), workerInterval)
+      setInterval(() => cleanupStuckJobs(container.getPool()), watchdogInterval)
+
+      console.log(`
+🔬 Analysis worker started`)
+    }
 
     // Handle graceful shutdown
     const _shutdown = async (signal: string) => {

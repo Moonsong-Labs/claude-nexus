@@ -56,9 +56,6 @@ claude-nexus-proxy/
 - Request history browser
 - SSE for live updates
 - AI analysis results display (pending implementation)
-
-**Analysis Worker Service** (`services/analysis-worker/`)
-
 - Background processing of conversation analysis jobs
 - Gemini API integration for AI-powered insights
 - Job queue with retry logic and watchdog
@@ -319,6 +316,20 @@ SQL logging features:
 - `API_KEY_SALT` - Salt for hashing API keys in database (default: 'claude-nexus-proxy-default-salt')
 - `SPARK_API_URL` - Spark API base URL for recommendation feedback (default: 'http://localhost:8000')
 - `SPARK_API_KEY` - API key for authenticating with Spark API
+
+**AI Analysis Feature:**
+
+- `ANALYSIS_ENABLED` - Enable AI conversation analysis (default: true)
+- `GEMINI_API_KEY` - Gemini API key
+- `GEMINI_API_URL` - Gemini API URL (default: https://generativelanguage.googleapis.com/v1beta)
+- `GEMINI_DEFAULT_MODEL` - Default Gemini model to use for analysis (default: gemini-2.5-pro)
+- `ANALYSIS_MAX_RETRIES` - Maximum retries for failed analysis jobs (default: 3)
+- `ANALYSIS_TIMEOUT_MS` - Timeout for analysis jobs in milliseconds (default: 300000 / 5 minutes)
+- `ANALYSIS_WORKER_POLL_INTERVAL` - Interval for analysis worker to poll for new jobs in milliseconds (default: 5000 / 5 seconds)
+- `ANALYSIS_WATCHDOG_INTERVAL` - Interval for watchdog to clean up stuck jobs in milliseconds (default: 60000 / 1 minute)
+- `ANALYSIS_MAX_PROMPT_TOKENS` - Maximum prompt tokens for analysis (default: 900000)
+- `ANALYSIS_TRUNCATE_FIRST_N` - Number of first messages to keep during truncation (default: 5)
+- `ANALYSIS_TRUNCATE_LAST_M` - Number of last messages to keep during truncation (default: 20)
 
 ## Important Notes
 

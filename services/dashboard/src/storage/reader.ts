@@ -3,7 +3,7 @@ import NodeCache from 'node-cache'
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 
-interface ApiRequest {
+export interface ApiRequest {
   request_id: string
   domain: string
   timestamp: string

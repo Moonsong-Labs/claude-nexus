@@ -95,6 +95,19 @@ services:
       
       # Database configuration
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_proxy
+
+      # AI Analysis Feature
+      ANALYSIS_ENABLED: ${ANALYSIS_ENABLED:-true}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_API_URL: ${GEMINI_API_URL:-https://generativelanguage.googleapis.com/v1beta}
+      GEMINI_DEFAULT_MODEL: ${GEMINI_DEFAULT_MODEL:-gemini-2.5-pro}
+      ANALYSIS_MAX_RETRIES: ${ANALYSIS_MAX_RETRIES:-3}
+      ANALYSIS_TIMEOUT_MS: ${ANALYSIS_TIMEOUT_MS:-300000}
+      ANALYSIS_WORKER_POLL_INTERVAL: ${ANALYSIS_WORKER_POLL_INTERVAL:-5000}
+      ANALYSIS_WATCHDOG_INTERVAL: ${ANALYSIS_WATCHDOG_INTERVAL:-60000}
+      ANALYSIS_MAX_PROMPT_TOKENS: ${ANALYSIS_MAX_PROMPT_TOKENS:-900000}
+      ANALYSIS_TRUNCATE_FIRST_N: ${ANALYSIS_TRUNCATE_FIRST_N:-5}
+      ANALYSIS_TRUNCATE_LAST_M: ${ANALYSIS_TRUNCATE_LAST_M:-20}
     ports:
       - "3001:3001"
     depends_on:
@@ -116,36 +129,7 @@ services:
     depends_on:
       - postgres
 
-  # Analysis Worker Service - Background conversation analysis
-  analysis-worker:
-    build:
-      context: ../
-      dockerfile: services/analysis-worker/Dockerfile
-    image: claude-nexus-analysis-worker:local
-    container_name: claude-nexus-analysis-worker
-    environment:
-      # Database configuration
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_proxy
-      
-      # Gemini API configuration
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-1.5-flash-latest}
-      
-      # Debug
-      DEBUG: ${DEBUG:-false}
-      DEBUG_SQL: ${DEBUG_SQL:-false}
-      
-      # Worker configuration
-      ENABLE_ANALYSIS_JOBS: ${ENABLE_ANALYSIS_JOBS:-true}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+  
 
   # Claude CLI Service - Run Claude CLI connected to the proxy
   claude-cli:
