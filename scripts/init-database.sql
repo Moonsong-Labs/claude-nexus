@@ -120,31 +120,3 @@ COMMENT ON COLUMN api_requests.task_tool_invocation IS 'JSONB array storing Task
 COMMENT ON COLUMN api_requests.account_id IS 'Account identifier from credential file for per-account tracking';
 COMMENT ON COLUMN api_requests.parent_request_id IS 'UUID of the parent request in the conversation chain, references the immediate parent';
 COMMENT ON COLUMN api_requests.system_hash IS 'SHA-256 hash of the system prompt only, separate from message content hash';
-
--- Create conversation_analyses table for AI-generated analyses
-CREATE TABLE IF NOT EXISTS conversation_analyses (
-    id VARCHAR(255) PRIMARY KEY,
-    conversation_id UUID NOT NULL,
-    branch_id VARCHAR(255) NOT NULL,
-    status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-    content TEXT,
-    metadata JSONB,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMP,
-    
-    -- Create a unique index to ensure only one active analysis per conversation branch
-    -- (excluding failed analyses which can be retried)
-    CONSTRAINT unique_active_analysis EXCLUDE USING btree (
-      conversation_id WITH =,
-      branch_id WITH =
-    ) WHERE (status NOT IN ('failed'))
-);
-
--- Create indexes for conversation_analyses
-CREATE INDEX IF NOT EXISTS idx_conversation_analyses_lookup 
-ON conversation_analyses(conversation_id, branch_id, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_conversation_analyses_status 
-ON conversation_analyses(status) 
-WHERE status IN ('pending', 'processing');

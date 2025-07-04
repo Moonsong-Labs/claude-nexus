@@ -9,7 +9,6 @@ import { createRateLimiter, createDomainRateLimiter } from './middleware/rate-li
 import { createHealthRoutes } from './routes/health.js'
 import { apiRoutes } from './routes/api.js'
 import { sparkApiRoutes } from './routes/spark-api.js'
-import { analysesRoutes } from './routes/analyses.js'
 import { initializeSlack } from './services/slack.js'
 import { initializeDatabase } from './storage/writer.js'
 import { apiAuthMiddleware } from './middleware/api-auth.js'
@@ -142,9 +141,6 @@ export async function createProxyApp(): Promise<
   // Spark API routes (protected by same auth as dashboard API)
   app.route('/api', sparkApiRoutes)
 
-  // Analysis API routes (protected by same auth as dashboard API)
-  app.route('/api/analyses', analysesRoutes)
-
   // Client setup files
   app.get('/client-setup/:filename', async c => {
     const filename = c.req.param('filename')
@@ -216,11 +212,6 @@ export async function createProxyApp(): Promise<
           requests: '/api/requests',
           'request-details': '/api/requests/:id',
           domains: '/api/domains',
-          analyses: {
-            create: 'POST /api/analyses',
-            get: 'GET /api/analyses/:conversationId/:branchId',
-            regenerate: 'POST /api/analyses/:conversationId/:branchId/regenerate',
-          },
         },
       },
     })
