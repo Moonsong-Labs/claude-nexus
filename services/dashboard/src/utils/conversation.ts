@@ -416,8 +416,10 @@ async function parseMessage(
           .replace('<img', '<img data-thumbnail-expand="true"')
 
         // Check if there's meaningful text content after the truncation point
-        const remainingContent = content.substring(MESSAGE_TRUNCATE_LENGTH).trim()
-        const hasMoreTextContent = remainingContent.replace(/<img[^>]+\/>/g, '').trim().length > 0
+        // Use actual truncated content length, not MESSAGE_TRUNCATE_LENGTH
+        const remainingContent = content.substring(truncatedContent.length).trim()
+        const remainingWithoutImages = remainingContent.replace(/<img[^>]+\/>/g, '').trim()
+        const hasMoreTextContent = remainingWithoutImages.length > 0
 
         if (hasMoreTextContent) {
           truncatedContent = truncatedContent + '...\n\n' + thumbnailImg
