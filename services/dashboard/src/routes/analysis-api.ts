@@ -7,6 +7,7 @@ import {
   CreateAnalysisRequestSchema,
   type CreateAnalysisResponse,
   type GetAnalysisResponse,
+  type RegenerateAnalysisResponse,
 } from '@claude-nexus/shared'
 
 export const analysisRoutes = new Hono<{
@@ -31,9 +32,9 @@ analysisRoutes.post('/analyses', async c => {
     const validatedData = CreateAnalysisRequestSchema.parse(body)
 
     // Forward to proxy service
-    const response = await apiClient.post('/api/analyses', validatedData)
+    const response = await apiClient.post<CreateAnalysisResponse>('/api/analyses', validatedData)
 
-    return c.json(response as CreateAnalysisResponse, 201)
+    return c.json(response, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return c.json(
@@ -47,8 +48,10 @@ analysisRoutes.post('/analyses', async c => {
 
     // Check if it's a 409 Conflict (analysis already exists)
     if (error && typeof error === 'object' && 'status' in error && error.status === 409) {
-      const conflictResponse = error as { data?: unknown; body?: unknown }
-      return c.json(conflictResponse.data || conflictResponse.body, 409)
+      const conflictResponse = error as { data?: unknown; body?: unknown; status: number }
+      const responseData = conflictResponse.data ||
+        conflictResponse.body || { error: 'Analysis already exists' }
+      return c.json(responseData, 409)
     }
 
     logger.error('Failed to create analysis', {
@@ -80,9 +83,11 @@ analysisRoutes.get('/analyses/:conversationId/:branchId', async c => {
 
   try {
     // Forward to proxy service
-    const response = await apiClient.get(`/api/analyses/${conversationId}/${branchId}`)
+    const response = await apiClient.get<GetAnalysisResponse>(
+      `/api/analyses/${conversationId}/${branchId}`
+    )
 
-    return c.json(response as GetAnalysisResponse)
+    return c.json(response)
   } catch (error) {
     // Handle 404 Not Found
     if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
@@ -116,9 +121,8 @@ analysisRoutes.post('/analyses/:conversationId/:branchId/regenerate', async c =>
 
   try {
     // Forward to proxy service
-    const response = await apiClient.post(
-      `/api/analyses/${conversationId}/${branchId}/regenerate`,
-      {}
+    const response = await apiClient.post<RegenerateAnalysisResponse>(
+      `/api/analyses/${conversationId}/${branchId}/regenerate`
     )
 
     return c.json(response)

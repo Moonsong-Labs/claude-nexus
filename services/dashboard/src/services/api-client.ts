@@ -568,7 +568,7 @@ export class ProxyApiClient {
   /**
    * Generic GET method for API calls
    */
-  async get(path: string): Promise<any> {
+  async get<T = unknown>(path: string): Promise<T> {
     try {
       const url = new URL(path, this.baseUrl)
       const response = await fetch(url.toString(), {
@@ -585,7 +585,7 @@ export class ProxyApiClient {
         throw error
       }
 
-      return await response.json()
+      return (await response.json()) as T
     } catch (error) {
       logger.error('API GET request failed', {
         error: getErrorMessage(error),
@@ -598,13 +598,13 @@ export class ProxyApiClient {
   /**
    * Generic POST method for API calls
    */
-  async post(path: string, body: any): Promise<any> {
+  async post<T = unknown>(path: string, body?: unknown): Promise<T> {
     try {
       const url = new URL(path, this.baseUrl)
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify(body),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
       })
 
       if (!response.ok) {
@@ -616,7 +616,7 @@ export class ProxyApiClient {
         throw error
       }
 
-      return await response.json()
+      return (await response.json()) as T
     } catch (error) {
       logger.error('API POST request failed', {
         error: getErrorMessage(error),
