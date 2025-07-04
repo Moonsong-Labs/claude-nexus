@@ -38,7 +38,7 @@ export class DatabaseClient {
           console.log('PostgreSQL client was already connected')
           return
         }
-        
+
         if (i === maxRetries - 1) {
           throw new Error(`Failed to connect to PostgreSQL after ${maxRetries} attempts: ${error}`)
         }
@@ -66,10 +66,9 @@ export class DatabaseClient {
   }
 
   async getRequestById(requestId: string): Promise<ApiRequest | null> {
-    const result = await this.client.query(
-      'SELECT * FROM api_requests WHERE request_id = $1',
-      [requestId]
-    )
+    const result = await this.client.query('SELECT * FROM api_requests WHERE request_id = $1', [
+      requestId,
+    ])
     return result.rows[0] || null
   }
 
@@ -94,10 +93,7 @@ export class DatabaseClient {
     return parseInt(result.rows[0].count, 10)
   }
 
-  async waitForRequest(
-    requestId: string,
-    timeout: number = 5000
-  ): Promise<ApiRequest | null> {
+  async waitForRequest(requestId: string, timeout: number = 5000): Promise<ApiRequest | null> {
     const startTime = Date.now()
     while (Date.now() - startTime < timeout) {
       const request = await this.getRequestById(requestId)

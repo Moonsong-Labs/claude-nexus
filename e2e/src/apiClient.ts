@@ -28,11 +28,11 @@ export class ApiClient {
 
   async sendRequest(options: ProxyRequestOptions): Promise<ProxyResponse> {
     const url = `${this.proxyUrl}/v1/messages`
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Host': options.domain,
-      'Authorization': `Bearer ${options.clientApiKey}`,
+      Host: options.domain,
+      Authorization: `Bearer ${options.clientApiKey}`,
     }
 
     if (options.claudeApiKey) {
@@ -98,7 +98,7 @@ export class ApiClient {
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
             if (data === '[DONE]') continue
-            
+
             try {
               const event = JSON.parse(data)
               // Capture the final message for validation

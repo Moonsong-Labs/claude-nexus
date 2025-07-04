@@ -7,7 +7,8 @@ import { DatabaseClient } from './dbClient'
 import { TestRunner, type TestFixture } from './runner'
 
 // Test configuration from environment
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://testuser:testpassword@localhost:5433/testdb'
+const DATABASE_URL =
+  process.env.DATABASE_URL || 'postgresql://testuser:testpassword@localhost:5433/testdb'
 const PROXY_URL = process.env.PROXY_URL || 'http://localhost:3000'
 const PROXY_PORT = process.env.PROXY_PORT || '3000'
 
@@ -26,24 +27,32 @@ async function checkDockerAvailable(): Promise<void> {
       throw new Error('Docker command failed')
     }
   } catch (error) {
-    throw new Error('Docker is required to run E2E tests. Please install Docker and ensure it is running.')
+    throw new Error(
+      'Docker is required to run E2E tests. Please install Docker and ensure it is running.'
+    )
   }
 }
 
 async function startDockerCompose(): Promise<void> {
   await checkDockerAvailable()
-  
+
   console.log('Starting Docker Compose for PostgreSQL and Mock Claude API...')
-  
-  dockerComposeProcess = spawn([
-    'docker-compose',
-    '-f', join(import.meta.dir, '../docker-compose.e2e.yml'),
-    'up', '-d', '--build'
-  ], {
-    cwd: join(import.meta.dir, '..'),
-    stdout: 'inherit',
-    stderr: 'inherit',
-  })
+
+  dockerComposeProcess = spawn(
+    [
+      'docker-compose',
+      '-f',
+      join(import.meta.dir, '../docker-compose.e2e.yml'),
+      'up',
+      '-d',
+      '--build',
+    ],
+    {
+      cwd: join(import.meta.dir, '..'),
+      stdout: 'inherit',
+      stderr: 'inherit',
+    }
+  )
 
   await dockerComposeProcess.exited
 
@@ -54,33 +63,32 @@ async function startDockerCompose(): Promise<void> {
 async function stopDockerCompose(): Promise<void> {
   if (dockerComposeProcess) {
     console.log('Stopping Docker Compose...')
-    const stopProcess = spawn([
-      'docker-compose',
-      '-f', join(import.meta.dir, '../docker-compose.e2e.yml'),
-      'down', '-v'
-    ], {
-      cwd: join(import.meta.dir, '..'),
-      stdout: 'inherit',
-      stderr: 'inherit',
-    })
+    const stopProcess = spawn(
+      ['docker-compose', '-f', join(import.meta.dir, '../docker-compose.e2e.yml'), 'down', '-v'],
+      {
+        cwd: join(import.meta.dir, '..'),
+        stdout: 'inherit',
+        stderr: 'inherit',
+      }
+    )
     await stopProcess.exited
   }
 }
 
 async function startProxyServer(): Promise<void> {
   console.log('Starting proxy server...')
-  
+
   // Create test credentials directory and file
   const credentialsDir = join(import.meta.dir, '../test-credentials')
   await mkdir(credentialsDir, { recursive: true })
-  
+
   const testCredentials = {
     type: 'api_key',
     accountId: 'acc_e2e_test',
     api_key: process.env.TEST_CLAUDE_API_KEY || 'sk-ant-test-key',
     client_api_key: process.env.TEST_CLIENT_API_KEY || 'cnp_test_1234567890',
   }
-  
+
   await Bun.write(
     join(credentialsDir, 'e2e-test.com.credentials.json'),
     JSON.stringify(testCredentials, null, 2)
@@ -96,7 +104,7 @@ async function startProxyServer(): Promise<void> {
       CREDENTIALS_DIR: credentialsDir,
       PORT: PROXY_PORT,
       DEBUG: 'false',
-      CLAUDE_API_BASE_URL: 'http://localhost:8081',  // Point to mock service
+      CLAUDE_API_BASE_URL: 'http://localhost:8081', // Point to mock service
     },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -105,25 +113,27 @@ async function startProxyServer(): Promise<void> {
   // Wait for server to be ready with timeout
   const PROXY_STARTUP_TIMEOUT = 30000 // 30 seconds
   const startTime = Date.now()
-  
+
   if (proxyProcess.stdout) {
     const reader = proxyProcess.stdout.getReader()
     const decoder = new TextDecoder()
-    
+
     while (true) {
       // Check timeout
       if (Date.now() - startTime > PROXY_STARTUP_TIMEOUT) {
         reader.releaseLock()
         proxyProcess.kill()
-        throw new Error(`Proxy server failed to start within ${PROXY_STARTUP_TIMEOUT / 1000} seconds`)
+        throw new Error(
+          `Proxy server failed to start within ${PROXY_STARTUP_TIMEOUT / 1000} seconds`
+        )
       }
-      
+
       const { done, value } = await reader.read()
       if (done) break
-      
+
       const text = decoder.decode(value)
       console.log('[PROXY]', text)
-      
+
       if (text.includes('Listening on') || text.includes('Server started successfully')) {
         reader.releaseLock()
         console.log('Proxy server is ready')
@@ -183,7 +193,7 @@ afterAll(async () => {
   } finally {
     // Cleanup test credentials
     await cleanupTestCredentials()
-    
+
     // Stop Docker Compose
     await stopDockerCompose()
   }
@@ -194,7 +204,7 @@ const fixturesDir = join(import.meta.dir, '../fixtures')
 
 describe('E2E Proxy Tests', async () => {
   let fixtureFiles: string[] = []
-  
+
   try {
     const files = await readdir(fixturesDir)
     fixtureFiles = files.filter(f => f.endsWith('.json'))
@@ -220,13 +230,9 @@ describe('E2E Proxy Tests', async () => {
       // Run each step as a separate test
       for (let i = 0; i < fixture.steps.length; i++) {
         const step = fixture.steps[i]
-        
+
         test(step.stepName, async () => {
-          const newContext = await testRunner.executeTestStep(
-            step,
-            context,
-            fixture.authentication
-          )
+          const newContext = await testRunner.executeTestStep(step, context, fixture.authentication)
           // Merge new context
           context = { ...context, ...newContext }
         })

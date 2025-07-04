@@ -8,10 +8,10 @@ import dotenv from 'dotenv'
 // Try multiple locations to find the .env file
 const possibleEnvPaths = [
   join(import.meta.dir, '../../../.env'), // When run from e2e/src
-  join(import.meta.dir, '../../.env'),    // When run from e2e
-  join(process.cwd(), '.env'),            // Current working directory
-  join(process.cwd(), '../.env'),         // Parent directory
-  join(process.cwd(), '../../.env'),      // Grandparent directory
+  join(import.meta.dir, '../../.env'), // When run from e2e
+  join(process.cwd(), '.env'), // Current working directory
+  join(process.cwd(), '../.env'), // Parent directory
+  join(process.cwd(), '../../.env'), // Grandparent directory
 ]
 
 for (const envPath of possibleEnvPaths) {
@@ -50,7 +50,7 @@ async function exportConversation(options: ExportOptions) {
     if (options.conversationId) {
       // Export full conversation
       console.log(`Exporting conversation ${options.conversationId}...`)
-      
+
       const requestsResult = await client.query(
         `SELECT * FROM api_requests 
          WHERE conversation_id = $1 
@@ -75,7 +75,7 @@ async function exportConversation(options: ExportOptions) {
     } else if (options.requestIds && options.requestIds.length > 0) {
       // Export specific requests
       console.log(`Exporting ${options.requestIds.length} requests...`)
-      
+
       const requestsResult = await client.query(
         `SELECT * FROM api_requests 
          WHERE request_id = ANY($1) 
@@ -128,19 +128,19 @@ async function exportConversation(options: ExportOptions) {
     }
 
     // Write to file
-    const outputFile = options.outputFile || 
-      (options.conversationId 
+    const outputFile =
+      options.outputFile ||
+      (options.conversationId
         ? `conversation-${options.conversationId}.json`
         : `requests-${Date.now()}.json`)
-    
+
     await writeFile(outputFile, JSON.stringify(exportData, null, 2))
-    
+
     console.log(`Exported ${requests.length} requests`)
     if (chunks.length > 0) {
       console.log(`Exported ${chunks.length} streaming chunks`)
     }
     console.log(`Output written to: ${outputFile}`)
-
   } finally {
     await client.end()
   }

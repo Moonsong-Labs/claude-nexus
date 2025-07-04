@@ -176,23 +176,22 @@ export class TestRunner {
     }
   }
 
-  private async validateDbState(
-    expected: any,
-    context: Record<string, any>
-  ): Promise<void> {
+  private async validateDbState(expected: any, context: Record<string, any>): Promise<void> {
     const table = expected.table
     const whereClause = this.interpolateObject(expected.where || {}, context)
-    
+
     // Validate table name against whitelist to prevent SQL injection
     const ALLOWED_TABLES = ['api_requests', 'streaming_chunks']
     if (!ALLOWED_TABLES.includes(table)) {
-      throw new Error(`Invalid table name for DB validation: ${table}. Allowed tables: ${ALLOWED_TABLES.join(', ')}`)
+      throw new Error(
+        `Invalid table name for DB validation: ${table}. Allowed tables: ${ALLOWED_TABLES.join(', ')}`
+      )
     }
-    
+
     // Build query
     let query = `SELECT * FROM ${table}`
     const params: any[] = []
-    
+
     if (Object.keys(whereClause).length > 0) {
       const conditions = Object.entries(whereClause).map(([key, value], idx) => {
         params.push(value)
@@ -212,18 +211,14 @@ export class TestRunner {
     if (expected.assert && result.rows.length > 0) {
       const row = result.rows[0]
       const interpolatedAssertions = this.interpolateObject(expected.assert, context)
-      
+
       for (const [key, expectedValue] of Object.entries(interpolatedAssertions)) {
         this.validateValue(row[key], expectedValue, `${table}.${key}`)
       }
     }
   }
 
-  private validateObjectProperties(
-    actual: any,
-    expected: any,
-    path: string
-  ): void {
+  private validateObjectProperties(actual: any, expected: any, path: string): void {
     for (const [key, expectedValue] of Object.entries(expected)) {
       const actualValue = actual[key]
       this.validateValue(actualValue, expectedValue, `${path}.${key}`)

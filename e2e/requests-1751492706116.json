@@ -1,0 +1,148 @@
+{
+  "exportedAt": "2025-07-02T21:45:06.116Z",
+  "requests": [
+    {
+      "request_id": "f87a8483-00df-496a-90e4-967fea9c3b11",
+      "conversation_id": "fe9bea26-3f30-4a92-ae2e-43f829a9b568",
+      "branch_id": "main",
+      "parent_request_id": null,
+      "parent_message_hash": "97183b862f267f8eef0f6bb531566d69efd5797c6d2838126348670e0f3fde1f",
+      "current_message_hash": "e97d3948d5c7a0166246fb811c9e7f8bae7eee9bb3d4f8d76cf21f0e621cd069",
+      "system_hash": "d5ec2819a5257932ec9cfc3a4e2c078eb058c9bd3d5ca292975d7a052ecc5971",
+      "created_at": "2025-07-02T20:00:26.682Z",
+      "domain": "localhost:3000",
+      "response_body": {
+        "id": "msg_01P316Eh41usH82fNaybWDUB",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-opus-4-20250514",
+        "usage": {
+          "input_tokens": 4,
+          "service_tier": "standard",
+          "output_tokens": 875,
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 49429
+        },
+        "content": [
+          {
+            "text": "I'll read and summarize each of the 16 ADRs in the project.",
+            "type": "text"
+          },
+          {
+            "id": "toolu_01Vy9xu9Up713CV7TR9Mpa1T",
+            "name": "TodoWrite",
+            "type": "tool_use",
+            "input": {
+              "todos": [
+                {
+                  "id": "1",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-001: Monorepo Structure",
+                  "priority": "high"
+                },
+                {
+                  "id": "2",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-002: Separate Docker Images",
+                  "priority": "high"
+                },
+                {
+                  "id": "3",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-003: Conversation Tracking",
+                  "priority": "high"
+                },
+                {
+                  "id": "4",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-004: Proxy Authentication",
+                  "priority": "high"
+                },
+                {
+                  "id": "5",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-005: Token Usage Tracking",
+                  "priority": "high"
+                },
+                {
+                  "id": "6",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-006: Long Running Requests",
+                  "priority": "high"
+                },
+                {
+                  "id": "7",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-007: Subtask Tracking",
+                  "priority": "high"
+                },
+                {
+                  "id": "8",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-008: CI/CD Strategy",
+                  "priority": "high"
+                },
+                {
+                  "id": "9",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-009: Dashboard Architecture",
+                  "priority": "high"
+                },
+                {
+                  "id": "10",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-010: Docker CLI Integration",
+                  "priority": "high"
+                },
+                {
+                  "id": "11",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-011: Future Decisions",
+                  "priority": "high"
+                },
+                {
+                  "id": "12",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-012: Database Schema Evolution",
+                  "priority": "high"
+                },
+                {
+                  "id": "13",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-013: TypeScript Project References",
+                  "priority": "high"
+                },
+                {
+                  "id": "14",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-014: SQL Query Logging",
+                  "priority": "high"
+                },
+                {
+                  "id": "15",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-014: Subtask Query Executor Pattern",
+                  "priority": "high"
+                },
+                {
+                  "id": "16",
+                  "status": "pending",
+                  "content": "Read and summarize ADR-015: Subtask Conversation Migration",
+                  "priority": "high"
+                }
+              ]
+            }
+          }
+        ],
+        "stop_reason": "tool_use",
+        "stop_sequence": null
+      },
+      "input_tokens": 4,
+      "output_tokens": 875,
+      "total_tokens": 879,
+      "parent_task_request_id": null,
+      "is_subtask": false
+    }
+  ],
+  "chunks": []
+}
