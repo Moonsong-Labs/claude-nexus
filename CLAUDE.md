@@ -13,6 +13,7 @@ Technical decisions are documented in `docs/ADRs/`. Key architectural decisions:
 - **ADR-001**: Example ADR
 - **ADR-012**: Database Schema Evolution Strategy - TypeScript migrations with init SQL
 - **ADR-013**: TypeScript Project References - Monorepo type checking solution
+- **ADR-016**: AI-Powered Conversation Analysis - Background job architecture for AI analysis
 
 **AI Assistant Directive**: When discussing architecture or making technical decisions, always reference relevant ADRs. If a new architectural decision is made during development, create or update an ADR to document it. This ensures all technical decisions have clear rationale and can be revisited if needed.
 
@@ -46,6 +47,7 @@ claude-nexus-proxy/
 - Token tracking and telemetry
 - Request/response storage
 - Slack notifications
+- AI-powered conversation analysis (pending implementation)
 
 **Dashboard Service** (`services/dashboard/`)
 
@@ -561,6 +563,40 @@ When generating message hashes for conversation tracking, the system filters out
 
 - Uses `X-Dashboard-Key` header (not Authorization)
 - Cookie-based auth also supported for browser sessions
+
+### AI-Powered Conversation Analysis
+
+The proxy supports automated analysis of conversations using AI models (currently Gemini 2.5 Pro):
+
+**Features:**
+
+- Background processing of conversations for insights
+- Status tracking (pending, processing, completed, failed)
+- Token usage tracking for cost management
+- Retry logic with exponential backoff
+- Unique analyses per conversation and branch
+
+**Database Schema:**
+
+- `conversation_analyses` table stores analysis results
+- ENUM type for status field ensures data integrity
+- Automatic `updated_at` timestamp via trigger
+- Partial index on pending status for efficient queue processing
+
+**API Endpoints (Phase 1 - Schema Only):**
+
+- `POST /api/analyses` - Create analysis request (pending implementation)
+- `GET /api/analyses/:conversationId/:branchId` - Get analysis (pending implementation)
+- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration (pending implementation)
+
+**Implementation Status:**
+
+- ✅ Database schema (Migration 011)
+- ⏳ API endpoints (Phase 2)
+- ⏳ Background worker (Phase 2)
+- ⏳ Dashboard UI (Phase 3)
+
+See [ADR-016](docs/04-Architecture/ADRs/adr-016-ai-powered-conversation-analysis.md) for architectural decisions.
 
 ### Spark Tool Integration
 

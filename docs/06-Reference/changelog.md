@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Branch-specific statistics in conversation view
 - Database backup script with timestamp support
 - Comprehensive migration system with TypeScript support
+- AI-powered conversation analysis infrastructure (database schema only)
+  - New `conversation_analyses` table with ENUM status type
+  - Automatic timestamp management via trigger
+  - Optimized indexes for queue processing
+  - Migration 011 for schema creation
 
 ### Changed
 
