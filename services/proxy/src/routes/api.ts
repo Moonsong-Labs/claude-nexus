@@ -475,6 +475,7 @@ apiRoutes.get('/conversations', async c => {
           model,
           is_subtask,
           parent_task_request_id,
+          response_body,
           ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY timestamp DESC, request_id DESC) as rn,
           ROW_NUMBER() OVER (PARTITION BY conversation_id, is_subtask ORDER BY timestamp ASC, request_id ASC) as subtask_rn
         FROM api_requests
@@ -492,8 +493,14 @@ apiRoutes.get('/conversations', async c => {
           COUNT(*) as message_count,
           SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
           COUNT(DISTINCT branch_id) as branch_count,
+          -- Add branch type counts for the new feature
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'subtask_%') as subtask_branch_count,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'compact_%') as compact_branch_count,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id IS NOT NULL AND branch_id NOT LIKE 'subtask_%' AND branch_id NOT LIKE 'compact_%' AND branch_id != 'main') as user_branch_count,
           ARRAY_AGG(DISTINCT model) FILTER (WHERE model IS NOT NULL) as models_used,
           (array_agg(request_id ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_request_id,
+          (array_agg(model ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_model,
+          (array_agg(response_body ORDER BY rn) FILTER (WHERE rn = 1))[1] as latest_response_body,
           BOOL_OR(is_subtask) as is_subtask,
           -- Get the parent_task_request_id from the first subtask in the conversation
           (array_agg(parent_task_request_id ORDER BY subtask_rn) FILTER (WHERE is_subtask = true AND subtask_rn = 1))[1] as parent_task_request_id,
@@ -514,22 +521,40 @@ apiRoutes.get('/conversations', async c => {
 
     const result = await pool.query(conversationsQuery, values)
 
-    const conversations = result.rows.map(row => ({
-      conversationId: row.conversation_id,
-      domain: row.domain,
-      accountId: row.account_id,
-      firstMessageTime: row.first_message_time,
-      lastMessageTime: row.last_message_time,
-      messageCount: parseInt(row.message_count),
-      totalTokens: parseInt(row.total_tokens),
-      branchCount: parseInt(row.branch_count),
-      modelsUsed: row.models_used,
-      latestRequestId: row.latest_request_id,
-      isSubtask: row.is_subtask,
-      parentTaskRequestId: row.parent_task_request_id,
-      parentConversationId: row.parent_conversation_id,
-      subtaskMessageCount: parseInt(row.subtask_message_count || 0),
-    }))
+    const conversations = result.rows.map(row => {
+      // Calculate context tokens from the latest response
+      let latestContextTokens = 0
+      if (row.latest_response_body?.usage) {
+        const usage = row.latest_response_body.usage
+        latestContextTokens =
+          (usage.input_tokens || 0) +
+          (usage.cache_read_input_tokens || 0) +
+          (usage.cache_creation_input_tokens || 0)
+      }
+
+      return {
+        conversationId: row.conversation_id,
+        domain: row.domain,
+        accountId: row.account_id,
+        firstMessageTime: row.first_message_time,
+        lastMessageTime: row.last_message_time,
+        messageCount: parseInt(row.message_count),
+        totalTokens: parseInt(row.total_tokens),
+        branchCount: parseInt(row.branch_count),
+        // Add new branch type counts
+        subtaskBranchCount: parseInt(row.subtask_branch_count || 0),
+        compactBranchCount: parseInt(row.compact_branch_count || 0),
+        userBranchCount: parseInt(row.user_branch_count || 0),
+        modelsUsed: row.models_used,
+        latestRequestId: row.latest_request_id,
+        latestModel: row.latest_model,
+        latestContextTokens,
+        isSubtask: row.is_subtask,
+        parentTaskRequestId: row.parent_task_request_id,
+        parentConversationId: row.parent_conversation_id,
+        subtaskMessageCount: parseInt(row.subtask_message_count || 0),
+      }
+    })
 
     return c.json({ conversations })
   } catch (error) {

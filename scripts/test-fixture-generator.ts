@@ -16,10 +16,22 @@ const childMessages = [
 
 const system = 'You are a helpful assistant'
 
+// Create a no-op logger for the script
+const mockLogger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+}
+
 // Create linker
 const linker = new ConversationLinker(
   async () => [],
-  async () => null
+  mockLogger,
+  async () => null,
+  undefined, // requestByIdExecutor
+  undefined, // subtaskQueryExecutor
+  undefined // subtaskSequenceQueryExecutor
 )
 
 // Compute hashes

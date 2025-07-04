@@ -402,34 +402,37 @@ export class StorageWriter {
     system_hash: string | null
   } | null> {
     try {
-      // Search for requests where the response contains the summary
-      // Escape SQL LIKE special characters to prevent injection
-      const escapedContent = summaryContent
-        .toLowerCase()
-        .replace(/[\\%_]/g, '\\$&') // Escape SQL LIKE wildcards
-        .replace(/\s+/g, ' ') // Normalize whitespace
+      // Clean up the summary content for better matching
+      const cleanSummary = summaryContent
+        .toLocaleLowerCase()
+        .replace(/^Analysis:/i, '<analysis>')
+        .replace(/\n\nSummary:/i, '\n</analysis>\n\n<summary>')
         .trim()
 
-      // Use parameterized query with proper escaping
       const query = `
         SELECT 
           request_id,
           conversation_id,
           branch_id,
           current_message_hash,
-          system_hash
+          system_hash,
+          response_body
         FROM api_requests
         WHERE domain = $1
           AND timestamp >= $2
           ${beforeTimestamp ? 'AND timestamp < $4' : ''}
+          AND request_type = 'inference'
           AND response_body IS NOT NULL
-          AND LOWER(response_body::text) LIKE '%' || $3 || '%'
-          AND conversation_id IS NOT NULL
+          AND jsonb_typeof(response_body->'content') = 'array'
+          AND (
+            starts_with(LOWER(response_body->'content'->0->>'text'), $3)
+          )
         ORDER BY timestamp DESC
         LIMIT 1
       `
 
-      const params: any[] = [domain, afterTimestamp, escapedContent]
+      const params = [domain, afterTimestamp, cleanSummary]
+
       if (beforeTimestamp) {
         params.push(beforeTimestamp)
       }
@@ -461,8 +464,13 @@ export class StorageWriter {
   /**
    * Find conversation ID by parent message hash
    * When multiple conversations have the same parent hash, pick the one with fewer requests
+   * @param parentHash - The parent message hash to search for
+   * @param beforeTimestamp - Timestamp to only consider conversations before this time
    */
-  async findConversationByParentHash(parentHash: string): Promise<string | null> {
+  async findConversationByParentHash(
+    parentHash: string,
+    beforeTimestamp: Date
+  ): Promise<string | null> {
     try {
       // First, find all conversations that have this parent hash
       const query = `
@@ -476,7 +484,9 @@ export class StorageWriter {
             FROM api_requests 
             WHERE current_message_hash = $1 
             AND conversation_id IS NOT NULL
+            AND timestamp < $2
           )
+          AND r.timestamp < $2
           GROUP BY r.conversation_id
         )
         SELECT 
@@ -485,11 +495,12 @@ export class StorageWriter {
         JOIN conversation_counts cc ON ar.conversation_id = cc.conversation_id
         WHERE ar.current_message_hash = $1 
         AND ar.conversation_id IS NOT NULL
+        AND ar.timestamp < $2
         ORDER BY cc.request_count ASC, ar.timestamp DESC
         LIMIT 1
       `
 
-      const result = await this.pool.query(query, [parentHash])
+      const result = await this.pool.query(query, [parentHash, beforeTimestamp])
 
       // Log if we're choosing between multiple conversations
       if (result.rows.length > 0) {
@@ -675,8 +686,8 @@ export class StorageWriter {
         SELECT request_id, timestamp
         FROM api_requests
         WHERE task_tool_invocation IS NOT NULL
-        AND timestamp >= $1::timestamp - interval '30 seconds'
-        AND timestamp <= $1::timestamp
+        AND timestamp >= $1::timestamp - interval '12 hours'
+        AND timestamp < $1::timestamp
         AND jsonb_path_exists(
           task_tool_invocation,
           '$[*] ? (@.input.prompt == $prompt || @.input.description == $prompt)',
@@ -686,7 +697,10 @@ export class StorageWriter {
         LIMIT 1
       `
 
-      const result = await this.pool.query(query, [timestamp.toISOString(), userContent])
+      const result = await this.pool.query(query, [
+        timestamp.toISOString(),
+        userContent.replace(/\\n/g, '\n'),
+      ])
 
       if (result.rows.length > 0) {
         // Found matching Task invocation
@@ -741,6 +755,27 @@ export class StorageWriter {
       })
       return null
     }
+  }
+
+  /**
+   * Get the maximum subtask sequence number for a conversation
+   * @param conversationId - The conversation ID to search for
+   * @param beforeTimestamp - Timestamp to only consider subtasks before this time
+   */
+  async getMaxSubtaskSequence(conversationId: string, beforeTimestamp: Date): Promise<number> {
+    const query = `
+      SELECT COALESCE(
+        MAX(CAST(SUBSTRING(branch_id FROM 'subtask_(\\d+)') AS INTEGER)), 
+        0
+      ) as max_sequence
+      FROM api_requests 
+      WHERE conversation_id = $1 
+        AND branch_id LIKE 'subtask_%'
+        AND timestamp < $2
+    `
+
+    const result = await this.pool.query(query, [conversationId, beforeTimestamp])
+    return result.rows[0]?.max_sequence || 0
   }
 
   /**

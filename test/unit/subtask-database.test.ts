@@ -47,8 +47,8 @@ describe('Sub-task Database Logic', () => {
       // Check query structure
       expect(query).toContain('jsonb_path_exists')
       expect(query).toContain('task_tool_invocation')
-      expect(query).toContain("timestamp >= $1::timestamp - interval '30 seconds'")
-      expect(query).toContain('timestamp <= $1::timestamp')
+      expect(query).toContain("timestamp >= $1::timestamp - interval '12 hours'")
+      expect(query).toContain('timestamp < $1::timestamp')
 
       // Check parameters
       expect(params).toHaveLength(2)

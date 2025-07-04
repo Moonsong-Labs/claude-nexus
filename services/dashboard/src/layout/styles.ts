@@ -750,6 +750,22 @@ export const dashboardStyles = `
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
   }
+  
+  /* Panning styles for tree view */
+  #tree-panel {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+  
+  #tree-panel:active {
+    cursor: grabbing !important;
+  }
+  
+  #tree-container {
+    transition: none;
+  }
 
   .conversation-timeline {
     min-width: 0;
@@ -865,5 +881,93 @@ export const dashboardStyles = `
   .badge-info {
     background: #dbeafe;
     color: #1e40af;
+  }
+
+  /* Tool result images styling */
+  .tool-result-image {
+    display: block;
+    max-width: 100%;
+    max-height: 600px;
+    height: auto;
+    margin: 0.75rem 0;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    background-color: #f9fafb;
+    object-fit: contain;
+  }
+
+  /* Add hover effect for images */
+  .tool-result-image:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    cursor: zoom-in;
+  }
+
+  /* Ensure images don't break out of their containers */
+  .message-content img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Thumbnail version for truncated messages */
+  .tool-result-image-thumbnail {
+    width: 120px !important;
+    height: 90px !important;
+    cursor: pointer;
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+    display: inline-block;
+    margin-right: 0.5rem;
+    object-fit: cover;
+  }
+
+  .tool-result-image-thumbnail:hover {
+    opacity: 1;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Lightbox overlay for image viewing */
+  .image-lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    cursor: zoom-out;
+    padding: 2rem;
+  }
+
+  .image-lightbox img {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+    border-radius: 0.5rem;
+    cursor: default;
+  }
+
+  .image-lightbox-close {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    color: white;
+    font-size: 2rem;
+    font-weight: 300;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    line-height: 1;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+  }
+
+  .image-lightbox-close:hover {
+    opacity: 1;
   }
 `

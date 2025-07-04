@@ -190,7 +190,22 @@ async function main() {
     const messages2 = req2.body.messages
 
     // Create a ConversationLinker instance to use hash computation
-    const linker = new ConversationLinker(() => Promise.resolve([]))
+    // Create a no-op logger for the script
+    const mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
+    const linker = new ConversationLinker(
+      () => Promise.resolve([]),
+      mockLogger,
+      undefined, // compactSearchExecutor
+      undefined, // requestByIdExecutor
+      undefined, // subtaskQueryExecutor
+      undefined // subtaskSequenceQueryExecutor
+    )
 
     // Compare message by message using computeMessageHash
     const maxMessages = Math.max(messages1.length, messages2.length)

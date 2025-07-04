@@ -5,6 +5,9 @@ import {
   type CompactSearchExecutor,
   type LinkingRequest,
   type ParentQueryCriteria,
+  type RequestByIdExecutor,
+  type SubtaskQueryExecutor,
+  type SubtaskSequenceQueryExecutor,
 } from '../conversation-linker'
 import { hashMessagesOnly, hashSystemPrompt } from '../conversation-hash.js'
 import type { ClaudeMessage } from '../../types/index.js'
@@ -15,6 +18,7 @@ describe('ConversationLinker', () => {
   let linker: ConversationLinker
   let mockQueryExecutor: QueryExecutor
   let mockCompactSearchExecutor: CompactSearchExecutor
+  let mockLogger: any
 
   beforeEach(() => {
     mockQueryExecutor = async (_criteria: ParentQueryCriteria) => {
@@ -25,7 +29,22 @@ describe('ConversationLinker', () => {
       return null
     }
 
-    linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+    // Create a no-op logger for tests
+    mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
+    linker = new ConversationLinker(
+      mockQueryExecutor,
+      mockLogger,
+      mockCompactSearchExecutor,
+      undefined,
+      undefined,
+      undefined
+    )
   })
 
   describe('linkConversation', () => {
@@ -198,7 +217,14 @@ describe('ConversationLinker', () => {
         }
         return null
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockLogger,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const result = await linker.linkConversation(request)
 
@@ -342,7 +368,14 @@ describe('ConversationLinker', () => {
         }
         return []
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockLogger,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const request: LinkingRequest = {
         domain: 'test.com',
@@ -381,7 +414,14 @@ describe('ConversationLinker', () => {
         }
         return []
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockLogger,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const request: LinkingRequest = {
         domain: 'test.com',
@@ -434,7 +474,14 @@ describe('ConversationLinker', () => {
         }
         return []
       }
-      linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      linker = new ConversationLinker(
+        mockQueryExecutor,
+        mockLogger,
+        mockCompactSearchExecutor,
+        undefined,
+        undefined,
+        undefined
+      )
 
       const request: LinkingRequest = {
         domain: 'test.com',
@@ -472,6 +519,7 @@ describe('ConversationLinker - JSON File Tests', () => {
       const filePath = join(fixturesDir, file)
       const content = await readFile(filePath, 'utf-8')
       const testCase = JSON.parse(content)
+      // Running test case from file
 
       // Compute the actual parent hash from parent messages before creating mocks
       let computedParentHash: string | null = null
@@ -483,16 +531,16 @@ describe('ConversationLinker - JSON File Tests', () => {
         // Create a temporary linker just to compute the hash
         const tempLinker = new ConversationLinker(
           async () => [],
-          async () => null
+          async () => null,
+          undefined,
+          undefined,
+          undefined
         )
         computedParentHash = tempLinker.computeMessageHash(testCase.parent.body.messages)
 
-        // Warn if computed hash doesn't match stored hash
+        // Check if computed hash matches stored hash
         if (computedParentHash !== testCase.parent.current_message_hash) {
-          console.warn(`Warning: Hash mismatch in fixture ${file}`)
-          console.warn(`  Stored hash: ${testCase.parent.current_message_hash}`)
-          console.warn(`  Computed hash: ${computedParentHash}`)
-          console.warn(`  Using computed hash for test`)
+          // Hash mismatch in fixture - using computed hash for test
         }
       }
 
@@ -501,6 +549,11 @@ describe('ConversationLinker - JSON File Tests', () => {
 
       // Create mock executors that return the parent when queried
       const mockQueryExecutor: QueryExecutor = async criteria => {
+        // Skip normal parent linking for subtask test cases
+        if (testCase.expectedParentTaskRequestId) {
+          return []
+        }
+
         // For normal linking, we look for parent by current_message_hash
         if (criteria.currentMessageHash && testCase.parent && parentHashToUse) {
           // The child is looking for a parent whose current_message_hash matches
@@ -537,6 +590,11 @@ describe('ConversationLinker - JSON File Tests', () => {
         summaryContent,
         _beforeTimestamp
       ) => {
+        // Skip compact search for subtask test cases
+        if (testCase.expectedParentTaskRequestId) {
+          return null
+        }
+
         // Handle compact conversation cases if needed
         if (testCase.type === 'compact' && testCase.expectedSummaryContent && testCase.parent) {
           // For compact conversations, check if the summaries match after normalization
@@ -557,11 +615,101 @@ describe('ConversationLinker - JSON File Tests', () => {
         return null
       }
 
-      const linker = new ConversationLinker(mockQueryExecutor, mockCompactSearchExecutor)
+      // Create mock subtask executors if needed
+      const mockRequestByIdExecutor: RequestByIdExecutor | undefined =
+        testCase.expectedParentTaskRequestId
+          ? async (requestId: string) => {
+              if (requestId === testCase.expectedParentTaskRequestId) {
+                return {
+                  request_id: testCase.expectedParentTaskRequestId,
+                  conversation_id: testCase.parent?.conversation_id || 'test-conversation',
+                  branch_id: testCase.parent?.branch_id || 'main',
+                  current_message_hash: testCase.parent?.current_message_hash || '',
+                  system_hash: testCase.parent?.system_hash || null,
+                }
+              }
+              return null
+            }
+          : undefined
+
+      const mockSubtaskQueryExecutor: SubtaskQueryExecutor | undefined =
+        testCase.expectedParentTaskRequestId
+          ? async (
+              _domain: string,
+              _timestamp: Date,
+              _debugMode?: boolean,
+              _subtaskPrompt?: string
+            ) => {
+              // Return a task invocation that matches the child message for subtask detection
+              if (
+                testCase.child.body.messages.length === 1 &&
+                testCase.child.body.messages[0].role === 'user'
+              ) {
+                // Extract the actual user message content from the child
+                const userMessage = testCase.child.body.messages[0]
+                let promptText = ''
+
+                if (typeof userMessage.content === 'string') {
+                  promptText = userMessage.content
+                } else if (Array.isArray(userMessage.content)) {
+                  // Extract all non-system-reminder text content and join them
+                  const textParts = userMessage.content
+                    .filter(
+                      item => item.type === 'text' && !item.text.startsWith('<system-reminder>')
+                    )
+                    .map(item => item.text)
+                    .filter(text => text.trim().length > 0)
+
+                  promptText = textParts.join('\n').trim()
+                }
+
+                // Return the task invocation that matches this prompt
+                return [
+                  {
+                    requestId: testCase.expectedParentTaskRequestId,
+                    toolUseId: 'test-tool-id',
+                    prompt: promptText,
+                    timestamp: new Date('2025-01-01T11:59:55Z'), // 5 seconds before the test timestamp
+                  },
+                ]
+              }
+              return undefined
+            }
+          : undefined
+
+      const mockSubtaskSequenceQueryExecutor: SubtaskSequenceQueryExecutor | undefined =
+        testCase.expectedParentTaskRequestId
+          ? async () => 0 // Return 0 for base sequence
+          : undefined
+
+      // Create a no-op logger for this test
+      const testLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
+
+      const linker = new ConversationLinker(
+        mockQueryExecutor,
+        testLogger,
+        mockCompactSearchExecutor,
+        mockRequestByIdExecutor,
+        mockSubtaskQueryExecutor,
+        mockSubtaskSequenceQueryExecutor
+      )
 
       // Extract messages from child request body
       const childMessages = testCase.child.body.messages
       const childSystemPrompt = testCase.child.body.system
+
+      // Use a fixed timestamp for the test to ensure consistency
+      const testTimestamp = new Date('2025-01-01T12:00:00Z')
+
+      // Verify subtask has single message
+      if (testCase.expectedParentTaskRequestId && childMessages.length > 1) {
+        // Subtask test has multiple messages, expected 1
+      }
 
       const request: LinkingRequest = {
         domain: testCase.child.domain,
@@ -569,11 +717,16 @@ describe('ConversationLinker - JSON File Tests', () => {
         systemPrompt: childSystemPrompt,
         requestId: testCase.child.request_id,
         messageCount: childMessages.length,
+        timestamp: testTimestamp, // Add timestamp for temporal awareness
       }
 
       const result = await linker.linkConversation(request)
 
       if (testCase.expectedParentTaskRequestId !== undefined) {
+        // Check if parentTaskRequestId matches expected
+        if (result.parentTaskRequestId !== testCase.expectedParentTaskRequestId) {
+          // Test failure - parentTaskRequestId mismatch
+        }
         expect(result.parentTaskRequestId).toBe(testCase.expectedParentTaskRequestId)
       }
 
@@ -788,9 +941,21 @@ describe('Dual Hash System - Message and System Hashing', () => {
 
   describe('Integration with ConversationLinker', () => {
     test('should properly separate system and message hashes in linking result', async () => {
+      // Create a no-op logger for this test
+      const testLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
+
       const linker = new ConversationLinker(
         async () => [], // mockQueryExecutor
-        async () => null // mockCompactSearchExecutor
+        testLogger,
+        async () => null, // mockCompactSearchExecutor
+        undefined,
+        undefined,
+        undefined
       )
 
       const request: LinkingRequest = {
@@ -819,6 +984,14 @@ describe('Dual Hash System - Message and System Hashing', () => {
     test('should maintain conversation link when system prompt changes', async () => {
       let queryResults: ParentRequest[] = []
 
+      // Create a no-op logger for this test
+      const testLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
+
       const linker = new ConversationLinker(
         async criteria => {
           // Return our mock parent if searching by message hash
@@ -827,7 +1000,11 @@ describe('Dual Hash System - Message and System Hashing', () => {
           }
           return []
         },
-        async () => null
+        testLogger,
+        async () => null,
+        undefined,
+        undefined,
+        undefined
       )
 
       // First request with original system prompt

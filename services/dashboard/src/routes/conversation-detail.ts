@@ -155,6 +155,47 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         }
       }
 
+      // Calculate context tokens for this request
+      let contextTokens = 0
+      if (req.response_body?.usage) {
+        const usage = req.response_body.usage
+        contextTokens =
+          (usage.input_tokens || 0) +
+          (usage.cache_read_input_tokens || 0) +
+          (usage.cache_creation_input_tokens || 0)
+      }
+
+      // Determine the last message type and tool result status
+      let lastMessageType: 'user' | 'assistant' | 'tool_result' = 'assistant'
+      let toolResultStatus: 'success' | 'error' | 'mixed' | undefined
+
+      // Check if the last message in the request contains tool results
+      if (lastMessage && lastMessage.content && Array.isArray(lastMessage.content)) {
+        const toolResults = lastMessage.content.filter((item: any) => item.type === 'tool_result')
+
+        if (toolResults.length > 0) {
+          lastMessageType = 'tool_result'
+
+          // Check for errors in tool results
+          const hasError = toolResults.some((result: any) => result.is_error === true)
+          const hasSuccess = toolResults.some((result: any) => result.is_error !== true)
+
+          if (hasError && hasSuccess) {
+            toolResultStatus = 'mixed'
+          } else if (hasError) {
+            toolResultStatus = 'error'
+          } else {
+            toolResultStatus = 'success'
+          }
+        }
+      }
+
+      // Override if last message is actually a user message
+      if (hasUserMessage) {
+        lastMessageType = 'user'
+        toolResultStatus = undefined
+      }
+
       graphNodes.push({
         id: req.request_id,
         label: `${req.model}`,
@@ -171,6 +212,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         hasSubtasks: finalHasSubtasks,
         subtaskCount: finalSubtaskCount,
         hasUserMessage: hasUserMessage,
+        contextTokens: contextTokens,
+        lastMessageType: lastMessageType,
+        toolResultStatus: toolResultStatus,
       })
     })
 
@@ -323,11 +367,37 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       0
     )
 
+    // Calculate current context size (last request of conversation)
+    // Total input tokens = input_tokens + cache_read_input_tokens + cache_creation_input_tokens
+    let currentContextSize = 0
+    const lastRequest = conversation.requests[conversation.requests.length - 1]
+    if (lastRequest?.response_body?.usage) {
+      const usage = lastRequest.response_body.usage
+      currentContextSize =
+        (usage.input_tokens || 0) +
+        (usage.cache_read_input_tokens || 0) +
+        (usage.cache_creation_input_tokens || 0)
+    }
+
     const branchStats = conversation.branches.reduce(
       (acc, branch) => {
         const branchRequests = conversation.requests.filter(r => (r.branch_id || 'main') === branch)
         // Get the max message count from the branch (latest request has the highest count)
         const maxMessageCount = Math.max(...branchRequests.map(r => r.message_count || 0), 0)
+
+        // Calculate context size for the last request of this branch
+        let branchContextSize = 0
+        if (branchRequests.length > 0) {
+          const lastBranchRequest = branchRequests[branchRequests.length - 1]
+          if (lastBranchRequest?.response_body?.usage) {
+            const usage = lastBranchRequest.response_body.usage
+            branchContextSize =
+              (usage.input_tokens || 0) +
+              (usage.cache_read_input_tokens || 0) +
+              (usage.cache_creation_input_tokens || 0)
+          }
+        }
+
         acc[branch] = {
           count: maxMessageCount,
           tokens: branchRequests.reduce((sum, r) => sum + r.total_tokens, 0),
@@ -340,6 +410,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             branchRequests.length > 0
               ? Math.max(...branchRequests.map(r => new Date(r.timestamp).getTime()))
               : 0,
+          contextSize: branchContextSize,
         }
         return acc
       },
@@ -351,6 +422,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           requests: number
           firstMessage: number
           lastMessage: number
+          contextSize: number
         }
       >
     )
@@ -360,6 +432,20 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       const mainRequests = conversation.requests.filter(r => !r.branch_id || r.branch_id === 'main')
       // Get the max message count from the main branch
       const maxMessageCount = Math.max(...mainRequests.map(r => r.message_count || 0), 0)
+
+      // Calculate context size for the last request of main branch
+      let mainBranchContextSize = 0
+      if (mainRequests.length > 0) {
+        const lastMainRequest = mainRequests[mainRequests.length - 1]
+        if (lastMainRequest?.response_body?.usage) {
+          const usage = lastMainRequest.response_body.usage
+          mainBranchContextSize =
+            (usage.input_tokens || 0) +
+            (usage.cache_read_input_tokens || 0) +
+            (usage.cache_creation_input_tokens || 0)
+        }
+      }
+
       branchStats.main = {
         count: maxMessageCount,
         tokens: mainRequests.reduce((sum, r) => sum + r.total_tokens, 0),
@@ -372,6 +458,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           mainRequests.length > 0
             ? Math.max(...mainRequests.map(r => new Date(r.timestamp).getTime()))
             : 0,
+        contextSize: mainBranchContextSize,
       }
     }
 
@@ -409,6 +496,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       toolExecution: allMetrics.toolExecution,
       userReply: allMetrics.userReply,
       userInteractions: allMetrics.userInteractions,
+      currentContextSize: currentContextSize,
     }
 
     // Calculate branch-specific stats if a branch is selected
@@ -451,6 +539,9 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
       // Get the maximum message count from filtered requests (cumulative)
       const maxMessageCount = Math.max(...filteredRequests.map(r => r.message_count || 0), 0)
 
+      // Get context size from branchStats
+      const branchContextSize = branchStats[selectedBranch]?.contextSize || 0
+
       selectedBranchStats = {
         branchName: selectedBranch,
         messageCount: maxMessageCount,
@@ -462,6 +553,7 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         toolExecution: branchMetrics.toolExecution,
         userReply: branchMetrics.userReply,
         userInteractions: branchMetrics.userInteractions,
+        currentContextSize: branchContextSize,
       }
     }
 
@@ -472,8 +564,44 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
       <!-- Conversation Details Panel -->
       <div style="margin-bottom: 2rem;">
-        <h3 style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600;">
+        <h3
+          style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600; display: flex; align-items: center; gap: 1rem;"
+        >
           Conversation Details
+          <span
+            style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: normal; color: #6b7280;"
+          >
+            <code
+              style="font-family: monospace; background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 0.25rem;"
+              >${conversationId}</code
+            >
+            <button
+              onclick="navigator.clipboard.writeText('${conversationId}').then(() => {
+                const btn = this;
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '✓';
+                btn.style.color = '#10b981';
+                setTimeout(() => {
+                  btn.innerHTML = originalHTML;
+                  btn.style.color = '';
+                }, 2000);
+              })"
+              style="background: none; border: none; cursor: pointer; padding: 0.25rem; color: #6b7280; hover:color: #374151;"
+              title="Copy conversation ID"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </span>
         </h3>
         <div class="conversation-stats-grid">
           <div class="conversation-stat-card">
@@ -488,6 +616,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             <span class="conversation-stat-label">Total Tokens:</span>
             <span class="conversation-stat-value"
               >${conversationStats.totalTokens.toLocaleString()}</span
+            >
+          </div>
+          <div class="conversation-stat-card">
+            <span class="conversation-stat-label">Current Context Size:</span>
+            <span class="conversation-stat-value"
+              >${conversationStats.currentContextSize.toLocaleString()} tokens</span
             >
           </div>
           <div class="conversation-stat-card">
@@ -551,6 +685,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
                   <span class="conversation-stat-label">Branch Tokens:</span>
                   <span class="conversation-stat-value"
                     >${selectedBranchStats.totalTokens.toLocaleString()}</span
+                  >
+                </div>
+                <div class="conversation-stat-card">
+                  <span class="conversation-stat-label">Current Context Size:</span>
+                  <span class="conversation-stat-value"
+                    >${selectedBranchStats.currentContextSize.toLocaleString()} tokens</span
                   >
                 </div>
                 <div class="conversation-stat-card">
@@ -667,9 +807,13 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         <div
           id="tree-panel"
           class="conversation-graph"
-          style="display: ${view === 'tree' ? 'block' : 'none'}; width: 100%;"
+          style="display: ${view === 'tree'
+            ? 'block'
+            : 'none'}; width: 100%; position: relative; overflow: hidden; cursor: grab;"
         >
-          ${raw(svgGraph)}
+          <div id="tree-container" style="position: relative; transform: translate(0px, 0px);">
+            ${raw(svgGraph)}
+          </div>
         </div>
 
         <!-- Timeline -->
@@ -754,6 +898,89 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               })
             }
           })
+
+          // Add panning functionality to tree view
+          const treePanel = document.getElementById('tree-panel')
+          const treeContainer = document.getElementById('tree-container')
+
+          if (treePanel && treeContainer) {
+            let isPanning = false
+            let startX = 0
+            let startY = 0
+            let scrollLeft = 0
+            let scrollTop = 0
+            let currentTranslateX = 0
+            let currentTranslateY = 0
+
+            // Parse existing transform
+            const getTransform = () => {
+              const transform = treeContainer.style.transform
+              const match = transform.match(
+                /translate\\((-?\\d+(?:\\.\\d+)?)px,\\s*(-?\\d+(?:\\.\\d+)?)px\\)/
+              )
+              if (match) {
+                return {
+                  x: parseFloat(match[1]),
+                  y: parseFloat(match[2]),
+                }
+              }
+              return { x: 0, y: 0 }
+            }
+
+            treePanel.addEventListener('mousedown', e => {
+              // Only start panning if clicking on the panel itself or SVG elements
+              if (e.target.tagName === 'A' || e.target.closest('a')) {
+                return // Don't pan when clicking links
+              }
+
+              isPanning = true
+              treePanel.style.cursor = 'grabbing'
+              startX = e.pageX
+              startY = e.pageY
+
+              const currentTransform = getTransform()
+              currentTranslateX = currentTransform.x
+              currentTranslateY = currentTransform.y
+
+              e.preventDefault()
+            })
+
+            document.addEventListener('mousemove', e => {
+              if (!isPanning) return
+
+              e.preventDefault()
+              const deltaX = e.pageX - startX
+              const deltaY = e.pageY - startY
+
+              const newTranslateX = currentTranslateX + deltaX
+              const newTranslateY = currentTranslateY + deltaY
+
+              treeContainer.style.transform =
+                'translate(' + newTranslateX + 'px, ' + newTranslateY + 'px)'
+            })
+
+            document.addEventListener('mouseup', () => {
+              if (isPanning) {
+                isPanning = false
+                treePanel.style.cursor = 'grab'
+              }
+            })
+
+            // Handle mouse leave to stop panning
+            document.addEventListener('mouseleave', () => {
+              if (isPanning) {
+                isPanning = false
+                treePanel.style.cursor = 'grab'
+              }
+            })
+
+            // Prevent text selection while panning
+            treePanel.addEventListener('selectstart', e => {
+              if (isPanning) {
+                e.preventDefault()
+              }
+            })
+          }
         })
       </script>
     `

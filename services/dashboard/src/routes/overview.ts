@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
-import { getErrorMessage } from '@claude-nexus/shared'
+import { getErrorMessage, getModelContextLimit, getBatteryColor } from '@claude-nexus/shared'
 import {
   formatNumber,
   formatDuration,
@@ -48,7 +48,7 @@ overviewRoutes.get('/', async c => {
 
   try {
     // Fetch conversations with account information from the API
-    const conversationsResult = await apiClient.getConversations({ domain, limit: 1000 })
+    const conversationsResult = await apiClient.getConversations({ domain, limit: 10000 })
     const apiConversations = conversationsResult.conversations
 
     // Create flat list of conversations (simplified for now)
@@ -57,12 +57,17 @@ overviewRoutes.get('/', async c => {
       accountId?: string
       branch: string
       branchCount: number
+      subtaskBranchCount: number
+      compactBranchCount: number
+      userBranchCount: number
       messageCount: number
       tokens: number
       firstMessage: Date
       lastMessage: Date
       domain: string
       latestRequestId?: string
+      latestModel?: string
+      latestContextTokens?: number
       isSubtask?: boolean
       parentTaskRequestId?: string
       parentConversationId?: string
@@ -76,12 +81,17 @@ overviewRoutes.get('/', async c => {
         accountId: conv.accountId,
         branch: 'main', // API doesn't return branch info yet
         branchCount: conv.branchCount || 1,
+        subtaskBranchCount: conv.subtaskBranchCount || 0,
+        compactBranchCount: conv.compactBranchCount || 0,
+        userBranchCount: conv.userBranchCount || 0,
         messageCount: conv.messageCount,
         tokens: conv.totalTokens,
         firstMessage: new Date(conv.firstMessageTime),
         lastMessage: new Date(conv.lastMessageTime),
         domain: conv.domain,
         latestRequestId: conv.latestRequestId,
+        latestModel: conv.latestModel,
+        latestContextTokens: conv.latestContextTokens,
         isSubtask: conv.isSubtask,
         parentTaskRequestId: conv.parentTaskRequestId,
         parentConversationId: conv.parentConversationId,
@@ -104,51 +114,14 @@ overviewRoutes.get('/', async c => {
     // Sort by last message time
     filteredBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
 
-    // Separate conversations into parents and subtasks
-    const nonSubtaskConversations = filteredBranches.filter(conv => !conv.isSubtask)
-    const subtaskConversations = filteredBranches.filter(conv => conv.isSubtask)
-
-    // Create a map to group subtasks by their parent conversation ID
-    const subtasksByParentId = new Map<string, typeof filteredBranches>()
-
-    // Group subtasks by their parent conversation ID
-    subtaskConversations.forEach(subtask => {
-      if (subtask.parentConversationId) {
-        if (!subtasksByParentId.has(subtask.parentConversationId)) {
-          subtasksByParentId.set(subtask.parentConversationId, [])
-        }
-        subtasksByParentId.get(subtask.parentConversationId)!.push(subtask)
-      }
-    })
-
-    // Build the final list with conversations and their subtasks
-    const groupedConversations: typeof filteredBranches = []
-
-    // Add each non-subtask conversation followed by its subtasks
-    nonSubtaskConversations.forEach(parent => {
-      groupedConversations.push(parent)
-      const subtasks = subtasksByParentId.get(parent.conversationId) || []
-      subtasks.forEach(subtask => groupedConversations.push(subtask))
-    })
-
-    // Add orphaned subtasks (those without a parent in the current page)
-    subtaskConversations.forEach(subtask => {
-      // Check if this subtask has already been added (it has a parent in the current page)
-      const hasParentInCurrentPage =
-        subtask.parentConversationId &&
-        nonSubtaskConversations.some(c => c.conversationId === subtask.parentConversationId)
-
-      if (!hasParentInCurrentPage) {
-        // This subtask is orphaned (parent not in current page or no parent ID)
-        groupedConversations.push(subtask)
-      }
-    })
+    // No longer filter subtasks - display all conversations at the same level
+    const groupedConversations = filteredBranches
 
     // Get unique domains for the dropdown
     const uniqueDomains = [...new Set(conversationBranches.map(branch => branch.domain))].sort()
 
     // Calculate totals from conversation branches
-    const totalMessages = conversationBranches.reduce((sum, branch) => sum + branch.messageCount, 0)
+    const totalRequests = conversationBranches.reduce((sum, branch) => sum + branch.messageCount, 0)
     const totalTokens = conversationBranches.reduce((sum, branch) => sum + branch.tokens, 0)
     const uniqueAccounts = [...new Set(conversationBranches.map(b => b.accountId).filter(Boolean))]
 
@@ -235,8 +208,8 @@ overviewRoutes.get('/', async c => {
           <div class="stat-meta">Unique account IDs</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Messages</div>
-          <div class="stat-value">${totalMessages}</div>
+          <div class="stat-label">Total Requests</div>
+          <div class="stat-value">${totalRequests}</div>
           <div class="stat-meta">Across all conversations</div>
         </div>
         <div class="stat-card">
@@ -266,8 +239,9 @@ overviewRoutes.get('/', async c => {
                       <th>Branches</th>
                       <th>Account</th>
                       <th>Domain</th>
-                      <th>Messages</th>
+                      <th>Requests</th>
                       <th>Tokens</th>
+                      <th>Context</th>
                       <th>Duration</th>
                       <th>Last Activity</th>
                       <th>Actions</th>
@@ -281,31 +255,57 @@ overviewRoutes.get('/', async c => {
                             branch.lastMessage.getTime() - branch.firstMessage.getTime()
 
                           return `
-                            <tr style="${branch.isSubtask ? 'background-color: #f9fafb;' : ''}">
+                            <tr>
                               <td class="text-sm">
-                                <div style="display: flex; align-items: center; gap: 0.5rem; ${branch.isSubtask ? 'padding-left: 2rem;' : ''}">
-                                  ${
-                                    branch.isSubtask
-                                      ? `
-                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background-color: #e0e7ff; border-radius: 50%; flex-shrink: 0;" title="This is a sub-task spawned by Task tool">
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                      </svg>
-                                    </span>
-                                  `
-                                      : ''
-                                  }
-                                  <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
-                                     class="text-blue-600" 
-                                     style="font-family: monospace; font-size: 0.75rem;">
-                                    ${branch.conversationId.substring(0, 8)}...
-                                  </a>
-                                </div>
+                                <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
+                                   class="text-blue-600" 
+                                   style="font-family: monospace; font-size: 0.75rem;">
+                                  ${branch.conversationId.substring(0, 8)}...
+                                </a>
                               </td>
                               <td class="text-sm">
-                                <span style="color: ${branch.branchCount > 1 ? '#2563eb' : '#6b7280'}; font-weight: ${branch.branchCount > 1 ? '600' : 'normal'};">
-                                  ${branch.branchCount} ${branch.branchCount === 1 ? 'branch' : 'branches'}
-                                </span>
+                                ${(() => {
+                                  const parts = []
+                                  if (branch.subtaskBranchCount > 0) {
+                                    parts.push(`${branch.subtaskBranchCount}💻`)
+                                  }
+                                  if (branch.compactBranchCount > 0) {
+                                    parts.push(`${branch.compactBranchCount}📦`)
+                                  }
+                                  if (branch.userBranchCount > 0) {
+                                    parts.push(`${branch.userBranchCount}🌿`)
+                                  }
+
+                                  // If no special branches, just show the total branch count
+                                  let displayText
+                                  const hasMultipleBranches = branch.branchCount > 1
+
+                                  if (parts.length > 0) {
+                                    displayText = parts.join(', ')
+                                  } else {
+                                    // Only show branch count if more than 1
+                                    displayText =
+                                      branch.branchCount > 1 ? branch.branchCount.toString() : ''
+                                  }
+                                  // Truncate if too many branches to prevent UI overflow
+                                  const totalBranches =
+                                    branch.subtaskBranchCount +
+                                    branch.compactBranchCount +
+                                    branch.userBranchCount
+                                  if (totalBranches > 99) {
+                                    displayText = '99+...'
+                                  }
+
+                                  // Add hover tooltip with full details if truncated or has branches
+                                  const titleText =
+                                    totalBranches > 0 || hasMultipleBranches
+                                      ? `Total branches: ${branch.branchCount} (${branch.subtaskBranchCount} subtasks, ${branch.compactBranchCount} compacted, ${branch.userBranchCount} user branches)`
+                                      : '' // No tooltip for single branch with no special types
+
+                                  return `<span style="color: ${hasMultipleBranches ? '#2563eb' : '#6b7280'}; font-weight: ${hasMultipleBranches ? '600' : 'normal'};" ${titleText ? `title="${titleText}"` : ''}>
+                                    ${displayText}
+                                  </span>`
+                                })()}
                               </td>
                               <td class="text-sm">
                                 ${
@@ -326,6 +326,34 @@ overviewRoutes.get('/', async c => {
                               <td class="text-sm">${escapeHtml(branch.domain)}</td>
                               <td class="text-sm">${branch.messageCount}</td>
                               <td class="text-sm">${formatNumber(branch.tokens)}</td>
+                              <td class="text-sm">${
+                                branch.latestContextTokens && branch.latestModel
+                                  ? (() => {
+                                      const { limit: maxTokens, isEstimate } = getModelContextLimit(
+                                        branch.latestModel
+                                      )
+                                      const percentage = branch.latestContextTokens / maxTokens
+                                      const batteryColor = getBatteryColor(percentage)
+                                      const isOverflow = percentage > 1
+                                      const percentageText = (percentage * 100).toFixed(1)
+
+                                      return `
+                                  <div style="display: inline-flex; align-items: center; gap: 4px;">
+                                    <svg width="16" height="30" viewBox="0 0 16 30" xmlns="http://www.w3.org/2000/svg">
+                                      <!-- Battery nub (positive terminal) -->
+                                      <rect x="6" y="1" width="4" height="3" rx="1" ry="1" style="fill: #888;" />
+                                      <!-- Battery casing -->
+                                      <rect x="3" y="4" width="10" height="24" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />
+                                      <!-- Battery level fill (from bottom to top) -->
+                                      <rect x="4" y="${5 + (1 - Math.min(percentage, 1)) * 22}" width="8" height="${Math.min(percentage, 1) * 22}" rx="1" ry="1" style="fill: ${batteryColor};" />
+                                      ${isOverflow ? '<text x="8" y="18" text-anchor="middle" style="font-size: 8px; font-weight: bold; fill: white;">!</text>' : ''}
+                                    </svg>
+                                    <span style="font-size: 11px; color: #6b7280;" title="${branch.latestContextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens${isEstimate ? ' (estimated)' : ''}">${percentageText}%</span>
+                                  </div>
+                                `
+                                    })()
+                                  : '<span class="text-gray-400">-</span>'
+                              }</td>
                               <td class="text-sm">${formatDuration(duration)}</td>
                               <td class="text-sm">${formatRelativeTime(branch.lastMessage)}</td>
                               <td class="text-sm">

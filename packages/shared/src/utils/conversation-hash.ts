@@ -185,10 +185,22 @@ function getStableSystemPrompt(systemPrompt: string | any[]): string {
  * @returns A hash representing the messages only
  */
 export function hashMessagesOnly(messages: ClaudeMessage[]): string {
+  // Create a no-op logger for hash computation
+  const mockLogger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  }
+
   // Use ConversationLinker as the source of truth for hashing
   const linker = new ConversationLinker(
     async () => [], // Dummy query executor - we only need the hash method
-    async () => null // Dummy compact search executor
+    mockLogger,
+    async () => null, // Dummy compact search executor
+    undefined, // requestByIdExecutor
+    undefined, // subtaskQueryExecutor
+    undefined // subtaskSequenceQueryExecutor
   )
   return linker.computeMessageHash(messages)
 }

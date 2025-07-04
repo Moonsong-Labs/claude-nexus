@@ -51,7 +51,22 @@ describe('Compact branch preservation', () => {
 
     const compactSearchExecutor: CompactSearchExecutor = async () => null
 
-    const linker = new ConversationLinker(queryExecutor, compactSearchExecutor)
+    // Create a no-op logger for tests
+    const mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
+    const linker = new ConversationLinker(
+      queryExecutor,
+      mockLogger,
+      compactSearchExecutor,
+      undefined,
+      undefined,
+      undefined
+    )
 
     // Simulate a follow-up to the compact conversation
     const followUpMessages = [
@@ -110,7 +125,22 @@ describe('Compact branch preservation', () => {
 
     const compactSearchExecutor: CompactSearchExecutor = async () => null
 
-    const linker = new ConversationLinker(queryExecutor, compactSearchExecutor)
+    // Create a no-op logger for tests
+    const mockLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    }
+
+    const linker = new ConversationLinker(
+      queryExecutor,
+      mockLogger,
+      compactSearchExecutor,
+      undefined,
+      undefined,
+      undefined
+    )
 
     // Simulate a new branch from regular conversation
     const branchMessages = [

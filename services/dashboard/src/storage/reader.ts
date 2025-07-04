@@ -26,6 +26,7 @@ interface ApiRequest {
   parent_request_id?: string
   body?: any
   last_message?: any
+  response_body?: any
 }
 
 interface RequestDetails {
@@ -195,7 +196,7 @@ export class StorageReader {
         SELECT 
           request_id, domain, timestamp, model, input_tokens, output_tokens,
           total_tokens, duration_ms, error, request_type, tool_call_count,
-          conversation_id, body, response_body
+          conversation_id, branch_id, parent_request_id, body, response_body
         FROM api_requests 
         WHERE request_id = $1
       `
@@ -223,6 +224,8 @@ export class StorageReader {
         request_type: row.request_type,
         tool_call_count: row.tool_call_count || 0,
         conversation_id: row.conversation_id,
+        branch_id: row.branch_id,
+        parent_request_id: row.parent_request_id,
       }
 
       // Get streaming chunks

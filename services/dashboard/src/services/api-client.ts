@@ -110,8 +110,14 @@ interface ConversationSummary {
   messageCount: number
   totalTokens: number
   branchCount: number
+  // New branch type counts
+  subtaskBranchCount?: number
+  compactBranchCount?: number
+  userBranchCount?: number
   modelsUsed: string[]
   latestRequestId?: string
+  latestModel?: string
+  latestContextTokens?: number
   isSubtask?: boolean
   parentTaskRequestId?: string
   parentConversationId?: string
@@ -136,7 +142,7 @@ export class ProxyApiClient {
     }
 
     if (this.apiKey) {
-      headers['X-API-Key'] = this.apiKey
+      headers['X-Api-Key'] = this.apiKey
     }
 
     return headers
