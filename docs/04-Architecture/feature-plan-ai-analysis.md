@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the implementation plan for adding an AI-powered conversation analysis feature to the Claude Nexus Proxy Dashboard. The feature will allow users to generate intelligent summaries and insights for conversations, with analysis stored per conversation branch.
+This document outlines the implementation plan for adding an AI-powered conversation analysis feature to the Claude Nexus Proxy Dashboard. The feature will allow users to generate intelligent summaries and insights for conversations using the Gemini API, with analysis stored per conversation branch.
 
 ## Feature Overview
 
@@ -39,12 +39,12 @@ CREATE TABLE conversation_analyses (
         CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
 
     -- Analysis configuration
-    model_used VARCHAR(255) DEFAULT 'claude-3-sonnet-20240229',
+    model_used VARCHAR(255) DEFAULT 'gemini-2.5-pro',
 
     -- Analysis results
     analysis_content TEXT,              -- Markdown formatted analysis
     analysis_data JSONB,                -- Structured data (summary, topics, sentiment)
-    raw_response JSONB,                 -- Full Claude API response for debugging
+    raw_response JSONB,                 -- Full Gemini API response for debugging
 
     -- Error tracking
     error_message TEXT,
@@ -152,7 +152,7 @@ X-Dashboard-Key: <api-key>
       "sentiment": "positive",
       "actionItems": ["Review API docs", "Update auth flow"]
     },
-    "modelUsed": "claude-3-sonnet-20240229",
+    "modelUsed": "gemini-2.5-pro",
     "generatedAt": "2024-01-15T10:01:00Z",
     "processingDurationMs": 45000
   }
@@ -220,9 +220,9 @@ class AnalysisWorker {
       // 4. Prepare prompt with smart truncation
       const prompt = await prepareAnalysisPrompt(messages)
 
-      // 5. Call Claude API
+      // 5. Call Gemini API
       const startTime = Date.now()
-      const response = await callClaudeAPI(prompt, job.model_used)
+      const response = await callGeminiAPI(prompt, job.model_used)
       const duration = Date.now() - startTime
 
       // 6. Update with results
@@ -316,8 +316,8 @@ Remember: Respond ONLY with the JSON object, no additional text.`
 
 ```typescript
 async function prepareAnalysisPrompt(messages: Message[]): Promise<string> {
-  const MAX_TOKENS = 180000 // Safe limit for 200k context
-  const tokenizer = new AnthropicTokenizer()
+  const MAX_TOKENS = 900000 // Safe limit for Gemini's 1M context window
+  const tokenizer = new GeminiTokenizer()
 
   // Start with full conversation
   let conversationText = formatMessages(messages)
@@ -451,10 +451,10 @@ export function AnalysisPanel({ conversationId, branchId }: AnalysisPanelProps) 
 Add to dashboard service `.env`:
 
 ```bash
-# Claude API Configuration
-CLAUDE_API_KEY=sk-ant-api...
-CLAUDE_API_URL=https://api.anthropic.com
-CLAUDE_DEFAULT_MODEL=claude-3-sonnet-20240229
+# Gemini API Configuration
+GEMINI_API_KEY=AIza...
+GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta
+GEMINI_DEFAULT_MODEL=gemini-2.5-pro
 
 # Analysis Feature
 ANALYSIS_ENABLED=true
@@ -464,7 +464,7 @@ ANALYSIS_WORKER_POLL_INTERVAL=5000  # 5 seconds
 ANALYSIS_WATCHDOG_INTERVAL=60000  # 1 minute
 
 # Token Limits
-ANALYSIS_MAX_PROMPT_TOKENS=180000
+ANALYSIS_MAX_PROMPT_TOKENS=900000
 ANALYSIS_TRUNCATE_FIRST_N=5
 ANALYSIS_TRUNCATE_LAST_M=20
 ```
