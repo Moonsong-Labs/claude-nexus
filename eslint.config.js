@@ -100,7 +100,26 @@ export default tseslint.config(
     files: ['**/*.test.ts', '**/__tests__/**/*.ts'],
     languageOptions: {
       parserOptions: {
-        project: ['./tsconfig.json', './packages/*/tsconfig.test.json'],
+        project: ['./tsconfig.json', './packages/*/tsconfig.test.json', './packages/e2e/tsconfig.json'],
+      },
+    },
+  },
+
+  // Override for E2E package - allow console for setup and mock server
+  {
+    files: ['packages/e2e/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+
+  // Override for jest.config.js files
+  {
+    files: ['**/jest.config.js'],
+    languageOptions: {
+      parserOptions: {
+        project: false,
       },
     },
   }

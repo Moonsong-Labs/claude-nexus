@@ -521,6 +521,9 @@ describe('ConversationLinker - JSON File Tests', () => {
       const testCase = JSON.parse(content)
       // Running test case from file
 
+      // Log the branch ID from the test case
+      console.log('Fixture file: ', file)
+
       // Compute the actual parent hash from parent messages before creating mocks
       let computedParentHash: string | null = null
       if (
@@ -735,6 +738,8 @@ describe('ConversationLinker - JSON File Tests', () => {
         expect(result.conversationId).toBe(testCase.parent.conversation_id)
         expect(result.parentRequestId).toBe(testCase.parent.request_id)
 
+        console.log('((-', testCase.parent.branch_id)
+        console.log('((', result.branchId, testCase.expectedBranchPattern, testCase.existingChild)
         if (testCase.expectedBranchPattern) {
           expect(result.branchId).toMatch(new RegExp(testCase.expectedBranchPattern))
         } else if (testCase.expectedBranchId) {
@@ -743,6 +748,7 @@ describe('ConversationLinker - JSON File Tests', () => {
         } else if (!testCase.existingChild) {
           // If no branch pattern is expected and there's no existing child (no branching),
           // the branch should be the same as the parent's branch
+          console.log(testCase.parent.branch_id)
           expect(result.branchId).toBe(testCase.parent.branch_id || 'main')
         }
       } else {

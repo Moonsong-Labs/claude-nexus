@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true,
+    "types": ["jest", "node"],
+    "lib": ["ES2022"],
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "isolatedModules": true
+  },
+  "include": ["src/**/*"],
+  "references": [{ "path": "../shared" }]
+}
