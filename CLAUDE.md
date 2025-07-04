@@ -434,7 +434,9 @@ for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 - 006: Split conversation hashes
 - 007: Add parent_request_id
 - 008: Update subtask conversation IDs and optimize Task queries
-- 009: Add conversation analyses table for AI analysis caching
+- 009: Add response body GIN index
+- 010: Add temporal awareness indexes
+- 011: Add conversation analyses table for AI analysis caching
 
 See `docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md` for details.
 
