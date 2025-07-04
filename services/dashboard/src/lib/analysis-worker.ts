@@ -175,8 +175,8 @@ export class AnalysisWorker {
   }
 }
 
-export async function cleanupStuckJobs(pool: Pool) {
-  const staleThreshold = new Date(Date.now() - 5 * 60 * 1000)
+export async function cleanupStuckJobs(pool: Pool, timeoutMs: number, maxRetries: number) {
+  const staleThreshold = new Date(Date.now() - timeoutMs)
 
   await pool.query(
     `
@@ -184,9 +184,9 @@ export async function cleanupStuckJobs(pool: Pool) {
     SET status = 'pending', retry_count = retry_count + 1, updated_at = NOW()
     WHERE status = 'processing'
       AND updated_at < $1
-      AND retry_count < 3
+      AND retry_count < $2
   `,
-    [staleThreshold]
+    [staleThreshold, maxRetries]
   )
 
   await pool.query(
@@ -195,8 +195,8 @@ export async function cleanupStuckJobs(pool: Pool) {
     SET status = 'failed', error_message = 'Max retries exceeded', updated_at = NOW()
     WHERE status = 'processing'
       AND updated_at < $1
-      AND retry_count >= 3
+      AND retry_count >= $2
   `,
-    [staleThreshold]
+    [staleThreshold, maxRetries]
   )
 }

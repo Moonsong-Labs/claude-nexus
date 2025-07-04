@@ -97,7 +97,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_proxy
 
       # AI Analysis Feature
-      ANALYSIS_ENABLED: ${ANALYSIS_ENABLED:-true}
+      ANALYSIS_ENABLED: ${ANALYSIS_ENABLED:-false}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_API_URL: ${GEMINI_API_URL:-https://generativelanguage.googleapis.com/v1beta}
       GEMINI_DEFAULT_MODEL: ${GEMINI_DEFAULT_MODEL:-gemini-2.5-pro}

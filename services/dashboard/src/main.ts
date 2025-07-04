@@ -211,12 +211,37 @@ Press Ctrl+C to stop the server`)
 
     // Start analysis worker if enabled
     if (process.env.ANALYSIS_ENABLED === 'true') {
+      if (!process.env.GEMINI_API_KEY) {
+        console.error('❌ Error: ANALYSIS_ENABLED is true, but GEMINI_API_KEY is not set.')
+        process.exit(1)
+      }
       const analysisWorker = new AnalysisWorker(container.getPool())
       const workerInterval = parseInt(process.env.ANALYSIS_WORKER_POLL_INTERVAL || '5000')
       const watchdogInterval = parseInt(process.env.ANALYSIS_WATCHDOG_INTERVAL || '60000')
+      const analysisTimeoutMs = parseInt(process.env.ANALYSIS_TIMEOUT_MS || '300000')
+      const analysisMaxRetries = parseInt(process.env.ANALYSIS_MAX_RETRIES || '3')
 
-      setInterval(() => analysisWorker.processJob(), workerInterval)
-      setInterval(() => cleanupStuckJobs(container.getPool()), watchdogInterval)
+      const runWorker = async () => {
+        try {
+          await analysisWorker.processJob()
+        } catch (error) {
+          console.error('Unhandled error in analysis worker loop:', error)
+        } finally {
+          setTimeout(runWorker, workerInterval)
+        }
+      }
+      setTimeout(runWorker, workerInterval)
+
+      const runWatchdog = async () => {
+        try {
+          await cleanupStuckJobs(container.getPool(), analysisTimeoutMs, analysisMaxRetries)
+        } catch (error) {
+          console.error('Unhandled error in analysis watchdog loop:', error)
+        } finally {
+          setTimeout(runWatchdog, watchdogInterval)
+        }
+      }
+      setTimeout(runWatchdog, watchdogInterval)
 
       console.log(`
 🔬 Analysis worker started`)

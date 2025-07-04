@@ -56,10 +56,7 @@ claude-nexus-proxy/
 - Request history browser
 - SSE for live updates
 - AI analysis results display (pending implementation)
-- Background processing of conversation analysis jobs
-- Gemini API integration for AI-powered insights
-- Job queue with retry logic and watchdog
-- Token usage tracking for cost management
+- Background processing via a worker running inside the dashboard service
 
 ## Development
 
@@ -587,12 +584,7 @@ When generating message hashes for conversation tracking, the system filters out
 
 The system supports automated analysis of conversations using AI models (Gemini):
 
-**Architecture:**
-
-- **Two-table design**: Separate job queue (`analysis_jobs`) and results storage (`conversation_analyses`)
-- **Background worker**: Dedicated service for processing analysis jobs
-- **PostgreSQL SKIP LOCKED**: Ensures distributed job processing without conflicts
-- **Automatic job creation**: Jobs enqueued when conversations are stored
+- **Single-table design**: A single table (`conversation_analyses`) serves as both the job queue and results store, managed by a `status` column (`pending`, `processing`, `completed`, `failed`).
 
 **Features:**
 
