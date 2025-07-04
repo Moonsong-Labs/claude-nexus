@@ -258,7 +258,11 @@ requestDetailsRoutes.get('/request/:id', async c => {
                 ? `
               <div id="${truncatedId}" class="message-truncated">
                 ${msg.truncatedHtml}
-                <span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more${msg.hiddenLineCount ? ` (${msg.hiddenLineCount} lines)` : ''}</span>
+                ${
+                  msg.hiddenLineCount === -1
+                    ? ''
+                    : `<span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more${msg.hiddenLineCount > 0 ? ` (${msg.hiddenLineCount} lines)` : ''}</span>`
+                }
               </div>
               <div id="${contentId}" class="hidden">
                 ${msg.htmlContent}

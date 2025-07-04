@@ -374,6 +374,7 @@ async function parseMessage(
   const isLong = content.length > MESSAGE_TRUNCATE_LENGTH
   let truncatedHtml
   let hiddenLineCount = 0
+  let onlyImageHidden = false
 
   if (isLong) {
     // Calculate number of hidden lines
@@ -413,13 +414,29 @@ async function parseMessage(
           )
           .replace('loading="lazy"', 'loading="eager"')
           .replace('<img', '<img data-thumbnail-expand="true"')
-        truncatedContent = truncatedContent + '\n\n' + thumbnailImg
+
+        // Check if there's meaningful text content after the truncation point
+        const remainingContent = content.substring(MESSAGE_TRUNCATE_LENGTH).trim()
+        const hasMoreTextContent = remainingContent.replace(/<img[^>]+\/>/g, '').trim().length > 0
+
+        if (hasMoreTextContent) {
+          truncatedContent = truncatedContent + '...\n\n' + thumbnailImg
+        } else {
+          // No more text content, just the image - don't add ellipsis
+          truncatedContent = truncatedContent + '\n\n' + thumbnailImg
+          onlyImageHidden = true
+        }
+      } else {
+        truncatedContent += '...'
       }
+    } else {
+      truncatedContent += '...'
     }
 
-    truncatedContent += '...'
     const truncatedLines = truncatedContent.split('\n')
-    hiddenLineCount = Math.max(0, fullLines.length - truncatedLines.length + 1) // +1 because last line might be partial
+    hiddenLineCount = onlyImageHidden
+      ? -1
+      : Math.max(0, fullLines.length - truncatedLines.length + 1) // -1 signals only image is hidden
 
     const dirtyTruncatedHtml = await marked.parse(truncatedContent)
     truncatedHtml = sanitizeHtml(dirtyTruncatedHtml, {
