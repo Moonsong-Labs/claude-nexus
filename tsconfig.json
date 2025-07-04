@@ -23,6 +23,7 @@
   "references": [
     { "path": "./packages/shared" },
     { "path": "./services/dashboard" },
-    { "path": "./services/proxy" }
+    { "path": "./services/proxy" },
+    { "path": "./services/analysis-worker" }
   ]
 }

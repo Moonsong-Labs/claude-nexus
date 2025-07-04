@@ -7,6 +7,7 @@ import { MetricsService } from './services/MetricsService.js'
 import { NotificationService } from './services/NotificationService.js'
 import { StorageAdapter } from './storage/StorageAdapter.js'
 import { TokenUsageService } from './services/TokenUsageService.js'
+import { AnalysisJobService } from './services/AnalysisJobService.js'
 import { config } from '@claude-nexus/shared/config'
 import { logger } from './middleware/logger.js'
 
@@ -17,6 +18,7 @@ class Container {
   private pool?: Pool
   private storageService?: StorageAdapter
   private tokenUsageService?: TokenUsageService
+  private analysisJobService?: AnalysisJobService
   private metricsService?: MetricsService
   private notificationService?: NotificationService
   private authenticationService?: AuthenticationService
@@ -49,6 +51,7 @@ class Container {
     if (this.pool && config.storage.enabled) {
       this.storageService = new StorageAdapter(this.pool)
       this.tokenUsageService = new TokenUsageService(this.pool)
+      this.analysisJobService = new AnalysisJobService(this.pool)
 
       // Ensure partitions exist
       this.tokenUsageService.ensurePartitions().catch(err => {
@@ -67,7 +70,8 @@ class Container {
       },
       this.storageService,
       config.telemetry.endpoint,
-      this.tokenUsageService
+      this.tokenUsageService,
+      this.analysisJobService
     )
     this.notificationService = new NotificationService()
     this.authenticationService = new AuthenticationService(

@@ -4,6 +4,7 @@ import { RequestContext } from '../domain/value-objects/RequestContext'
 import { tokenTracker } from './tokenTracker.js'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
 import { TokenUsageService } from './TokenUsageService.js'
+import { AnalysisJobService } from './AnalysisJobService.js'
 import { logger } from '../middleware/logger'
 import { broadcastConversation, broadcastMetrics } from '../dashboard/sse.js'
 
@@ -44,7 +45,8 @@ export class MetricsService {
     },
     private storageService?: StorageAdapter,
     private telemetryEndpoint?: string,
-    private tokenUsageService?: TokenUsageService
+    private tokenUsageService?: TokenUsageService,
+    private analysisJobService?: AnalysisJobService
   ) {}
 
   /**
@@ -337,6 +339,11 @@ export class MetricsService {
           fullResponseBody,
           context.host
         )
+      }
+
+      // Enqueue analysis job for the conversation
+      if (this.analysisJobService?.isEnabled() && conversationData?.conversationId) {
+        await this.analysisJobService.enqueueAnalysisJob(conversationData.conversationId)
       }
     } catch (error) {
       logger.error('Failed to store request/response', {

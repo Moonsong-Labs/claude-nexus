@@ -116,6 +116,25 @@ export const config = {
     enabled: env.bool('SPARK_ENABLED', !!env.string('SPARK_API_KEY', '')),
   },
 
+  // Gemini API configuration
+  gemini: {
+    apiKey: env.string('GEMINI_API_KEY', ''),
+    apiEndpoint: env.string('GEMINI_API_ENDPOINT', 'https://generativelanguage.googleapis.com'),
+    model: env.string('GEMINI_MODEL', 'gemini-1.5-flash-latest'),
+    maxRetries: env.int('GEMINI_MAX_RETRIES', 3),
+    timeout: env.int('GEMINI_TIMEOUT', 300000), // 5 minutes
+    enabled: env.bool('GEMINI_ENABLED', !!env.string('GEMINI_API_KEY', '')),
+  },
+
+  // Analysis Worker configuration
+  analysisWorker: {
+    pollingIntervalMs: env.int('ANALYSIS_WORKER_POLLING_INTERVAL_MS', 5000), // 5 seconds
+    watchdogIntervalMs: env.int('ANALYSIS_WORKER_WATCHDOG_INTERVAL_MS', 60000), // 1 minute
+    stuckJobTimeoutMs: env.int('ANALYSIS_WORKER_STUCK_JOB_TIMEOUT_MS', 300000), // 5 minutes
+    maxMessagesPerAnalysis: env.int('ANALYSIS_WORKER_MAX_MESSAGES', 100), // prevent OOM
+    rateLimit: env.int('ANALYSIS_WORKER_RATE_LIMIT', 60), // requests per minute
+  },
+
   // Telemetry
   telemetry: {
     endpoint: env.string('TELEMETRY_ENDPOINT', ''),

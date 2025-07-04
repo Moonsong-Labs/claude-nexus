@@ -116,6 +116,37 @@ services:
     depends_on:
       - postgres
 
+  # Analysis Worker Service - Background conversation analysis
+  analysis-worker:
+    build:
+      context: ../
+      dockerfile: services/analysis-worker/Dockerfile
+    image: claude-nexus-analysis-worker:local
+    container_name: claude-nexus-analysis-worker
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/claude_proxy
+      
+      # Gemini API configuration
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-1.5-flash-latest}
+      
+      # Debug
+      DEBUG: ${DEBUG:-false}
+      DEBUG_SQL: ${DEBUG_SQL:-false}
+      
+      # Worker configuration
+      ENABLE_ANALYSIS_JOBS: ${ENABLE_ANALYSIS_JOBS:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Claude CLI Service - Run Claude CLI connected to the proxy
   claude-cli:
     build:

@@ -32,6 +32,21 @@
         "@types/pino": "^7.0.0",
       },
     },
+    "services/analysis-worker": {
+      "name": "@claude-nexus/analysis-worker",
+      "version": "1.0.0",
+      "dependencies": {
+        "@claude-nexus/shared": "workspace:*",
+        "@google/generative-ai": "^0.21.0",
+        "p-limit": "^6.1.0",
+        "pg": "^8.13.1",
+        "zod": "^3.24.1",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.2.17",
+        "@types/pg": "^8.11.10",
+      },
+    },
     "services/dashboard": {
       "name": "@claude-nexus/dashboard",
       "version": "2.0.0",
@@ -74,6 +89,8 @@
   "packages": {
     "@babel/runtime": ["@babel/runtime@7.27.6", "", {}, "sha512-vbavdySgbTTrmFE+EsiqUTzlOr5bzlnJtUv9PynGCAKvfQqjIXbvFdumPM/GxMDfyuGMJaJAU6TO4zc1Jf1i8Q=="],
 
+    "@claude-nexus/analysis-worker": ["@claude-nexus/analysis-worker@workspace:services/analysis-worker"],
+
     "@claude-nexus/dashboard": ["@claude-nexus/dashboard@workspace:services/dashboard"],
 
     "@claude-nexus/proxy": ["@claude-nexus/proxy@workspace:services/proxy"],
@@ -99,6 +116,8 @@
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.3.2", "", { "dependencies": { "@eslint/core": "^0.15.0", "levn": "^0.4.1" } }, "sha512-4SaFZCNfJqvk/kenHpI8xvN42DMaoycy4PzKc5otHxRswww1kAt82OlBuwRVLofCACCTZEcla2Ydxv8scMXaTg=="],
 
     "@faker-js/faker": ["@faker-js/faker@9.8.0", "", {}, "sha512-U9wpuSrJC93jZBxx/Qq2wPjCuYISBueyVUGK7qqdmj7r/nxaxwW8AQDCLeRO7wZnjj94sh3p246cAYjUKuqgfg=="],
+
+    "@google/generative-ai": ["@google/generative-ai@0.21.0", "", {}, "sha512-7XhUbtnlkSEZK15kN3t+tzIMxsbKm/dSkKBFalj+20NvPKe1kBY7mR2P7vuijEn+f06z5+A8bVGKO0v39cr6Wg=="],
 
     "@hono/node-server": ["@hono/node-server@1.14.3", "", { "peerDependencies": { "hono": "^4" } }, "sha512-KuDMwwghtFYSmIpr4WrKs1VpelTrptvJ+6x6mbUcZnFcc213cumTF5BdqfHyW93B19TNI4Vaev14vOI2a0Ie3w=="],
 
