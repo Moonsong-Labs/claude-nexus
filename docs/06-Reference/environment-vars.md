@@ -92,6 +92,15 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 | `CREDENTIALS_DIR`  | Directory for credential files | `./credentials`  |
 | `TEST_SAMPLES_DIR` | Directory for test samples     | `./test-samples` |
 
+## AI Analysis Configuration
+
+| Variable                        | Description                        | Default          |
+| ------------------------------- | ---------------------------------- | ---------------- |
+| `AI_ANALYSIS_PROMPT_VERSION`    | Version of analysis prompt to use  | `v1`             |
+| `AI_ANALYSIS_MAX_PROMPT_TOKENS` | Maximum tokens for analysis prompt | `855000`         |
+| `GEMINI_API_KEY`                | API key for Gemini AI (Phase 2)    | -                |
+| `GEMINI_MODEL`                  | Gemini model to use for analysis   | `gemini-2.5-pro` |
+
 ## Development Configuration
 
 ### Debug Options

@@ -53,3 +53,16 @@ export {
   getBatteryLevel,
   type ModelContextRule,
 } from './constants/model-limits.js'
+
+// Export AI analysis types and configuration
+export { ConversationAnalysisSchema, type ConversationAnalysis } from './types/ai-analysis.js'
+export { ANALYSIS_PROMPT_CONFIG } from './config/ai-analysis.js'
+
+// Export prompt utilities
+export {
+  truncateConversation,
+  buildAnalysisPrompt,
+  parseAnalysisResponse,
+  type Message,
+  type GeminiContent,
+} from './prompts/index.js'

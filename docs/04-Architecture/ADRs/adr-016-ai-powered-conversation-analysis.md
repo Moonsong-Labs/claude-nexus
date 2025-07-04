@@ -135,11 +135,33 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 
 ## Implementation Phases
 
-1. **Phase 1** (Current): Database schema and basic API endpoints
-2. **Phase 2**: Background worker implementation with Gemini integration
+1. **Phase 1** (Completed): Database schema and basic API endpoints
+2. **Phase 2** (In Progress):
+   - Prompt engineering (Completed - Task 4)
+   - Background worker implementation with Gemini integration (Pending)
 3. **Phase 3**: Dashboard UI for viewing analyses
 4. **Phase 4**: Advanced features (custom prompts, comparison views)
 5. **Phase 5**: Consider extraction to dedicated microservice
+
+### Phase 1 Details (Completed)
+
+- Database schema implemented (Migration 011)
+- Conversation analyses table with proper indexing
+- Support for status tracking, token usage, and retry logic
+
+### Phase 2 - Task 4: Prompt Engineering (Completed)
+
+- **Tokenizer**: Using @lenml/tokenizer-gemini for local token counting
+- **Smart Truncation**: Tail-first priority with 855k token limit (5% safety margin)
+- **Prompt Structure**: Multi-turn format using Gemini's native content structure
+- **Response Validation**: Zod schema for runtime validation
+- **Configuration**: Environment variable support with ANALYSIS_PROMPT_CONFIG
+
+Key files:
+
+- `packages/shared/src/types/ai-analysis.ts` - Analysis schema
+- `packages/shared/src/prompts/truncation.ts` - Smart truncation logic
+- `packages/shared/src/prompts/analysis/` - Versioned prompt templates
 
 ## Links
 

@@ -25,8 +25,9 @@
     "typecheck": "tsc --build"
   },
   "dependencies": {
-    "zod": "^3.24.1",
-    "pino": "^9.5.0"
+    "@lenml/tokenizer-gemini": "^3.4.2",
+    "pino": "^9.5.0",
+    "zod": "^3.25.72"
   },
   "devDependencies": {
     "@types/pino": "^7.0.0"
