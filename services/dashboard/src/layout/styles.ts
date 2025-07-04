@@ -925,4 +925,49 @@ export const dashboardStyles = `
     opacity: 1;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
   }
+
+  /* Lightbox overlay for image viewing */
+  .image-lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    cursor: zoom-out;
+    padding: 2rem;
+  }
+
+  .image-lightbox img {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+    border-radius: 0.5rem;
+    cursor: default;
+  }
+
+  .image-lightbox-close {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    color: white;
+    font-size: 2rem;
+    font-weight: 300;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    line-height: 1;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+  }
+
+  .image-lightbox-close:hover {
+    opacity: 1;
+  }
 `

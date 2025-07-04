@@ -261,7 +261,7 @@ requestDetailsRoutes.get('/request/:id', async c => {
                 ${
                   msg.hiddenLineCount === -1
                     ? ''
-                    : `<span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more${msg.hiddenLineCount > 0 ? ` (${msg.hiddenLineCount} lines)` : ''}</span>`
+                    : `<span class="show-more-btn" onclick="toggleMessage('${messageId}')">Show more${msg.hiddenLineCount && msg.hiddenLineCount > 0 ? ` (${msg.hiddenLineCount} lines)` : ''}</span>`
                 }
               </div>
               <div id="${contentId}" class="hidden">
@@ -727,8 +727,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
           return el ? JSON.parse(el.textContent) : null
         }
 
-        // Function to toggle message expansion
-        function toggleMessage(messageId) {
+        // Function to toggle message expansion (make it global for event delegation)
+        window.toggleMessage = function (messageId) {
           const idx = messageId.split('-')[1]
           const content = document.getElementById('content-' + idx)
           const truncated = document.getElementById('truncated-' + idx)
@@ -800,26 +800,82 @@ requestDetailsRoutes.get('/request/:id', async c => {
             }
           }
 
-          // Add click handlers to thumbnail images
-          document.querySelectorAll('img[data-thumbnail-expand="true"]').forEach(img => {
-            img.addEventListener('click', function (e) {
-              e.preventDefault()
-              e.stopPropagation()
+          // Function to show image in lightbox
+          function showImageLightbox(imgSrc) {
+            // Create lightbox overlay
+            const lightbox = document.createElement('div')
+            lightbox.className = 'image-lightbox'
 
-              // Find the parent message container
-              let messageContainer = this.closest('[id^="message-"]')
-              if (messageContainer) {
-                // Get the message ID
-                const messageId = messageContainer.id
-                console.log('Toggling message:', messageId)
-                toggleMessage(messageId)
-              } else {
-                console.error('Could not find parent message container for thumbnail')
+            // Create image element
+            const img = document.createElement('img')
+            img.src = imgSrc
+            img.alt = 'Enlarged image'
+
+            // Create close button
+            const closeBtn = document.createElement('button')
+            closeBtn.className = 'image-lightbox-close'
+            closeBtn.innerHTML = '×'
+            closeBtn.setAttribute('aria-label', 'Close image')
+
+            // Add elements to lightbox
+            lightbox.appendChild(img)
+            lightbox.appendChild(closeBtn)
+
+            // Add to body
+            document.body.appendChild(lightbox)
+
+            // Click handlers to close
+            const closeLightbox = () => {
+              lightbox.remove()
+            }
+
+            closeBtn.addEventListener('click', closeLightbox)
+            lightbox.addEventListener('click', function (e) {
+              if (e.target === lightbox) {
+                closeLightbox()
               }
             })
 
-            // Add tooltip on hover
-            img.title = 'Click to expand message'
+            // ESC key to close
+            const escHandler = e => {
+              if (e.key === 'Escape') {
+                closeLightbox()
+                document.removeEventListener('keydown', escHandler)
+              }
+            }
+            document.addEventListener('keydown', escHandler)
+          }
+
+          // Add click handler using event delegation for thumbnail images
+          document.addEventListener('click', function (e) {
+            const target = e.target
+
+            // Handle thumbnail images - show lightbox
+            if (
+              target.tagName === 'IMG' &&
+              target.getAttribute('data-thumbnail-expand') === 'true'
+            ) {
+              e.preventDefault()
+              e.stopPropagation()
+              showImageLightbox(target.src)
+            }
+
+            // Handle regular tool-result images - also show lightbox
+            else if (target.tagName === 'IMG' && target.classList.contains('tool-result-image')) {
+              e.preventDefault()
+              e.stopPropagation()
+              showImageLightbox(target.src)
+            }
+          })
+
+          // Add tooltips to existing thumbnail images
+          document.querySelectorAll('img[data-thumbnail-expand="true"]').forEach(img => {
+            img.title = 'Click to enlarge image'
+          })
+
+          // Add tooltips to regular tool-result images
+          document.querySelectorAll('img.tool-result-image').forEach(img => {
+            img.title = 'Click to enlarge image'
           })
 
           // Handle copy link buttons
