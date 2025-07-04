@@ -10,6 +10,7 @@ import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
 import { generateConversationId } from '@claude-nexus/shared'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
+import { enqueueAnalysis } from '../analysis'
 
 /**
  * Main proxy service that orchestrates the request flow
@@ -261,6 +262,10 @@ export class ProxyService {
       auth.accountId
     )
 
+    if (conversationData) {
+      await enqueueAnalysis(conversationData.conversationId)
+    }
+
     // Update test sample with response if enabled
     if (sampleId) {
       await testSampleCollector.updateSampleWithResponse(sampleId, claudeResponse, jsonResponse, {
@@ -488,6 +493,10 @@ export class ProxyService {
         fullResponse,
         auth.accountId
       )
+
+      if (conversationData) {
+        await enqueueAnalysis(conversationData.conversationId)
+      }
 
       // Send notifications after streaming completes
       await this.notificationService.notify(request, response, context, auth)
