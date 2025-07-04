@@ -137,6 +137,7 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 
 1. **Phase 1** (Completed): Database schema and basic API endpoints
 2. **Phase 2** (In Progress):
+   - API Design (Completed - Task 2)
    - Prompt engineering (Completed - Task 4)
    - Background worker implementation with Gemini integration (Pending)
 3. **Phase 3**: Dashboard UI for viewing analyses
@@ -148,6 +149,20 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 - Database schema implemented (Migration 011)
 - Conversation analyses table with proper indexing
 - Support for status tracking, token usage, and retry logic
+
+### Phase 2 - Task 2: API Design (Completed)
+
+- **Dashboard API Routes**: Implemented in `services/dashboard/src/routes/analysis-api.ts`
+- **Type Definitions**: Added to `packages/shared/src/types/ai-analysis.ts`
+- **Request Validation**: Using Zod schemas for type-safe validation
+- **Error Handling**: Consistent with existing dashboard patterns
+- **Authentication**: Integrated with global `dashboardAuth` middleware
+
+Key endpoints implemented:
+
+- `POST /api/analyses` - Create analysis request with 409 conflict handling
+- `GET /api/analyses/:conversationId/:branchId` - Get analysis status/result
+- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration
 
 ### Phase 2 - Task 4: Prompt Engineering (Completed)
 

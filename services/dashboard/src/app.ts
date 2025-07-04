@@ -10,6 +10,7 @@ import { conversationDetailRoutes } from './routes/conversation-detail.js'
 import { dashboardAuth } from './middleware/auth.js'
 import { getErrorMessage, hasStatusCode } from '@claude-nexus/shared'
 import { sparkProxyRoutes } from './routes/spark-proxy.js'
+import { analysisRoutes } from './routes/analysis-api.js'
 
 /**
  * Create and configure the Dashboard application
@@ -182,6 +183,9 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
   app.route('/dashboard', dashboardRoutes)
   app.route('/dashboard', conversationDetailRoutes)
   app.route('/dashboard/api', sparkProxyRoutes)
+
+  // Mount analysis API routes
+  app.route('/api', analysisRoutes)
 
   // Root redirect to dashboard
   app.get('/', c => {

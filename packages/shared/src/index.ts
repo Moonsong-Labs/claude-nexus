@@ -55,7 +55,17 @@ export {
 } from './constants/model-limits.js'
 
 // Export AI analysis types and configuration
-export { ConversationAnalysisSchema, type ConversationAnalysis } from './types/ai-analysis.js'
+export {
+  ConversationAnalysisSchema,
+  type ConversationAnalysis,
+  type AnalysisStatus,
+  CreateAnalysisRequestSchema,
+  type CreateAnalysisRequest,
+  type CreateAnalysisResponse,
+  type GetAnalysisResponse,
+  type RegenerateAnalysisResponse,
+  type AnalysisConflictResponse,
+} from './types/ai-analysis.js'
 export { ANALYSIS_PROMPT_CONFIG } from './config/ai-analysis.js'
 
 // Export prompt utilities

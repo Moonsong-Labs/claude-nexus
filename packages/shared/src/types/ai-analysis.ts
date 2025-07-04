@@ -40,3 +40,55 @@ export const ConversationAnalysisSchema = z.object({
 
 // Infer the TypeScript type from the Zod schema
 export type ConversationAnalysis = z.infer<typeof ConversationAnalysisSchema>
+
+// API Request/Response types for conversation analysis endpoints
+
+export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+// POST /api/analyses request body
+export const CreateAnalysisRequestSchema = z.object({
+  conversationId: z.string().uuid(),
+  branchId: z.string().default('main'),
+})
+
+export type CreateAnalysisRequest = z.infer<typeof CreateAnalysisRequestSchema>
+
+// POST /api/analyses response
+export interface CreateAnalysisResponse {
+  id: number
+  conversationId: string
+  branchId: string
+  status: AnalysisStatus
+  createdAt: string
+}
+
+// GET /api/analyses/:conversationId/:branchId response
+export interface GetAnalysisResponse {
+  id: number
+  conversationId: string
+  branchId: string
+  status: AnalysisStatus
+  analysis?: {
+    content: string // Markdown formatted analysis
+    data: ConversationAnalysis // Structured data
+    modelUsed: string
+    generatedAt: string
+    processingDurationMs: number
+  }
+  error?: string // Only present if status is 'failed'
+  createdAt: string
+  updatedAt: string
+}
+
+// POST /api/analyses/:conversationId/:branchId/regenerate response
+export interface RegenerateAnalysisResponse {
+  id: number
+  status: AnalysisStatus
+  message: string
+}
+
+// Error response for 409 Conflict when analysis already exists
+export interface AnalysisConflictResponse {
+  error: string
+  analysis: GetAnalysisResponse
+}

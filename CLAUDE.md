@@ -583,16 +583,17 @@ The proxy supports automated analysis of conversations using AI models (currentl
 - Automatic `updated_at` timestamp via trigger
 - Partial index on pending status for efficient queue processing
 
-**API Endpoints (Phase 1 - Schema Only):**
+**API Endpoints:**
 
-- `POST /api/analyses` - Create analysis request (pending implementation)
-- `GET /api/analyses/:conversationId/:branchId` - Get analysis (pending implementation)
-- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration (pending implementation)
+- `POST /api/analyses` - Create analysis request
+- `GET /api/analyses/:conversationId/:branchId` - Get analysis status/result
+- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration
 
 **Implementation Status:**
 
 - ✅ Database schema (Migration 011)
-- ⏳ API endpoints (Phase 2)
+- ✅ API endpoints (Phase 2 - Task 2)
+- ✅ Prompt engineering (Phase 2 - Task 4)
 - ⏳ Background worker (Phase 2)
 - ⏳ Dashboard UI (Phase 3)
 
