@@ -594,10 +594,31 @@ The proxy supports automated analysis of conversations using AI models (currentl
 - ✅ Database schema (Migration 011)
 - ✅ API endpoints (Phase 2 - Task 2)
 - ✅ Prompt engineering (Phase 2 - Task 4)
-- ⏳ Background worker (Phase 2)
+- ✅ Background worker (Phase 2 - Task 3)
 - ⏳ Dashboard UI (Phase 3)
 
 See [ADR-016](docs/04-Architecture/ADRs/adr-016-ai-powered-conversation-analysis.md) for architectural decisions.
+
+**Background Worker Configuration:**
+
+Enable the AI Analysis background worker by setting these environment variables:
+
+```bash
+# Enable the worker
+AI_WORKER_ENABLED=true
+
+# Worker configuration
+AI_WORKER_POLL_INTERVAL_MS=5000      # Poll every 5 seconds
+AI_WORKER_MAX_CONCURRENT_JOBS=3      # Process up to 3 jobs concurrently
+AI_WORKER_JOB_TIMEOUT_MINUTES=5      # Mark jobs as stuck after 5 minutes
+AI_WORKER_MAX_RETRIES=3              # Retry failed jobs up to 3 times
+
+# Gemini API configuration
+GEMINI_API_KEY=your-api-key-here
+GEMINI_MODEL_NAME=gemini-2.0-flash-exp
+```
+
+The worker runs in-process with the proxy service and uses PostgreSQL row-level locking to safely process jobs across multiple instances.
 
 ### Spark Tool Integration
 

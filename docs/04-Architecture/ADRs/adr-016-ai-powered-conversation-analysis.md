@@ -139,7 +139,7 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 2. **Phase 2** (In Progress):
    - API Design (Completed - Task 2)
    - Prompt engineering (Completed - Task 4)
-   - Background worker implementation with Gemini integration (Pending)
+   - Background worker implementation with Gemini integration (Completed - Task 3)
 3. **Phase 3**: Dashboard UI for viewing analyses
 4. **Phase 4**: Advanced features (custom prompts, comparison views)
 5. **Phase 5**: Consider extraction to dedicated microservice
@@ -177,6 +177,22 @@ Key files:
 - `packages/shared/src/types/ai-analysis.ts` - Analysis schema
 - `packages/shared/src/prompts/truncation.ts` - Smart truncation logic
 - `packages/shared/src/prompts/analysis/` - Versioned prompt templates
+
+### Phase 2 - Task 3: Background Worker (Completed)
+
+- **Worker Architecture**: In-process background worker with database polling
+- **Job Management**: PostgreSQL row-level locking with `FOR UPDATE SKIP LOCKED`
+- **Gemini Integration**: Direct API integration with security improvements
+- **Error Handling**: Exponential backoff with jitter for retries
+- **Graceful Shutdown**: Proper lifecycle management with timeout controls
+- **Configuration**: Environment-based configuration for all worker parameters
+
+Key files:
+
+- `services/proxy/src/workers/ai-analysis/AnalysisWorker.ts` - Main worker class
+- `services/proxy/src/workers/ai-analysis/db.ts` - Database operations
+- `services/proxy/src/workers/ai-analysis/GeminiService.ts` - Gemini API client
+- `services/proxy/src/workers/ai-analysis/index.ts` - Worker lifecycle management
 
 ## Links
 

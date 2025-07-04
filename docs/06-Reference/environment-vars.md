@@ -94,12 +94,24 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
 ## AI Analysis Configuration
 
-| Variable                        | Description                        | Default          |
-| ------------------------------- | ---------------------------------- | ---------------- |
-| `AI_ANALYSIS_PROMPT_VERSION`    | Version of analysis prompt to use  | `v1`             |
-| `AI_ANALYSIS_MAX_PROMPT_TOKENS` | Maximum tokens for analysis prompt | `855000`         |
-| `GEMINI_API_KEY`                | API key for Gemini AI (Phase 2)    | -                |
-| `GEMINI_MODEL`                  | Gemini model to use for analysis   | `gemini-2.5-pro` |
+### Background Worker
+
+| Variable                        | Description                             | Default |
+| ------------------------------- | --------------------------------------- | ------- |
+| `AI_WORKER_ENABLED`             | Enable AI Analysis background worker    | `false` |
+| `AI_WORKER_POLL_INTERVAL_MS`    | Polling interval for new jobs (ms)      | `5000`  |
+| `AI_WORKER_MAX_CONCURRENT_JOBS` | Max concurrent jobs per worker instance | `3`     |
+| `AI_WORKER_JOB_TIMEOUT_MINUTES` | Timeout for stuck jobs (minutes)        | `5`     |
+| `AI_WORKER_MAX_RETRIES`         | Maximum retry attempts for failed jobs  | `3`     |
+
+### Analysis Configuration
+
+| Variable                        | Description                        | Default                |
+| ------------------------------- | ---------------------------------- | ---------------------- |
+| `AI_ANALYSIS_PROMPT_VERSION`    | Version of analysis prompt to use  | `v1`                   |
+| `AI_ANALYSIS_MAX_PROMPT_TOKENS` | Maximum tokens for analysis prompt | `855000`               |
+| `GEMINI_API_KEY`                | API key for Gemini AI              | -                      |
+| `GEMINI_MODEL_NAME`             | Gemini model to use for analysis   | `gemini-2.0-flash-exp` |
 
 ## Development Configuration
 
@@ -174,6 +186,15 @@ DASHBOARD_PORT=3001
 
 # Integrations
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+# AI Analysis Worker
+AI_WORKER_ENABLED=false
+AI_WORKER_POLL_INTERVAL_MS=5000
+AI_WORKER_MAX_CONCURRENT_JOBS=3
+AI_WORKER_JOB_TIMEOUT_MINUTES=5
+AI_WORKER_MAX_RETRIES=3
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL_NAME=gemini-2.0-flash-exp
 
 # Directories
 CREDENTIALS_DIR=./credentials
