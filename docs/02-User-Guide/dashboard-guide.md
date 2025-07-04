@@ -98,6 +98,7 @@ Browse individual requests with:
 - Latency metrics
 - Error messages
 - Full JSON payloads
+- Image display for tool_result content (PNG, JPEG, GIF, WebP)
 
 Filter by:
 
@@ -190,6 +191,16 @@ Configure alerts for:
 - Token limit approaching
 - Slow response times
 - Failed authentications
+
+### Image Display in Tool Results
+
+The dashboard supports displaying images from tool_result content:
+
+- **Supported formats**: PNG, JPEG, GIF, WebP
+- **Maximum size**: 10MB per image
+- **Display constraints**: Images are automatically resized to fit within the conversation view
+- **Security**: Base64 data URIs are validated and sanitized
+- **Performance**: Images use lazy loading for better page performance
 
 ## Performance Monitoring
 
