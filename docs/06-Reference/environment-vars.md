@@ -59,11 +59,14 @@ DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
 
 ### Dashboard Service
 
-| Variable                | Description                | Default |
-| ----------------------- | -------------------------- | ------- |
-| `DASHBOARD_PORT`        | Port for dashboard service | `3001`  |
-| `DASHBOARD_TIMEZONE`    | Display timezone           | `UTC`   |
-| `DASHBOARD_DATE_FORMAT` | Date format                | `ISO`   |
+| Variable                | Description                | Default                 |
+| ----------------------- | -------------------------- | ----------------------- |
+| `DASHBOARD_PORT`        | Port for dashboard service | `3001`                  |
+| `DASHBOARD_TIMEZONE`    | Display timezone           | `UTC`                   |
+| `DASHBOARD_DATE_FORMAT` | Date format                | `ISO`                   |
+| `PROXY_BASE_URL`        | Base URL for proxy API     | `http://localhost:3000` |
+| `DASHBOARD_DOMAIN`      | Domain for dashboard auth  | `localhost`             |
+| `PROXY_API_KEY`         | Fallback API key for proxy | -                       |
 
 ## Integration Configuration
 

@@ -8,7 +8,7 @@ import {
   renderGraphSVG,
   getBranchColor,
 } from '../utils/conversation-graph.js'
-import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
+import { formatNumber, formatDuration } from '../utils/formatters.js'
 import {
   calculateConversationMetrics,
   formatDuration as formatMetricDuration,
@@ -602,7 +602,37 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               </svg>
             </button>
           </span>
+          <button
+            id="analyze-conversation-btn"
+            onclick="analyzeConversation('${conversationId}')"
+            style="
+              margin-left: auto;
+              padding: 0.5rem 1rem;
+              background: #3b82f6;
+              color: white;
+              border: none;
+              border-radius: 0.375rem;
+              font-size: 0.875rem;
+              font-weight: 500;
+              cursor: pointer;
+              transition: background-color 0.2s;
+            "
+            onmouseover="this.style.backgroundColor='#2563eb'"
+            onmouseout="this.style.backgroundColor='#3b82f6'"
+          >
+            🤖 Analyze Conversation
+          </button>
         </h3>
+
+        <!-- Analysis Results Container -->
+        <div
+          id="analysis-results"
+          style="display: none; margin-bottom: 2rem; padding: 1rem; background: #f0f9ff; border: 1px solid #3b82f6; border-radius: 0.5rem;"
+        >
+          <h4 style="margin: 0 0 1rem 0; color: #1e40af;">AI Analysis Results</h4>
+          <div id="analysis-content">Loading...</div>
+        </div>
+
         <div class="conversation-stats-grid">
           <div class="conversation-stat-card">
             <span class="conversation-stat-label">Total Messages:</span>
@@ -982,6 +1012,239 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             })
           }
         })
+
+        // Conversation analysis function
+        async function analyzeConversation(conversationId) {
+          const btn = document.getElementById('analyze-conversation-btn')
+          const resultsContainer = document.getElementById('analysis-results')
+          const contentDiv = document.getElementById('analysis-content')
+
+          // Show loading state
+          btn.disabled = true
+          btn.textContent = '⏳ Analyzing...'
+          resultsContainer.style.display = 'block'
+          contentDiv.innerHTML = '<p>Analyzing conversation messages... This may take a moment.</p>'
+
+          try {
+            // Get auth cookie for API request
+            const dashboardAuth = document.cookie
+              .split('; ')
+              .find(row => row.startsWith('dashboard_auth='))
+              ?.split('=')[1]
+
+            const response = await fetch('/api/conversations/' + conversationId + '/analysis', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Dashboard-Key': dashboardAuth || '',
+              },
+              body: JSON.stringify({
+                includeBranches: true,
+              }),
+            })
+
+            if (!response.ok) {
+              const error = await response.json()
+              throw new Error(error.error?.message || 'Analysis failed')
+            }
+
+            const analysis = await response.json()
+
+            // Display the analysis results
+            contentDiv.innerHTML = renderAnalysisResults(analysis)
+
+            // Reset button
+            btn.disabled = false
+            btn.textContent = '🔄 Re-analyze'
+          } catch (error) {
+            console.error('Analysis failed:', error)
+            contentDiv.innerHTML =
+              '<div style="color: #dc2626;">' +
+              '<p><strong>Analysis failed:</strong> ' +
+              escapeHtml(error.message) +
+              '</p>' +
+              '<p style="font-size: 0.875rem; color: #6b7280;">Please try again or check the console for details.</p>' +
+              '</div>'
+            btn.disabled = false
+            btn.textContent = '🤖 Analyze Conversation'
+          }
+        }
+
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+          const div = document.createElement('div')
+          div.textContent = text
+          return div.innerHTML
+        }
+
+        // Render analysis results
+        function renderAnalysisResults(analysis) {
+          let html = '<div style="display: grid; gap: 1rem;">'
+
+          // Summary
+          html += '<div>'
+          html += '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">Summary</h5>'
+          html += '<p style="margin: 0; color: #334155;">' + escapeHtml(analysis.summary) + '</p>'
+          html += '</div>'
+
+          // Key Topics and Outcomes
+          html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">'
+
+          // Key Topics
+          html += '<div>'
+          html +=
+            '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">Key Topics</h5>'
+          html += '<ul style="margin: 0; padding-left: 1.5rem; color: #334155;">'
+          analysis.keyTopics.forEach(function (topic) {
+            html += '<li>' + escapeHtml(topic) + '</li>'
+          })
+          html += '</ul></div>'
+
+          // Outcomes
+          html += '<div>'
+          html +=
+            '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">Outcomes</h5>'
+          html += '<ul style="margin: 0; padding-left: 1.5rem; color: #334155;">'
+          analysis.outcomes.forEach(function (outcome) {
+            html += '<li>' + escapeHtml(outcome) + '</li>'
+          })
+          html += '</ul></div>'
+
+          html += '</div>'
+
+          // User Intent and Sentiment
+          html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">'
+
+          // User Intent
+          html += '<div>'
+          html +=
+            '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">User Intent</h5>'
+          html +=
+            '<p style="margin: 0; color: #334155;">' + escapeHtml(analysis.userIntent) + '</p>'
+          html += '</div>'
+
+          // Sentiment
+          html += '<div>'
+          html +=
+            '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">Sentiment</h5>'
+          const sentimentStyle =
+            analysis.sentiment === 'positive'
+              ? 'background: #dcfce7; color: #166534;'
+              : analysis.sentiment === 'negative'
+                ? 'background: #fee2e2; color: #991b1b;'
+                : analysis.sentiment === 'mixed'
+                  ? 'background: #fef3c7; color: #92400e;'
+                  : 'background: #f3f4f6; color: #374151;'
+          html +=
+            '<span style="padding: 0.25rem 0.75rem; border-radius: 0.25rem; font-size: 0.875rem; font-weight: 500; ' +
+            sentimentStyle +
+            '">'
+          html += analysis.sentiment.charAt(0).toUpperCase() + analysis.sentiment.slice(1)
+          html += '</span></div>'
+
+          html += '</div>'
+
+          // Action Items
+          if (analysis.actionItems && analysis.actionItems.length > 0) {
+            html += '<div>'
+            html +=
+              '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">Action Items</h5>'
+            html += '<ul style="margin: 0; padding-left: 1.5rem; color: #334155;">'
+            analysis.actionItems.forEach(function (item) {
+              html += '<li>' + escapeHtml(item) + '</li>'
+            })
+            html += '</ul></div>'
+          }
+
+          // Technical Details
+          if (
+            analysis.technicalDetails &&
+            (analysis.technicalDetails.language ||
+              (analysis.technicalDetails.frameworks &&
+                analysis.technicalDetails.frameworks.length) ||
+              (analysis.technicalDetails.errors && analysis.technicalDetails.errors.length))
+          ) {
+            html += '<div>'
+            html +=
+              '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">Technical Details</h5>'
+            html += '<div style="display: grid; gap: 0.5rem; color: #334155;">'
+
+            if (analysis.technicalDetails.language) {
+              html +=
+                '<p style="margin: 0;"><strong>Language:</strong> ' +
+                escapeHtml(analysis.technicalDetails.language) +
+                '</p>'
+            }
+
+            if (
+              analysis.technicalDetails.frameworks &&
+              analysis.technicalDetails.frameworks.length
+            ) {
+              html +=
+                '<p style="margin: 0;"><strong>Frameworks:</strong> ' +
+                analysis.technicalDetails.frameworks.map(escapeHtml).join(', ') +
+                '</p>'
+            }
+
+            if (analysis.technicalDetails.errors && analysis.technicalDetails.errors.length) {
+              html +=
+                '<p style="margin: 0;"><strong>Errors:</strong> ' +
+                analysis.technicalDetails.errors.map(escapeHtml).join(', ') +
+                '</p>'
+            }
+
+            html += '</div></div>'
+          }
+
+          // Conversation Quality
+          if (analysis.conversationQuality) {
+            html += '<div>'
+            html +=
+              '<h5 style="margin: 0 0 0.5rem 0; color: #1e40af; font-weight: 600;">Conversation Quality</h5>'
+            html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">'
+
+            html += '<div style="text-align: center;">'
+            html += '<p style="margin: 0; color: #6b7280; font-size: 0.875rem;">Clarity</p>'
+            html +=
+              '<p style="margin: 0; font-size: 1.5rem; font-weight: 600; color: #1e40af;">' +
+              analysis.conversationQuality.clarity +
+              '/10</p>'
+            html += '</div>'
+
+            html += '<div style="text-align: center;">'
+            html += '<p style="margin: 0; color: #6b7280; font-size: 0.875rem;">Completeness</p>'
+            html +=
+              '<p style="margin: 0; font-size: 1.5rem; font-weight: 600; color: #1e40af;">' +
+              analysis.conversationQuality.completeness +
+              '/10</p>'
+            html += '</div>'
+
+            html += '<div style="text-align: center;">'
+            html += '<p style="margin: 0; color: #6b7280; font-size: 0.875rem;">Resolution</p>'
+            const resolutionColor = analysis.conversationQuality.resolution ? '#059669' : '#dc2626'
+            html +=
+              '<p style="margin: 0; font-size: 1.5rem; font-weight: 600; color: ' +
+              resolutionColor +
+              ';">'
+            html += analysis.conversationQuality.resolution ? '✓' : '✗'
+            html += '</p></div>'
+
+            html += '</div></div>'
+          }
+
+          // Metadata
+          html +=
+            '<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #cbd5e1;">'
+          html += '<p style="margin: 0; font-size: 0.75rem; color: #6b7280;">'
+          html += 'Analyzed ' + analysis.metadata.messageCount + ' messages'
+          html += analysis.metadata.truncated ? ' (truncated)' : ''
+          html += ' using ' + analysis.metadata.modelUsed
+          html += '</p></div>'
+
+          html += '</div>'
+
+          return html
+        }
       </script>
     `
 
@@ -1060,6 +1323,7 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
 /**
  * Helper to extract the last message content from a request
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getLastMessageContent(req: ConversationRequest): string {
   try {
     // Check if we have the optimized last_message field
@@ -1143,6 +1407,7 @@ function getLastMessageContent(req: ConversationRequest): string {
 /**
  * Helper to extract the response summary from a request
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getResponseSummary(req: ConversationRequest): string {
   try {
     if (!req.response_body) {
@@ -1229,7 +1494,7 @@ function renderConversationMessages(
                   branch !== 'main'
                     ? `
                   <span style="margin-left: 0.5rem; font-size: 0.7rem; background: ${branchColor}20; color: ${branchColor}; padding: 0.125rem 0.375rem; border-radius: 0.25rem; border: 1px solid ${branchColor};">
-                    ${escapeHtml(branch)}
+                    \${escapeHtml(branch)}
                   </span>
                 `
                     : ''
@@ -1256,10 +1521,10 @@ function renderConversationMessages(
               <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div style="flex: 1; margin-right: 1rem;">
                   <div class="text-sm text-gray-700" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 0.25rem;">
-                    ${escapeHtml(getResponseSummary(req))}
+                    \${escapeHtml(getResponseSummary(req))}
                   </div>
                   <div class="text-sm text-gray-600" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    👤 ${escapeHtml(getLastMessageContent(req).replace(/^(👤|🤖|⚙️|🔧|✅)\s*/, ''))}
+                    👤 \${escapeHtml(getLastMessageContent(req).replace(/^(👤|🤖|⚙️|🔧|✅)\\s*/, ''))}
                   </div>
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: center;">
@@ -1288,10 +1553,10 @@ function renderConversationMessages(
                           (task: any) => `
                           <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #f9fafb; border-radius: 0.25rem;">
                             <div style="font-size: 0.875rem; color: #4b5563;">
-                              <strong>Task:</strong> ${escapeHtml(task.name || 'Unnamed task')}
+                              <strong>Task:</strong> \${escapeHtml(task.name || 'Unnamed task')}
                             </div>
-                            ${task.input?.prompt ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">${escapeHtml(task.input.prompt.substring(0, 200))}${task.input.prompt.length > 200 ? '...' : ''}</div>` : ''}
-                            ${task.input?.description ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Description: ${escapeHtml(task.input.description)}</div>` : ''}
+                            ${task.input?.prompt ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">\${escapeHtml(task.input.prompt.substring(0, 200))}${task.input.prompt.length > 200 ? '...' : ''}</div>` : ''}
+                            ${task.input?.description ? `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Description: \${escapeHtml(task.input.description)}</div>` : ''}
                             ${
                               task.linked_conversation_id
                                 ? `

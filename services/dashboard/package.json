@@ -28,6 +28,7 @@
     "marked": "^15.0.12",
     "node-cache": "^5.1.2",
     "sanitize-html": "^2.17.0",
+    "tiktoken": "^1.0.21",
     "zod": "^3.24.1"
   },
   "devDependencies": {
