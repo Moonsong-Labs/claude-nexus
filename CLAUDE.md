@@ -47,7 +47,7 @@ claude-nexus-proxy/
 - Token tracking and telemetry
 - Request/response storage
 - Slack notifications
-- AI-powered conversation analysis (pending implementation)
+- AI-powered conversation analysis job enqueueing
 
 **Dashboard Service** (`services/dashboard/`)
 
@@ -55,6 +55,14 @@ claude-nexus-proxy/
 - Analytics and usage charts
 - Request history browser
 - SSE for live updates
+- AI analysis results display (pending implementation)
+
+**Analysis Worker Service** (`services/analysis-worker/`)
+
+- Background processing of conversation analysis jobs
+- Gemini API integration for AI-powered insights
+- Job queue with retry logic and watchdog
+- Token usage tracking for cost management
 
 ## Development
 
@@ -566,35 +574,51 @@ When generating message hashes for conversation tracking, the system filters out
 
 ### AI-Powered Conversation Analysis
 
-The proxy supports automated analysis of conversations using AI models (currently Gemini 2.5 Pro):
+The system supports automated analysis of conversations using AI models (Gemini):
+
+**Architecture:**
+
+- **Two-table design**: Separate job queue (`analysis_jobs`) and results storage (`conversation_analyses`)
+- **Background worker**: Dedicated service for processing analysis jobs
+- **PostgreSQL SKIP LOCKED**: Ensures distributed job processing without conflicts
+- **Automatic job creation**: Jobs enqueued when conversations are stored
 
 **Features:**
 
-- Background processing of conversations for insights
-- Status tracking (pending, processing, completed, failed)
+- Background processing with dedicated worker service
+- Job queue with status tracking (pending, processing, completed, failed)
+- Retry logic with exponential backoff (max 3 attempts)
+- Watchdog process for stuck job recovery (5-minute timeout)
+- Rate limiting for API calls (60 requests/minute)
+- Memory protection (max 100 messages per analysis)
 - Token usage tracking for cost management
-- Retry logic with exponential backoff
-- Unique analyses per conversation and branch
+- Graceful shutdown with active job tracking
 
 **Database Schema:**
 
-- `conversation_analyses` table stores analysis results
-- ENUM type for status field ensures data integrity
-- Automatic `updated_at` timestamp via trigger
-- Partial index on pending status for efficient queue processing
+- `analysis_jobs` table - Transient job queue (Migration 013)
+- `conversation_analyses` table - Persistent results storage (Migration 014)
+- Unique partial index prevents duplicate active jobs
+- Automatic timestamp management via triggers
 
-**API Endpoints (Phase 1 - Schema Only):**
+**Configuration:**
 
-- `POST /api/analyses` - Create analysis request (pending implementation)
-- `GET /api/analyses/:conversationId/:branchId` - Get analysis (pending implementation)
-- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration (pending implementation)
+```env
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=gemini-1.5-flash-latest
+ANALYSIS_WORKER_POLLING_INTERVAL_MS=5000
+ANALYSIS_WORKER_WATCHDOG_INTERVAL_MS=60000
+ENABLE_ANALYSIS_JOBS=true
+```
 
 **Implementation Status:**
 
-- ✅ Database schema (Migration 011)
-- ⏳ API endpoints (Phase 2)
-- ⏳ Background worker (Phase 2)
-- ⏳ Dashboard UI (Phase 3)
+- ✅ Database schema (Migrations 011, 013, 014)
+- ✅ Analysis worker service
+- ✅ Job enqueueing in proxy
+- ✅ Docker configuration
+- ⏳ API endpoints for results retrieval
+- ⏳ Dashboard UI for analysis display
 
 See [ADR-016](docs/04-Architecture/ADRs/adr-016-ai-powered-conversation-analysis.md) for architectural decisions.
 

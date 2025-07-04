@@ -63,7 +63,7 @@ Stores individual chunks from streaming responses.
 
 ### conversation_analyses
 
-Stores AI-generated analyses of conversations.
+Stores AI-generated analyses of conversations (Migration 011).
 
 | Column                 | Type                         | Description                                             |
 | ---------------------- | ---------------------------- | ------------------------------------------------------- |
@@ -83,6 +83,41 @@ Stores AI-generated analyses of conversations.
 | completion_tokens      | INTEGER                      | Number of tokens in the completion                      |
 | created_at             | TIMESTAMPTZ                  | Record creation timestamp                               |
 | updated_at             | TIMESTAMPTZ                  | Last update timestamp (auto-updated)                    |
+
+### analysis_jobs
+
+Manages background job queue for conversation analysis (Migration 013).
+
+| Column                | Type                | Description                                         |
+| --------------------- | ------------------- | --------------------------------------------------- |
+| id                    | UUID                | Primary key                                         |
+| conversation_id       | UUID                | Conversation to analyze                             |
+| status                | analysis_job_status | Job status (pending/processing/completed/failed)    |
+| attempts              | SMALLINT            | Number of processing attempts (max 3)               |
+| last_error            | TEXT                | Error message from most recent failed attempt       |
+| created_at            | TIMESTAMPTZ         | Job creation timestamp                              |
+| updated_at            | TIMESTAMPTZ         | Last update timestamp (auto-updated)                |
+| processing_started_at | TIMESTAMPTZ         | When job started processing (for timeout detection) |
+| completed_at          | TIMESTAMPTZ         | When job completed successfully                     |
+| duration_ms           | BIGINT              | Total processing time in milliseconds               |
+| prompt_tokens         | INTEGER             | Tokens used in Gemini prompt                        |
+| completion_tokens     | INTEGER             | Tokens in Gemini response                           |
+
+### conversation_analyses (separate implementation)
+
+Stores analysis results separate from job queue (Migration 014).
+
+| Column            | Type        | Description                             |
+| ----------------- | ----------- | --------------------------------------- |
+| id                | UUID        | Primary key                             |
+| conversation_id   | UUID        | Conversation that was analyzed          |
+| analysis_result   | JSONB       | Gemini-generated analysis data          |
+| model_used        | VARCHAR     | AI model used for analysis              |
+| prompt_tokens     | INTEGER     | Number of tokens in the analysis prompt |
+| completion_tokens | INTEGER     | Number of tokens in the completion      |
+| total_tokens      | INTEGER     | Total tokens used (prompt + completion) |
+| created_at        | TIMESTAMPTZ | Record creation timestamp               |
+| updated_at        | TIMESTAMPTZ | Last update timestamp                   |
 
 ## Indexes
 
@@ -118,8 +153,19 @@ Stores AI-generated analyses of conversations.
 
 ### Conversation Analysis Indexes
 
+**Migration 011 (single table approach):**
+
 - `idx_conversation_analyses_status` - Partial index on pending status for queue processing
 - `idx_conversation_analyses_conversation` - Composite index on (conversation_id, branch_id)
+
+**Migration 013 & 014 (two-table approach):**
+
+- `idx_analysis_jobs_pending_status` - Index for claiming pending jobs efficiently
+- `idx_analysis_jobs_stuck` - Index for watchdog to find stuck jobs
+- `idx_analysis_jobs_conversation_id` - Index for querying by conversation
+- `idx_analysis_jobs_unique_active_conversation` - Unique partial index to prevent duplicates
+- `idx_conversation_analyses_conversation_id` - Primary lookup index
+- `idx_conversation_analyses_updated_at` - Index for querying recent analyses
 
 ## Key Features
 
@@ -309,7 +355,9 @@ bun run scripts/db/migrations/003-add-subtask-tracking.ts
 9. **008-subtask-updates-and-task-indexes.ts** - Optimizes Task tool queries
 10. **009-add-response-body-gin-index.ts** - Creates GIN index for JSONB queries
 11. **010-add-temporal-awareness-indexes.ts** - Adds temporal query indexes
-12. **011-add-conversation-analyses.ts** - Creates AI analysis infrastructure
+12. **011-add-conversation-analyses.ts** - Creates AI analysis infrastructure (single table)
+13. **013-add-analysis-jobs.ts** - Creates job queue for background processing
+14. **014-add-conversation-analyses-separate.ts** - Creates separate results storage table
 
 See [ADR-012: Database Schema Evolution](../04-Architecture/ADRs/adr-012-database-schema-evolution.md) for details on the migration strategy.
 

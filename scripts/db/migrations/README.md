@@ -142,7 +142,7 @@ Adds indexes for temporal queries:
 
 ### 011-add-conversation-analyses.ts
 
-Creates infrastructure for AI-powered conversation analysis:
+Creates infrastructure for AI-powered conversation analysis (single table approach):
 
 - `conversation_analyses` table for storing AI-generated analyses
 - ENUM type `conversation_analysis_status` for processing states
@@ -150,6 +150,27 @@ Creates infrastructure for AI-powered conversation analysis:
 - Unique constraint on (conversation_id, branch_id)
 - Optimized indexes for pending analyses and conversation lookups
 - Supports multiple AI models and comprehensive token tracking
+
+### 013-add-analysis-jobs.ts
+
+Creates job queue table for background processing:
+
+- `analysis_jobs` table for transient job queue
+- ENUM type `analysis_job_status` for job states
+- Automatic `updated_at` trigger
+- Unique partial index prevents duplicate active jobs
+- Indexes optimized for SKIP LOCKED pattern
+- Supports retry tracking and timeout detection
+
+### 014-add-conversation-analyses-separate.ts
+
+Creates separate results storage table:
+
+- `conversation_analyses` table for persistent analysis results
+- Separated from job queue for better data management
+- Supports upsert pattern for results
+- Tracks token usage for cost management
+- Automatic timestamp management
 
 ## Future Migrations
 

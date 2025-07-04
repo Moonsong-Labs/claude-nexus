@@ -5,7 +5,9 @@
     "outDir": "./dist",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "composite": true,
-    "noEmit": false
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "emitDeclarationOnly": true
   },
   "include": ["src/**/*"],
   "references": [{ "path": "../../packages/shared" }]
