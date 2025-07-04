@@ -798,15 +798,19 @@ requestDetailsRoutes.get('/request/:id', async c => {
 
           // Add click handlers to thumbnail images
           document.querySelectorAll('img[data-thumbnail-expand="true"]').forEach(img => {
-            img.addEventListener('click', function () {
+            img.addEventListener('click', function (e) {
+              e.preventDefault()
+              e.stopPropagation()
+
               // Find the parent message container
-              let messageContainer = this.closest('.message-container')
+              let messageContainer = this.closest('[id^="message-"]')
               if (messageContainer) {
-                // Find the message index from the container ID
+                // Get the message ID
                 const messageId = messageContainer.id
-                if (messageId && messageId.startsWith('message-')) {
-                  toggleMessage(messageId)
-                }
+                console.log('Toggling message:', messageId)
+                toggleMessage(messageId)
+              } else {
+                console.error('Could not find parent message container for thumbnail')
               }
             })
 
