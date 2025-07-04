@@ -405,13 +405,14 @@ async function parseMessage(
       const truncatedImageMatches = truncatedContent.match(/<img[^>]+\/>/g)
 
       if (fullImageMatches && !truncatedImageMatches) {
-        // Add the first image as a thumbnail
+        // Add the first image as a thumbnail with data attribute for enhancement
         const thumbnailImg = fullImageMatches[0]
           .replace(
             'class="tool-result-image"',
             'class="tool-result-image tool-result-image-thumbnail"'
           )
           .replace('loading="lazy"', 'loading="eager"')
+          .replace('<img', '<img data-thumbnail-expand="true"')
         truncatedContent = truncatedContent + '\n\n' + thumbnailImg
       }
     }

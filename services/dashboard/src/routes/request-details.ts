@@ -796,6 +796,24 @@ requestDetailsRoutes.get('/request/:id', async c => {
             }
           }
 
+          // Add click handlers to thumbnail images
+          document.querySelectorAll('img[data-thumbnail-expand="true"]').forEach(img => {
+            img.addEventListener('click', function () {
+              // Find the parent message container
+              let messageContainer = this.closest('.message-container')
+              if (messageContainer) {
+                // Find the message index from the container ID
+                const messageId = messageContainer.id
+                if (messageId && messageId.startsWith('message-')) {
+                  toggleMessage(messageId)
+                }
+              }
+            })
+
+            // Add tooltip on hover
+            img.title = 'Click to expand message'
+          })
+
           // Handle copy link buttons
           document.querySelectorAll('.copy-message-link').forEach(button => {
             button.addEventListener('click', function (e) {
