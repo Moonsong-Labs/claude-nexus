@@ -260,20 +260,53 @@ async function parseMessage(
             // Tool results might contain HTML/code, wrap in code block for safety
             resultContent += '```\n' + cleanContent + '\n```'
           } else if (Array.isArray(block.content)) {
-            const resultText = block.content
-              .filter((c: any) => c.type === 'text')
-              .map((c: any) => c.text)
-              .join('\n\n')
-            // Wrap in code block if it looks like it might contain HTML or code
-            if (
-              resultText.includes('<') ||
-              resultText.includes('>') ||
-              resultText.includes('```')
-            ) {
-              resultContent += '```\n' + resultText + '\n```'
-            } else {
-              resultContent += resultText
+            // Process each content item in the tool result
+            const resultParts: string[] = []
+
+            for (const contentItem of block.content) {
+              if (contentItem.type === 'text') {
+                const text = contentItem.text
+                // Wrap in code block if it looks like it might contain HTML or code
+                if (text.includes('<') || text.includes('>') || text.includes('```')) {
+                  resultParts.push('```\n' + text + '\n```')
+                } else {
+                  resultParts.push(text)
+                }
+              } else if (contentItem.type === 'image' && contentItem.source) {
+                // Handle image content
+                const { source } = contentItem
+                if (source.type === 'base64' && source.data && source.media_type) {
+                  // Validate media_type to prevent XSS
+                  const validImageTypes = [
+                    'image/png',
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/gif',
+                    'image/webp',
+                  ]
+                  if (!validImageTypes.includes(source.media_type)) {
+                    resultParts.push('<!-- Unsupported image type -->')
+                  } else {
+                    // Check data size to prevent performance issues (10MB limit)
+                    const sizeInBytes = source.data.length * 0.75 // Approximate base64 to bytes
+                    if (sizeInBytes > 10 * 1024 * 1024) {
+                      resultParts.push('<!-- Image too large (max 10MB) -->')
+                    } else {
+                      // Create a data URI for the image
+                      const dataUri = `data:${source.media_type};base64,${source.data}`
+                      // Add image HTML with proper class for styling
+                      resultParts.push(
+                        `<img src="${dataUri}" alt="Tool result image" class="tool-result-image" loading="lazy" />`
+                      )
+                    }
+                  }
+                } else {
+                  resultParts.push('<!-- Unsupported image format -->')
+                }
+              }
             }
+
+            resultContent += resultParts.join('\n\n')
           }
           contentParts.push(resultContent)
           break
@@ -297,11 +330,16 @@ async function parseMessage(
       'h6',
       'pre',
       'code',
+      'img',
     ]),
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
       code: ['class'],
       pre: ['class'],
+      img: ['src', 'alt', 'class', 'loading'],
+    },
+    allowedSchemesByTag: {
+      img: ['data', 'http', 'https'],
     },
     // Don't escape entities in code blocks
     textFilter: function (text, tagName) {
@@ -309,6 +347,26 @@ async function parseMessage(
         return text
       }
       return text
+    },
+    transformTags: {
+      img: (tagName, attribs) => {
+        // Extra validation for data URIs - only allow image types
+        const src = attribs.src || ''
+        if (src.startsWith('data:')) {
+          if (!src.startsWith('data:image/')) {
+            // Remove non-image data URIs for security
+            return {
+              tagName: 'span',
+              attribs: {},
+              text: '[Invalid image data]',
+            }
+          }
+        }
+        return {
+          tagName,
+          attribs,
+        }
+      },
     },
   })
 
@@ -320,7 +378,45 @@ async function parseMessage(
   if (isLong) {
     // Calculate number of hidden lines
     const fullLines = content.split('\n')
-    const truncatedContent = content.substring(0, MESSAGE_TRUNCATE_LENGTH) + '...'
+
+    // Check if content has images that would be broken by truncation
+    const hasImage = content.includes('<img src="data:image/')
+    let truncatedContent = content.substring(0, MESSAGE_TRUNCATE_LENGTH)
+
+    if (hasImage) {
+      // Check if truncation would break an image tag
+      const truncatedHasCompleteImage =
+        (truncatedContent.match(/<img[^>]+\/>/g) || []).length ===
+        (truncatedContent.match(/<img/g) || []).length
+
+      if (!truncatedHasCompleteImage) {
+        // Truncation breaks an image, so truncate before the broken image
+        const lastCompleteImgEnd = truncatedContent.lastIndexOf('/>')
+        const lastImgStart = truncatedContent.lastIndexOf('<img')
+
+        if (lastImgStart > lastCompleteImgEnd) {
+          // We're in the middle of an image tag
+          truncatedContent = content.substring(0, lastImgStart).trim()
+        }
+      }
+
+      // If we have images in the full content but none in truncated, add a thumbnail
+      const fullImageMatches = content.match(/<img[^>]+\/>/g)
+      const truncatedImageMatches = truncatedContent.match(/<img[^>]+\/>/g)
+
+      if (fullImageMatches && !truncatedImageMatches) {
+        // Add the first image as a thumbnail
+        const thumbnailImg = fullImageMatches[0]
+          .replace(
+            'class="tool-result-image"',
+            'class="tool-result-image tool-result-image-thumbnail"'
+          )
+          .replace('loading="lazy"', 'loading="eager"')
+        truncatedContent = truncatedContent + '\n\n' + thumbnailImg
+      }
+    }
+
+    truncatedContent += '...'
     const truncatedLines = truncatedContent.split('\n')
     hiddenLineCount = Math.max(0, fullLines.length - truncatedLines.length + 1) // +1 because last line might be partial
 
@@ -335,11 +431,16 @@ async function parseMessage(
         'h6',
         'pre',
         'code',
+        'img',
       ]),
       allowedAttributes: {
         ...sanitizeHtml.defaults.allowedAttributes,
         code: ['class'],
         pre: ['class'],
+        img: ['src', 'alt', 'class', 'loading'],
+      },
+      allowedSchemesByTag: {
+        img: ['data', 'http', 'https'],
       },
       // Don't escape entities in code blocks
       textFilter: function (text, tagName) {
@@ -347,6 +448,26 @@ async function parseMessage(
           return text
         }
         return text
+      },
+      transformTags: {
+        img: (tagName, attribs) => {
+          // Extra validation for data URIs - only allow image types
+          const src = attribs.src || ''
+          if (src.startsWith('data:')) {
+            if (!src.startsWith('data:image/')) {
+              // Remove non-image data URIs for security
+              return {
+                tagName: 'span',
+                attribs: {},
+                text: '[Invalid image data]',
+              }
+            }
+          }
+          return {
+            tagName,
+            attribs,
+          }
+        },
       },
     })
   }
