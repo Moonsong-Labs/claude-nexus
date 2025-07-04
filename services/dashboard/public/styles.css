@@ -500,13 +500,14 @@ html {
 
 /* Thumbnail version for truncated messages */
 .tool-result-image-thumbnail {
-  max-width: 120px !important;
-  max-height: 90px !important;
+  width: 120px !important;
+  height: 90px !important;
   cursor: pointer;
   opacity: 0.9;
   transition: opacity 0.2s ease;
   display: inline-block;
   margin-right: 0.5rem;
+  object-fit: cover;
 }
 
 .tool-result-image-thumbnail:hover {
