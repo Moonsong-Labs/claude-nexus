@@ -106,19 +106,33 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
 ### Analysis Configuration
 
-| Variable                       | Description                                         | Default                |
-| ------------------------------ | --------------------------------------------------- | ---------------------- |
-| `AI_ANALYSIS_PROMPT_VERSION`   | Version of analysis prompt to use                   | `v1`                   |
-| `AI_MAX_CONTEXT_TOKENS`        | Maximum context window size for AI model            | `1000000`              |
-| `AI_MAX_PROMPT_TOKENS`         | Maximum tokens for analysis prompt (overrides calc) | `855000` (calculated)  |
-| `AI_MAX_PROMPT_TOKENS_BASE`    | Base tokens before safety margin                    | `900000`               |
-| `AI_TOKENIZER_SAFETY_MARGIN`   | Safety margin for tokenizer discrepancies           | `0.95`                 |
-| `AI_HEAD_MESSAGES`             | Messages to keep from conversation start            | `5`                    |
-| `AI_TAIL_MESSAGES`             | Messages to keep from conversation end              | `20`                   |
-| `AI_TRUNCATION_STRATEGY`       | JSON object for truncation config                   | See below              |
-| `AI_ESTIMATED_CHARS_PER_TOKEN` | Estimated characters per token ratio                | `12`                   |
-| `GEMINI_API_KEY`               | API key for Gemini AI                               | -                      |
-| `GEMINI_MODEL_NAME`            | Gemini model to use for analysis                    | `gemini-2.0-flash-exp` |
+| Variable                       | Description                                         | Default                                                   |
+| ------------------------------ | --------------------------------------------------- | --------------------------------------------------------- |
+| `AI_ANALYSIS_PROMPT_VERSION`   | Version of analysis prompt to use                   | `v1`                                                      |
+| `AI_MAX_CONTEXT_TOKENS`        | Maximum context window size for AI model            | `1000000`                                                 |
+| `AI_MAX_PROMPT_TOKENS`         | Maximum tokens for analysis prompt (overrides calc) | `855000` (calculated)                                     |
+| `AI_MAX_PROMPT_TOKENS_BASE`    | Base tokens before safety margin                    | `900000`                                                  |
+| `AI_TOKENIZER_SAFETY_MARGIN`   | Safety margin for tokenizer discrepancies           | `0.95`                                                    |
+| `AI_HEAD_MESSAGES`             | Messages to keep from conversation start            | `5`                                                       |
+| `AI_TAIL_MESSAGES`             | Messages to keep from conversation end              | `20`                                                      |
+| `AI_TRUNCATION_STRATEGY`       | JSON object for truncation config                   | See below                                                 |
+| `AI_ESTIMATED_CHARS_PER_TOKEN` | Estimated characters per token ratio                | `12`                                                      |
+| `GEMINI_API_KEY`               | API key for Gemini AI                               | -                                                         |
+| `GEMINI_MODEL_NAME`            | Gemini model to use for analysis                    | `gemini-2.0-flash-exp`                                    |
+| `GEMINI_API_URL`               | Base URL for Gemini API                             | `https://generativelanguage.googleapis.com/v1beta/models` |
+
+### AI Analysis Security
+
+| Variable                                         | Description                                      | Default |
+| ------------------------------------------------ | ------------------------------------------------ | ------- |
+| `AI_ANALYSIS_MAX_RETRIES`                        | Maximum retry attempts for failed analyses       | `2`     |
+| `AI_ANALYSIS_REQUEST_TIMEOUT_MS`                 | Timeout for Gemini API requests (ms)             | `60000` |
+| `AI_ANALYSIS_RATE_LIMIT_CREATION`                | Rate limit for analysis creation (per minute)    | `15`    |
+| `AI_ANALYSIS_RATE_LIMIT_RETRIEVAL`               | Rate limit for analysis retrieval (per minute)   | `100`   |
+| `AI_ANALYSIS_ENABLE_PII_REDACTION`               | Enable PII redaction in conversation content     | `true`  |
+| `AI_ANALYSIS_ENABLE_PROMPT_INJECTION_PROTECTION` | Enable prompt injection protection               | `true`  |
+| `AI_ANALYSIS_ENABLE_OUTPUT_VALIDATION`           | Enable output validation for analysis results    | `true`  |
+| `AI_ANALYSIS_ENABLE_AUDIT_LOGGING`               | Enable audit logging for all analysis operations | `true`  |
 
 Example truncation strategy JSON:
 

@@ -30,6 +30,7 @@
     "zod": "^3.25.72"
   },
   "devDependencies": {
+    "@types/glob": "^9.0.0",
     "@types/pino": "^7.0.0"
   }
 }
