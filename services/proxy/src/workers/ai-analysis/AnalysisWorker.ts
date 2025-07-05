@@ -7,6 +7,7 @@ import {
   fetchConversationMessages,
   type ConversationAnalysisJob,
 } from './db.js'
+import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
 import { logger } from '../../middleware/logger.js'
 
 export class AnalysisWorker {
@@ -21,13 +22,13 @@ export class AnalysisWorker {
   constructor() {
     this.geminiService = new GeminiService()
 
-    this.pollInterval = parseInt(process.env.AI_WORKER_POLL_INTERVAL_MS || '5000')
-    this.maxConcurrentJobs = parseInt(process.env.AI_WORKER_MAX_CONCURRENT_JOBS || '3')
-    this.jobTimeoutMinutes = parseInt(process.env.AI_WORKER_JOB_TIMEOUT_MINUTES || '5')
+    this.pollInterval = AI_WORKER_CONFIG.POLL_INTERVAL_MS
+    this.maxConcurrentJobs = AI_WORKER_CONFIG.MAX_CONCURRENT_JOBS
+    this.jobTimeoutMinutes = AI_WORKER_CONFIG.JOB_TIMEOUT_MINUTES
   }
 
   start() {
-    if (process.env.AI_WORKER_ENABLED !== 'true') {
+    if (!AI_WORKER_CONFIG.ENABLED) {
       logger.info('AI Analysis Worker is disabled by configuration', {
         metadata: { worker: 'analysis-worker' },
       })

@@ -1,9 +1,10 @@
 import { container } from '../../container.js'
 import { logger } from '../../middleware/logger.js'
+import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
 import type { AnalysisStatus, ConversationAnalysis } from '@claude-nexus/shared/types/ai-analysis'
 
-const MAX_RETRIES = parseInt(process.env.AI_WORKER_MAX_RETRIES || '3')
-const JOB_TIMEOUT_MINUTES = parseInt(process.env.AI_WORKER_JOB_TIMEOUT_MINUTES || '5')
+const MAX_RETRIES = AI_WORKER_CONFIG.MAX_RETRIES
+const JOB_TIMEOUT_MINUTES = AI_WORKER_CONFIG.JOB_TIMEOUT_MINUTES
 
 export interface ConversationAnalysisJob {
   id: number

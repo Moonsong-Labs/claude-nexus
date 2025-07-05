@@ -612,16 +612,25 @@ AI_WORKER_ENABLED=true
 AI_WORKER_POLL_INTERVAL_MS=5000      # Poll every 5 seconds
 AI_WORKER_MAX_CONCURRENT_JOBS=3      # Process up to 3 jobs concurrently
 AI_WORKER_JOB_TIMEOUT_MINUTES=5      # Mark jobs as stuck after 5 minutes
-AI_WORKER_MAX_RETRIES=3              # Retry failed jobs up to 3 times
+
+# Resilience configuration
+AI_ANALYSIS_MAX_RETRIES=3              # Retry failed jobs up to 3 times
+AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS=60000  # Gemini API request timeout
 
 # Gemini API configuration
 GEMINI_API_KEY=your-api-key-here
+GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models
 GEMINI_MODEL_NAME=gemini-2.0-flash-exp
 
 # Prompt engineering configuration (optional)
 AI_MAX_PROMPT_TOKENS=855000          # Override calculated token limit
 AI_HEAD_MESSAGES=10                  # Messages to keep from start
 AI_TAIL_MESSAGES=30                  # Messages to keep from end
+
+# Analysis token limits
+AI_ANALYSIS_INPUT_TRUNCATION_TARGET_TOKENS=8192   # Target token count for input message truncation
+AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS=1000  # Tokens from conversation start
+AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS=4000   # Tokens from conversation end
 ```
 
 The worker runs in-process with the proxy service and uses PostgreSQL row-level locking to safely process jobs across multiple instances.

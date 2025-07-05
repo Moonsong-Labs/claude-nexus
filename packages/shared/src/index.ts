@@ -66,7 +66,12 @@ export {
   type RegenerateAnalysisResponse,
   type AnalysisConflictResponse,
 } from './types/ai-analysis.js'
-export { ANALYSIS_PROMPT_CONFIG } from './config/ai-analysis.js'
+export {
+  ANALYSIS_PROMPT_CONFIG,
+  GEMINI_CONFIG,
+  AI_WORKER_CONFIG,
+  AI_ANALYSIS_CONFIG,
+} from './config/ai-analysis.js'
 
 // Export prompt utilities
 export {

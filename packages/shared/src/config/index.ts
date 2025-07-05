@@ -204,4 +204,9 @@ export function validateConfig(): void {
 export type Config = typeof config
 
 // Export AI analysis configuration
-export { ANALYSIS_PROMPT_CONFIG } from './ai-analysis.js'
+export {
+  ANALYSIS_PROMPT_CONFIG,
+  GEMINI_CONFIG,
+  AI_WORKER_CONFIG,
+  AI_ANALYSIS_CONFIG,
+} from './ai-analysis.js'
