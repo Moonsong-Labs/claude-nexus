@@ -170,7 +170,7 @@ Key endpoints implemented:
 - **Smart Truncation**: Tail-first priority with 855k token limit (5% safety margin)
 - **Prompt Structure**: Multi-turn format using Gemini's native content structure
 - **Response Validation**: Zod schema for runtime validation
-- **Configuration**: Environment variable support with ANALYSIS_PROMPT_CONFIG
+- **Configuration**: Comprehensive environment variable support for all ANALYSIS_PROMPT_CONFIG parameters
 
 Key files:
 

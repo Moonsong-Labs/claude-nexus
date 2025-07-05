@@ -47,7 +47,7 @@ claude-nexus-proxy/
 - Token tracking and telemetry
 - Request/response storage
 - Slack notifications
-- AI-powered conversation analysis (Phase 1 - Prompt Engineering implemented)
+- AI-powered conversation analysis (Phase 2 - Prompt Engineering with full env var support)
 
 **Dashboard Service** (`services/dashboard/`)
 
@@ -575,6 +575,7 @@ The proxy supports automated analysis of conversations using AI models (currentl
 - Token usage tracking for cost management
 - Retry logic with exponential backoff
 - Unique analyses per conversation and branch
+- Comprehensive environment variable configuration for prompt tuning
 
 **Database Schema:**
 
@@ -616,6 +617,11 @@ AI_WORKER_MAX_RETRIES=3              # Retry failed jobs up to 3 times
 # Gemini API configuration
 GEMINI_API_KEY=your-api-key-here
 GEMINI_MODEL_NAME=gemini-2.0-flash-exp
+
+# Prompt engineering configuration (optional)
+AI_MAX_PROMPT_TOKENS=855000          # Override calculated token limit
+AI_HEAD_MESSAGES=10                  # Messages to keep from start
+AI_TAIL_MESSAGES=30                  # Messages to keep from end
 ```
 
 The worker runs in-process with the proxy service and uses PostgreSQL row-level locking to safely process jobs across multiple instances.
