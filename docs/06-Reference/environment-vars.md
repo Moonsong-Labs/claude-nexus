@@ -106,12 +106,25 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
 ### Analysis Configuration
 
-| Variable                        | Description                        | Default                |
-| ------------------------------- | ---------------------------------- | ---------------------- |
-| `AI_ANALYSIS_PROMPT_VERSION`    | Version of analysis prompt to use  | `v1`                   |
-| `AI_ANALYSIS_MAX_PROMPT_TOKENS` | Maximum tokens for analysis prompt | `855000`               |
-| `GEMINI_API_KEY`                | API key for Gemini AI              | -                      |
-| `GEMINI_MODEL_NAME`             | Gemini model to use for analysis   | `gemini-2.0-flash-exp` |
+| Variable                       | Description                                         | Default                |
+| ------------------------------ | --------------------------------------------------- | ---------------------- |
+| `AI_ANALYSIS_PROMPT_VERSION`   | Version of analysis prompt to use                   | `v1`                   |
+| `AI_MAX_CONTEXT_TOKENS`        | Maximum context window size for AI model            | `1000000`              |
+| `AI_MAX_PROMPT_TOKENS`         | Maximum tokens for analysis prompt (overrides calc) | `855000` (calculated)  |
+| `AI_MAX_PROMPT_TOKENS_BASE`    | Base tokens before safety margin                    | `900000`               |
+| `AI_TOKENIZER_SAFETY_MARGIN`   | Safety margin for tokenizer discrepancies           | `0.95`                 |
+| `AI_HEAD_MESSAGES`             | Messages to keep from conversation start            | `5`                    |
+| `AI_TAIL_MESSAGES`             | Messages to keep from conversation end              | `20`                   |
+| `AI_TRUNCATION_STRATEGY`       | JSON object for truncation config                   | See below              |
+| `AI_ESTIMATED_CHARS_PER_TOKEN` | Estimated characters per token ratio                | `12`                   |
+| `GEMINI_API_KEY`               | API key for Gemini AI                               | -                      |
+| `GEMINI_MODEL_NAME`            | Gemini model to use for analysis                    | `gemini-2.0-flash-exp` |
+
+Example truncation strategy JSON:
+
+```bash
+AI_TRUNCATION_STRATEGY='{"HEAD_MESSAGES": 10, "TAIL_MESSAGES": 30}'
+```
 
 ## Development Configuration
 
