@@ -4,6 +4,7 @@ import {
   type GeminiContent,
 } from '@claude-nexus/shared/prompts/analysis/index.js'
 import type { ConversationAnalysis } from '@claude-nexus/shared/types/ai-analysis'
+import { GEMINI_CONFIG, AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
 import { logger } from '../../middleware/logger.js'
 
 export interface GeminiApiResponse {
@@ -27,13 +28,13 @@ export class GeminiService {
   private baseUrl: string
 
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY || ''
+    this.apiKey = GEMINI_CONFIG.API_KEY
     if (!this.apiKey) {
       throw new Error('GEMINI_API_KEY is not set in environment variables')
     }
 
-    this.modelName = process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash-exp'
-    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models'
+    this.modelName = GEMINI_CONFIG.MODEL_NAME
+    this.baseUrl = GEMINI_CONFIG.API_URL
   }
 
   async analyzeConversation(messages: Array<{ role: 'user' | 'model'; content: string }>): Promise<{
@@ -98,22 +99,42 @@ export class GeminiService {
       },
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': this.apiKey,
-      },
-      body: JSON.stringify(requestBody),
-    })
+    // Create an AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      AI_WORKER_CONFIG.GEMINI_REQUEST_TIMEOUT_MS
+    )
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Gemini API error (${response.status}): ${errorText}`)
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Gemini API error (${response.status}): ${errorText}`)
+      }
+
+      const data = await response.json()
+      return data as GeminiApiResponse
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          `Gemini API request timed out after ${AI_WORKER_CONFIG.GEMINI_REQUEST_TIMEOUT_MS}ms`
+        )
+      }
+      throw error
     }
-
-    const data = await response.json()
-    return data as GeminiApiResponse
   }
 
   private formatAnalysisAsMarkdown(analysis: ConversationAnalysis): string {
