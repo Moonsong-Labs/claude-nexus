@@ -1,63 +1,100 @@
 import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
 import { nanoid } from 'nanoid'
+import * as path from 'path'
+import isMatch from 'lodash.ismatch'
 
 const app = new Hono()
 
-// Mock responses for different scenarios
-const mockResponses = {
-  default: {
-    id: 'msg_mock_' + nanoid(),
-    type: 'message',
-    role: 'assistant',
-    content: [
-      {
-        type: 'text',
-        text: 'The capital of France is Paris.',
-      },
-    ],
-    model: 'claude-3-opus-20240229',
-    stop_reason: 'end_turn',
-    stop_sequence: null,
-    usage: {
-      input_tokens: 10,
-      output_tokens: 15,
-    },
-  },
-
-  streaming: {
-    chunks: [
-      {
-        type: 'message_start',
-        message: {
-          id: 'msg_mock_stream',
-          type: 'message',
-          role: 'assistant',
-          content: [],
-          model: 'claude-3-opus-20240229',
-          stop_reason: null,
-          stop_sequence: null,
-          usage: { input_tokens: 10, output_tokens: 0 },
-        },
-      },
-      { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
-      { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Lines of ' } },
-      {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'logic, pure ' },
-      },
-      { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'and bright' } },
-      { type: 'content_block_stop', index: 0 },
-      {
-        type: 'message_delta',
-        delta: { stop_reason: 'end_turn', stop_sequence: null },
-        usage: { output_tokens: 15 },
-      },
-      { type: 'message_stop' },
-    ],
-  },
+// Define the mock structure
+interface MockDefinition {
+  name: string
+  request: Record<string, any>
+  response: {
+    status?: number
+    stream?: boolean
+    headers?: Record<string, string>
+    body?: Record<string, any>
+    chunks?: Array<{
+      type: string
+      [key: string]: any
+    }>
+  }
 }
+
+let mockDefinitions: MockDefinition[] = []
+
+// Process dynamic placeholders in response body
+function processResponsePlaceholders(body: any): any {
+  // Deep clone to avoid mutating the cached mock definition
+  const processedBody = JSON.parse(JSON.stringify(body))
+
+  // Walk through the object and replace placeholders
+  function walk(obj: any): void {
+    for (const key in obj) {
+      if (typeof obj[key] === 'string') {
+        // Replace {{nanoid}} with generated ID
+        if (obj[key].includes('{{nanoid}}')) {
+          obj[key] = obj[key].replace(/\{\{nanoid\}\}/g, nanoid())
+        }
+        // Replace {{timestamp}} with current timestamp
+        if (obj[key].includes('{{timestamp}}')) {
+          obj[key] = obj[key].replace(/\{\{timestamp\}\}/g, Date.now().toString())
+        }
+        // Replace {{timestamp_iso}} with ISO timestamp
+        if (obj[key].includes('{{timestamp_iso}}')) {
+          obj[key] = obj[key].replace(/\{\{timestamp_iso\}\}/g, new Date().toISOString())
+        }
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        walk(obj[key])
+      }
+    }
+  }
+
+  walk(processedBody)
+  return processedBody
+}
+
+// Load mock definitions from JSON files
+async function loadMockDefinitions() {
+  const testDataPath = path.join(import.meta.dir, 'test-data')
+  const glob = new Bun.Glob('**/*.json')
+
+  const files: MockDefinition[] = []
+
+  // Use Bun.Glob to scan for files
+  for await (const file of glob.scan(testDataPath)) {
+    try {
+      const filePath = path.join(testDataPath, file)
+      const content: MockDefinition = await Bun.file(filePath).json()
+      files.push(content)
+      console.log(`[Mock Claude] Loaded mock: "${content.name}" from ${file}`)
+    } catch (error) {
+      console.error(`[Mock Claude] Failed to load ${file}:`, error)
+    }
+  }
+
+  // Sort definitions by specificity (most specific first)
+  // Longer JSON strings indicate more specific patterns
+  files.sort((a, b) => {
+    const specificityA = JSON.stringify(a.request).length
+    const specificityB = JSON.stringify(b.request).length
+    return specificityB - specificityA
+  })
+
+  mockDefinitions = files
+  console.log(`[Mock Claude] Loaded ${mockDefinitions.length} mock definition files.`)
+  
+  // Log the sorted order for debugging
+  console.log('[Mock Claude] Mock loading order (by specificity):')
+  mockDefinitions.forEach((mock, index) => {
+    const specificity = JSON.stringify(mock.request).length
+    console.log(`  ${index + 1}. "${mock.name}" (specificity: ${specificity})`)
+  })
+}
+
+// Load mocks when server starts
+await loadMockDefinitions()
 
 // Health check
 app.get('/health', c => c.json({ status: 'ok', service: 'mock-claude' }))
@@ -65,9 +102,38 @@ app.get('/health', c => c.json({ status: 'ok', service: 'mock-claude' }))
 // Main chat completions endpoint
 app.post('/v1/messages', async c => {
   const body = await c.req.json()
-  const requestId = 'req_' + nanoid()
+  const requestId = `req_${nanoid()}`
 
-  // Set response headers
+  console.log(`[Mock Claude] Received request:`, JSON.stringify(body, null, 2))
+
+  // Find matching mock definition
+  const matchedMock = mockDefinitions.find(mock => {
+    const matches = isMatch(body, mock.request)
+    console.log(`[Mock Claude] Testing "${mock.name}": ${matches}`)
+    if (matches) {
+      console.log('[Mock Claude] Request:', JSON.stringify(body, null, 2))
+      console.log('[Mock Claude] Pattern:', JSON.stringify(mock.request, null, 2))
+    }
+    return matches
+  })
+
+  if (!matchedMock) {
+    console.warn('[Mock Claude] No mock definition found for request:', JSON.stringify(body, null, 2))
+    return c.json(
+      {
+        type: 'error',
+        error: { type: 'not_found_error', message: 'No mock definition found for this request.' },
+      },
+      404
+    )
+  }
+
+  console.log(`[Mock Claude] Matched request to mock: "${matchedMock.name}"`)
+
+  const { response } = matchedMock
+  const { status = 200, headers = {}, stream: isStreaming, body: responseBody, chunks } = response
+
+  // Set standard headers
   c.header('x-request-id', requestId)
   c.header('anthropic-ratelimit-requests-limit', '1000')
   c.header('anthropic-ratelimit-requests-remaining', '999')
@@ -76,76 +142,53 @@ app.post('/v1/messages', async c => {
   c.header('anthropic-ratelimit-tokens-remaining', '99985')
   c.header('anthropic-ratelimit-tokens-reset', new Date(Date.now() + 3600000).toISOString())
 
-  // Check for error simulation
-  const lastMessage = body.messages?.[body.messages.length - 1]?.content
-  if (typeof lastMessage === 'string') {
-    if (lastMessage.includes('ERROR_400')) {
-      return c.json(
-        {
-          type: 'error',
-          error: { type: 'invalid_request_error', message: 'Invalid request' },
-        },
-        400
-      )
-    }
-    if (lastMessage.includes('ERROR_429')) {
-      return c.json(
-        {
-          type: 'error',
-          error: { type: 'rate_limit_error', message: 'Rate limit exceeded' },
-        },
-        429
-      )
-    }
-    if (lastMessage.includes('ERROR_500')) {
-      return c.json(
-        {
-          type: 'error',
-          error: { type: 'api_error', message: 'Internal server error' },
-        },
-        500
-      )
-    }
+  // Set custom headers if provided
+  for (const [key, value] of Object.entries(headers)) {
+    c.header(key, value)
   }
 
-  // Handle streaming
-  if (body.stream) {
-    return stream(c, async stream => {
+  // Set response status
+  c.status(status)
+
+  // Handle streaming response
+  if (isStreaming && chunks) {
+    return stream(c, async s => {
       c.header('content-type', 'text/event-stream')
       c.header('cache-control', 'no-cache')
+      c.header('connection', 'keep-alive')
 
-      for (const chunk of mockResponses.streaming.chunks) {
-        await stream.write(`event: ${chunk.type}\ndata: ${JSON.stringify(chunk)}\n\n`)
-        await stream.sleep(10) // Small delay between chunks
+      for (const chunk of chunks) {
+        // Process placeholders in each chunk
+        const processedChunk = processResponsePlaceholders(chunk)
+        const line = `event: ${processedChunk.type}\ndata: ${JSON.stringify(processedChunk)}\n\n`
+        await s.write(line)
+        await s.sleep(10) // Small delay between chunks
       }
     })
   }
 
-  // Non-streaming response
-  const response = { ...mockResponses.default }
-
-  // Customize response based on input
-  if (lastMessage?.includes('Tell me about Python')) {
-    response.content[0].text =
-      'Python is a high-level programming language known for its simplicity and readability.'
-  } else if (lastMessage?.includes('What about its syntax?')) {
-    response.content[0].text =
-      'Python uses indentation to define code blocks and has a clean, readable syntax.'
-  } else if (lastMessage?.includes('What about its performance?')) {
-    response.content[0].text =
-      'Python is an interpreted language, which can be slower than compiled languages for CPU-intensive tasks.'
+  // Handle non-streaming response
+  if (responseBody) {
+    const finalBody = processResponsePlaceholders(responseBody)
+    return c.json(finalBody)
   }
 
-  response.id = 'msg_' + nanoid()
-  response.usage.input_tokens = JSON.stringify(body).length / 4 // Rough estimate
-
-  return c.json(response)
+  // If no body or chunks provided, return error
+  console.error(`[Mock Claude] Mock "${matchedMock.name}" has neither body nor chunks`)
+  return c.json(
+    {
+      type: 'error',
+      error: { type: 'internal_server_error', message: 'Mock definition is invalid.' },
+    },
+    500
+  )
 })
 
 // Start server
-console.log('Mock Claude API server starting on port 8080...')
+const PORT = process.env.MOCK_CLAUDE_PORT || 8081
+console.log(`[Mock Claude] Server starting on port ${PORT}...`)
 export default {
-  port: 8080,
+  port: PORT,
   hostname: '0.0.0.0', // Listen on all interfaces
   fetch: app.fetch,
 }

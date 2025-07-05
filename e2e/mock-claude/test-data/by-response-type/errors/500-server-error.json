@@ -1,0 +1,21 @@
+{
+  "name": "500 Internal Server Error",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "TRIGGER_ERROR_500"
+      }
+    ]
+  },
+  "response": {
+    "status": 500,
+    "body": {
+      "type": "error",
+      "error": {
+        "type": "api_error",
+        "message": "An internal server error occurred. Please try again later."
+      }
+    }
+  }
+}

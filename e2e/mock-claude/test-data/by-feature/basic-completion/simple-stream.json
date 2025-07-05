@@ -1,0 +1,92 @@
+{
+  "name": "Simple streaming response",
+  "request": {
+    "model": "claude-3-opus-20240229",
+    "stream": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Tell me a short poem."
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "stream": true,
+    "chunks": [
+      {
+        "type": "message_start",
+        "message": {
+          "id": "msg_{{nanoid}}",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "model": "claude-3-opus-20240229",
+          "stop_reason": null,
+          "stop_sequence": null,
+          "usage": {
+            "input_tokens": 10,
+            "output_tokens": 0
+          }
+        }
+      },
+      {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      },
+      {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "Roses are red,\n"
+        }
+      },
+      {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "Violets are blue,\n"
+        }
+      },
+      {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "Sugar is sweet,\n"
+        }
+      },
+      {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "And so are you."
+        }
+      },
+      {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "end_turn",
+          "stop_sequence": null
+        },
+        "usage": {
+          "output_tokens": 20
+        }
+      },
+      {
+        "type": "message_stop"
+      }
+    ]
+  }
+}
