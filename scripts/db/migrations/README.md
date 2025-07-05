@@ -151,6 +151,17 @@ Creates infrastructure for AI-powered conversation analysis:
 - Optimized indexes for pending analyses and conversation lookups
 - Supports multiple AI models and comprehensive token tracking
 
+### 012-add-analysis-audit-log.ts
+
+Creates audit logging infrastructure for AI analysis security:
+
+- `analysis_audit_log` table for tracking all analysis-related events
+- Event types: ANALYSIS_REQUEST, ANALYSIS_REGENERATION_REQUEST, etc.
+- Outcome tracking: SUCCESS, FAILURE_AUTH, FAILURE_RATE_LIMIT, etc.
+- Comprehensive metadata storage with JSONB fields
+- Indexes for efficient querying by conversation, domain, and timestamp
+- Supports security monitoring and compliance requirements
+
 ## Future Migrations
 
 When adding new migrations:
