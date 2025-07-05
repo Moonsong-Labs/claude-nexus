@@ -205,6 +205,9 @@ credentials/*.credentials.json
 # Test samples directory
 test-samples/
 
+# E2E test credentials
+e2e/test-credentials/
+
 # Database backups
 *.sql
 claude_nexus_backup_*

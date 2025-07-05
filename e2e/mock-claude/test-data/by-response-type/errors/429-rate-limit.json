@@ -1,0 +1,26 @@
+{
+  "name": "429 Rate Limit Error",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "TRIGGER_RATE_LIMIT"
+      }
+    ]
+  },
+  "response": {
+    "status": 429,
+    "headers": {
+      "anthropic-ratelimit-requests-remaining": "0",
+      "anthropic-ratelimit-requests-reset": "{{timestamp_iso}}",
+      "retry-after": "60"
+    },
+    "body": {
+      "type": "error",
+      "error": {
+        "type": "rate_limit_error",
+        "message": "Rate limit exceeded. Please wait before making another request."
+      }
+    }
+  }
+}

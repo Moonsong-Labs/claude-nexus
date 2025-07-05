@@ -1,0 +1,25 @@
+{
+  "name": "Default fallback response (catch-all)",
+  "request": {},
+  "response": {
+    "status": 200,
+    "body": {
+      "id": "msg_{{nanoid}}",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-opus-20240229",
+      "content": [
+        {
+          "type": "text",
+          "text": "I'm a mock Claude API response. This is the default fallback when no specific mock matches your request."
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 25
+      }
+    }
+  }
+}

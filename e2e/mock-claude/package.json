@@ -1,0 +1,15 @@
+{
+  "name": "mock-claude-api",
+  "version": "1.0.0",
+  "description": "Mock Claude API server for E2E testing",
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts"
+  },
+  "dependencies": {
+    "@types/lodash.ismatch": "^4.4.9",
+    "hono": "^3.11.0",
+    "lodash.ismatch": "^4.4.0",
+    "nanoid": "^5.0.0"
+  }
+}

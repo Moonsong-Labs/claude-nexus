@@ -1,0 +1,35 @@
+{
+  "name": "Health check test",
+  "description": "Tests that the proxy is running and reachable",
+  "authentication": {
+    "domain": "e2e-test.com",
+    "clientApiKey": "cnp_test_1234567890"
+  },
+  "steps": [
+    {
+      "stepName": "1_health_check",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "test"
+            }
+          ],
+          "max_tokens": 1,
+          "stream": false
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200,
+          "body": {
+            "type": "message",
+            "role": "assistant"
+          }
+        }
+      }
+    }
+  ]
+}

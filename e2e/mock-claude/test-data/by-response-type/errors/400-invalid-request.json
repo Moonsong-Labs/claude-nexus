@@ -1,0 +1,21 @@
+{
+  "name": "400 Invalid Request Error",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "TRIGGER_ERROR_400"
+      }
+    ]
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "type": "error",
+      "error": {
+        "type": "invalid_request_error",
+        "message": "Invalid request: messages[0].content must be a string or array"
+      }
+    }
+  }
+}

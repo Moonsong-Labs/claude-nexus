@@ -1,0 +1,39 @@
+{
+  "name": "Response with web search tool usage tracking",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Tell me about Viem's signature functions"
+      }
+    ],
+    "model": "claude-opus-4-20250514"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": "msg_{{nanoid}}",
+      "role": "assistant",
+      "type": "message",
+      "model": "claude-opus-4-20250514",
+      "usage": {
+        "input_tokens": 12,
+        "service_tier": "standard",
+        "output_tokens": 915,
+        "server_tool_use": {
+          "web_search_requests": 1
+        },
+        "cache_read_input_tokens": 2083,
+        "cache_creation_input_tokens": 5446
+      },
+      "content": [
+        {
+          "text": "I'll search for information about Viem's signature functions and their usage with r, s, v components.",
+          "type": "text"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null
+    }
+  }
+}

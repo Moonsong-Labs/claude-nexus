@@ -7,7 +7,13 @@ const exec = promisify(require('child_process').exec)
 // Docker compose command with correct file path
 const dockerCompose = 'docker compose -f docker/docker-compose.yml'
 
-describe('Claude CLI End-to-End Tests', () => {
+// Skip E2E tests in CI or non-Docker environments
+const skipE2E =
+  process.env.CI === 'true' ||
+  process.env.GITHUB_ACTIONS === 'true' ||
+  process.env.SKIP_E2E === 'true'
+
+describe.skipIf(skipE2E)('Claude CLI End-to-End Tests', () => {
   let dockerComposeUp = false
 
   beforeAll(async () => {

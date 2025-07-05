@@ -1,0 +1,104 @@
+{
+  "name": "Simple conversation flow",
+  "description": "Tests a basic conversation with follow-up messages",
+  "authentication": {
+    "domain": "e2e-test.com",
+    "clientApiKey": "cnp_test_1234567890",
+    "claudeApiKey": "sk-ant-test-key"
+  },
+  "steps": [
+    {
+      "stepName": "1_initial_prompt",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "What is the capital of France?"
+            }
+          ],
+          "max_tokens": 100,
+          "stream": false
+        }
+      },
+      "context": {
+        "save": {
+          "firstRequestId": "requestId",
+          "firstConversationId": "conversationId"
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200,
+          "body": {
+            "type": "message",
+            "role": "assistant"
+          }
+        },
+        "dbState": {
+          "table": "api_requests",
+          "where": {
+            "request_id": "REF_STEP:1_initial_prompt.requestId"
+          },
+          "assert": {
+            "conversation_id": "IS_UUID",
+            "branch_id": "main",
+            "parent_request_id": null,
+            "parent_message_hash": null
+          }
+        }
+      }
+    },
+    {
+      "stepName": "2_follow_up",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "What is the capital of France?"
+            },
+            {
+              "role": "assistant",
+              "content": "The capital of France is Paris."
+            },
+            {
+              "role": "user",
+              "content": "What is its population?"
+            }
+          ],
+          "max_tokens": 200,
+          "stream": false
+        }
+      },
+      "context": {
+        "save": {
+          "secondRequestId": "requestId"
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200,
+          "body": {
+            "type": "message",
+            "role": "assistant"
+          }
+        },
+        "dbState": {
+          "table": "api_requests",
+          "where": {
+            "request_id": "REF_STEP:2_follow_up.requestId"
+          },
+          "assert": {
+            "conversation_id": "${context.firstConversationId}",
+            "branch_id": "main",
+            "parent_request_id": "${context.firstRequestId}",
+            "parent_message_hash": "!IS_NULL"
+          }
+        }
+      }
+    }
+  ]
+}

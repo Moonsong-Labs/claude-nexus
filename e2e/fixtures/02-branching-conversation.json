@@ -1,0 +1,137 @@
+{
+  "name": "Branching conversation test",
+  "description": "Tests conversation branching when resuming from an earlier point",
+  "authentication": {
+    "domain": "e2e-test.com",
+    "clientApiKey": "cnp_test_1234567890",
+    "claudeApiKey": "sk-ant-test-key"
+  },
+  "steps": [
+    {
+      "stepName": "1_initial",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Tell me about Python"
+            }
+          ],
+          "max_tokens": 100,
+          "stream": false
+        }
+      },
+      "context": {
+        "save": {
+          "conversationId": "conversationId",
+          "firstRequestId": "requestId"
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200
+        },
+        "dbState": {
+          "table": "api_requests",
+          "assert": {
+            "conversation_id": "IS_UUID",
+            "branch_id": "main",
+            "parent_request_id": null
+          }
+        }
+      }
+    },
+    {
+      "stepName": "2_main_branch",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Tell me about Python"
+            },
+            {
+              "role": "assistant",
+              "content": "Python is a high-level programming language..."
+            },
+            {
+              "role": "user",
+              "content": "What about its syntax?"
+            }
+          ],
+          "max_tokens": 100,
+          "stream": false
+        }
+      },
+      "context": {
+        "save": {
+          "mainBranchRequestId": "requestId"
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200
+        },
+        "dbState": {
+          "table": "api_requests",
+          "where": {
+            "request_id": "REF_STEP:2_main_branch.requestId"
+          },
+          "assert": {
+            "conversation_id": "${context.conversationId}",
+            "branch_id": "main",
+            "parent_request_id": "${context.firstRequestId}"
+          }
+        }
+      }
+    },
+    {
+      "stepName": "3_create_branch",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Tell me about Python"
+            },
+            {
+              "role": "assistant",
+              "content": "Python is a high-level programming language..."
+            },
+            {
+              "role": "user",
+              "content": "What about its performance?"
+            }
+          ],
+          "max_tokens": 100,
+          "stream": false
+        }
+      },
+      "context": {
+        "save": {
+          "branchRequestId": "requestId",
+          "branchId": "branchId"
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200
+        },
+        "dbState": {
+          "table": "api_requests",
+          "where": {
+            "request_id": "REF_STEP:3_create_branch.requestId"
+          },
+          "assert": {
+            "conversation_id": "${context.conversationId}",
+            "branch_id": "!IS_NULL",
+            "parent_request_id": "${context.firstRequestId}"
+          }
+        }
+      }
+    }
+  ]
+}

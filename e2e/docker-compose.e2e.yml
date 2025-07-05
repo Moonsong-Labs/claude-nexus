@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  postgres-e2e:
+    container_name: claude-nexus-postgres-e2e
+    image: postgres:15
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: testdb
+    ports:
+      - "5433:5432"  # Map to different host port to avoid conflicts
+    volumes:
+      - ../scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  
+  mock-claude-e2e:
+    container_name: claude-mock-api-e2e
+    build:
+      context: ./mock-claude
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

@@ -1,0 +1,78 @@
+{
+  "name": "Authentication test",
+  "description": "Tests client authentication and error responses",
+  "authentication": {
+    "domain": "e2e-test.com",
+    "clientApiKey": "cnp_test_1234567890"
+  },
+  "steps": [
+    {
+      "stepName": "1_valid_client_auth",
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "test"
+            }
+          ],
+          "max_tokens": 1,
+          "stream": false
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 200
+        }
+      }
+    },
+    {
+      "stepName": "2_invalid_client_auth",
+      "authentication": {
+        "domain": "e2e-test.com",
+        "clientApiKey": "invalid_key"
+      },
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "test"
+            }
+          ],
+          "max_tokens": 1,
+          "stream": false
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 401
+        }
+      }
+    },
+    {
+      "stepName": "3_no_auth",
+      "authentication": null,
+      "request": {
+        "body": {
+          "model": "claude-3-opus-20240229",
+          "messages": [
+            {
+              "role": "user",
+              "content": "test"
+            }
+          ],
+          "max_tokens": 1,
+          "stream": false
+        }
+      },
+      "expected": {
+        "response": {
+          "statusCode": 401
+        }
+      }
+    }
+  ]
+}
