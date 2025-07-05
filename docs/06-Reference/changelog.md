@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Versioned prompt templates (v1)
     - 855k token limit with 5% safety margin
   - Migration 011 for schema creation
+  - Migration 012 for audit logging infrastructure
+  - Comprehensive security implementation with PII redaction, rate limiting, and prompt injection protection
+  - Security documentation with monitoring queries and best practices
 
 ### Changed
 

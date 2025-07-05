@@ -45,6 +45,13 @@ export type ConversationAnalysis = z.infer<typeof ConversationAnalysisSchema>
 
 export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
+export enum ConversationAnalysisStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}
+
 // POST /api/analyses request body
 export const CreateAnalysisRequestSchema = z.object({
   conversationId: z.string().uuid(),

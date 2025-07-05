@@ -9,6 +9,8 @@ import { createRateLimiter, createDomainRateLimiter } from './middleware/rate-li
 import { createHealthRoutes } from './routes/health.js'
 import { apiRoutes } from './routes/api.js'
 import { sparkApiRoutes } from './routes/spark-api.js'
+import { analysisRoutes } from './routes/analyses.js'
+import { initializeAnalysisRateLimiters } from './middleware/analysis-rate-limit.js'
 import { initializeSlack } from './services/slack.js'
 import { initializeDatabase } from './storage/writer.js'
 import { apiAuthMiddleware } from './middleware/api-auth.js'
@@ -27,6 +29,9 @@ export async function createProxyApp(): Promise<
 
   // Initialize external services
   await initializeExternalServices()
+
+  // Initialize AI analysis rate limiters
+  initializeAnalysisRateLimiters()
 
   // Log pool status after initialization
   const pool = container.getDbPool()
@@ -140,6 +145,9 @@ export async function createProxyApp(): Promise<
 
   // Spark API routes (protected by same auth as dashboard API)
   app.route('/api', sparkApiRoutes)
+
+  // AI Analysis routes (protected by same auth as dashboard API)
+  app.route('/api/analyses', analysisRoutes)
 
   // Client setup files
   app.get('/client-setup/:filename', async c => {

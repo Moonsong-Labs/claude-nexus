@@ -130,6 +130,19 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 | `GEMINI_API_URL`    | Base URL for Gemini API          | `https://generativelanguage.googleapis.com/v1beta/models` |
 | `GEMINI_MODEL_NAME` | Gemini model to use for analysis | `gemini-2.0-flash-exp`                                    |
 
+### AI Analysis Security
+
+| Variable                                         | Description                                      | Default |
+| ------------------------------------------------ | ------------------------------------------------ | ------- |
+| `AI_ANALYSIS_MAX_RETRIES`                        | Maximum retry attempts for failed analyses       | `2`     |
+| `AI_ANALYSIS_REQUEST_TIMEOUT_MS`                 | Timeout for Gemini API requests (ms)             | `60000` |
+| `AI_ANALYSIS_RATE_LIMIT_CREATION`                | Rate limit for analysis creation (per minute)    | `15`    |
+| `AI_ANALYSIS_RATE_LIMIT_RETRIEVAL`               | Rate limit for analysis retrieval (per minute)   | `100`   |
+| `AI_ANALYSIS_ENABLE_PII_REDACTION`               | Enable PII redaction in conversation content     | `true`  |
+| `AI_ANALYSIS_ENABLE_PROMPT_INJECTION_PROTECTION` | Enable prompt injection protection               | `true`  |
+| `AI_ANALYSIS_ENABLE_OUTPUT_VALIDATION`           | Enable output validation for analysis results    | `true`  |
+| `AI_ANALYSIS_ENABLE_AUDIT_LOGGING`               | Enable audit logging for all analysis operations | `true`  |
+
 Example truncation strategy JSON:
 
 ```bash
