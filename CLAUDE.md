@@ -628,7 +628,7 @@ AI_HEAD_MESSAGES=10                  # Messages to keep from start
 AI_TAIL_MESSAGES=30                  # Messages to keep from end
 
 # Analysis token limits
-AI_ANALYSIS_MAX_PROMPT_TOKENS=8192   # Max tokens for prompt truncation
+AI_ANALYSIS_INPUT_TRUNCATION_TARGET_TOKENS=8192   # Target token count for input message truncation
 AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS=1000  # Tokens from conversation start
 AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS=4000   # Tokens from conversation end
 ```

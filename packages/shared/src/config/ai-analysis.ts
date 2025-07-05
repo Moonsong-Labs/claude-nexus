@@ -56,7 +56,9 @@ export const AI_WORKER_CONFIG = {
 // Feature Flags and Analysis Configuration
 export const AI_ANALYSIS_CONFIG = {
   // Token limits for prompt truncation (different from total context limits)
-  MAX_PROMPT_TOKENS: Number(process.env.AI_ANALYSIS_MAX_PROMPT_TOKENS) || 8192,
+  // Renamed for clarity: This is the target token count for input message truncation
+  INPUT_TRUNCATION_TARGET_TOKENS:
+    Number(process.env.AI_ANALYSIS_INPUT_TRUNCATION_TARGET_TOKENS) || 8192,
   TRUNCATE_FIRST_N_TOKENS: Number(process.env.AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS) || 1000,
   TRUNCATE_LAST_M_TOKENS: Number(process.env.AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS) || 4000,
 }
