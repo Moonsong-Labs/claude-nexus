@@ -4,14 +4,13 @@ import {
   type GeminiContent,
 } from '@claude-nexus/shared/prompts/analysis/index.js'
 import type { ConversationAnalysis } from '@claude-nexus/shared/types/ai-analysis'
-import { GEMINI_CONFIG, AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
+import { GEMINI_CONFIG, AI_WORKER_CONFIG, config } from '@claude-nexus/shared/config'
 import { logger } from '../../middleware/logger.js'
 import {
   sanitizeForLLM,
   validateAnalysisOutput,
   enhancePromptForRetry,
 } from '../../middleware/sanitization.js'
-import { config } from '@claude-nexus/shared/config'
 
 export interface GeminiApiResponse {
   candidates: Array<{

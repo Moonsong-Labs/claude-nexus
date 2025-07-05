@@ -69,7 +69,7 @@ export async function createProxyApp(): Promise<
           request_id: requestId,
         },
       },
-      (err as any).status || 500
+      (err as { status?: number }).status || 500
     )
   })
 
