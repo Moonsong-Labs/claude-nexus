@@ -93,7 +93,8 @@ export function rateLimitAnalysisCreation() {
           'X-RateLimit-Remaining': '0',
           'X-RateLimit-Reset': new Date(
             Date.now() +
-              (rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext
+              ((rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext ||
+                60000)
           ).toISOString(),
         }
       )
@@ -156,7 +157,8 @@ export function rateLimitAnalysisRetrieval() {
           'X-RateLimit-Remaining': '0',
           'X-RateLimit-Reset': new Date(
             Date.now() +
-              (rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext
+              ((rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext ||
+                60000)
           ).toISOString(),
         }
       )
@@ -180,7 +182,10 @@ export async function getRateLimitStatus(domain: string, limiterType: 'creation'
       resetAt: res ? new Date(res.msBeforeNext + Date.now()) : null,
     }
   } catch (error) {
-    logger.error('Error getting rate limit status', { error, domain, limiterType })
+    logger.error('Error getting rate limit status', {
+      error,
+      metadata: { domain, limiterType },
+    })
     return null
   }
 }

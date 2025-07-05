@@ -1,38 +1,34 @@
-import redactPII from 'redact-pii'
+import { SyncRedactor } from 'redact-pii'
 import { logger } from './logger.js'
 
 // Configure PII redaction with custom patterns
-const piiRedactor = redactPII({
-  // Add custom patterns for common sensitive data
-  custom: [
-    // API keys
-    { regex: /sk-ant-[a-zA-Z0-9-_]+/g, replacement: '[API_KEY]' },
-    { regex: /cnp_[a-zA-Z0-9_]+/g, replacement: '[API_KEY]' },
-    // JWT tokens
-    { regex: /eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+/g, replacement: '[JWT_TOKEN]' },
-    // Database URLs
-    { regex: /postgresql:\/\/[^@]+@[^/]+\/\w+/g, replacement: '[DATABASE_URL]' },
-    { regex: /mysql:\/\/[^@]+@[^/]+\/\w+/g, replacement: '[DATABASE_URL]' },
-    { regex: /mongodb:\/\/[^@]+@[^/]+\/\w+/g, replacement: '[DATABASE_URL]' },
-  ],
+const piiRedactor = new SyncRedactor({
+  customRedactors: {
+    after: [
+      // API keys
+      { regexpPattern: /sk-ant-[a-zA-Z0-9-_]+/g, replaceWith: '[API_KEY]' },
+      { regexpPattern: /cnp_[a-zA-Z0-9_]+/g, replaceWith: '[API_KEY]' },
+      // JWT tokens
+      {
+        regexpPattern: /eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+/g,
+        replaceWith: '[JWT_TOKEN]',
+      },
+      // Database URLs
+      { regexpPattern: /postgresql:\/\/[^@]+@[^/]+\/\w+/g, replaceWith: '[DATABASE_URL]' },
+      { regexpPattern: /mysql:\/\/[^@]+@[^/]+\/\w+/g, replaceWith: '[DATABASE_URL]' },
+      { regexpPattern: /mongodb:\/\/[^@]+@[^/]+\/\w+/g, replaceWith: '[DATABASE_URL]' },
+    ],
+  },
   // Use specific replacements for built-in patterns
-  replace: {
-    creditCardNumber: '[CREDIT_CARD]',
-    emailAddress: '[EMAIL]',
-    ipAddress: '[IP_ADDRESS]',
-    phoneNumber: '[PHONE]',
-    streetAddress: '[ADDRESS]',
-    socialSecurityNumber: '[SSN]',
-    zipcode: '[ZIPCODE]',
-    url: (url: string) => {
-      // Keep domain but redact path for URLs
-      try {
-        const u = new URL(url)
-        return `[URL:${u.hostname}]`
-      } catch {
-        return '[URL]'
-      }
-    },
+  builtInRedactors: {
+    creditCardNumber: { replaceWith: '[CREDIT_CARD]' },
+    emailAddress: { replaceWith: '[EMAIL]' },
+    ipAddress: { replaceWith: '[IP_ADDRESS]' },
+    phoneNumber: { replaceWith: '[PHONE]' },
+    streetAddress: { replaceWith: '[ADDRESS]' },
+    usSocialSecurityNumber: { replaceWith: '[SSN]' },
+    zipcode: { replaceWith: '[ZIPCODE]' },
+    url: { replaceWith: '[URL]' },
   },
 })
 
