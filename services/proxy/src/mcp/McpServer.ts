@@ -176,11 +176,25 @@ export class McpServer {
       }
     }
 
-    // Replace template variables
+    // Replace template variables safely
     let processed = template
     for (const [key, value] of Object.entries(args)) {
-      const regex = new RegExp(`\\{${key}\\}`, 'g')
-      processed = processed.replace(regex, String(value))
+      // Validate key to prevent injection
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+        throw {
+          code: MCP_ERRORS.INVALID_PARAMS,
+          message: `Invalid argument name: ${key}. Argument names must be valid identifiers.`,
+        }
+      }
+
+      // Convert value to string and escape any special characters
+      const safeValue = String(value)
+        .replace(/\$/g, '$$$$') // Escape $ which has special meaning in replace()
+        .replace(/\\/g, '\\\\') // Escape backslashes
+
+      // Use split/join for safe replacement without regex
+      const placeholder = `{${key}}`
+      processed = processed.split(placeholder).join(safeValue)
     }
 
     return processed

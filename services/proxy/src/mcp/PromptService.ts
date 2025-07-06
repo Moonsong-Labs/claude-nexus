@@ -21,34 +21,57 @@ export class PromptService {
   async listPrompts(filter: PromptFilter = {}): Promise<McpPrompt[]> {
     const { search, active = true, limit = 100, offset = 0 } = filter
 
-    let query = `
-      SELECT 
-        id, prompt_id, name, description, content, arguments,
-        metadata, github_path, github_sha, github_url, version,
-        is_active, created_at, updated_at, synced_at
-      FROM mcp_prompts
-      WHERE 1=1
-    `
+    // Build query using a structured approach
+    const queryParts = {
+      select: `
+        SELECT 
+          id, prompt_id, name, description, content, arguments,
+          metadata, github_path, github_sha, github_url, version,
+          is_active, created_at, updated_at, synced_at
+        FROM mcp_prompts
+      `,
+      where: [] as string[],
+      orderBy: 'ORDER BY name ASC',
+      limit: '',
+      offset: '',
+    }
+
     const params: Array<boolean | string | number> = []
-    let paramCount = 0
+    let paramIndex = 0
 
+    // Build WHERE conditions
     if (active !== undefined) {
+      queryParts.where.push(`is_active = $${++paramIndex}`)
       params.push(active)
-      query += ` AND is_active = $${++paramCount}`
     }
 
-    if (search) {
-      params.push(`%${search}%`)
-      query += ` AND (name ILIKE $${++paramCount} OR description ILIKE $${paramCount})`
+    if (search && typeof search === 'string') {
+      // Sanitize search input to prevent wildcards injection
+      const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&')
+      queryParts.where.push(`(name ILIKE $${++paramIndex} OR description ILIKE $${paramIndex})`)
+      params.push(`%${sanitizedSearch}%`)
     }
 
-    query += ` ORDER BY name ASC`
+    // Add LIMIT and OFFSET with validation
+    const validatedLimit = Math.min(Math.max(1, Number(limit) || 100), 1000)
+    const validatedOffset = Math.max(0, Number(offset) || 0)
 
-    params.push(limit)
-    query += ` LIMIT $${++paramCount}`
+    queryParts.limit = `LIMIT $${++paramIndex}`
+    params.push(validatedLimit)
 
-    params.push(offset)
-    query += ` OFFSET $${++paramCount}`
+    queryParts.offset = `OFFSET $${++paramIndex}`
+    params.push(validatedOffset)
+
+    // Construct final query
+    const whereClause = queryParts.where.length > 0 ? `WHERE ${queryParts.where.join(' AND ')}` : ''
+
+    const query = `
+      ${queryParts.select}
+      ${whereClause}
+      ${queryParts.orderBy}
+      ${queryParts.limit}
+      ${queryParts.offset}
+    `
 
     try {
       const result = await this.pool.query(query, params)
@@ -210,29 +233,59 @@ export class PromptService {
       count: number
     }>
   }> {
+    // Validate and sanitize days parameter
+    const validatedDays = Math.min(Math.max(1, Math.floor(Number(days) || 30)), 365)
+
     const query = `
+      WITH stats AS (
+        SELECT 
+          COUNT(*) as total_uses,
+          COUNT(DISTINCT domain) as unique_domains,
+          COUNT(DISTINCT account_id) as unique_accounts
+        FROM mcp_prompt_usage
+        WHERE prompt_id = $1
+          AND used_at >= NOW() - INTERVAL '1 day' * $2
+      ),
+      daily AS (
+        SELECT 
+          DATE_TRUNC('day', used_at) as day,
+          COUNT(*) as daily_uses
+        FROM mcp_prompt_usage
+        WHERE prompt_id = $1
+          AND used_at >= NOW() - INTERVAL '1 day' * $2
+        GROUP BY DATE_TRUNC('day', used_at)
+        ORDER BY day DESC
+      )
       SELECT 
-        COUNT(*) as total_uses,
-        COUNT(DISTINCT domain) as unique_domains,
-        COUNT(DISTINCT account_id) as unique_accounts,
-        DATE_TRUNC('day', used_at) as day,
-        COUNT(*) as daily_uses
-      FROM mcp_prompt_usage
-      WHERE prompt_id = $1
-        AND used_at >= NOW() - INTERVAL '${days} days'
-      GROUP BY DATE_TRUNC('day', used_at)
-      ORDER BY day DESC
+        (SELECT total_uses FROM stats) as total_uses,
+        (SELECT unique_domains FROM stats) as unique_domains,
+        (SELECT unique_accounts FROM stats) as unique_accounts,
+        COALESCE(json_agg(json_build_object('date', day, 'count', daily_uses) ORDER BY day DESC), '[]'::json) as daily_usage
+      FROM daily
     `
 
     try {
-      const result = await this.pool.query(query, [promptId])
+      const result = await this.pool.query(query, [promptId, validatedDays])
+
+      if (result.rows.length === 0) {
+        return {
+          totalUses: 0,
+          uniqueDomains: 0,
+          uniqueAccounts: 0,
+          dailyUsage: [],
+        }
+      }
+
+      const row = result.rows[0]
+      const dailyUsage = row.daily_usage || []
+
       return {
-        totalUses: result.rows[0]?.total_uses || 0,
-        uniqueDomains: result.rows[0]?.unique_domains || 0,
-        uniqueAccounts: result.rows[0]?.unique_accounts || 0,
-        dailyUsage: result.rows.map(row => ({
-          date: row.day,
-          count: parseInt(row.daily_uses),
+        totalUses: parseInt(row.total_uses) || 0,
+        uniqueDomains: parseInt(row.unique_domains) || 0,
+        uniqueAccounts: parseInt(row.unique_accounts) || 0,
+        dailyUsage: dailyUsage.map((item: { date: string; count: number }) => ({
+          date: new Date(item.date),
+          count: item.count,
         })),
       }
     } catch (error) {
