@@ -100,7 +100,7 @@ export default tseslint.config(
     files: ['**/*.test.ts', '**/__tests__/**/*.ts'],
     languageOptions: {
       parserOptions: {
-        project: ['./tsconfig.json', './packages/*/tsconfig.test.json'],
+        project: ['./tsconfig.json', './packages/*/tsconfig.test.json', './services/*/tsconfig.json'],
       },
     },
   }
