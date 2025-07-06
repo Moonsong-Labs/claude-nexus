@@ -3,7 +3,7 @@
  */
 
 import type { GitHubSyncService } from './GitHubSyncService.js'
-import { config } from '@claude-nexus/shared'
+import { config, getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger.js'
 
 export class SyncScheduler {
@@ -51,7 +51,13 @@ export class SyncScheduler {
       logger.info('Running scheduled MCP sync...')
       await this.syncService.syncRepository()
     } catch (error) {
-      logger.error('Scheduled sync failed:', error)
+      logger.error('Scheduled sync failed', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
     } finally {
       this.isRunning = false
     }

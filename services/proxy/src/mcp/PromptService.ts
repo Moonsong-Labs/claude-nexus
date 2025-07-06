@@ -5,7 +5,7 @@
 import type { Pool } from 'pg'
 import type { McpPrompt, PromptFilter, PromptUsage } from './types/prompts.js'
 import { LRUCache } from 'lru-cache'
-import { config } from '@claude-nexus/shared'
+import { config, getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger.js'
 
 export class PromptService {
@@ -29,7 +29,7 @@ export class PromptService {
       FROM mcp_prompts
       WHERE 1=1
     `
-    const params: any[] = []
+    const params: Array<boolean | string | number> = []
     let paramCount = 0
 
     if (active !== undefined) {
@@ -54,7 +54,13 @@ export class PromptService {
       const result = await this.pool.query(query, params)
       return result.rows.map(this.mapRowToPrompt)
     } catch (error) {
-      logger.error('Error listing prompts:', error)
+      logger.error('Error listing prompts', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
       throw error
     }
   }
@@ -88,7 +94,16 @@ export class PromptService {
 
       return prompt
     } catch (error) {
-      logger.error('Error getting prompt:', error)
+      logger.error('Error getting prompt', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+        metadata: {
+          promptId,
+        },
+      })
       throw error
     }
   }
@@ -136,7 +151,16 @@ export class PromptService {
       // Invalidate cache
       this.cache.delete(prompt.promptId)
     } catch (error) {
-      logger.error('Error upserting prompt:', error)
+      logger.error('Error upserting prompt', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+        metadata: {
+          promptId: prompt.promptId,
+        },
+      })
       throw error
     }
   }
@@ -160,12 +184,32 @@ export class PromptService {
     try {
       await this.pool.query(query, params)
     } catch (error) {
-      logger.error('Error recording prompt usage:', error)
+      logger.error('Error recording prompt usage', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+        metadata: {
+          promptId: usage.promptId,
+        },
+      })
       // Don't throw - usage tracking shouldn't break the request
     }
   }
 
-  async getUsageStats(promptId: string, days: number = 30): Promise<any> {
+  async getUsageStats(
+    promptId: string,
+    days: number = 30
+  ): Promise<{
+    totalUses: number
+    uniqueDomains: number
+    uniqueAccounts: number
+    dailyUsage: Array<{
+      date: Date
+      count: number
+    }>
+  }> {
     const query = `
       SELECT 
         COUNT(*) as total_uses,
@@ -192,28 +236,59 @@ export class PromptService {
         })),
       }
     } catch (error) {
-      logger.error('Error getting usage stats:', error)
+      logger.error('Error getting usage stats', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+        metadata: {
+          promptId,
+        },
+      })
       throw error
     }
   }
 
-  private mapRowToPrompt(row: any): McpPrompt {
+  private mapRowToPrompt(row: {
+    id: number
+    prompt_id: string
+    name: string
+    description: string | null
+    content: string
+    arguments: Array<{
+      name: string
+      type?: string
+      description?: string
+      required?: boolean
+      default?: unknown
+    }> | null
+    metadata: Record<string, unknown> | null
+    github_path: string
+    github_sha: string | null
+    github_url: string | null
+    version: number
+    is_active: boolean
+    created_at: Date
+    updated_at: Date
+    synced_at: Date | null
+  }): McpPrompt {
     return {
-      id: row.id,
+      id: row.id.toString(),
       promptId: row.prompt_id,
       name: row.name,
-      description: row.description,
+      description: row.description || undefined,
       content: row.content,
       arguments: row.arguments || [],
       metadata: row.metadata || {},
       githubPath: row.github_path,
-      githubSha: row.github_sha,
-      githubUrl: row.github_url,
+      githubSha: row.github_sha || undefined,
+      githubUrl: row.github_url || undefined,
       version: row.version,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      syncedAt: row.synced_at,
+      syncedAt: row.synced_at || row.updated_at,
     }
   }
 

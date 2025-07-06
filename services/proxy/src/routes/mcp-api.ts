@@ -7,6 +7,7 @@ import type { PromptService } from '../mcp/PromptService.js'
 import type { GitHubSyncService } from '../mcp/GitHubSyncService.js'
 import type { SyncScheduler } from '../mcp/SyncScheduler.js'
 import { logger } from '../middleware/logger.js'
+import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 
 export function createMcpApiRoutes(
   promptService: PromptService,
@@ -39,7 +40,13 @@ export function createMcpApiRoutes(
         total: prompts.length, // TODO: Add total count query
       })
     } catch (error) {
-      logger.error('Error listing prompts:', error)
+      logger.error('Error listing prompts', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
       return c.json({ error: 'Failed to list prompts' }, 500)
     }
   })
@@ -56,7 +63,10 @@ export function createMcpApiRoutes(
         return c.json({ error: 'Prompt not found' }, 404)
       }
 
-      const response: any = { prompt }
+      const response: {
+        prompt: typeof prompt
+        stats?: Awaited<ReturnType<typeof promptService.getUsageStats>>
+      } = { prompt }
 
       if (includeStats) {
         const stats = await promptService.getUsageStats(promptId)
@@ -65,7 +75,16 @@ export function createMcpApiRoutes(
 
       return c.json(response)
     } catch (error) {
-      logger.error('Error getting prompt:', error)
+      logger.error('Error getting prompt', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+        metadata: {
+          promptId,
+        },
+      })
       return c.json({ error: 'Failed to get prompt' }, 500)
     }
   })
@@ -79,7 +98,16 @@ export function createMcpApiRoutes(
       const stats = await promptService.getUsageStats(promptId, days)
       return c.json(stats)
     } catch (error) {
-      logger.error('Error getting usage stats:', error)
+      logger.error('Error getting usage stats', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+        metadata: {
+          promptId,
+        },
+      })
       return c.json({ error: 'Failed to get usage statistics' }, 500)
     }
   })
@@ -90,7 +118,13 @@ export function createMcpApiRoutes(
       await syncScheduler.triggerSync()
       return c.json({ message: 'Sync triggered successfully' })
     } catch (error) {
-      logger.error('Error triggering sync:', error)
+      logger.error('Error triggering sync', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
       const message = error instanceof Error ? error.message : 'Failed to trigger sync'
       return c.json({ error: message }, 500)
     }
@@ -111,7 +145,13 @@ export function createMcpApiRoutes(
         }
       )
     } catch (error) {
-      logger.error('Error getting sync status:', error)
+      logger.error('Error getting sync status', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
       return c.json({ error: 'Failed to get sync status' }, 500)
     }
   })

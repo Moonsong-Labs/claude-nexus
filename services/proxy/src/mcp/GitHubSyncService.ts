@@ -8,7 +8,27 @@ import matter from 'gray-matter'
 import type { Pool } from 'pg'
 import type { PromptService } from './PromptService.js'
 import type { YamlPromptFormat, JsonPromptFormat, MarkdownFrontmatter } from './types/prompts.js'
-import { config } from '@claude-nexus/shared'
+
+type ParsedPrompt = {
+  promptId: string
+  name: string
+  description?: string
+  content: string
+  arguments?: Array<{
+    name: string
+    type?: string
+    description?: string
+    required?: boolean
+    default?: unknown
+  }>
+  metadata: Record<string, unknown>
+  githubPath: string
+  githubUrl: string
+  version: number
+  isActive: boolean
+  githubSha?: string
+}
+import { config, getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger.js'
 
 export class GitHubSyncService {
@@ -66,7 +86,13 @@ export class GitHubSyncService {
           })
           successCount++
         } catch (error) {
-          logger.error(`Failed to store prompt ${prompt.promptId}:`, error)
+          logger.error(`Failed to store prompt ${prompt.promptId}`, {
+            error: {
+              message: getErrorMessage(error),
+              stack: getErrorStack(error),
+              code: getErrorCode(error),
+            },
+          })
         }
       }
 
@@ -75,7 +101,13 @@ export class GitHubSyncService {
 
       logger.info(`GitHub sync completed. Stored ${successCount}/${prompts.length} prompts`)
     } catch (error) {
-      logger.error('GitHub sync failed:', error)
+      logger.error('GitHub sync failed', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
       await this.updateSyncStatus(
         'error',
         undefined,
@@ -85,8 +117,8 @@ export class GitHubSyncService {
     }
   }
 
-  private async fetchPrompts(): Promise<Array<any>> {
-    const prompts: Array<any> = []
+  private async fetchPrompts(): Promise<Array<ParsedPrompt>> {
+    const prompts: Array<ParsedPrompt> = []
 
     try {
       // List contents of the prompts directory
@@ -132,11 +164,26 @@ export class GitHubSyncService {
             }
           }
         } catch (error) {
-          logger.error(`Failed to process file ${item.path}:`, error)
+          logger.error(`Failed to process file ${item.path}`, {
+            error: {
+              message: getErrorMessage(error),
+              stack: getErrorStack(error),
+              code: getErrorCode(error),
+            },
+            metadata: {
+              filePath: item.path,
+            },
+          })
         }
       }
     } catch (error) {
-      logger.error('Error fetching prompts from GitHub:', error)
+      logger.error('Error fetching prompts from GitHub', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
       throw error
     }
 
@@ -147,7 +194,7 @@ export class GitHubSyncService {
     content: string,
     filePath: string,
     githubUrl: string
-  ): Promise<any | null> {
+  ): Promise<ParsedPrompt | null> {
     const ext = filePath.split('.').pop()?.toLowerCase()
 
     try {
@@ -167,12 +214,21 @@ export class GitHubSyncService {
           return null
       }
     } catch (error) {
-      logger.error(`Error parsing ${filePath}:`, error)
+      logger.error(`Error parsing ${filePath}`, {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+        metadata: {
+          filePath,
+        },
+      })
       return null
     }
   }
 
-  private parseYamlPrompt(content: string, filePath: string, githubUrl: string): any {
+  private parseYamlPrompt(content: string, filePath: string, githubUrl: string): ParsedPrompt {
     const data = yaml.load(content) as YamlPromptFormat
 
     if (!data.id || !data.name || !data.content) {
@@ -193,7 +249,7 @@ export class GitHubSyncService {
     }
   }
 
-  private parseJsonPrompt(content: string, filePath: string, githubUrl: string): any {
+  private parseJsonPrompt(content: string, filePath: string, githubUrl: string): ParsedPrompt {
     const data = JSON.parse(content) as JsonPromptFormat
 
     if (!data.id || !data.name || !data.content) {
@@ -214,7 +270,7 @@ export class GitHubSyncService {
     }
   }
 
-  private parseMarkdownPrompt(content: string, filePath: string, githubUrl: string): any {
+  private parseMarkdownPrompt(content: string, filePath: string, githubUrl: string): ParsedPrompt {
     const parsed = matter(content)
     const frontmatter = parsed.data as MarkdownFrontmatter
 
@@ -264,11 +320,25 @@ export class GitHubSyncService {
     try {
       await this.pool.query(query, params)
     } catch (error) {
-      logger.error('Error updating sync status:', error)
+      logger.error('Error updating sync status', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
     }
   }
 
-  async getSyncStatus(): Promise<any> {
+  async getSyncStatus(): Promise<{
+    repository: string
+    branch: string
+    sync_status: string
+    last_sync_at: Date | null
+    last_commit_sha: string | null
+    last_error: string | null
+    updated_at: Date
+  } | null> {
     const query = `
       SELECT repository, branch, sync_status, last_sync_at, last_commit_sha, last_error, updated_at
       FROM mcp_sync_status
@@ -281,7 +351,13 @@ export class GitHubSyncService {
       const result = await this.pool.query(query, params)
       return result.rows[0] || null
     } catch (error) {
-      logger.error('Error getting sync status:', error)
+      logger.error('Error getting sync status', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: getErrorCode(error),
+        },
+      })
       return null
     }
   }
