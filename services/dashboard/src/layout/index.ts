@@ -150,6 +150,7 @@ export const layout = (title: string, content: any, additionalScripts: string = 
             <a href="/dashboard" class="text-sm text-blue-600">Dashboard</a>
             <a href="/dashboard/requests" class="text-sm text-blue-600">Requests</a>
             <a href="/dashboard/token-usage" class="text-sm text-blue-600">Token Usage</a>
+            <a href="/dashboard/prompts" class="text-sm text-blue-600">Prompts</a>
             <span class="text-sm text-gray-600" id="current-domain">All Domains</span>
             <a href="/dashboard/logout" class="text-sm text-blue-600">Logout</a>
           </div>

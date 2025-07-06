@@ -9,6 +9,7 @@ import { createRateLimiter, createDomainRateLimiter } from './middleware/rate-li
 import { createHealthRoutes } from './routes/health.js'
 import { apiRoutes } from './routes/api.js'
 import { sparkApiRoutes } from './routes/spark-api.js'
+import { createMcpApiRoutes } from './routes/mcp-api.js'
 import { initializeSlack } from './services/slack.js'
 import { initializeDatabase } from './storage/writer.js'
 import { apiAuthMiddleware } from './middleware/api-auth.js'
@@ -141,6 +142,39 @@ export async function createProxyApp(): Promise<
   // Spark API routes (protected by same auth as dashboard API)
   app.route('/api', sparkApiRoutes)
 
+  // MCP routes
+  if (config.mcp.enabled) {
+    const mcpHandler = container.getMcpHandler()
+    const promptService = container.getPromptService()
+    const syncService = container.getGitHubSyncService()
+    const syncScheduler = container.getSyncScheduler()
+
+    if (mcpHandler) {
+      // MCP JSON-RPC endpoint
+      app.post('/mcp/rpc', c => mcpHandler.handle(c))
+
+      // MCP discovery endpoint
+      app.get('/mcp', c => {
+        return c.json({
+          name: 'claude-nexus-mcp-server',
+          version: '1.0.0',
+          capabilities: {
+            prompts: {
+              listPrompts: true,
+              getPrompt: true,
+            },
+          },
+        })
+      })
+    }
+
+    // MCP Dashboard API routes (protected by dashboard auth)
+    if (promptService && syncService && syncScheduler) {
+      const mcpApiRoutes = createMcpApiRoutes(promptService, syncService, syncScheduler)
+      app.route('/api/mcp', mcpApiRoutes)
+    }
+  }
+
   // Client setup files
   app.get('/client-setup/:filename', async c => {
     const filename = c.req.param('filename')
@@ -198,22 +232,36 @@ export async function createProxyApp(): Promise<
 
   // Root endpoint
   app.get('/', c => {
+    const endpoints: any = {
+      api: '/v1/messages',
+      health: '/health',
+      stats: '/token-stats',
+      'client-setup': '/client-setup/*',
+      'dashboard-api': {
+        stats: '/api/stats',
+        requests: '/api/requests',
+        'request-details': '/api/requests/:id',
+        domains: '/api/domains',
+      },
+    }
+
+    if (config.mcp.enabled) {
+      endpoints.mcp = {
+        discovery: '/mcp',
+        rpc: '/mcp/rpc',
+        'dashboard-api': {
+          prompts: '/api/mcp/prompts',
+          sync: '/api/mcp/sync',
+          'sync-status': '/api/mcp/sync/status',
+        },
+      }
+    }
+
     return c.json({
       service: 'claude-nexus-proxy',
       version: process.env.npm_package_version || 'unknown',
       status: 'operational',
-      endpoints: {
-        api: '/v1/messages',
-        health: '/health',
-        stats: '/token-stats',
-        'client-setup': '/client-setup/*',
-        'dashboard-api': {
-          stats: '/api/stats',
-          requests: '/api/requests',
-          'request-details': '/api/requests/:id',
-          domains: '/api/domains',
-        },
-      },
+      endpoints,
     })
   })
 
@@ -263,7 +311,20 @@ async function initializeExternalServices(): Promise<void> {
         slack: config.slack.enabled,
         telemetry: config.telemetry.enabled,
         healthChecks: config.features.enableHealthChecks,
+        mcp: config.mcp.enabled,
       },
+      mcp: config.mcp.enabled
+        ? {
+            github: {
+              owner: config.mcp.github.owner || 'not configured',
+              repo: config.mcp.github.repo || 'not configured',
+              path: config.mcp.github.path,
+            },
+            sync: {
+              interval: config.mcp.sync.interval,
+            },
+          }
+        : undefined,
     },
   })
 }

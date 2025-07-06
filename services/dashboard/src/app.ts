@@ -183,6 +183,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
   app.route('/dashboard', conversationDetailRoutes)
   app.route('/dashboard/api', sparkProxyRoutes)
 
+  // Import and mount MCP proxy routes
+  const { mcpProxyRoutes } = await import('./routes/mcp-proxy.js')
+  app.route('/dashboard/api', mcpProxyRoutes)
+
   // Root redirect to dashboard
   app.get('/', c => {
     return c.redirect('/dashboard')
