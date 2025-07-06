@@ -144,16 +144,25 @@ export async function createProxyApp(): Promise<
 
   // MCP routes
   if (config.mcp.enabled) {
+    // Apply client authentication to MCP routes
+    app.use('/mcp/*', clientAuthMiddleware())
+
+    // Apply rate limiting to MCP routes
+    if (config.features.enableMetrics) {
+      app.use('/mcp/*', createRateLimiter())
+      app.use('/mcp/*', createDomainRateLimiter())
+    }
+
     const mcpHandler = container.getMcpHandler()
     const promptService = container.getPromptService()
     const syncService = container.getGitHubSyncService()
     const syncScheduler = container.getSyncScheduler()
 
     if (mcpHandler) {
-      // MCP JSON-RPC endpoint
+      // MCP JSON-RPC endpoint (now protected by auth)
       app.post('/mcp/rpc', c => mcpHandler.handle(c))
 
-      // MCP discovery endpoint
+      // MCP discovery endpoint (now protected by auth)
       app.get('/mcp', c => {
         return c.json({
           name: 'claude-nexus-mcp-server',
