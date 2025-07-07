@@ -1,24 +1,13 @@
-id: test-generator
 name: Test Case Generator
 description: Generates comprehensive test cases for your code
-arguments:
-  - name: framework
-    type: string
-    required: true
-    description: Testing framework (e.g., Jest, Pytest, JUnit)
-  - name: coverage_type
-    type: string
-    required: false
-    description: Type of coverage to focus on (unit, integration, e2e)
-    default: 'unit'
-content: |
-  You are an expert test engineer. Generate comprehensive test cases using {framework} for the provided code.
+template: |
+  You are an expert test engineer. Generate comprehensive test cases using {{framework}} for the provided code.
 
-  Focus on {coverage_type} testing and ensure:
+  Focus on {{#if coverage_type}}{{coverage_type}}{{else}}unit{{/if}} testing and ensure:
   1. Edge cases are covered
   2. Error scenarios are tested
   3. Happy path scenarios are included
   4. Test names are descriptive
   5. Assertions are meaningful
 
-  Follow the best practices for {framework} and ensure tests are maintainable and readable.
+  Follow the best practices for {{framework}} and ensure tests are maintainable and readable.

@@ -91,7 +91,7 @@ promptsRoute.get('/', async c => {
 
         <!-- Search Bar -->
         <div class="search-container">
-          <form method="get" action="/dashboard/prompts">
+          <form method="get" action="/dashboard/prompts" class="search-form">
             <input
               type="text"
               name="search"
@@ -115,14 +115,6 @@ promptsRoute.get('/', async c => {
                       : ''}
                     <div class="prompt-meta">
                       <span class="prompt-id">${prompt.promptId}</span>
-                      ${prompt.arguments && prompt.arguments.length > 0
-                        ? html`
-                            <span class="prompt-args"
-                              >${prompt.arguments.length}
-                              argument${prompt.arguments.length > 1 ? 's' : ''}</span
-                            >
-                          `
-                        : ''}
                     </div>
                     <div class="prompt-actions">
                       <a href="/dashboard/prompts/${prompt.promptId}" class="btn btn-small"
@@ -183,13 +175,15 @@ promptsRoute.get('/', async c => {
         }
 
         .sync-status {
-          background-color: #f3f4f6;
+          background-color: white;
+          border: 1px solid #e5e7eb;
           border-radius: 0.5rem;
-          padding: 1rem;
-          margin-bottom: 2rem;
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .sync-status.error {
@@ -241,15 +235,27 @@ promptsRoute.get('/', async c => {
         }
 
         .search-container {
-          margin-bottom: 2rem;
+          background-color: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 0.5rem;
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-form {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          max-width: 400px;
         }
 
         .search-input {
           padding: 0.5rem 1rem;
           border: 1px solid #d1d5db;
           border-radius: 0.375rem;
-          width: 300px;
-          margin-right: 0.5rem;
+          flex: 1;
+          min-width: 200px;
         }
 
         .prompts-grid {

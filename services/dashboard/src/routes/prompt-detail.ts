@@ -32,8 +32,8 @@ promptDetailRoute.get('/:id', async c => {
   }
 
   try {
-    // Fetch prompt details with stats
-    const promptResponse = await apiClient.get(`/api/mcp/prompts/${promptId}?includeStats=true`)
+    // Fetch prompt details
+    const promptResponse = await apiClient.get(`/api/mcp/prompts/${promptId}`)
 
     if (!promptResponse.ok) {
       if (promptResponse.status === 404) {
@@ -42,8 +42,8 @@ promptDetailRoute.get('/:id', async c => {
       throw new Error(`Failed to fetch prompt: ${promptResponse.status}`)
     }
 
-    const data = (await promptResponse.json()) as { prompt: any; stats: any }
-    const { prompt, stats } = data
+    const data = (await promptResponse.json()) as { prompt: any }
+    const { prompt } = data
 
     const content = html`
       <div>
@@ -60,116 +60,31 @@ promptDetailRoute.get('/:id', async c => {
             <p class="mono">${prompt.promptId}</p>
           </div>
           <div class="info-card">
-            <h3>GitHub Path</h3>
-            <p class="mono">${prompt.githubPath}</p>
-          </div>
-          <div class="info-card">
-            <h3>Version</h3>
-            <p>${prompt.version}</p>
-          </div>
-          <div class="info-card">
-            <h3>Last Synced</h3>
-            <p>${new Date(prompt.syncedAt).toLocaleString()}</p>
+            <h3>Name</h3>
+            <p>${prompt.name}</p>
           </div>
         </div>
-
-        <!-- Arguments -->
-        ${prompt.arguments && prompt.arguments.length > 0
-          ? html`
-              <div class="section">
-                <h3>Arguments</h3>
-                <div class="arguments-list">
-                  ${prompt.arguments.map(
-                    (arg: any) => html`
-                      <div class="argument-card">
-                        <div class="arg-header">
-                          <span class="arg-name">${arg.name}</span>
-                          ${arg.required ? html`<span class="arg-required">Required</span>` : ''}
-                          ${arg.type ? html`<span class="arg-type">${arg.type}</span>` : ''}
-                        </div>
-                        ${arg.description
-                          ? html`<p class="arg-description">${arg.description}</p>`
-                          : ''}
-                        ${arg.default !== undefined
-                          ? html`<p class="arg-default">
-                              Default: <code>${JSON.stringify(arg.default)}</code>
-                            </p>`
-                          : ''}
-                      </div>
-                    `
-                  )}
-                </div>
-              </div>
-            `
-          : ''}
 
         <!-- Content -->
         <div class="section">
-          <h3>Prompt Content</h3>
+          <h3>Prompt Template</h3>
           <div class="content-container">
-            <pre><code>${prompt.content}</code></pre>
+            <pre><code>${prompt.template}</code></pre>
           </div>
         </div>
 
-        <!-- Usage Stats -->
-        ${stats
-          ? html`
-              <div class="section">
-                <h3>Usage Statistics (Last 30 Days)</h3>
-                <div class="stats-grid">
-                  <div class="stat-card">
-                    <div class="stat-value">${stats.totalUses}</div>
-                    <div class="stat-label">Total Uses</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-value">${stats.uniqueDomains}</div>
-                    <div class="stat-label">Unique Domains</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-value">${stats.uniqueAccounts}</div>
-                    <div class="stat-label">Unique Accounts</div>
-                  </div>
-                </div>
-
-                ${stats.dailyUsage && stats.dailyUsage.length > 0
-                  ? html`
-                      <div class="usage-chart">
-                        <h4>Daily Usage</h4>
-                        <div class="chart-container">
-                          ${stats.dailyUsage.map((day: any, _index: number) => {
-                            const maxCount = Math.max(...stats.dailyUsage.map((d: any) => d.count))
-                            const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0
-                            return html`
-                              <div
-                                class="chart-bar"
-                                title="${new Date(
-                                  day.date
-                                ).toLocaleDateString()}: ${day.count} uses"
-                              >
-                                <div class="bar" style="height: ${height}%"></div>
-                                <div class="bar-label">${day.count}</div>
-                              </div>
-                            `
-                          })}
-                        </div>
-                      </div>
-                    `
-                  : ''}
-              </div>
-            `
-          : ''}
-
-        <!-- Metadata -->
-        ${prompt.metadata && Object.keys(prompt.metadata).length > 0
-          ? html`
-              <div class="section">
-                <h3>Metadata</h3>
-                <div class="metadata-container">
-                  <pre><code>${JSON.stringify(prompt.metadata, null, 2)}</code></pre>
-                </div>
-              </div>
-            `
-          : ''}
+        <!-- Template Help -->
+        <div class="section">
+          <h3>How to Use</h3>
+          <p>
+            This prompt uses Handlebars templating. Variables are referenced using
+            <code>{{variableName}}</code> syntax.
+          </p>
+          <p>
+            Example: If the template contains <code>{{name}}</code>, you would pass
+            <code>{ "arguments": { "name": "John" } }</code> when calling the MCP endpoint.
+          </p>
+        </div>
       </div>
 
       <style>

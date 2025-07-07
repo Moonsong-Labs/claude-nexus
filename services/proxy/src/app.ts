@@ -154,7 +154,7 @@ export async function createProxyApp(): Promise<
     }
 
     const mcpHandler = container.getMcpHandler()
-    const promptService = container.getPromptService()
+    const promptRegistry = container.getPromptRegistry()
     const syncService = container.getGitHubSyncService()
     const syncScheduler = container.getSyncScheduler()
 
@@ -178,24 +178,16 @@ export async function createProxyApp(): Promise<
     }
 
     // MCP Dashboard API routes (protected by dashboard auth)
-    if (promptService && syncService && syncScheduler) {
-      const mcpApiRoutes = createMcpApiRoutes(promptService, syncService, syncScheduler)
+    if (promptRegistry) {
+      const mcpApiRoutes = createMcpApiRoutes(
+        promptRegistry,
+        syncService || null,
+        syncScheduler || null
+      )
       app.route('/api/mcp', mcpApiRoutes)
       logger.info('MCP API routes registered at /api/mcp')
-    } else if (promptService) {
-      // If we have prompt service but no sync services, still register the routes
-      // with null sync services (they'll return appropriate errors)
-      const mcpApiRoutes = createMcpApiRoutes(promptService, null as any, null as any)
-      app.route('/api/mcp', mcpApiRoutes)
-      logger.info('MCP API routes registered at /api/mcp (without sync services)')
     } else {
-      logger.warn('MCP API routes not registered - services not available', {
-        metadata: {
-          promptService: !!promptService,
-          syncService: !!syncService,
-          syncScheduler: !!syncScheduler,
-        },
-      })
+      logger.warn('MCP API routes not registered - prompt registry not available')
     }
   }
 

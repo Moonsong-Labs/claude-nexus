@@ -223,3 +223,6 @@ Thumbs.db
 
 # Debug images
 /*.png
+
+# MCP sync info
+sync-info.json

@@ -10,7 +10,7 @@ import { TokenUsageService } from './services/TokenUsageService.js'
 import { config } from '@claude-nexus/shared/config'
 import { logger } from './middleware/logger.js'
 import { McpServer } from './mcp/McpServer.js'
-import { PromptService } from './mcp/PromptService.js'
+import { PromptRegistryService } from './mcp/PromptRegistryService.js'
 import { GitHubSyncService } from './mcp/GitHubSyncService.js'
 import { SyncScheduler } from './mcp/SyncScheduler.js'
 import { JsonRpcHandler } from './mcp/JsonRpcHandler.js'
@@ -29,7 +29,7 @@ class Container {
   private proxyService?: ProxyService
   private messageController?: MessageController
   private mcpServer?: McpServer
-  private promptService?: PromptService
+  private promptRegistry?: PromptRegistryService
   private githubSyncService?: GitHubSyncService
   private syncScheduler?: SyncScheduler
   private jsonRpcHandler?: JsonRpcHandler
@@ -103,14 +103,27 @@ class Container {
     this.messageController = new MessageController(this.proxyService)
 
     // Initialize MCP services if enabled
-    if (config.mcp.enabled && this.pool) {
-      this.promptService = new PromptService(this.pool)
-      this.mcpServer = new McpServer(this.promptService)
+    if (config.mcp.enabled) {
+      this.promptRegistry = new PromptRegistryService()
+
+      // Initialize the registry
+      this.promptRegistry
+        .initialize()
+        .then(() => {
+          logger.info('MCP Prompt Registry initialized')
+        })
+        .catch(err => {
+          logger.error('Failed to initialize MCP Prompt Registry', {
+            error: { message: err.message, stack: err.stack },
+          })
+        })
+
+      this.mcpServer = new McpServer(this.promptRegistry)
       this.jsonRpcHandler = new JsonRpcHandler(this.mcpServer)
 
       // Only initialize GitHub sync if credentials are provided
       if (config.mcp.github.owner && config.mcp.github.repo && config.mcp.github.token) {
-        this.githubSyncService = new GitHubSyncService(this.pool, this.promptService)
+        this.githubSyncService = new GitHubSyncService(this.promptRegistry)
         this.syncScheduler = new SyncScheduler(this.githubSyncService)
 
         // Start the sync scheduler
@@ -179,8 +192,8 @@ class Container {
     return this.jsonRpcHandler
   }
 
-  getPromptService(): PromptService | undefined {
-    return this.promptService
+  getPromptRegistry(): PromptRegistryService | undefined {
+    return this.promptRegistry
   }
 
   getGitHubSyncService(): GitHubSyncService | undefined {
@@ -194,6 +207,9 @@ class Container {
   async cleanup(): Promise<void> {
     if (this.syncScheduler) {
       this.syncScheduler.stop()
+    }
+    if (this.promptRegistry) {
+      await this.promptRegistry.stop()
     }
     if (this.storageService) {
       await this.storageService.close()

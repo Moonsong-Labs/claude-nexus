@@ -1,35 +1,22 @@
 /**
- * Service for syncing prompts from GitHub repository
+ * Service for syncing prompts from GitHub repository to local filesystem
  */
 
 import { Octokit } from '@octokit/rest'
-import * as yaml from 'js-yaml'
-import matter from 'gray-matter'
-import type { Pool } from 'pg'
-import type { PromptService } from './PromptService.js'
-import type { YamlPromptFormat, JsonPromptFormat, MarkdownFrontmatter } from './types/prompts.js'
-
-type ParsedPrompt = {
-  promptId: string
-  name: string
-  description?: string
-  content: string
-  arguments?: Array<{
-    name: string
-    type?: string
-    description?: string
-    required?: boolean
-    default?: unknown
-  }>
-  metadata: Record<string, unknown>
-  githubPath: string
-  githubUrl: string
-  version: number
-  isActive: boolean
-  githubSha?: string
-}
+import * as fs from 'node:fs/promises'
+import * as path from 'node:path'
 import { config, getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger.js'
+import type { PromptRegistryService } from './PromptRegistryService.js'
+
+interface SyncInfo {
+  repository: string
+  branch: string
+  lastCommitSha: string
+  lastSyncAt: string
+  syncStatus: 'success' | 'error'
+  lastError?: string
+}
 
 export class GitHubSyncService {
   private octokit: Octokit
@@ -37,10 +24,12 @@ export class GitHubSyncService {
   private readonly repo: string
   private readonly branch: string
   private readonly path: string
+  private readonly promptsDir: string
+  private readonly syncInfoPath: string
 
   constructor(
-    private pool: Pool,
-    private promptService: PromptService
+    private promptRegistry: PromptRegistryService,
+    promptsDir: string = 'prompts'
   ) {
     if (!config.mcp.github.token) {
       throw new Error('GitHub token is required for MCP sync')
@@ -55,6 +44,9 @@ export class GitHubSyncService {
     this.branch = config.mcp.github.branch
     // Remove trailing slash from path if present
     this.path = config.mcp.github.path.replace(/\/$/, '')
+
+    this.promptsDir = path.resolve(promptsDir)
+    this.syncInfoPath = path.join(path.dirname(this.promptsDir), 'sync-info.json')
   }
 
   async syncRepository(): Promise<void> {
@@ -68,9 +60,6 @@ export class GitHubSyncService {
     })
 
     try {
-      // Update sync status to 'syncing'
-      await this.updateSyncStatus('syncing')
-
       // Get the latest commit SHA
       const { data: ref } = await this.octokit.git.getRef({
         owner: this.owner,
@@ -79,22 +68,35 @@ export class GitHubSyncService {
       })
       const latestSha = ref.object.sha
 
-      // Get repository contents at the specified path
-      const prompts = await this.fetchPrompts()
+      // Check if we need to sync
+      const currentSyncInfo = await this.getSyncInfo()
+      if (currentSyncInfo?.lastCommitSha === latestSha) {
+        logger.info('Repository is already up to date')
+        return
+      }
 
+      // Ensure prompts directory exists
+      await fs.mkdir(this.promptsDir, { recursive: true })
+
+      // Clear existing prompts
+      const existingFiles = await fs.readdir(this.promptsDir)
+      for (const file of existingFiles) {
+        if (file.endsWith('.yaml') || file.endsWith('.yml')) {
+          await fs.unlink(path.join(this.promptsDir, file))
+        }
+      }
+
+      // Fetch and save prompts
+      const prompts = await this.fetchPrompts()
       logger.info(`Found ${prompts.length} prompt files`)
 
-      // Process and store each prompt
       let successCount = 0
       for (const prompt of prompts) {
         try {
-          await this.promptService.upsertPrompt({
-            ...prompt,
-            githubSha: latestSha,
-          })
+          await fs.writeFile(path.join(this.promptsDir, prompt.filename), prompt.content, 'utf-8')
           successCount++
         } catch (error) {
-          logger.error(`Failed to store prompt ${prompt.promptId}`, {
+          logger.error(`Failed to write prompt ${prompt.filename}`, {
             error: {
               message: getErrorMessage(error),
               stack: getErrorStack(error),
@@ -104,10 +106,19 @@ export class GitHubSyncService {
         }
       }
 
-      // Update sync status to success
-      await this.updateSyncStatus('success', latestSha)
+      // Reload prompts in registry
+      await this.promptRegistry.loadPrompts()
 
-      logger.info(`GitHub sync completed. Stored ${successCount}/${prompts.length} prompts`)
+      // Update sync info
+      await this.updateSyncInfo({
+        repository: `${this.owner}/${this.repo}`,
+        branch: this.branch,
+        lastCommitSha: latestSha,
+        lastSyncAt: new Date().toISOString(),
+        syncStatus: 'success',
+      })
+
+      logger.info(`GitHub sync completed. Saved ${successCount}/${prompts.length} prompts`)
     } catch (error) {
       logger.error('GitHub sync failed', {
         error: {
@@ -116,17 +127,22 @@ export class GitHubSyncService {
           code: getErrorCode(error),
         },
       })
-      await this.updateSyncStatus(
-        'error',
-        undefined,
-        error instanceof Error ? error.message : 'Unknown error'
-      )
+
+      await this.updateSyncInfo({
+        repository: `${this.owner}/${this.repo}`,
+        branch: this.branch,
+        lastCommitSha: '',
+        lastSyncAt: new Date().toISOString(),
+        syncStatus: 'error',
+        lastError: error instanceof Error ? error.message : 'Unknown error',
+      })
+
       throw error
     }
   }
 
-  private async fetchPrompts(): Promise<Array<ParsedPrompt>> {
-    const prompts: Array<ParsedPrompt> = []
+  private async fetchPrompts(): Promise<Array<{ filename: string; content: string }>> {
+    const prompts: Array<{ filename: string; content: string }> = []
 
     try {
       // List contents of the prompts directory
@@ -157,9 +173,9 @@ export class GitHubSyncService {
           continue
         }
 
-        // Only process supported file types
+        // Only process YAML files
         const ext = item.name.split('.').pop()?.toLowerCase()
-        if (!['yaml', 'yml', 'json', 'md'].includes(ext || '')) {
+        if (!['yaml', 'yml'].includes(ext || '')) {
           continue
         }
 
@@ -174,14 +190,13 @@ export class GitHubSyncService {
 
           if ('content' in file && file.content) {
             const content = Buffer.from(file.content, 'base64').toString('utf-8')
-            const prompt = await this.parsePromptFile(content, item.path, item.html_url || '')
-
-            if (prompt) {
-              prompts.push(prompt)
-            }
+            prompts.push({
+              filename: item.name,
+              content,
+            })
           }
         } catch (error) {
-          logger.error(`Failed to process file ${item.path}`, {
+          logger.error(`Failed to fetch file ${item.path}`, {
             error: {
               message: getErrorMessage(error),
               stack: getErrorStack(error),
@@ -207,137 +222,20 @@ export class GitHubSyncService {
     return prompts
   }
 
-  private async parsePromptFile(
-    content: string,
-    filePath: string,
-    githubUrl: string
-  ): Promise<ParsedPrompt | null> {
-    const ext = filePath.split('.').pop()?.toLowerCase()
-
+  private async getSyncInfo(): Promise<SyncInfo | null> {
     try {
-      switch (ext) {
-        case 'yaml':
-        case 'yml':
-          return this.parseYamlPrompt(content, filePath, githubUrl)
-
-        case 'json':
-          return this.parseJsonPrompt(content, filePath, githubUrl)
-
-        case 'md':
-          return this.parseMarkdownPrompt(content, filePath, githubUrl)
-
-        default:
-          logger.warn(`Unsupported file type: ${ext}`)
-          return null
-      }
-    } catch (error) {
-      logger.error(`Error parsing ${filePath}`, {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: getErrorCode(error),
-        },
-        metadata: {
-          filePath,
-        },
-      })
+      const content = await fs.readFile(this.syncInfoPath, 'utf-8')
+      return JSON.parse(content)
+    } catch {
       return null
     }
   }
 
-  private parseYamlPrompt(content: string, filePath: string, githubUrl: string): ParsedPrompt {
-    const data = yaml.load(content) as YamlPromptFormat
-
-    if (!data.id || !data.name || !data.content) {
-      throw new Error('Invalid YAML prompt format: missing required fields')
-    }
-
-    return {
-      promptId: data.id,
-      name: data.name,
-      description: data.description,
-      content: data.content,
-      arguments: data.arguments,
-      metadata: data.metadata || {},
-      githubPath: filePath,
-      githubUrl,
-      version: 1,
-      isActive: true,
-    }
-  }
-
-  private parseJsonPrompt(content: string, filePath: string, githubUrl: string): ParsedPrompt {
-    const data = JSON.parse(content) as JsonPromptFormat
-
-    if (!data.id || !data.name || !data.content) {
-      throw new Error('Invalid JSON prompt format: missing required fields')
-    }
-
-    return {
-      promptId: data.id,
-      name: data.name,
-      description: data.description,
-      content: data.content,
-      arguments: data.arguments,
-      metadata: data.metadata || {},
-      githubPath: filePath,
-      githubUrl,
-      version: 1,
-      isActive: true,
-    }
-  }
-
-  private parseMarkdownPrompt(content: string, filePath: string, githubUrl: string): ParsedPrompt {
-    const parsed = matter(content)
-    const frontmatter = parsed.data as MarkdownFrontmatter
-
-    if (!frontmatter.id || !frontmatter.name) {
-      throw new Error('Invalid Markdown prompt format: missing required frontmatter fields')
-    }
-
-    return {
-      promptId: frontmatter.id,
-      name: frontmatter.name,
-      description: frontmatter.description,
-      content: parsed.content.trim(),
-      arguments: frontmatter.arguments,
-      metadata: frontmatter.metadata || {},
-      githubPath: filePath,
-      githubUrl,
-      version: 1,
-      isActive: true,
-    }
-  }
-
-  private async updateSyncStatus(
-    status: 'pending' | 'syncing' | 'success' | 'error',
-    commitSha?: string,
-    error?: string
-  ): Promise<void> {
-    const query = `
-      INSERT INTO mcp_sync_status (repository, branch, sync_status, last_sync_at, last_commit_sha, last_error)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT (repository, branch) DO UPDATE SET
-        sync_status = EXCLUDED.sync_status,
-        last_sync_at = EXCLUDED.last_sync_at,
-        last_commit_sha = COALESCE(EXCLUDED.last_commit_sha, mcp_sync_status.last_commit_sha),
-        last_error = EXCLUDED.last_error,
-        updated_at = NOW()
-    `
-
-    const params = [
-      `${this.owner}/${this.repo}`,
-      this.branch,
-      status,
-      status === 'success' ? new Date() : null,
-      commitSha || null,
-      error || null,
-    ]
-
+  private async updateSyncInfo(info: SyncInfo): Promise<void> {
     try {
-      await this.pool.query(query, params)
+      await fs.writeFile(this.syncInfoPath, JSON.stringify(info, null, 2), 'utf-8')
     } catch (error) {
-      logger.error('Error updating sync status', {
+      logger.error('Error updating sync info', {
         error: {
           message: getErrorMessage(error),
           stack: getErrorStack(error),
@@ -354,28 +252,26 @@ export class GitHubSyncService {
     last_sync_at: Date | null
     last_commit_sha: string | null
     last_error: string | null
-    updated_at: Date
   } | null> {
-    const query = `
-      SELECT repository, branch, sync_status, last_sync_at, last_commit_sha, last_error, updated_at
-      FROM mcp_sync_status
-      WHERE repository = $1 AND branch = $2
-    `
+    const syncInfo = await this.getSyncInfo()
+    if (!syncInfo) {
+      return {
+        repository: `${this.owner}/${this.repo}`,
+        branch: this.branch,
+        sync_status: 'never_synced',
+        last_sync_at: null,
+        last_commit_sha: null,
+        last_error: null,
+      }
+    }
 
-    const params = [`${this.owner}/${this.repo}`, this.branch]
-
-    try {
-      const result = await this.pool.query(query, params)
-      return result.rows[0] || null
-    } catch (error) {
-      logger.error('Error getting sync status', {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: getErrorCode(error),
-        },
-      })
-      return null
+    return {
+      repository: syncInfo.repository,
+      branch: syncInfo.branch,
+      sync_status: syncInfo.syncStatus,
+      last_sync_at: new Date(syncInfo.lastSyncAt),
+      last_commit_sha: syncInfo.lastCommitSha,
+      last_error: syncInfo.lastError || null,
     }
   }
 }

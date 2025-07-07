@@ -3,41 +3,39 @@
  */
 
 import { Hono } from 'hono'
-import type { PromptService } from '../mcp/PromptService.js'
+import type { PromptRegistryService } from '../mcp/PromptRegistryService.js'
 import type { GitHubSyncService } from '../mcp/GitHubSyncService.js'
 import type { SyncScheduler } from '../mcp/SyncScheduler.js'
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 
 export function createMcpApiRoutes(
-  promptService: PromptService,
+  promptRegistry: PromptRegistryService,
   syncService: GitHubSyncService | null,
   syncScheduler: SyncScheduler | null
 ) {
   const mcpApi = new Hono()
 
-  // List prompts with filtering and pagination
+  // List prompts with filtering
   mcpApi.get('/prompts', async c => {
-    const page = parseInt(c.req.query('page') || '1')
-    const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
-    const search = c.req.query('search')
-    const active = c.req.query('active') !== 'false'
-
-    const offset = (page - 1) * limit
+    const search = c.req.query('search')?.toLowerCase()
 
     try {
-      const prompts = await promptService.listPrompts({
-        search,
-        active,
-        limit,
-        offset,
-      })
+      let prompts = promptRegistry.listPrompts()
+
+      // Simple search filter
+      if (search) {
+        prompts = prompts.filter(
+          p =>
+            p.name.toLowerCase().includes(search) ||
+            p.description?.toLowerCase().includes(search) ||
+            p.promptId.toLowerCase().includes(search)
+        )
+      }
 
       return c.json({
         prompts,
-        page,
-        limit,
-        total: prompts.length, // TODO: Add total count query
+        total: prompts.length,
       })
     } catch (error) {
       logger.error('Error listing prompts', {
@@ -51,29 +49,19 @@ export function createMcpApiRoutes(
     }
   })
 
-  // Get prompt details with usage stats
+  // Get prompt details
   mcpApi.get('/prompts/:id', async c => {
     const promptId = c.req.param('id')
-    const includeStats = c.req.query('includeStats') === 'true'
 
     try {
-      const prompt = await promptService.getPrompt(promptId)
+      const prompt = promptRegistry.getPrompt(promptId)
 
       if (!prompt) {
         return c.json({ error: 'Prompt not found' }, 404)
       }
 
-      const response: {
-        prompt: typeof prompt
-        stats?: Awaited<ReturnType<typeof promptService.getUsageStats>>
-      } = { prompt }
-
-      if (includeStats) {
-        const stats = await promptService.getUsageStats(promptId)
-        response.stats = stats
-      }
-
-      return c.json(response)
+      // No stats in the new system
+      return c.json({ prompt })
     } catch (error) {
       logger.error('Error getting prompt', {
         error: {
@@ -86,29 +74,6 @@ export function createMcpApiRoutes(
         },
       })
       return c.json({ error: 'Failed to get prompt' }, 500)
-    }
-  })
-
-  // Get prompt usage statistics
-  mcpApi.get('/prompts/:id/usage', async c => {
-    const promptId = c.req.param('id')
-    const days = parseInt(c.req.query('days') || '30')
-
-    try {
-      const stats = await promptService.getUsageStats(promptId, days)
-      return c.json(stats)
-    } catch (error) {
-      logger.error('Error getting usage stats', {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: getErrorCode(error),
-        },
-        metadata: {
-          promptId,
-        },
-      })
-      return c.json({ error: 'Failed to get usage statistics' }, 500)
     }
   })
 

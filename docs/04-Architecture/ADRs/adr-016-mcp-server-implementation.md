@@ -4,6 +4,8 @@
 
 Proposed
 
+> **Implementation Note**: The actual implementation diverged from this proposal. Instead of using a database-backed system, the MCP server was implemented as a file-based system using Handlebars templating. See the codebase for the current implementation.
+
 ## Context
 
 Claude Nexus Proxy needs to implement a Model Context Protocol (MCP) server that serves prompts from a GitHub repository. The MCP server should:
