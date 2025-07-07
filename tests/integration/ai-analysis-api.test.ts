@@ -15,6 +15,14 @@ import type {
 // Initialize rate limiters for tests
 initializeAnalysisRateLimiters()
 
+/**
+ * Note: This test file may fail when run in parallel with other tests due to a known issue
+ * with Bun's test runner and Hono's _Response object serialization. If you encounter
+ * "Expected a Response object, but received '_Response'" errors, run this test file
+ * separately or use the scripts/test-integration.sh script.
+ * 
+ * See: https://github.com/honojs/hono/issues/[issue-number]
+ */
 describe('AI Analysis API Integration Tests', () => {
   let proxyApp: Hono
   let dashboardApp: Hono
@@ -48,15 +56,33 @@ describe('AI Analysis API Integration Tests', () => {
     })
     proxyApp.route('/api/analyses', proxyRoutes)
 
-    // Start proxy server on random port
-    proxyPort = 3000 + Math.floor(Math.random() * 1000)
-    proxyServer = Bun.serve({
-      port: proxyPort,
-      fetch: proxyApp.fetch,
-    })
+    // Use a more predictable port for CI
+    proxyPort = 0 // Let the OS assign a port
+    
+    // Start proxy server with retry logic for CI environments
+    let retries = 3
+    while (retries > 0) {
+      try {
+        proxyServer = Bun.serve({
+          port: proxyPort,
+          fetch: proxyApp.fetch,
+          hostname: '127.0.0.1', // Bind to localhost only
+        })
+        proxyPort = proxyServer.port // Get the actual assigned port
+        break
+      } catch (error) {
+        retries--
+        if (retries === 0) {
+          console.error(`Failed to start test server after 3 attempts: ${error}`)
+          throw error
+        }
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    }
 
     // Create API client
-    apiClient = new ProxyApiClient(`http://localhost:${proxyPort}`, 'test-dashboard-key')
+    apiClient = new ProxyApiClient(`http://127.0.0.1:${proxyPort}`, 'test-dashboard-key')
 
     // Setup dashboard app
     dashboardApp = new Hono()

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test'
 import type { Pool, PoolClient, QueryResult } from 'pg'
 import {
   claimJob,
@@ -8,19 +8,17 @@ import {
   fetchConversationMessages,
   type ConversationAnalysisJob,
 } from '../src/workers/ai-analysis/db.js'
-import { container } from '../src/container.js'
+import * as containerModule from '../src/container.js'
 import { logger } from '../src/middleware/logger.js'
+import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
 
 describe('AI Analysis DB Functions', () => {
   let mockPool: Partial<Pool>
   let mockClient: Partial<PoolClient>
   let mockQueryResult: <T = any>(rows: T[]) => QueryResult<T>
-  let originalGetDbPool: typeof container.getDbPool
+  let getDbPoolSpy: any
 
   beforeEach(() => {
-    // Save original
-    originalGetDbPool = container.getDbPool
-
     // Create mock query result helper
     mockQueryResult = <T = any>(rows: T[]) => ({
       rows,
@@ -42,8 +40,8 @@ describe('AI Analysis DB Functions', () => {
       connect: mock(() => Promise.resolve(mockClient)),
     }
 
-    // Override container method
-    container.getDbPool = () => mockPool as Pool
+    // Mock the container's getDbPool method to return our mock pool
+    getDbPoolSpy = spyOn(containerModule.container, 'getDbPool').mockReturnValue(mockPool as Pool)
 
     // Mock logger methods
     logger.error = mock(() => {})
@@ -53,8 +51,8 @@ describe('AI Analysis DB Functions', () => {
   })
 
   afterEach(() => {
-    // Restore original
-    container.getDbPool = originalGetDbPool
+    // Restore the spy
+    getDbPoolSpy.mockRestore()
   })
 
   describe('claimJob', () => {
@@ -77,7 +75,7 @@ describe('AI Analysis DB Functions', () => {
       expect(mockPool.query).toHaveBeenCalled()
       const [query, params] = (mockPool.query as any).mock.calls[0]
       expect(query).toContain('UPDATE conversation_analyses')
-      expect(params).toEqual([3]) // MAX_RETRIES
+      expect(params).toEqual([AI_WORKER_CONFIG.MAX_RETRIES]) // Use the actual configured value
     })
 
     it('should return null when no jobs are available', async () => {
@@ -89,7 +87,7 @@ describe('AI Analysis DB Functions', () => {
     })
 
     it('should return null when database pool is not available', async () => {
-      container.getDbPool = () => null
+      getDbPoolSpy.mockReturnValue(null)
 
       const result = await claimJob()
 
@@ -162,7 +160,7 @@ describe('AI Analysis DB Functions', () => {
     })
 
     it('should throw error when database pool is not available', async () => {
-      container.getDbPool = () => null
+      getDbPoolSpy.mockReturnValue(null)
 
       await expect(
         completeJob(1, 'content', {} as any, {}, 'model', 100, 200, 5000)
@@ -201,7 +199,7 @@ describe('AI Analysis DB Functions', () => {
         conversation_id: 'conv-123',
         branch_id: 'main',
         status: 'processing',
-        retry_count: 3,
+        retry_count: AI_WORKER_CONFIG.MAX_RETRIES, // Set to MAX_RETRIES to trigger permanent failure
         error_message: undefined,
         created_at: new Date(),
         updated_at: new Date(),
@@ -262,7 +260,7 @@ describe('AI Analysis DB Functions', () => {
     })
 
     it('should return 0 when database pool is not available', async () => {
-      container.getDbPool = () => null
+      getDbPoolSpy.mockReturnValue(null)
 
       const result = await resetStuckJobs()
 
@@ -327,7 +325,7 @@ describe('AI Analysis DB Functions', () => {
     })
 
     it('should throw error when database pool is not available', async () => {
-      container.getDbPool = () => null
+      getDbPoolSpy.mockReturnValue(null)
 
       await expect(fetchConversationMessages('conv-123')).rejects.toThrow(
         'Database pool not available'
