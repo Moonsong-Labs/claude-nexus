@@ -19,7 +19,15 @@ describe('AI Analysis Types and Schemas', () => {
         sentiment: 'positive',
         userIntent: 'Implement secure authentication for web application',
         outcomes: ['Design pattern selected', 'Implementation plan created'],
-        actionItems: ['Set up JWT library', 'Create user database schema'],
+        actionItems: [
+          { type: 'task', description: 'Set up JWT library', priority: 'high' },
+          { type: 'improvement', description: 'Create user database schema', priority: 'medium' },
+        ],
+        promptingTips: [
+          'Be more specific about security requirements',
+          'Include example code for implementation',
+          'Ask about error handling strategies',
+        ],
         technicalDetails: {
           frameworks: ['Express.js', 'jsonwebtoken'],
           issues: ['Token expiration handling', 'Refresh token strategy'],
@@ -47,6 +55,7 @@ describe('AI Analysis Types and Schemas', () => {
         userIntent: 'test',
         outcomes: [],
         actionItems: [],
+        promptingTips: [],
         technicalDetails: {
           frameworks: [],
           issues: [],
@@ -74,6 +83,7 @@ describe('AI Analysis Types and Schemas', () => {
         userIntent: 'test',
         outcomes: [],
         actionItems: [],
+        promptingTips: [],
         technicalDetails: {
           frameworks: [],
           issues: [],
@@ -112,6 +122,7 @@ describe('AI Analysis Types and Schemas', () => {
         userIntent: 'Quick question',
         outcomes: [],
         actionItems: [],
+        promptingTips: [],
         technicalDetails: {
           frameworks: [],
           issues: [],

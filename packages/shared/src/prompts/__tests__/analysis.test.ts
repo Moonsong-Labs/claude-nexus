@@ -130,7 +130,20 @@ describe('parseAnalysisResponse', () => {
     "sentiment": "positive",
     "userIntent": "Learn how to implement authentication in Next.js",
     "outcomes": ["Received authentication setup instructions", "Got code examples"],
-    "actionItems": ["Install NextAuth.js", "Configure providers"],
+    "actionItems": [
+      { "type": "task", "description": "Install NextAuth.js", "priority": "high" },
+      { "type": "task", "description": "Configure providers", "priority": "medium" }
+    ],
+    "promptingTips": [
+      "Be more specific about which authentication provider you want to use",
+      "Include your current Next.js version for version-specific advice",
+      "Ask about specific authentication flows (OAuth, credentials, etc.)"
+    ],
+    "interactionPatterns": {
+      "questioningStyle": "direct",
+      "contextProvision": "moderate",
+      "followUpFrequency": "low"
+    },
     "technicalDetails": {
       "frameworks": ["Next.js", "NextAuth.js"],
       "issues": [],
@@ -164,7 +177,9 @@ describe('parseAnalysisResponse', () => {
         "sentiment": "neutral",
         "userIntent": "Test intent",
         "outcomes": ["Outcome 1"],
-        "actionItems": ["Action 1"],
+        "actionItems": [{ "type": "task", "description": "Action 1", "priority": "medium" }],
+        "promptingTips": ["Tip 1"],
+        "interactionPatterns": { "questioningStyle": "direct", "contextProvision": "minimal", "followUpFrequency": "low" },
         "technicalDetails": { "frameworks": [], "issues": [], "solutions": [] },
         "conversationQuality": { "clarity": "medium", "completeness": "partial", "effectiveness": "effective" }
       }
@@ -229,7 +244,9 @@ describe('parseAnalysisResponse', () => {
     "sentiment": "neutral",
     "userIntent": "Test intent",
     "outcomes": ["Outcome 1"],
-    "actionItems": ["Action 1"],
+    "actionItems": [{ "type": "task", "description": "Action 1", "priority": "low" }],
+    "promptingTips": ["Tip"],
+    "interactionPatterns": { "questioningStyle": "direct", "contextProvision": "minimal", "followUpFrequency": "low" },
     "technicalDetails": {
       "frameworks": "Not an array",
       "issues": [],
@@ -263,7 +280,9 @@ describe('parseAnalysisResponse', () => {
     "sentiment": "${sentiment}",
     "userIntent": "Intent",
     "outcomes": ["Outcome"],
-    "actionItems": ["Action"],
+    "actionItems": [{ "type": "task", "description": "Action", "priority": "low" }],
+    "promptingTips": ["Tip"],
+    "interactionPatterns": { "questioningStyle": "direct", "contextProvision": "minimal", "followUpFrequency": "low" },
     "technicalDetails": { "frameworks": [], "issues": [], "solutions": [] },
     "conversationQuality": { 
       "clarity": "high", 
