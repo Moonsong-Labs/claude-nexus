@@ -152,11 +152,15 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
   } catch (error) {
     logger.error('Failed to create analysis request', { error, requestId })
 
-    if (error instanceof ZodError) {
+    // Check for ZodError by name due to potential instanceof issues with bundlers
+    if (
+      error instanceof ZodError ||
+      (error as Error & { constructor?: { name?: string } })?.constructor?.name === 'ZodError'
+    ) {
       return c.json(
         {
           error: 'Invalid request',
-          details: error.errors,
+          details: (error as ZodError).errors,
         },
         400
       )
@@ -253,11 +257,15 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
       requestId,
     })
 
-    if (error instanceof ZodError) {
+    // Check for ZodError by name due to potential instanceof issues with bundlers
+    if (
+      error instanceof ZodError ||
+      (error as Error & { constructor?: { name?: string } })?.constructor?.name === 'ZodError'
+    ) {
       return c.json(
         {
-          error: 'Invalid parameters',
-          details: error.errors,
+          error: 'Invalid request',
+          details: (error as ZodError).errors,
         },
         400
       )
@@ -358,11 +366,15 @@ analysisRoutes.post(
     } catch (error) {
       logger.error('Failed to regenerate analysis', { error, requestId })
 
-      if (error instanceof ZodError) {
+      // Check for ZodError by name due to potential instanceof issues with bundlers
+      if (
+        error instanceof ZodError ||
+        (error as Error & { constructor?: { name?: string } })?.constructor?.name === 'ZodError'
+      ) {
         return c.json(
           {
-            error: 'Invalid parameters',
-            details: error.errors,
+            error: 'Invalid request',
+            details: (error as ZodError).errors,
           },
           400
         )
