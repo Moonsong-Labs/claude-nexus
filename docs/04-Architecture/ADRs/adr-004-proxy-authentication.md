@@ -27,25 +27,21 @@ We needed a way to authenticate clients at the proxy level while maintaining bac
 ## Considered Options
 
 1. **IP Whitelisting**
-
    - Description: Allow only specific IP addresses
    - Pros: Simple, no client changes needed
    - Cons: Inflexible, breaks with dynamic IPs, hard to manage
 
 2. **OAuth/JWT Tokens**
-
    - Description: Full OAuth flow with JWT tokens
    - Pros: Industry standard, supports rotation, fine-grained permissions
    - Cons: Complex implementation, requires client changes, overkill for proxy auth
 
 3. **HTTP Basic Authentication**
-
    - Description: Username/password in Authorization header
    - Pros: Simple, widely supported
    - Cons: Credentials visible in logs, less secure than Bearer tokens
 
 4. **Custom Header Authentication**
-
    - Description: Custom header like `X-Proxy-Key`
    - Pros: Simple implementation
    - Cons: Non-standard, harder to integrate with existing tools
@@ -83,7 +79,6 @@ We will implement **Bearer Token Authentication** with domain-specific API keys 
    ```
 
 3. **Security Measures**:
-
    - SHA-256 hashing before comparison (timing-safe)
    - Domain validation to prevent path traversal
    - No fallback to default credentials
@@ -115,12 +110,10 @@ We will implement **Bearer Token Authentication** with domain-specific API keys 
 ### Risks and Mitigations
 
 - **Risk**: Leaked client API keys
-
   - **Mitigation**: Keys can be revoked by updating credential files
   - **Mitigation**: Keys are domain-specific, limiting blast radius
 
 - **Risk**: Timing attacks on key comparison
-
   - **Mitigation**: SHA-256 hashing ensures constant-time comparison
 
 - **Risk**: Path traversal attacks

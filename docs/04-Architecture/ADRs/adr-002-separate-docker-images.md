@@ -19,13 +19,11 @@ Given our monorepo structure (ADR-001), we need to decide how to package and dep
 ## Considered Options
 
 1. **Single Combined Image**
-
    - Description: One Docker image containing both proxy and dashboard
    - Pros: Simple deployment, single artifact
    - Cons: Large image size, can't scale independently, security concerns
 
 2. **Separate Images with Shared Base**
-
    - Description: Individual images extending a common base image
    - Pros: Some code reuse, smaller individual images
    - Cons: Base image maintenance overhead, limited benefit with Bun
@@ -114,11 +112,9 @@ CMD ["bun", "dist/index.js"]
 ### Risks and Mitigations
 
 - **Risk**: Version mismatch between services
-
   - **Mitigation**: Use semantic versioning and coordinate releases
 
 - **Risk**: Increased operational complexity
-
   - **Mitigation**: Use Docker Compose for local development, Kubernetes for production
 
 - **Risk**: Duplicate build steps

@@ -27,19 +27,16 @@ The challenge was integrating a third-party CLI tool while maintaining security,
 ## Considered Options
 
 1. **Native Installation**
-
    - Description: Users install CLI directly
    - Pros: Direct access, full performance
    - Cons: Installation complexity, version mismatches
 
 2. **Proxy CLI Wrapper**
-
    - Description: Custom CLI that wraps proxy API
    - Pros: Full control, tailored features
    - Cons: Maintenance burden, missing CLI features
 
 3. **Docker Container**
-
    - Description: CLI in container with proxy config
    - Pros: Consistent environment, easy setup
    - Cons: Docker requirement, file access complexity
@@ -125,7 +122,6 @@ We will provide **Docker-based Claude CLI integration** with pre-configured cont
 ### Risks and Mitigations
 
 - **Risk**: File permissions issues with volumes
-
   - **Mitigation**: Document UID/GID considerations
   - **Mitigation**: Use consistent workspace directory
 

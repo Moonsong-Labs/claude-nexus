@@ -31,13 +31,11 @@ The challenge is to provide comprehensive SQL logging without:
 ## Considered Options
 
 1. **Manual Query Logging**
-
    - Description: Add log statements around each query
    - Pros: Fine-grained control, explicit
    - Cons: Tedious, easy to miss queries, code clutter
 
 2. **Database-Level Logging**
-
    - Description: Use PostgreSQL's built-in query logging
    - Pros: Complete coverage, no application changes
    - Cons: Requires database configuration, logs all connections
@@ -68,13 +66,11 @@ export function enableSqlLogging(
 ```
 
 2. **Environment Variable Control**:
-
    - `DEBUG=true` - Enables all debug logging including SQL
    - `DEBUG_SQL=true` - Enables only SQL query logging
    - `SLOW_QUERY_THRESHOLD_MS=5000` - Threshold for slow query warnings
 
 3. **Logging Features**:
-
    - Query text with parameters
    - Execution time measurement
    - Row count in results
@@ -140,11 +136,9 @@ SLOW_QUERY_THRESHOLD_MS=1000 DEBUG_SQL=true bun run dev
 ### Risks and Mitigations
 
 - **Risk**: Wrapper breaks Pool functionality
-
   - **Mitigation**: Extensive testing, preserve all Pool methods
 
 - **Risk**: Performance impact even when disabled
-
   - **Mitigation**: Early return if logging disabled, minimal overhead
 
 - **Risk**: Sensitive data in logs

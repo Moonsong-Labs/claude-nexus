@@ -314,7 +314,6 @@ curl http://localhost:3001/health
 ### Metrics Collection
 
 1. **Application Metrics**:
-
    - Token usage: `/token-stats`
    - Request counts by domain
    - Response times

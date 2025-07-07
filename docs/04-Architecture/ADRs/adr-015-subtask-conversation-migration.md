@@ -26,19 +26,16 @@ This creates a data consistency challenge:
 ## Considered Options
 
 1. **Leave Historical Data As-Is**
-
    - Description: Only apply new rules to new subtasks
    - Pros: No migration risk, simpler
    - Cons: Inconsistent dashboard experience, complex code to handle both patterns
 
 2. **Migrate All at Once**
-
    - Description: Single migration to update all subtasks
    - Pros: Consistent data, clean implementation
    - Cons: Potentially long-running migration, risk of data issues
 
 3. **Gradual Migration**
-
    - Description: Migrate in batches over time
    - Pros: Lower risk, can monitor impacts
    - Cons: Complex implementation, temporary inconsistency
@@ -116,12 +113,10 @@ We will implement **Option 2: Migrate All at Once** using a dedicated migration 
 ### Risks and Mitigations
 
 - **Risk**: Migration fails mid-way
-
   - **Mitigation**: Use database transaction for atomicity
   - **Mitigation**: Test on staging environment first
 
 - **Risk**: Performance impact on large datasets
-
   - **Mitigation**: Run during low-traffic period
   - **Mitigation**: Add progress logging
 
