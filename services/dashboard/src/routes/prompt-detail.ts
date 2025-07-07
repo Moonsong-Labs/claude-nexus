@@ -79,27 +79,25 @@ promptDetailRoute.get('/:id', async c => {
               <div class="section">
                 <h3>Arguments</h3>
                 <div class="arguments-list">
-                  ${prompt.arguments
-                    .map(
-                      (arg: any) => html`
-                        <div class="argument-card">
-                          <div class="arg-header">
-                            <span class="arg-name">${arg.name}</span>
-                            ${arg.required ? html`<span class="arg-required">Required</span>` : ''}
-                            ${arg.type ? html`<span class="arg-type">${arg.type}</span>` : ''}
-                          </div>
-                          ${arg.description
-                            ? html`<p class="arg-description">${arg.description}</p>`
-                            : ''}
-                          ${arg.default !== undefined
-                            ? html`<p class="arg-default">
-                                Default: <code>${JSON.stringify(arg.default)}</code>
-                              </p>`
-                            : ''}
+                  ${prompt.arguments.map(
+                    (arg: any) => html`
+                      <div class="argument-card">
+                        <div class="arg-header">
+                          <span class="arg-name">${arg.name}</span>
+                          ${arg.required ? html`<span class="arg-required">Required</span>` : ''}
+                          ${arg.type ? html`<span class="arg-type">${arg.type}</span>` : ''}
                         </div>
-                      `
-                    )
-                    .join('')}
+                        ${arg.description
+                          ? html`<p class="arg-description">${arg.description}</p>`
+                          : ''}
+                        ${arg.default !== undefined
+                          ? html`<p class="arg-default">
+                              Default: <code>${JSON.stringify(arg.default)}</code>
+                            </p>`
+                          : ''}
+                      </div>
+                    `
+                  )}
                 </div>
               </div>
             `
@@ -138,25 +136,21 @@ promptDetailRoute.get('/:id', async c => {
                       <div class="usage-chart">
                         <h4>Daily Usage</h4>
                         <div class="chart-container">
-                          ${stats.dailyUsage
-                            .map((day: any, _index: number) => {
-                              const maxCount = Math.max(
-                                ...stats.dailyUsage.map((d: any) => d.count)
-                              )
-                              const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0
-                              return html`
-                                <div
-                                  class="chart-bar"
-                                  title="${new Date(
-                                    day.date
-                                  ).toLocaleDateString()}: ${day.count} uses"
-                                >
-                                  <div class="bar" style="height: ${height}%"></div>
-                                  <div class="bar-label">${day.count}</div>
-                                </div>
-                              `
-                            })
-                            .join('')}
+                          ${stats.dailyUsage.map((day: any, _index: number) => {
+                            const maxCount = Math.max(...stats.dailyUsage.map((d: any) => d.count))
+                            const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0
+                            return html`
+                              <div
+                                class="chart-bar"
+                                title="${new Date(
+                                  day.date
+                                ).toLocaleDateString()}: ${day.count} uses"
+                              >
+                                <div class="bar" style="height: ${height}%"></div>
+                                <div class="bar-label">${day.count}</div>
+                              </div>
+                            `
+                          })}
                         </div>
                       </div>
                     `
