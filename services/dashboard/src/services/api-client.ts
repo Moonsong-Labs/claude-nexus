@@ -1,5 +1,6 @@
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage } from '@claude-nexus/shared'
+import { HttpError } from '../errors/HttpError.js'
 
 interface StatsResponse {
   totalRequests: number
@@ -39,8 +40,8 @@ interface RequestsResponse {
 }
 
 interface RequestDetails extends RequestSummary {
-  requestBody: any
-  responseBody: any
+  requestBody: unknown
+  responseBody: unknown
   streamingChunks: Array<{
     chunkIndex: number
     timestamp: string
@@ -52,7 +53,7 @@ interface RequestDetails extends RequestSummary {
   // Optional fields that may be added in the future
   requestHeaders?: Record<string, string>
   responseHeaders?: Record<string, string>
-  telemetry?: any
+  telemetry?: unknown
   method?: string
   endpoint?: string
   streaming?: boolean
@@ -566,27 +567,28 @@ export class ProxyApiClient {
   }
 
   /**
-   * Generic POST method for API calls
+   * Generic GET method for API calls
    */
-  async post(path: string, body: any): Promise<any> {
+  async get<T = unknown>(path: string): Promise<T> {
     try {
       const url = new URL(path, this.baseUrl)
       const response = await fetch(url.toString(), {
-        method: 'POST',
+        method: 'GET',
         headers: this.getHeaders(),
-        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}) as any)
-        throw new Error(
-          (errorData as any).error || `API error: ${response.status} ${response.statusText}`
-        )
+        throw await HttpError.fromResponse(response)
       }
 
-      return await response.json()
+      return (await response.json()) as T
     } catch (error) {
-      logger.error('API POST request failed', {
+      // If it's already an HttpError, just re-throw it
+      if (HttpError.isHttpError(error)) {
+        throw error
+      }
+
+      logger.error('API GET request failed', {
         error: getErrorMessage(error),
         path,
       })
@@ -595,20 +597,29 @@ export class ProxyApiClient {
   }
 
   /**
-   * Make a generic GET request to the proxy API
+   * Generic POST method for API calls
    */
-  async get(path: string): Promise<Response> {
+  async post<T = unknown>(path: string, body?: unknown): Promise<T> {
     try {
       const url = new URL(path, this.baseUrl)
-
       const response = await fetch(url.toString(), {
-        method: 'GET',
+        method: 'POST',
         headers: this.getHeaders(),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
       })
 
-      return response
+      if (!response.ok) {
+        throw await HttpError.fromResponse(response)
+      }
+
+      return (await response.json()) as T
     } catch (error) {
-      logger.error('API GET request failed', {
+      // If it's already an HttpError, just re-throw it
+      if (HttpError.isHttpError(error)) {
+        throw error
+      }
+
+      logger.error('API POST request failed', {
         error: getErrorMessage(error),
         path,
       })

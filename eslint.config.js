@@ -103,7 +103,7 @@ export default tseslint.config(
         project: [
           './tsconfig.json',
           './packages/*/tsconfig.test.json',
-          './services/*/tsconfig.json',
+          './services/*/tsconfig.test.json',
         ],
       },
     },

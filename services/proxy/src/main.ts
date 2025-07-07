@@ -18,6 +18,7 @@ import { closeRateLimitStores } from './middleware/rate-limit.js'
 import { CredentialStatusService } from './services/CredentialStatusService.js'
 import { CredentialManager } from './services/CredentialManager.js'
 import { config } from '@claude-nexus/shared'
+import { startAnalysisWorker } from './workers/ai-analysis/index.js'
 
 // Load .env file from multiple possible locations
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -162,6 +163,8 @@ if (hostIndex !== -1 && args[hostIndex + 1]) {
 
 // Main function
 async function main() {
+  let analysisWorker: any = null
+
   try {
     // Print proxy configuration
     console.log(`Claude Nexus Proxy Service v${getPackageVersion()}`)
@@ -215,6 +218,24 @@ async function main() {
       console.log('  - Reason: SPARK_API_KEY not set')
     }
 
+    // Show AI Analysis configuration
+    console.log('\nAI Analysis:')
+    if (process.env.AI_WORKER_ENABLED === 'true') {
+      if (process.env.GEMINI_API_KEY) {
+        console.log('  - Enabled: Yes')
+        console.log(
+          `  - Model: ${process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash-exp (default)'}`
+        )
+        console.log('  - API Key: Configured')
+      } else {
+        console.log('  - Enabled: No')
+        console.log('  - Reason: GEMINI_API_KEY not set')
+      }
+    } else {
+      console.log('  - Enabled: No')
+      console.log('  - Reason: AI_WORKER_ENABLED not set to true')
+    }
+
     // Check all credentials at startup
     console.log('\nChecking credentials...')
     const credentialService = new CredentialStatusService()
@@ -233,6 +254,16 @@ async function main() {
 
     // Start token usage tracking
     tokenTracker.startReporting(10000) // Report every 10 seconds
+
+    // Start AI Analysis Worker
+    try {
+      analysisWorker = startAnalysisWorker()
+      console.log('✓ AI Analysis Worker started')
+    } catch (error: any) {
+      console.log('✗ AI Analysis Worker not started:', error.message || error)
+      console.log('  GEMINI_CONFIG.API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET')
+      // Non-fatal - continue without analysis worker
+    }
 
     // Create the app
     const app = await createProxyApp()
@@ -295,25 +326,55 @@ async function main() {
     const shutdown = async (signal: string) => {
       console.log(`\n${signal} received, shutting down gracefully...`)
 
-      // Print final token stats
-      console.log('\nFinal token statistics:')
-      tokenTracker.printStats()
+      // Set a hard timeout to force exit if graceful shutdown hangs
+      const forceExitTimeout = setTimeout(() => {
+        console.error('Graceful shutdown timeout - forcing exit')
+        process.exit(1)
+      }, 10000) // 10 second total timeout
 
-      // Close server
-      server.close(() => {
-        console.log('Server closed')
-      })
+      try {
+        // Print final token stats
+        console.log('\nFinal token statistics:')
+        tokenTracker.printStats()
 
-      // Close rate limit stores
-      closeRateLimitStores()
+        // Close server with timeout
+        let serverClosed = false
+        const serverCloseTimeout = setTimeout(() => {
+          if (!serverClosed) {
+            console.log('Server close timeout - forcing shutdown')
+            process.exit(0)
+          }
+        }, 5000) // 5 second timeout
 
-      // Stop credential manager cleanup
-      credentialManager.stopPeriodicCleanup()
+        server.close(() => {
+          serverClosed = true
+          clearTimeout(serverCloseTimeout)
+          console.log('Server closed')
+        })
 
-      // Clean up container resources
-      await container.cleanup()
+        // Close rate limit stores
+        closeRateLimitStores()
 
-      process.exit(0)
+        // Stop credential manager cleanup
+        credentialManager.stopPeriodicCleanup()
+
+        // Stop analysis worker
+        if (analysisWorker) {
+          console.log('Stopping AI Analysis Worker...')
+          await analysisWorker.stop()
+          console.log('AI Analysis Worker stopped')
+        }
+
+        // Clean up container resources
+        await container.cleanup()
+
+        clearTimeout(forceExitTimeout)
+        process.exit(0)
+      } catch (error) {
+        console.error('Error during shutdown:', error)
+        clearTimeout(forceExitTimeout)
+        process.exit(1)
+      }
     }
 
     process.on('SIGINT', () => shutdown('SIGINT'))

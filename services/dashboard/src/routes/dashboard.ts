@@ -165,6 +165,23 @@ const layout = (title: string, content: any) => html`
         .space-x-4 > * + * {
           margin-left: 1rem;
         }
+
+        /* Spinner animation */
+        .spinner {
+          display: inline-block;
+          width: 1rem;
+          height: 1rem;
+          border: 2px solid #e5e7eb;
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
       </style>
       <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     </head>
@@ -198,7 +215,20 @@ dashboardRoutes.get('/', async c => {
     activeDomains: 0,
     totalSubtasks: 0,
     activeTasksWithSubtasks: 0,
-    recentRequests: [] as any[],
+    recentRequests: [] as Array<{
+      request_id: string
+      domain: string
+      model: string
+      total_tokens: number
+      input_tokens: number
+      output_tokens: number
+      timestamp: string
+      response_status: number
+      is_subtask?: boolean
+      parent_task_request_id?: string
+      task_tool_invocation?: unknown
+      subtask_count?: number
+    }>,
   }
 
   if (pool) {
@@ -316,6 +346,42 @@ dashboardRoutes.get('/', async c => {
         <div class="stat-label">Sub-Task Calls</div>
         <div class="stat-value">${stats.totalSubtasks.toLocaleString()}</div>
         <div class="stat-meta">${stats.activeTasksWithSubtasks} parent tasks</div>
+      </div>
+    </div>
+
+    <!-- Analytics Panel (loaded via HTMX) -->
+    <div
+      id="analytics-panel-placeholder"
+      hx-get="/partials/analytics${domain ? `?domain=${domain}` : ''}${c.req.query('analytics') ===
+      'true'
+        ? '&expanded=true'
+        : ''}"
+      hx-trigger="load"
+      hx-swap="outerHTML"
+    >
+      <div class="section" style="margin-bottom: 1.5rem;">
+        <div class="section-header">
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            <svg
+              class="chevron-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+            Analytics & Token Usage
+          </span>
+        </div>
+        <div class="section-content" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; color: #6b7280;">
+            <span class="spinner"></span>
+            <span>Loading analytics...</span>
+          </div>
+        </div>
       </div>
     </div>
 

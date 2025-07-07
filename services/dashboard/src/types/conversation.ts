@@ -26,6 +26,7 @@ export interface ConversationRequest {
   body?: any
   last_message?: any
   response_body?: any
+  account_id?: string
 }
 
 export interface ConversationSummary {
@@ -40,10 +41,15 @@ export interface ConversationSummary {
 
 export interface ApiRequest extends ConversationRequest {
   domain: string
-  status_code: number
+  status_code?: number
   request_body?: any
   response_body?: any
-  path: string
-  method: string
+  path?: string
+  method?: string
   headers?: Record<string, string>
+  input_tokens?: number
+  output_tokens?: number
+  request_type?: string
+  tool_call_count?: number
+  conversation_id?: string
 }

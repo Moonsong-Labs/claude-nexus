@@ -40,6 +40,14 @@ class Container {
 
   private initializeServices(): void {
     // Initialize database pool if configured
+    logger.info('Container initialization', {
+      metadata: {
+        storageEnabled: config.storage.enabled,
+        databaseUrl: config.database.url ? 'set' : 'not set',
+        databaseUrlLength: config.database.url?.length || 0,
+      },
+    })
+
     if (config.storage.enabled && config.database.url) {
       this.pool = new Pool({
         connectionString: config.database.url,
@@ -52,6 +60,12 @@ class Container {
         logger.error('Unexpected database pool error', {
           error: { message: err.message, stack: err.stack },
         })
+      })
+
+      logger.info('Database pool created', {
+        metadata: {
+          poolCreated: !!this.pool,
+        },
       })
     }
 
@@ -220,5 +234,74 @@ class Container {
   }
 }
 
-// Create singleton instance
-export const container = new Container()
+// Create singleton instance with lazy initialization
+class LazyContainer {
+  private instance?: Container
+
+  private ensureInstance(): Container {
+    if (!this.instance) {
+      this.instance = new Container()
+    }
+    return this.instance
+  }
+
+  getDbPool(): Pool | undefined {
+    return this.ensureInstance().getDbPool()
+  }
+
+  getStorageService(): StorageAdapter | undefined {
+    return this.ensureInstance().getStorageService()
+  }
+
+  getTokenUsageService(): TokenUsageService | undefined {
+    return this.ensureInstance().getTokenUsageService()
+  }
+
+  getMetricsService(): MetricsService {
+    return this.ensureInstance().getMetricsService()
+  }
+
+  getNotificationService(): NotificationService {
+    return this.ensureInstance().getNotificationService()
+  }
+
+  getAuthenticationService(): AuthenticationService {
+    return this.ensureInstance().getAuthenticationService()
+  }
+
+  getClaudeApiClient(): ClaudeApiClient {
+    return this.ensureInstance().getClaudeApiClient()
+  }
+
+  getProxyService(): ProxyService {
+    return this.ensureInstance().getProxyService()
+  }
+
+  getMessageController(): MessageController {
+    return this.ensureInstance().getMessageController()
+  }
+
+  getMcpHandler(): JsonRpcHandler | undefined {
+    return this.ensureInstance().getMcpHandler()
+  }
+
+  getPromptRegistry(): PromptRegistryService | undefined {
+    return this.ensureInstance().getPromptRegistry()
+  }
+
+  getGitHubSyncService(): GitHubSyncService | undefined {
+    return this.ensureInstance().getGitHubSyncService()
+  }
+
+  getSyncScheduler(): SyncScheduler | undefined {
+    return this.ensureInstance().getSyncScheduler()
+  }
+
+  async cleanup(): Promise<void> {
+    if (this.instance) {
+      await this.instance.cleanup()
+    }
+  }
+}
+
+export const container = new LazyContainer()

@@ -33,17 +33,7 @@ promptDetailRoute.get('/:id', async c => {
 
   try {
     // Fetch prompt details
-    const promptResponse = await apiClient.get(`/api/mcp/prompts/${promptId}`)
-
-    if (!promptResponse.ok) {
-      if (promptResponse.status === 404) {
-        throw new Error('Prompt not found')
-      }
-      throw new Error(`Failed to fetch prompt: ${promptResponse.status}`)
-    }
-
-    const data = (await promptResponse.json()) as { prompt: any }
-    const { prompt } = data
+    const { prompt } = await apiClient.get<{ prompt: any }>(`/api/mcp/prompts/${promptId}`)
 
     const content = html`
       <div>

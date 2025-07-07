@@ -2,6 +2,7 @@ import { Context, Next } from 'hono'
 import { ValidationError } from '../types/errors'
 import { validateClaudeRequest } from '../types/claude'
 import { getRequestLogger } from './logger'
+import { maskSensitiveData, truncateString } from '@claude-nexus/shared/utils/validation'
 
 // Request size limits
 const MAX_REQUEST_SIZE = 10 * 1024 * 1024 // 10MB
@@ -59,14 +60,7 @@ export function validationMiddleware() {
 
 // Helper to sanitize error messages for client
 export function sanitizeErrorMessage(message: string): string {
-  // Limit message length to prevent ReDoS
-  const truncatedMessage = message.length > 1000 ? message.substring(0, 1000) + '...' : message
-
-  // Remove any potential sensitive information with simpler, safer regex patterns
-  return truncatedMessage
-    .replace(/sk-ant-[\w-]{1,100}/g, 'sk-ant-****')
-    .replace(/Bearer\s+[\w\-._~+/]{1,200}/g, 'Bearer ****')
-    .replace(/[\w._%+-]{1,50}@[\w.-]{1,50}\.\w{2,10}/g, '****@****.com')
-    .replace(/password["\s:=]+["']?[\w\S]{1,50}/gi, 'password: ****')
-    .replace(/api[_-]?key["\s:=]+["']?[\w\S]{1,50}/gi, 'api_key: ****')
+  // First truncate to prevent ReDoS, then mask sensitive data
+  const truncatedMessage = truncateString(message, 1000)
+  return maskSensitiveData(truncatedMessage)
 }

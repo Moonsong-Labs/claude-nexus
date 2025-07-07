@@ -20,11 +20,11 @@ interface LogEntry {
   path?: string
   statusCode?: number
   duration?: number
-  error?: any
-  metadata?: Record<string, any>
+  error?: unknown
+  metadata?: Record<string, unknown>
   stack?: string
   proxyUrl?: string
-  params?: Record<string, any>
+  params?: Record<string, unknown>
 }
 
 // Logger configuration
@@ -53,7 +53,7 @@ class Logger {
     return messageLevelIndex >= currentLevelIndex
   }
 
-  private maskSensitive(obj: any): any {
+  private maskSensitive(obj: unknown): unknown {
     if (!this.config.maskSensitiveData) {
       return obj
     }
@@ -86,8 +86,8 @@ class Logger {
     }
 
     if (obj && typeof obj === 'object') {
-      const masked: any = {}
-      for (const [key, value] of Object.entries(obj)) {
+      const masked: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
         if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk.toLowerCase()))) {
           masked[key] = '****'
         } else {
@@ -101,7 +101,7 @@ class Logger {
   }
 
   private formatLog(entry: LogEntry): string {
-    const masked = this.maskSensitive(entry)
+    const masked = this.maskSensitive(entry) as LogEntry
 
     if (this.config.prettyPrint) {
       const { timestamp, level, requestId, message, ...rest } = masked
@@ -231,25 +231,25 @@ export function loggingMiddleware() {
 
 // Helper to get logger with request context
 export function getRequestLogger(c: Context): {
-  debug: (message: string, metadata?: Record<string, any>) => void
-  info: (message: string, metadata?: Record<string, any>) => void
-  warn: (message: string, metadata?: Record<string, any>) => void
-  error: (message: string, error?: Error, metadata?: Record<string, any>) => void
+  debug: (message: string, metadata?: Record<string, unknown>) => void
+  info: (message: string, metadata?: Record<string, unknown>) => void
+  warn: (message: string, metadata?: Record<string, unknown>) => void
+  error: (message: string, error?: Error, metadata?: Record<string, unknown>) => void
 } {
   const requestId = c.get('requestId') || 'unknown'
   const domain = c.req.header('host') || 'unknown'
 
   return {
-    debug: (message: string, metadata?: Record<string, any>) => {
+    debug: (message: string, metadata?: Record<string, unknown>) => {
       logger.debug(message, { requestId, domain, metadata })
     },
-    info: (message: string, metadata?: Record<string, any>) => {
+    info: (message: string, metadata?: Record<string, unknown>) => {
       logger.info(message, { requestId, domain, metadata })
     },
-    warn: (message: string, metadata?: Record<string, any>) => {
+    warn: (message: string, metadata?: Record<string, unknown>) => {
       logger.warn(message, { requestId, domain, metadata })
     },
-    error: (message: string, error?: Error, metadata?: Record<string, any>) => {
+    error: (message: string, error?: Error, metadata?: Record<string, unknown>) => {
       logger.error(message, {
         requestId,
         domain,
@@ -257,7 +257,7 @@ export function getRequestLogger(c: Context): {
           ? {
               message: error.message,
               stack: error.stack,
-              code: (error as any).code,
+              code: getErrorCode(error),
             }
           : undefined,
         metadata,

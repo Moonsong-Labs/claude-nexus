@@ -6,6 +6,7 @@ export * from './utils/errors.js'
 export * from './utils/conversation-hash.js'
 export * from './utils/conversation-linker.js'
 export * from './utils/system-reminder.js'
+export * from './utils/validation.js'
 
 // Re-export specific functions to ensure they're available
 export {
@@ -53,3 +54,33 @@ export {
   getBatteryLevel,
   type ModelContextRule,
 } from './constants/model-limits.js'
+
+// Export AI analysis types and configuration
+export {
+  ConversationAnalysisSchema,
+  type ConversationAnalysis,
+  type AnalysisStatus,
+  ConversationAnalysisStatus,
+  CreateAnalysisRequestSchema,
+  type CreateAnalysisRequest,
+  type CreateAnalysisResponse,
+  type GetAnalysisResponse,
+  type RegenerateAnalysisResponse,
+  type AnalysisConflictResponse,
+} from './types/ai-analysis.js'
+export {
+  ANALYSIS_PROMPT_CONFIG,
+  GEMINI_CONFIG,
+  AI_WORKER_CONFIG,
+  AI_ANALYSIS_CONFIG,
+} from './config/ai-analysis.js'
+
+// Export prompt utilities
+export {
+  truncateConversation,
+  buildAnalysisPrompt,
+  parseAnalysisResponse,
+  getAnalysisPromptTemplate,
+  type Message,
+  type GeminiContent,
+} from './prompts/index.js'
