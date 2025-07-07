@@ -9,6 +9,11 @@ import { StorageAdapter } from './storage/StorageAdapter.js'
 import { TokenUsageService } from './services/TokenUsageService.js'
 import { config } from '@claude-nexus/shared/config'
 import { logger } from './middleware/logger.js'
+import { McpServer } from './mcp/McpServer.js'
+import { PromptRegistryService } from './mcp/PromptRegistryService.js'
+import { GitHubSyncService } from './mcp/GitHubSyncService.js'
+import { SyncScheduler } from './mcp/SyncScheduler.js'
+import { JsonRpcHandler } from './mcp/JsonRpcHandler.js'
 
 /**
  * Dependency injection container for the proxy service
@@ -23,6 +28,11 @@ class Container {
   private claudeApiClient?: ClaudeApiClient
   private proxyService?: ProxyService
   private messageController?: MessageController
+  private mcpServer?: McpServer
+  private promptRegistry?: PromptRegistryService
+  private githubSyncService?: GitHubSyncService
+  private syncScheduler?: SyncScheduler
+  private jsonRpcHandler?: JsonRpcHandler
 
   constructor() {
     this.initializeServices()
@@ -91,6 +101,37 @@ class Container {
     )
 
     this.messageController = new MessageController(this.proxyService)
+
+    // Initialize MCP services if enabled
+    if (config.mcp.enabled) {
+      this.promptRegistry = new PromptRegistryService()
+
+      // Initialize the registry
+      this.promptRegistry
+        .initialize()
+        .then(() => {
+          logger.info('MCP Prompt Registry initialized')
+        })
+        .catch(err => {
+          logger.error('Failed to initialize MCP Prompt Registry', {
+            error: { message: err.message, stack: err.stack },
+          })
+        })
+
+      this.mcpServer = new McpServer(this.promptRegistry)
+      this.jsonRpcHandler = new JsonRpcHandler(this.mcpServer)
+
+      // Only initialize GitHub sync if credentials are provided
+      if (config.mcp.github.owner && config.mcp.github.repo && config.mcp.github.token) {
+        this.githubSyncService = new GitHubSyncService(this.promptRegistry)
+        this.syncScheduler = new SyncScheduler(this.githubSyncService)
+
+        // Start the sync scheduler
+        this.syncScheduler.start()
+      } else {
+        logger.warn('MCP enabled but GitHub credentials not configured')
+      }
+    }
   }
 
   getDbPool(): Pool | undefined {
@@ -147,7 +188,29 @@ class Container {
     return this.messageController
   }
 
+  getMcpHandler(): JsonRpcHandler | undefined {
+    return this.jsonRpcHandler
+  }
+
+  getPromptRegistry(): PromptRegistryService | undefined {
+    return this.promptRegistry
+  }
+
+  getGitHubSyncService(): GitHubSyncService | undefined {
+    return this.githubSyncService
+  }
+
+  getSyncScheduler(): SyncScheduler | undefined {
+    return this.syncScheduler
+  }
+
   async cleanup(): Promise<void> {
+    if (this.syncScheduler) {
+      this.syncScheduler.stop()
+    }
+    if (this.promptRegistry) {
+      await this.promptRegistry.stop()
+    }
     if (this.storageService) {
       await this.storageService.close()
     }

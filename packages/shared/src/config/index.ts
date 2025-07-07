@@ -140,6 +140,26 @@ export const config = {
     credentialCacheTTL: env.int('CREDENTIAL_CACHE_TTL', 3600000), // 1 hour
     credentialCacheSize: env.int('CREDENTIAL_CACHE_SIZE', 100),
   },
+
+  // MCP (Model Context Protocol) configuration
+  mcp: {
+    enabled: env.bool('MCP_ENABLED', false),
+    github: {
+      owner: env.string('MCP_GITHUB_OWNER', ''),
+      repo: env.string('MCP_GITHUB_REPO', ''),
+      branch: env.string('MCP_GITHUB_BRANCH', 'main'),
+      token: env.string('MCP_GITHUB_TOKEN', ''),
+      path: env.string('MCP_GITHUB_PATH', 'prompts/'),
+    },
+    sync: {
+      interval: env.int('MCP_SYNC_INTERVAL', 300), // 5 minutes
+      webhookSecret: env.string('MCP_GITHUB_WEBHOOK_SECRET', ''),
+    },
+    cache: {
+      ttl: env.int('MCP_CACHE_TTL', 300), // 5 minutes
+      maxSize: env.int('MCP_CACHE_SIZE', 1000),
+    },
+  },
 }
 
 // Validate required configuration

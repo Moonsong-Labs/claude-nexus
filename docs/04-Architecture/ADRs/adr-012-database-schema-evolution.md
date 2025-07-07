@@ -29,19 +29,16 @@ We needed a migration system that could handle incremental schema changes while 
 ## Considered Options
 
 1. **SQL Migration Files Only**
-
    - Description: Plain SQL files with version numbers
    - Pros: Simple, database-native, no dependencies
    - Cons: Limited scripting capability, harder to handle complex migrations
 
 2. **Full Migration Framework (Knex, TypeORM, Prisma)**
-
    - Description: Use an established migration framework
    - Pros: Feature-rich, battle-tested, automatic tracking
    - Cons: Heavy dependencies, may conflict with Bun, learning curve
 
 3. **Custom TypeScript Migration Scripts**
-
    - Description: TypeScript files that execute SQL with custom logic
    - Pros: Full programming power, type safety, fits Bun ecosystem
    - Cons: Need to build version tracking, more complex than SQL
@@ -71,7 +68,6 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
    ```
 
 2. **Naming Convention**:
-
    - 3-digit numeric prefix for ordering (000, 001, 002...)
    - Descriptive name after the number
    - TypeScript extension for Bun compatibility
@@ -106,7 +102,6 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
    ```
 
 4. **Idempotency Requirements**:
-
    - Use `IF NOT EXISTS` for creating objects
    - Check column existence before adding
    - Make data updates conditional
@@ -141,12 +136,10 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
 ### Risks and Mitigations
 
 - **Risk**: Duplicate migration numbers
-
   - **Mitigation**: Code review process catches conflicts
   - **Mitigation**: GitHub PR checks for existing numbers
 
 - **Risk**: Forgetting to run migrations
-
   - **Mitigation**: Document in deployment checklist
   - **Mitigation**: Add startup check in future
 
@@ -166,13 +159,11 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
 ## Migration Best Practices
 
 1. **Before Writing a Migration**:
-
    - Check if changes can be backward compatible
    - Consider impact on running systems
    - Plan for data migration if needed
 
 2. **Writing Migrations**:
-
    - Start with BEGIN, end with COMMIT
    - Always handle errors with ROLLBACK
    - Include existence checks for idempotency
@@ -180,7 +171,6 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
    - Run ANALYZE after significant changes
 
 3. **Testing Migrations**:
-
    - Test on a copy of production data
    - Verify idempotency by running twice
    - Check performance impact

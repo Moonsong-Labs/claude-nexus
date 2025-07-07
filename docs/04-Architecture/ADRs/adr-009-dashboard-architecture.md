@@ -28,19 +28,16 @@ The choice would significantly impact dashboard performance, development velocit
 ## Considered Options
 
 1. **React SPA**
-
    - Description: Client-side React application
    - Pros: Rich ecosystem, familiar to many developers
    - Cons: Bundle size, complexity, SEO challenges
 
 2. **Vue.js SPA**
-
    - Description: Vue-based single-page application
    - Pros: Simpler than React, good docs
    - Cons: Still requires build pipeline, client-side state
 
 3. **HTMX + Server-Side Rendering**
-
    - Description: HTML-over-the-wire with HTMX
    - Pros: Minimal JavaScript, progressive enhancement
    - Cons: Less familiar pattern, server does more work
@@ -127,7 +124,6 @@ We will use **HTMX with server-side rendering** for the dashboard.
 ### Risks and Mitigations
 
 - **Risk**: Poor performance with many concurrent users
-
   - **Mitigation**: Response caching (30s default)
   - **Mitigation**: CDN for static assets
 

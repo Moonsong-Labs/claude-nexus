@@ -351,17 +351,14 @@ upstream claude_proxy {
 ### Key Metrics to Track
 
 1. **Response Time Percentiles**
-
    - P50, P95, P99 latencies
    - By endpoint and domain
 
 2. **Throughput**
-
    - Requests per second
    - Tokens per minute
 
 3. **Error Rates**
-
    - By error type
    - By domain
 

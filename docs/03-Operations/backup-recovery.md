@@ -407,19 +407,16 @@ fi
 ## Best Practices
 
 1. **3-2-1 Rule**
-
    - 3 copies of data
    - 2 different storage media
    - 1 offsite backup
 
 2. **Regular Testing**
-
    - Test recovery monthly
    - Document recovery times
    - Update procedures based on tests
 
 3. **Security**
-
    - Encrypt sensitive backups
    - Restrict backup access
    - Audit backup access logs

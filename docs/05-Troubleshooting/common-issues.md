@@ -19,7 +19,6 @@ authentication_error: invalid x-api-key
 **Solutions:**
 
 1. **Check API Key Format**
-
    - Claude API keys should start with `sk-ant-`
    - OAuth tokens should use `Bearer` prefix
 

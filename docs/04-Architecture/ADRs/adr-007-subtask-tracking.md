@@ -26,19 +26,16 @@ We needed a way to automatically detect and link these sub-tasks to provide bett
 ## Considered Options
 
 1. **Client-Side Annotation**
-
    - Description: Clients explicitly mark sub-tasks
    - Pros: 100% accurate, explicit relationships
    - Cons: Requires client changes, breaks existing code
 
 2. **Response Analysis**
-
    - Description: Parse responses for Task tool invocations
    - Pros: Works with existing clients, automatic
    - Cons: Parsing overhead, potential false positives
 
 3. **Message Content Matching**
-
    - Description: Match task prompts to new conversations
    - Pros: No client changes, works retroactively
    - Cons: Timing windows, potential mismatches
@@ -157,7 +154,6 @@ We implemented **single-phase subtask detection** entirely within the Conversati
 The two-phase approach separates concerns:
 
 1. **ConversationLinker** (Phase 1) focuses on conversation structure and linking
-
    - Identifies potential subtasks based on message patterns
    - Doesn't need database access for Task invocations
    - Can run efficiently as part of conversation processing
@@ -191,12 +187,10 @@ This separation allows subtasks to be separate conversations (different conversa
 ### Risks and Mitigations
 
 - **Risk**: False positive task linking
-
   - **Mitigation**: Exact prompt matching required
   - **Mitigation**: Time window limits false matches
 
 - **Risk**: Missed sub-tasks due to timing
-
   - **Mitigation**: Configurable time window
   - **Mitigation**: Manual linking API for corrections
 
@@ -218,13 +212,11 @@ This separation allows subtasks to be separate conversations (different conversa
 ## Dashboard Visualization
 
 1. **Tree View**:
-
    - Parent tasks show sub-task count
    - Sub-tasks appear as connected nodes
    - Tooltips show task descriptions
 
 2. **Metrics**:
-
    - Total sub-tasks in conversation
    - Aggregate token usage
    - Task completion status
@@ -257,14 +249,12 @@ In January 2025, we completed a major architectural evolution to consolidate all
 **Implementation Details**:
 
 1. **SQL-based Task Retrieval** (StorageAdapter.loadTaskContext):
-
    - Queries last 24 hours of Task invocations per domain
    - Filters to 30-second window for actual matching
    - Optimized with GIN indexes on JSONB response_body
    - No memory overhead from caching
 
 2. **ConversationLinker Updates**:
-
    - Added `detectSubtask()` method for complete detection
    - Accepts optional `TaskContext` with recent invocations
    - Uses `RequestByIdExecutor` to fetch parent task details

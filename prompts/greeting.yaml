@@ -1,0 +1,10 @@
+name: Greeting
+description: A simple greeting prompt
+template: |
+  Hello, {{name}}!
+
+  {{#if message}}
+  Your message: {{message}}
+  {{else}}
+  Welcome to the MCP prompts system using Handlebars templates.
+  {{/if}}

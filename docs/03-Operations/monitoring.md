@@ -487,19 +487,16 @@ ORDER BY day DESC;
 ## Best Practices
 
 1. **Set Appropriate Thresholds**
-
    - Start with conservative limits
    - Adjust based on baseline metrics
    - Document threshold reasoning
 
 2. **Regular Review**
-
    - Weekly performance reviews
    - Monthly cost analysis
    - Quarterly capacity planning
 
 3. **Automate Responses**
-
    - Auto-scaling for high load
    - Automatic backup triggers
    - Self-healing mechanisms

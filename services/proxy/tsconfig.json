@@ -21,7 +21,7 @@
       "@claude-nexus/shared/*": ["../../packages/shared/src/*"]
     }
   },
-  "include": ["src/**/*", "scripts/**/*"],
+  "include": ["src/**/*", "scripts/**/*", "src/**/*.test.ts"],
   "exclude": ["node_modules", "dist"],
   "references": [{ "path": "../../packages/shared" }]
 }
