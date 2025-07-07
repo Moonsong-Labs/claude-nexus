@@ -161,6 +161,8 @@ CREATE TABLE IF NOT EXISTS conversation_analyses (
     completion_tokens INTEGER,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    custom_prompt TEXT,
     UNIQUE (conversation_id, branch_id)
 );
 
@@ -179,6 +181,10 @@ WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_conversation_analyses_conversation
 ON conversation_analyses (conversation_id, branch_id);
 
+CREATE INDEX IF NOT EXISTS idx_conversation_analyses_has_custom_prompt
+ON conversation_analyses ((custom_prompt IS NOT NULL))
+WHERE custom_prompt IS NOT NULL;
+
 -- Add column comments for conversation_analyses
 COMMENT ON TABLE conversation_analyses IS 'Stores AI-generated analyses of conversations';
 COMMENT ON COLUMN conversation_analyses.conversation_id IS 'UUID of the conversation being analyzed';
@@ -194,3 +200,28 @@ COMMENT ON COLUMN conversation_analyses.generated_at IS 'Timestamp when the anal
 COMMENT ON COLUMN conversation_analyses.processing_duration_ms IS 'Time taken to generate the analysis in milliseconds';
 COMMENT ON COLUMN conversation_analyses.prompt_tokens IS 'Number of tokens used in the prompt';
 COMMENT ON COLUMN conversation_analyses.completion_tokens IS 'Number of tokens in the completion';
+COMMENT ON COLUMN conversation_analyses.completed_at IS 'Timestamp when the analysis was completed (status changed to completed or failed)';
+COMMENT ON COLUMN conversation_analyses.custom_prompt IS 'Optional custom prompt provided by the user to guide the analysis';
+
+-- Create analysis_audit_log table for tracking AI analysis events
+CREATE TABLE IF NOT EXISTS analysis_audit_log (
+    id SERIAL PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,
+    outcome VARCHAR(50) NOT NULL,
+    conversation_id UUID NOT NULL,
+    branch_id VARCHAR(255) NOT NULL,
+    domain VARCHAR(255) NOT NULL,
+    request_id VARCHAR(255) NOT NULL,
+    user_context JSONB DEFAULT '{}',
+    metadata JSONB DEFAULT '{}',
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Create indexes for analysis_audit_log
+CREATE INDEX IF NOT EXISTS idx_audit_conversation ON analysis_audit_log (conversation_id, branch_id);
+CREATE INDEX IF NOT EXISTS idx_audit_domain ON analysis_audit_log (domain);
+CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON analysis_audit_log (timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_event_type ON analysis_audit_log (event_type);
+
+-- Add comment on analysis_audit_log
+COMMENT ON TABLE analysis_audit_log IS 'Audit log for AI analysis operations. Consider partitioning by timestamp for high-volume deployments.';

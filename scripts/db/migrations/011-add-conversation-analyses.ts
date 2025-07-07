@@ -1,18 +1,17 @@
 #!/usr/bin/env bun
 /**
- * Migration 011: Add conversation_analyses table for AI-powered conversation analysis
+ * Migration 011: Add complete AI analysis infrastructure
  *
- * This migration creates the infrastructure for storing AI-generated analyses of conversations.
- * Each conversation+branch can have one analysis, which includes:
- * - Analysis content and structured data
- * - Processing status and retry tracking
- * - Token usage metrics
- * - Model information
+ * This migration creates all tables and structures needed for AI-powered conversation analysis:
+ * 1. conversation_analyses table - Stores AI-generated analyses of conversations
+ * 2. analysis_audit_log table - Tracks all AI analysis related events
  *
  * Features:
  * - ENUM type for status field (better than CHECK constraint)
  * - Automatic updated_at trigger
- * - Optimized indexes for pending analyses and conversation lookups
+ * - Custom prompt support
+ * - Comprehensive audit logging
+ * - Optimized indexes for queue processing and lookups
  */
 
 import { Pool } from 'pg'
@@ -27,7 +26,10 @@ async function migrate() {
   })
 
   try {
-    console.log('Migration 011: Creating conversation_analyses table and related objects...')
+    console.log('Migration 011: Creating AI analysis infrastructure...')
+
+    // Start transaction
+    await pool.query('BEGIN')
 
     // Create ENUM type for status
     console.log('\n1. Creating conversation_analysis_status ENUM type...')
@@ -62,7 +64,7 @@ async function migrate() {
     `)
     console.log('✓ Trigger function created')
 
-    // Create the main table
+    // Create the conversation_analyses table
     console.log('\n3. Creating conversation_analyses table...')
     await pool.query(`
       CREATE TABLE IF NOT EXISTS conversation_analyses (
@@ -83,10 +85,11 @@ async function migrate() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           completed_at TIMESTAMPTZ,
+          custom_prompt TEXT,
           UNIQUE (conversation_id, branch_id)
       );
     `)
-    console.log('✓ Table created')
+    console.log('✓ conversation_analyses table created')
 
     // Create the updated_at trigger
     console.log('\n4. Creating updated_at trigger...')
@@ -99,8 +102,8 @@ async function migrate() {
     `)
     console.log('✓ Trigger created')
 
-    // Create indexes
-    console.log('\n5. Creating indexes...')
+    // Create indexes for conversation_analyses
+    console.log('\n5. Creating indexes for conversation_analyses...')
 
     // Index for finding pending analyses
     await pool.query(`
@@ -117,8 +120,16 @@ async function migrate() {
     `)
     console.log('  ✓ Created composite index on (conversation_id, branch_id)')
 
-    // Add column comments for documentation
-    console.log('\n6. Adding column comments...')
+    // Index for custom prompts
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_conversation_analyses_has_custom_prompt
+      ON conversation_analyses ((custom_prompt IS NOT NULL))
+      WHERE custom_prompt IS NOT NULL;
+    `)
+    console.log('  ✓ Created index for custom prompts')
+
+    // Add column comments for conversation_analyses
+    console.log('\n6. Adding column comments for conversation_analyses...')
     await pool.query(`
       COMMENT ON TABLE conversation_analyses IS 'Stores AI-generated analyses of conversations';
       COMMENT ON COLUMN conversation_analyses.conversation_id IS 'UUID of the conversation being analyzed';
@@ -135,18 +146,57 @@ async function migrate() {
       COMMENT ON COLUMN conversation_analyses.prompt_tokens IS 'Number of tokens used in the prompt';
       COMMENT ON COLUMN conversation_analyses.completion_tokens IS 'Number of tokens in the completion';
       COMMENT ON COLUMN conversation_analyses.completed_at IS 'Timestamp when the analysis was completed (status changed to completed or failed)';
+      COMMENT ON COLUMN conversation_analyses.custom_prompt IS 'Optional custom prompt provided by the user to guide the analysis';
     `)
     console.log('✓ Column comments added')
 
-    // Analyze the table to update statistics
-    console.log('\n7. Analyzing conversation_analyses table...')
+    // Create analysis_audit_log table
+    console.log('\n7. Creating analysis_audit_log table...')
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS analysis_audit_log (
+        id SERIAL PRIMARY KEY,
+        event_type VARCHAR(50) NOT NULL,
+        outcome VARCHAR(50) NOT NULL,
+        conversation_id UUID NOT NULL,
+        branch_id VARCHAR(255) NOT NULL,
+        domain VARCHAR(255) NOT NULL,
+        request_id VARCHAR(255) NOT NULL,
+        user_context JSONB DEFAULT '{}',
+        metadata JSONB DEFAULT '{}',
+        timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+      )
+    `)
+    console.log('✓ analysis_audit_log table created')
+
+    // Create indexes for analysis_audit_log
+    console.log('\n8. Creating indexes for analysis_audit_log...')
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_conversation ON analysis_audit_log (conversation_id, branch_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_domain ON analysis_audit_log (domain);
+      CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON analysis_audit_log (timestamp);
+      CREATE INDEX IF NOT EXISTS idx_audit_event_type ON analysis_audit_log (event_type);
+    `)
+    console.log('✓ Indexes created for audit log')
+
+    // Add comment on analysis_audit_log
+    await pool.query(`
+      COMMENT ON TABLE analysis_audit_log IS 
+        'Audit log for AI analysis operations. Consider partitioning by timestamp for high-volume deployments.'
+    `)
+
+    // Analyze tables to update statistics
+    console.log('\n9. Analyzing tables...')
     await pool.query('ANALYZE conversation_analyses')
-    console.log('✓ Table analyzed')
+    await pool.query('ANALYZE analysis_audit_log')
+    console.log('✓ Tables analyzed')
+
+    // Commit transaction
+    await pool.query('COMMIT')
 
     // Show final status
-    console.log('\n8. Verifying migration results...')
+    console.log('\n10. Verifying migration results...')
 
-    // Check table structure
+    // Check conversation_analyses table structure
     const tableCheck = await pool.query(`
       SELECT 
         column_name,
@@ -158,31 +208,33 @@ async function migrate() {
       ORDER BY ordinal_position
     `)
 
-    console.log('\nTable structure:')
+    console.log('\nconversation_analyses table:')
     console.log('Columns:', tableCheck.rows.length)
 
     // Check indexes
     const indexCheck = await pool.query(`
       SELECT 
-        indexname,
-        indexdef
+        tablename,
+        indexname
       FROM pg_indexes
-      WHERE tablename = 'conversation_analyses'
+      WHERE tablename IN ('conversation_analyses', 'analysis_audit_log')
+      ORDER BY tablename, indexname
     `)
 
-    console.log('\nIndexes:', indexCheck.rows.length)
+    console.log('\nIndexes created:')
     for (const idx of indexCheck.rows) {
-      console.log(`  - ${idx.indexname}`)
+      console.log(`  - ${idx.tablename}.${idx.indexname}`)
     }
 
     console.log('\n✅ Migration 011 completed successfully!')
-    console.log('\nThe conversation_analyses table is ready for storing AI-generated analyses.')
-    console.log('Key features:')
-    console.log('  - ENUM type for status field ensures data integrity')
-    console.log('  - Automatic updated_at timestamp via trigger')
-    console.log('  - Optimized indexes for queue processing and lookups')
-    console.log('  - UNIQUE constraint prevents duplicate analyses per conversation/branch')
+    console.log('\nAI Analysis infrastructure is ready:')
+    console.log('  - conversation_analyses table for storing AI-generated analyses')
+    console.log('  - analysis_audit_log table for tracking all analysis events')
+    console.log('  - Support for custom prompts')
+    console.log('  - Comprehensive indexing for optimal performance')
+    console.log('  - Automatic timestamp management')
   } catch (error) {
+    await pool.query('ROLLBACK')
     console.error('❌ Migration failed:', error)
     throw error
   } finally {
