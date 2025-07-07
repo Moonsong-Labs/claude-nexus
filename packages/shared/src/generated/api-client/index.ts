@@ -1,15 +1,26 @@
 /**
  * Auto-generated API client for Claude Nexus Proxy AI Analysis API
  * Generated from: /home/crystalin/projects/claude-nexus-proxy/docs/api/openapi-analysis.yaml
- * Generated on: 2025-07-05T15:33:06.715Z
+ * Generated on: 2025-07-07T14:38:58.717Z
  */
 
 export interface CreateAnalysisRequest {
   conversationId: string
   branchId: string
+  customPrompt?: string
 }
 
 export interface CreateAnalysisResponse {
+  message: string
+  analysisId: number
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+}
+
+export interface RegenerateAnalysisRequest {
+  customPrompt?: string
+}
+
+export interface RegenerateAnalysisResponse {
   message: string
   analysisId: number
   status: 'pending' | 'processing' | 'completed' | 'failed'
@@ -111,11 +122,13 @@ export class AnalysisApiClient {
    */
   async regenerateAnalysis(
     conversationId: string,
-    branchId: string
+    branchId: string,
+    request?: RegenerateAnalysisRequest
   ): Promise<RegenerateAnalysisResponse> {
     return this.request<RegenerateAnalysisResponse>(
       'POST',
-      `/api/analyses/${conversationId}/${branchId}/regenerate`
+      `/api/analyses/${conversationId}/${branchId}/regenerate`,
+      request
     )
   }
 

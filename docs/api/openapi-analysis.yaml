@@ -346,6 +346,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/conversationId'
         - $ref: '#/components/parameters/branchId'
+      requestBody:
+        description: Optional request body for regeneration
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegenerateAnalysisRequest'
+            example:
+              customPrompt: 'Analyze performance implications and optimization opportunities'
       responses:
         '200':
           description: Regeneration requested successfully
@@ -451,6 +460,10 @@ components:
           description: Branch identifier (defaults to 'main')
           default: 'main'
           example: 'main'
+        customPrompt:
+          type: string
+          description: Optional custom prompt to guide the analysis
+          example: 'Focus on security implications and potential vulnerabilities'
 
     CreateAnalysisResponse:
       type: object
@@ -524,6 +537,14 @@ components:
           example: '2024-01-15T10:05:00Z'
         tokenUsage:
           $ref: '#/components/schemas/TokenUsage'
+
+    RegenerateAnalysisRequest:
+      type: object
+      properties:
+        customPrompt:
+          type: string
+          description: Optional custom prompt to guide the analysis
+          example: 'Focus on performance implications and optimization opportunities'
 
     RegenerateAnalysisResponse:
       type: object

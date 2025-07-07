@@ -295,9 +295,9 @@ GET /api/conversations/:id
 }
 ```
 
-#### Conversation Analysis (Pending Implementation)
+#### Conversation Analysis
 
-**Note:** These endpoints are planned for Phase 2 implementation. Currently only the database schema is in place.
+AI-powered analysis of conversations using Gemini models to provide insights, summaries, and actionable feedback.
 
 ##### Create Analysis Request
 
@@ -312,7 +312,8 @@ Creates a new analysis request for a conversation.
 ```json
 {
   "conversation_id": "uuid",
-  "branch_id": "main" // optional, defaults to "main"
+  "branch_id": "main", // optional, defaults to "main"
+  "customPrompt": "Focus on security implications" // optional
 }
 ```
 
@@ -365,6 +366,14 @@ POST /api/analyses/:conversationId/:branchId/regenerate
 ```
 
 Forces regeneration of an existing analysis.
+
+**Request:**
+
+```json
+{
+  "customPrompt": "Analyze performance implications" // optional
+}
+```
 
 **Response:** Same as Get Analysis endpoint.
 
