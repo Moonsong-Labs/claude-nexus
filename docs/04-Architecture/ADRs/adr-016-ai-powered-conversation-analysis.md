@@ -27,19 +27,16 @@ Manual analysis is time-consuming and doesn't scale. We need an automated system
 ## Considered Options
 
 1. **Real-time Analysis During Proxy Requests**
-
    - Description: Analyze conversations as they happen during proxy requests
    - Pros: Immediate insights, no batch processing needed
    - Cons: Adds latency to requests, increases costs, harder to manage failures
 
 2. **Dedicated Analysis Microservice**
-
    - Description: Separate service that pulls conversations and analyzes them
    - Pros: Complete isolation, independent scaling, technology flexibility
    - Cons: Complex deployment, data synchronization challenges, operational overhead
 
 3. **Background Jobs in Proxy Service**
-
    - Description: Background workers within the proxy service using database polling
    - Pros: Simple deployment, shared database access, easier maintenance
    - Cons: Competes for proxy resources, requires careful resource management
@@ -80,7 +77,6 @@ We will implement **Background Jobs in Proxy Service** with database polling for
    ```
 
 2. **Processing Strategy**:
-
    - Database polling with row-level locking
    - Configurable batch sizes and processing intervals
    - Exponential backoff for retries
@@ -95,7 +91,6 @@ We will implement **Background Jobs in Proxy Service** with database polling for
    ```
 
 4. **Cost Management**:
-
    - Token counting before submission
    - Configurable limits per conversation
    - Message truncation strategies
@@ -120,12 +115,10 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 ### Risks and Mitigations
 
 - **Risk**: Background jobs impacting proxy performance
-
   - **Mitigation**: Configurable concurrency limits and resource monitoring
   - **Mitigation**: Circuit breakers to pause processing under high load
 
 - **Risk**: Long-running analyses blocking other conversations
-
   - **Mitigation**: Timeout controls and conversation size limits
   - **Mitigation**: Priority queue implementation for fair processing
 
@@ -201,20 +194,17 @@ Key files:
 ### Phase 2 - Error Handling Improvements (Completed)
 
 - **JSON Parse Failures**: When the AI model returns unparseable JSON, the system now:
-
   - Catches parse errors gracefully
   - Stores the raw text response as `analysis_content`
   - Sets `analysis_data` to null
   - Displays the raw text in the UI instead of failing
 
 - **Maximum Retry Handling**: Jobs that exceed `AI_ANALYSIS_MAX_RETRIES`:
-
   - Are automatically marked as failed during the worker's stuck job handling cycle
   - Display error status in the UI with clear messaging
   - No longer remain stuck in pending status indefinitely
 
 - **Schema Validation**: Updated retry prompts to match current data structure:
-
   - Fixed `actionItems` schema from array of strings to array of objects
   - Each action item now has `type`, `description`, and `priority` fields
 

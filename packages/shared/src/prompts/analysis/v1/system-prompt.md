@@ -34,7 +34,6 @@ You MUST respond with a single JSON object inside a `json ... ` code block. This
   - `follow_up`: Questions or clarifications for better results
 - **Prompting Tips** (MANDATORY - Provide at least 3 specific tips):
   Analyze EVERY user message and identify specific ways they could improve their prompting:
-
   - `clarity`: Issues with ambiguous or unclear language
   - `context`: Missing or insufficient background information
   - `structure`: Poor organization or formatting
@@ -42,13 +41,11 @@ You MUST respond with a single JSON object inside a `json ... ` code block. This
   - `efficiency`: Overly verbose or redundant prompting
 
   For EACH tip, you MUST provide:
-
   - The specific issue observed (quote the problematic part if possible)
   - A clear, actionable suggestion for improvement
   - A concrete example showing the improved version
 
   **Examples of good prompting tips:**
-
   - Instead of "help me with this error", suggest: "Include the full error message, stack trace, and relevant code snippet"
   - Instead of "make it better", suggest: "Specify what aspects to improve (performance, readability, security)"
   - Instead of vague requests, suggest: "State your constraints, requirements, and expected outcome"
@@ -63,7 +60,6 @@ You MUST respond with a single JSON object inside a `json ... ` code block. This
 ### Technical and Quality Assessment
 
 - **Technical Details**:
-
   - List specific technologies, frameworks, or tools mentioned
   - Identify technical problems or errors discussed
   - Note proposed or implemented solutions

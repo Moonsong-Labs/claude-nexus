@@ -12,7 +12,8 @@ function createMockProxyServer() {
     const authorization = c.req.header('Authorization')
     const domain = c.get('domain')
     // Client auth is enabled by default unless explicitly set to 'false'
-    const clientAuthEnabled = !process.env.ENABLE_CLIENT_AUTH || process.env.ENABLE_CLIENT_AUTH !== 'false'
+    const clientAuthEnabled =
+      !process.env.ENABLE_CLIENT_AUTH || process.env.ENABLE_CLIENT_AUTH !== 'false'
 
     if (!clientAuthEnabled) {
       return null // Auth disabled, pass through
@@ -77,7 +78,7 @@ function createMockProxyServer() {
   })
 
   // Mock the messages endpoint with integrated auth check
-  app.post('/v1/messages', async (c) => {
+  app.post('/v1/messages', async c => {
     // Check client auth first
     const authError = checkClientAuth(c)
     if (authError) {
@@ -149,15 +150,18 @@ describe('Proxy Authentication Integration', () => {
     // Start mock server
     const app = createMockProxyServer()
     const port = 3456 // Use a different port to avoid conflicts
-    
-    await new Promise<void>((resolve) => {
-      server = serve({
-        fetch: app.fetch,
-        port,
-      }, () => {
-        proxyUrl = `http://localhost:${port}`
-        resolve()
-      })
+
+    await new Promise<void>(resolve => {
+      server = serve(
+        {
+          fetch: app.fetch,
+          port,
+        },
+        () => {
+          proxyUrl = `http://localhost:${port}`
+          resolve()
+        }
+      )
     })
   })
 
@@ -165,7 +169,7 @@ describe('Proxy Authentication Integration', () => {
     // Cleanup test server
     await new Promise<void>((resolve, reject) => {
       if (server) {
-        server.close((err) => {
+        server.close(err => {
           if (err) reject(err)
           else resolve()
         })
@@ -249,7 +253,7 @@ describe('Proxy Authentication Integration', () => {
         console.log('Skipping client auth test - ENABLE_CLIENT_AUTH is false')
         return
       }
-      
+
       const response = await fetch(`${proxyUrl}/v1/messages`, {
         method: 'POST',
         headers: {
@@ -280,12 +284,12 @@ describe('Proxy Authentication Integration', () => {
         'anthropic-version': '2023-06-01',
         Host: 'test.example.com',
       }
-      
+
       // Only add client auth header if client auth is enabled
       if (process.env.ENABLE_CLIENT_AUTH !== 'false') {
         headers.Authorization = 'Bearer cnp_test_key'
       }
-      
+
       const response = await fetch(`${proxyUrl}/v1/messages`, {
         method: 'POST',
         headers,
@@ -310,12 +314,12 @@ describe('Proxy Authentication Integration', () => {
         'anthropic-version': '2023-06-01',
         Host: 'test.example.com',
       }
-      
+
       // Only add client auth header if client auth is enabled
       if (process.env.ENABLE_CLIENT_AUTH !== 'false') {
         headers.Authorization = 'Bearer cnp_test_key'
       }
-      
+
       const response = await fetch(`${proxyUrl}/v1/messages`, {
         method: 'POST',
         headers,

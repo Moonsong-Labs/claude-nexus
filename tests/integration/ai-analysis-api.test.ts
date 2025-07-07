@@ -20,7 +20,7 @@ initializeAnalysisRateLimiters()
  * with Bun's test runner and Hono's _Response object serialization. If you encounter
  * "Expected a Response object, but received '_Response'" errors, run this test file
  * separately or use the scripts/test-integration.sh script.
- * 
+ *
  * See: https://github.com/honojs/hono/issues/[issue-number]
  */
 describe('AI Analysis API Integration Tests', () => {
@@ -58,7 +58,7 @@ describe('AI Analysis API Integration Tests', () => {
 
     // Use a more predictable port for CI
     proxyPort = 0 // Let the OS assign a port
-    
+
     // Start proxy server with retry logic for CI environments
     let retries = 3
     while (retries > 0) {

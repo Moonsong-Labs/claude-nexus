@@ -54,7 +54,6 @@ The system automatically redacts personally identifiable information:
 The system uses multiple techniques to prevent prompt injection:
 
 1. **Content Filtering**: Removes common injection patterns
-
    - "ignore previous instructions"
    - "system:", "assistant:", "user:"
    - Special tokens like `[INST]`, `<|im_start|>`

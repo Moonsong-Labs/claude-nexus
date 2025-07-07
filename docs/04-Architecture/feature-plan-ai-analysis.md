@@ -472,13 +472,11 @@ ANALYSIS_TRUNCATE_LAST_M=20
 ### 7. Security Considerations
 
 1. **Database Access**
-
    - Worker process uses least-privilege role (SELECT/UPDATE only)
    - No DELETE or DDL permissions
    - Row-level security if multi-tenant
 
 2. **Input Validation**
-
    - Validate UUIDs before database queries
    - Sanitize conversation content before API calls
    - Rate limiting on analysis endpoints
@@ -539,13 +537,11 @@ logger.error('Analysis failed', {
 ### 10. Testing Strategy
 
 1. **Unit Tests**
-
    - Prompt generation with truncation
    - API endpoint handlers
    - Worker job processing
 
 2. **Integration Tests**
-
    - End-to-end analysis generation
    - Concurrent worker handling
    - Error recovery scenarios
