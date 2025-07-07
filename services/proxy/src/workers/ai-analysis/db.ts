@@ -274,6 +274,50 @@ export async function resetStuckJobs(): Promise<number> {
   }
 }
 
+export async function failJobsExceedingMaxRetries(): Promise<number> {
+  const pool = container.getDbPool()
+  if (!pool) {
+    logger.error('Database pool not available', { metadata: { worker: 'analysis-worker' } })
+    return 0
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE conversation_analyses
+       SET status = 'failed',
+           error_message = jsonb_build_object(
+             'error', 'Maximum retry attempts exceeded',
+             'max_retries', $1,
+             'retry_count', retry_count,
+             'failed_at', NOW()
+           )::text,
+           updated_at = NOW(),
+           completed_at = NOW()
+       WHERE status = 'pending' 
+         AND retry_count >= $1`,
+      [MAX_RETRIES]
+    )
+
+    const failedCount = result.rowCount || 0
+    if (failedCount > 0) {
+      logger.info(`Failed ${failedCount} jobs that exceeded max retries`, {
+        metadata: { worker: 'analysis-worker' },
+      })
+    }
+    return failedCount
+  } catch (error) {
+    logger.error('Error failing jobs with max retries', {
+      error: {
+        message: getErrorMessage(error),
+        stack: getErrorStack(error),
+        code: getErrorCode(error),
+      },
+      metadata: { worker: 'analysis-worker' },
+    })
+    throw error
+  }
+}
+
 export async function fetchConversationMessages(
   conversationId: string,
   branchId: string = 'main'

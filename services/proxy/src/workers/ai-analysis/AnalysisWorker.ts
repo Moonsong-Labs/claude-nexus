@@ -4,10 +4,12 @@ import {
   completeJob,
   failJob,
   resetStuckJobs,
+  failJobsExceedingMaxRetries,
   fetchConversationMessages,
   type ConversationAnalysisJob,
 } from './db.js'
 import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
+import { getErrorMessage, getErrorStack } from '@claude-nexus/shared/utils/errors'
 import { logger } from '../../middleware/logger.js'
 
 export class AnalysisWorker {
@@ -93,7 +95,14 @@ export class AnalysisWorker {
       await this.processPendingJobs()
       await this.handleStuckJobs()
     } catch (error) {
-      logger.error('Error in worker cycle', { error, metadata: { worker: 'analysis-worker' } })
+      logger.error('Error in worker cycle', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: error instanceof Error && 'code' in error ? (error as any).code : undefined,
+        },
+        metadata: { worker: 'analysis-worker' },
+      })
     } finally {
       if (this.isRunning) {
         this.timer = setTimeout(() => this.runCycle(), this.pollInterval)
@@ -101,7 +110,7 @@ export class AnalysisWorker {
     }
   }
 
-  private async processPendingJobs() {
+  async processPendingJobs() {
     const availableSlots = this.maxConcurrentJobs - this.activeJobs.length
     if (availableSlots <= 0) {
       return
@@ -127,7 +136,7 @@ export class AnalysisWorker {
     })
 
     const newJobPromises = jobsToProcess.map(job => {
-      const jobPromise = this.processJob(job).finally(() => {
+      const jobPromise = this._processJob(job).finally(() => {
         const index = this.activeJobs.indexOf(jobPromise)
         if (index > -1) {
           this.activeJobs.splice(index, 1)
@@ -141,7 +150,32 @@ export class AnalysisWorker {
     await Promise.allSettled(newJobPromises)
   }
 
-  private async processJob(job: ConversationAnalysisJob) {
+  async processJob(partialJob: { id: number } | ConversationAnalysisJob) {
+    // If we only have an ID, fetch the full job data
+    let job: ConversationAnalysisJob
+    if (!('conversation_id' in partialJob)) {
+      const pool = (await import('../../container.js')).container.getDbPool()
+      if (!pool) {
+        throw new Error('Database pool not available')
+      }
+
+      const result = await pool.query('SELECT * FROM conversation_analyses WHERE id = $1', [
+        partialJob.id,
+      ])
+
+      if (result.rows.length === 0) {
+        throw new Error(`Job ${partialJob.id} not found`)
+      }
+
+      job = result.rows[0] as ConversationAnalysisJob
+    } else {
+      job = partialJob as ConversationAnalysisJob
+    }
+
+    return this._processJob(job)
+  }
+
+  private async _processJob(job: ConversationAnalysisJob) {
     const startTime = Date.now()
 
     try {
@@ -156,7 +190,7 @@ export class AnalysisWorker {
       }
 
       const analysis = await this.withExponentialBackoff(
-        () => this.geminiService.analyzeConversation(messages),
+        () => this.geminiService.analyzeConversation(messages, job.custom_prompt),
         job.retry_count
       )
 
@@ -185,7 +219,11 @@ export class AnalysisWorker {
     } catch (error) {
       const processingDuration = Date.now() - startTime
       logger.error(`Job ${job.id} failed`, {
-        error,
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: error instanceof Error && 'code' in error ? (error as any).code : undefined,
+        },
         metadata: {
           worker: 'analysis-worker',
           jobId: job.id,
@@ -222,6 +260,15 @@ export class AnalysisWorker {
 
   private async handleStuckJobs() {
     try {
+      // First, fail jobs that have exceeded max retries
+      const failedCount = await failJobsExceedingMaxRetries()
+      if (failedCount > 0) {
+        logger.info(`Failed ${failedCount} jobs exceeding max retries`, {
+          metadata: { worker: 'analysis-worker' },
+        })
+      }
+
+      // Then reset stuck processing jobs
       const resetCount = await resetStuckJobs()
       if (resetCount > 0) {
         logger.info(`Reset ${resetCount} stuck analysis jobs`, {
@@ -229,7 +276,14 @@ export class AnalysisWorker {
         })
       }
     } catch (error) {
-      logger.error('Error handling stuck jobs', { error, metadata: { worker: 'analysis-worker' } })
+      logger.error('Error handling stuck jobs', {
+        error: {
+          message: getErrorMessage(error),
+          stack: getErrorStack(error),
+          code: error instanceof Error && 'code' in error ? (error as any).code : undefined,
+        },
+        metadata: { worker: 'analysis-worker' },
+      })
     }
   }
 }
