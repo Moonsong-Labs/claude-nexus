@@ -8,6 +8,7 @@ class MockPromptService implements Partial<PromptService> {
   async listPrompts() {
     return [
       {
+        id: 'test-prompt-id',
         promptId: 'test-prompt',
         name: 'Test Prompt',
         description: 'A test prompt',
@@ -31,6 +32,7 @@ class MockPromptService implements Partial<PromptService> {
   async getPrompt(promptId: string) {
     if (promptId === 'test-prompt') {
       return {
+        id: 'test-prompt-id',
         promptId: 'test-prompt',
         name: 'Test Prompt',
         description: 'A test prompt',
@@ -69,7 +71,7 @@ describe('McpServer Security Tests', () => {
   describe('Template Injection Prevention', () => {
     it('should safely handle template variables without regex injection', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -88,7 +90,7 @@ describe('McpServer Security Tests', () => {
 
     it('should handle special regex characters in template values', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -110,7 +112,7 @@ describe('McpServer Security Tests', () => {
 
     it('should escape dollar signs properly', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -132,7 +134,7 @@ describe('McpServer Security Tests', () => {
 
     it('should escape backslashes properly', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -154,7 +156,7 @@ describe('McpServer Security Tests', () => {
 
     it('should reject invalid argument names', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -178,7 +180,7 @@ describe('McpServer Security Tests', () => {
 
     it('should reject argument names with special characters', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -202,7 +204,7 @@ describe('McpServer Security Tests', () => {
 
     it('should handle missing required arguments', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -226,8 +228,10 @@ describe('McpServer Security Tests', () => {
     it('should not replace partial matches', async () => {
       // Update mock to return a different prompt
       mockPromptService.getPrompt = async () => ({
+        id: 'test-prompt-id',
         promptId: 'test-prompt',
         name: 'Test Prompt',
+        description: 'A test prompt',
         content: 'Hello {name}, not {named} or {namespace}',
         arguments: [{ name: 'name', required: true }],
         metadata: {},
@@ -241,7 +245,7 @@ describe('McpServer Security Tests', () => {
       })
 
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/get',
         params: {
@@ -261,7 +265,7 @@ describe('McpServer Security Tests', () => {
   describe('Protocol Implementation', () => {
     it('should handle initialize request', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'initialize',
         params: {
@@ -277,7 +281,7 @@ describe('McpServer Security Tests', () => {
 
     it('should handle prompts/list request', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'prompts/list',
       }
@@ -290,7 +294,7 @@ describe('McpServer Security Tests', () => {
 
     it('should handle unknown methods', async () => {
       const request = {
-        jsonrpc: '2.0',
+        jsonrpc: '2.0' as const,
         id: 1,
         method: 'unknown/method',
       }

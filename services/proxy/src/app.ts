@@ -190,9 +190,11 @@ export async function createProxyApp(): Promise<
       logger.info('MCP API routes registered at /api/mcp (without sync services)')
     } else {
       logger.warn('MCP API routes not registered - services not available', {
-        promptService: !!promptService,
-        syncService: !!syncService,
-        syncScheduler: !!syncScheduler,
+        metadata: {
+          promptService: !!promptService,
+          syncService: !!syncService,
+          syncScheduler: !!syncScheduler,
+        },
       })
     }
   }

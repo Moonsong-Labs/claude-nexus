@@ -34,6 +34,10 @@ const createMockPool = () => {
                 synced_at: new Date(),
               },
             ],
+            rowCount: 1,
+            command: '',
+            oid: 0,
+            fields: [],
           } as QueryResult
         }
       }
@@ -52,10 +56,20 @@ const createMockPool = () => {
               ],
             },
           ],
+          rowCount: 1,
+          command: '',
+          oid: 0,
+          fields: [],
         } as QueryResult
       }
 
-      return { rows: [] } as QueryResult
+      return {
+        rows: [],
+        rowCount: 0,
+        command: '',
+        oid: 0,
+        fields: [],
+      } as QueryResult
     }),
   } as unknown as Pool
 

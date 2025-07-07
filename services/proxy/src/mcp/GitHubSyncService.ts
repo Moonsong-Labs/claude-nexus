@@ -59,10 +59,12 @@ export class GitHubSyncService {
 
   async syncRepository(): Promise<void> {
     logger.info(`Starting GitHub sync from ${this.owner}/${this.repo}`, {
-      owner: this.owner,
-      repo: this.repo,
-      branch: this.branch,
-      path: this.path,
+      metadata: {
+        owner: this.owner,
+        repo: this.repo,
+        branch: this.branch,
+        path: this.path,
+      },
     })
 
     try {
@@ -129,10 +131,12 @@ export class GitHubSyncService {
     try {
       // List contents of the prompts directory
       logger.debug('Fetching directory contents', {
-        owner: this.owner,
-        repo: this.repo,
-        path: this.path,
-        ref: this.branch,
+        metadata: {
+          owner: this.owner,
+          repo: this.repo,
+          path: this.path,
+          ref: this.branch,
+        },
       })
 
       const { data: contents } = await this.octokit.repos.getContent({
