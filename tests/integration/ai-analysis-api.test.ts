@@ -296,8 +296,11 @@ describe('AI Analysis API Integration Tests', () => {
     })
 
     it('should handle proxy server errors', async () => {
-      // Stop the proxy server to simulate connection error
-      proxyServer.stop()
+      // Temporarily stop the proxy server to simulate connection error
+      const originalFetch = apiClient.fetch
+      apiClient.fetch = async () => {
+        throw new Error('Connection refused')
+      }
 
       const response = await dashboardApp.request('/api/analyses', {
         method: 'POST',
@@ -311,6 +314,9 @@ describe('AI Analysis API Integration Tests', () => {
       expect(response.status).toBe(500)
       const data = await response.json()
       expect(data.error).toBe('Failed to create analysis')
+
+      // Restore original fetch
+      apiClient.fetch = originalFetch
     })
   })
 
