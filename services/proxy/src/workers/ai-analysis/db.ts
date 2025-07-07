@@ -2,6 +2,7 @@ import { container } from '../../container.js'
 import { logger } from '../../middleware/logger.js'
 import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
 import type { AnalysisStatus, ConversationAnalysis } from '@claude-nexus/shared/types/ai-analysis'
+import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 
 const MAX_RETRIES = AI_WORKER_CONFIG.MAX_RETRIES
 const JOB_TIMEOUT_MINUTES = AI_WORKER_CONFIG.JOB_TIMEOUT_MINUTES
@@ -23,6 +24,7 @@ export interface ConversationAnalysisJob {
   processing_duration_ms?: number
   created_at: Date
   updated_at: Date
+  custom_prompt?: string
 }
 
 export async function claimJob(): Promise<ConversationAnalysisJob | null> {
@@ -57,7 +59,14 @@ export async function claimJob(): Promise<ConversationAnalysisJob | null> {
     logger.debug(`Claimed job: ${rows[0].id}`, { metadata: { worker: 'analysis-worker' } })
     return rows[0] as ConversationAnalysisJob
   } catch (error) {
-    logger.error('Error claiming job', { error, metadata: { worker: 'analysis-worker' } })
+    logger.error('Error claiming job', {
+      error: {
+        message: getErrorMessage(error),
+        stack: getErrorStack(error),
+        code: getErrorCode(error),
+      },
+      metadata: { worker: 'analysis-worker' },
+    })
     throw error
   }
 }
@@ -65,7 +74,7 @@ export async function claimJob(): Promise<ConversationAnalysisJob | null> {
 export async function completeJob(
   id: number,
   analysisContent: string,
-  analysisData: ConversationAnalysis,
+  analysisData: ConversationAnalysis | null,
   rawResponse: unknown,
   modelUsed: string,
   promptTokens: number,
@@ -90,11 +99,12 @@ export async function completeJob(
            completion_tokens = $6,
            generated_at = NOW(),
            processing_duration_ms = $7,
-           updated_at = NOW()
+           updated_at = NOW(),
+           completed_at = NOW()
        WHERE id = $8`,
       [
         analysisContent,
-        JSON.stringify(analysisData),
+        analysisData ? JSON.stringify(analysisData) : null,
         JSON.stringify(rawResponse),
         modelUsed,
         promptTokens,
@@ -106,7 +116,14 @@ export async function completeJob(
 
     logger.debug(`Completed job: ${id}`, { metadata: { worker: 'analysis-worker' } })
   } catch (error) {
-    logger.error(`Error completing job ${id}`, { error, metadata: { worker: 'analysis-worker' } })
+    logger.error(`Error completing job ${id}`, {
+      error: {
+        message: getErrorMessage(error),
+        stack: getErrorStack(error),
+        code: getErrorCode(error),
+      },
+      metadata: { worker: 'analysis-worker' },
+    })
     throw error
   }
 }
@@ -178,7 +195,8 @@ export async function failJob(job: ConversationAnalysisJob, error: Error): Promi
         `UPDATE conversation_analyses
          SET status = 'failed',
              error_message = $1,
-             updated_at = NOW()
+             updated_at = NOW(),
+             completed_at = NOW()
          WHERE id = $2`,
         [
           JSON.stringify({
@@ -195,7 +213,11 @@ export async function failJob(job: ConversationAnalysisJob, error: Error): Promi
     }
   } catch (dbError) {
     logger.error(`Error updating failed job ${job.id}`, {
-      error: dbError,
+      error: {
+        message: getErrorMessage(dbError),
+        stack: getErrorStack(dbError),
+        code: getErrorCode(dbError),
+      },
       metadata: { worker: 'analysis-worker' },
     })
     throw dbError
@@ -215,8 +237,19 @@ export async function resetStuckJobs(): Promise<number> {
        SET status = 'pending',
            retry_count = retry_count + 1,
            error_message = CASE 
-             WHEN error_message IS NULL THEN '{"stuck_job": "Reset by watchdog"}'::jsonb
-             ELSE error_message || '{"stuck_job": "Reset by watchdog"}'::jsonb
+             WHEN error_message IS NULL THEN '{"stuck_job": "Reset by watchdog"}'
+             ELSE CASE
+               WHEN error_message::text LIKE '{%' THEN 
+                 jsonb_build_object(
+                   'previous_errors', error_message::jsonb,
+                   'stuck_job', 'Reset by watchdog'
+                 )::text
+               ELSE 
+                 jsonb_build_object(
+                   'previous_error', error_message,
+                   'stuck_job', 'Reset by watchdog'
+                 )::text
+             END
            END,
            updated_at = NOW()
        WHERE status = 'processing' 
@@ -229,7 +262,14 @@ export async function resetStuckJobs(): Promise<number> {
     }
     return resetCount
   } catch (error) {
-    logger.error('Error resetting stuck jobs', { error, metadata: { worker: 'analysis-worker' } })
+    logger.error('Error resetting stuck jobs', {
+      error: {
+        message: getErrorMessage(error),
+        stack: getErrorStack(error),
+        code: getErrorCode(error),
+      },
+      metadata: { worker: 'analysis-worker' },
+    })
     throw error
   }
 }
@@ -246,7 +286,7 @@ export async function fetchConversationMessages(
 
   try {
     const result = await pool.query(
-      `SELECT request_body, response_body, created_at
+      `SELECT body AS request_body, response_body, created_at
        FROM api_requests
        WHERE conversation_id = $1
          AND branch_id = $2
@@ -303,7 +343,11 @@ export async function fetchConversationMessages(
     return messages
   } catch (error) {
     logger.error('Error fetching conversation messages', {
-      error,
+      error: {
+        message: getErrorMessage(error),
+        stack: getErrorStack(error),
+        code: getErrorCode(error),
+      },
       metadata: { worker: 'analysis-worker' },
     })
     throw error

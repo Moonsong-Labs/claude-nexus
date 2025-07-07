@@ -11,6 +11,7 @@ import {
   validateAnalysisOutput,
   enhancePromptForRetry,
 } from '../../middleware/sanitization.js'
+import { getErrorMessage } from '@claude-nexus/shared'
 
 export interface GeminiApiResponse {
   candidates: Array<{
@@ -47,9 +48,12 @@ export class GeminiService {
     this.baseUrl = GEMINI_CONFIG.API_URL
   }
 
-  async analyzeConversation(messages: Array<{ role: 'user' | 'model'; content: string }>): Promise<{
+  async analyzeConversation(
+    messages: Array<{ role: 'user' | 'model'; content: string }>,
+    customPrompt?: string
+  ): Promise<{
     content: string
-    data: ConversationAnalysis
+    data: ConversationAnalysis | null
     rawResponse: GeminiApiResponse
     promptTokens: number
     completionTokens: number
@@ -67,7 +71,7 @@ export class GeminiService {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const contents = buildAnalysisPrompt(sanitizedMessages)
+        const contents = buildAnalysisPrompt(sanitizedMessages, undefined, customPrompt)
 
         logger.debug(`Prepared prompt with ${contents.length} turns (attempt ${attempt + 1})`, {
           metadata: { worker: 'analysis-worker' },
@@ -84,24 +88,45 @@ export class GeminiService {
         const validation = validateAnalysisOutput(analysisText)
 
         if (validation.isValid) {
-          const parsedAnalysis = parseAnalysisResponse(analysisText)
-          const markdownContent = this.formatAnalysisAsMarkdown(parsedAnalysis)
+          try {
+            const parsedAnalysis = parseAnalysisResponse(analysisText)
+            const markdownContent = this.formatAnalysisAsMarkdown(parsedAnalysis)
 
-          logger.info(`Analysis completed in ${Date.now() - startTime}ms`, {
-            metadata: {
-              worker: 'analysis-worker',
+            logger.info(`Analysis completed in ${Date.now() - startTime}ms`, {
+              metadata: {
+                worker: 'analysis-worker',
+                promptTokens: response.usageMetadata.promptTokenCount,
+                completionTokens: response.usageMetadata.candidatesTokenCount,
+                attempt: attempt + 1,
+              },
+            })
+
+            return {
+              content: markdownContent,
+              data: parsedAnalysis,
+              rawResponse: response,
               promptTokens: response.usageMetadata.promptTokenCount,
               completionTokens: response.usageMetadata.candidatesTokenCount,
-              attempt: attempt + 1,
-            },
-          })
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, return the raw text as content
+            logger.warn('Failed to parse JSON response, returning raw text', {
+              error: {
+                message: getErrorMessage(parseError),
+              },
+              metadata: {
+                worker: 'analysis-worker',
+                attempt: attempt + 1,
+              },
+            })
 
-          return {
-            content: markdownContent,
-            data: parsedAnalysis,
-            rawResponse: response,
-            promptTokens: response.usageMetadata.promptTokenCount,
-            completionTokens: response.usageMetadata.candidatesTokenCount,
+            return {
+              content: analysisText,
+              data: null, // No structured data available
+              rawResponse: response,
+              promptTokens: response.usageMetadata.promptTokenCount,
+              completionTokens: response.usageMetadata.candidatesTokenCount,
+            }
           }
         }
 
@@ -151,7 +176,11 @@ export class GeminiService {
       } catch (error) {
         lastError = error as Error
         logger.error('Gemini API error', {
-          error,
+          error: {
+            message: lastError.message,
+            name: lastError.name,
+            stack: lastError.stack,
+          },
           metadata: {
             worker: 'analysis-worker',
             attempt: attempt + 1,
@@ -279,7 +308,7 @@ ${analysis.userIntent}
 ${analysis.outcomes.length > 0 ? analysis.outcomes.map((outcome: string) => `- ${outcome}`).join('\n') : 'No specific outcomes identified.'}
 
 ## Action Items
-${analysis.actionItems.length > 0 ? analysis.actionItems.map((item: string) => `- [ ] ${item}`).join('\n') : 'No action items identified.'}
+${analysis.actionItems.length > 0 ? analysis.actionItems.map((item: any) => `- [ ] ${typeof item === 'string' ? item : item.description}`).join('\n') : 'No action items identified.'}
 
 ## Technical Details
 ### Frameworks & Technologies
@@ -290,6 +319,27 @@ ${analysis.technicalDetails.issues.length > 0 ? analysis.technicalDetails.issues
 
 ### Solutions Provided
 ${analysis.technicalDetails.solutions.length > 0 ? analysis.technicalDetails.solutions.map((solution: string) => `- ${solution}`).join('\n') : 'No solutions discussed.'}
+
+## Prompting Tips
+${
+  analysis.promptingTips && analysis.promptingTips.length > 0
+    ? analysis.promptingTips
+        .map(
+          (tip: any) => `
+### ${tip.category}
+**Issue**: ${tip.issue}
+**Suggestion**: ${tip.suggestion}
+${tip.example ? `**Example**: ${tip.example}` : ''}
+`
+        )
+        .join('\n')
+    : 'No specific prompting improvements identified.'
+}
+
+## Interaction Patterns
+- **Prompt Clarity**: ${analysis.interactionPatterns?.promptClarity || 'N/A'}/10
+- **Context Completeness**: ${analysis.interactionPatterns?.contextCompleteness || 'N/A'}/10
+- **Follow-up Effectiveness**: ${analysis.interactionPatterns?.followUpEffectiveness || 'N/A'}
 
 ## Conversation Quality
 - **Clarity**: ${analysis.conversationQuality.clarity}
