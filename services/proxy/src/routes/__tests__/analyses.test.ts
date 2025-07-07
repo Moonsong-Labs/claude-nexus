@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, mock } from 'bun:test'
 import { Hono } from 'hono'
-import type { Pool, QueryResult } from 'pg'
+import type { Pool, QueryResult, QueryResultRow } from 'pg'
 import { analysisRoutes } from '../analyses.js'
 import { ConversationAnalysisStatus } from '@claude-nexus/shared/types/ai-analysis'
 import { logger } from '../../middleware/logger.js'
@@ -21,11 +21,11 @@ describe('Proxy Analysis Routes', () => {
     }
   }>
   let mockPool: MockPool
-  let mockQueryResult: <T = unknown>(rows: T[]) => QueryResult<T>
+  let mockQueryResult: <T extends QueryResultRow = QueryResultRow>(rows: T[]) => QueryResult<T>
 
   beforeEach(() => {
     // Create mock query result helper
-    mockQueryResult = <T = unknown>(rows: T[]) => ({
+    mockQueryResult = <T extends QueryResultRow = QueryResultRow>(rows: T[]) => ({
       rows,
       rowCount: rows.length,
       command: '',
@@ -309,7 +309,7 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = (await response.json()) as Record<string, unknown>
       expect(data.id).toBe(123)
       expect(data.conversationId).toBe('550e8400-e29b-41d4-a716-446655440000')
       expect(data.branchId).toBe('main')
@@ -382,7 +382,7 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = (await response.json()) as Record<string, unknown>
       expect(data.status).toBe(ConversationAnalysisStatus.FAILED)
       expect(data.error).toBe('Analysis failed due to timeout')
       expect(data.content).toBeNull()
