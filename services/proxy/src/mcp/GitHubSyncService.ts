@@ -53,11 +53,17 @@ export class GitHubSyncService {
     this.owner = config.mcp.github.owner
     this.repo = config.mcp.github.repo
     this.branch = config.mcp.github.branch
-    this.path = config.mcp.github.path
+    // Remove trailing slash from path if present
+    this.path = config.mcp.github.path.replace(/\/$/, '')
   }
 
   async syncRepository(): Promise<void> {
-    logger.info(`Starting GitHub sync from ${this.owner}/${this.repo}`)
+    logger.info(`Starting GitHub sync from ${this.owner}/${this.repo}`, {
+      owner: this.owner,
+      repo: this.repo,
+      branch: this.branch,
+      path: this.path,
+    })
 
     try {
       // Update sync status to 'syncing'
@@ -122,6 +128,13 @@ export class GitHubSyncService {
 
     try {
       // List contents of the prompts directory
+      logger.debug('Fetching directory contents', {
+        owner: this.owner,
+        repo: this.repo,
+        path: this.path,
+        ref: this.branch,
+      })
+
       const { data: contents } = await this.octokit.repos.getContent({
         owner: this.owner,
         repo: this.repo,
