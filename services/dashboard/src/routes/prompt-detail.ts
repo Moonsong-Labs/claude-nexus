@@ -33,7 +33,7 @@ promptDetailRoute.get('/:id', async c => {
 
   try {
     // Fetch prompt details with stats
-    const promptResponse = await apiClient.get(`/mcp/prompts/${promptId}?includeStats=true`)
+    const promptResponse = await apiClient.get(`/api/mcp/prompts/${promptId}?includeStats=true`)
 
     if (!promptResponse.ok) {
       if (promptResponse.status === 404) {

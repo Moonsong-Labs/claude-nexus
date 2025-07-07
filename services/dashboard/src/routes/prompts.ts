@@ -36,7 +36,7 @@ promptsRoute.get('/', async c => {
   try {
     // Fetch prompts
     const promptsResponse = await apiClient.get(
-      `/mcp/prompts?page=${page}&limit=20${search ? `&search=${encodeURIComponent(search)}` : ''}${domain ? `&domain=${domain}` : ''}`
+      `/api/mcp/prompts?page=${page}&limit=20${search ? `&search=${encodeURIComponent(search)}` : ''}${domain ? `&domain=${domain}` : ''}`
     )
 
     if (!promptsResponse.ok) {
@@ -47,7 +47,7 @@ promptsRoute.get('/', async c => {
     const { prompts, total } = promptsData
 
     // Fetch sync status
-    const syncStatusResponse = await apiClient.get('/mcp/sync/status')
+    const syncStatusResponse = await apiClient.get('/api/mcp/sync/status')
     const syncStatus = syncStatusResponse.ok ? ((await syncStatusResponse.json()) as any) : null
 
     const content = html`

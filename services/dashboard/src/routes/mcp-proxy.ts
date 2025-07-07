@@ -20,7 +20,7 @@ mcpProxyRoutes.post('/mcp/sync', async c => {
   }
 
   try {
-    const response = await apiClient.fetch('/mcp/sync', {
+    const response = await apiClient.fetch('/api/mcp/sync', {
       method: 'POST',
     })
 
