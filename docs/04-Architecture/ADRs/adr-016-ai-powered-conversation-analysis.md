@@ -183,16 +183,44 @@ Key files:
 - **Worker Architecture**: In-process background worker with database polling
 - **Job Management**: PostgreSQL row-level locking with `FOR UPDATE SKIP LOCKED`
 - **Gemini Integration**: Direct API integration with security improvements
-- **Error Handling**: Exponential backoff with jitter for retries
+- **Error Handling**: 
+  - Exponential backoff with jitter for retries
+  - Automatic failure of jobs exceeding MAX_RETRIES
+  - Graceful handling of unparseable JSON responses
+  - Non-retryable error detection for schema validation failures
 - **Graceful Shutdown**: Proper lifecycle management with timeout controls
 - **Configuration**: Environment-based configuration for all worker parameters
 
 Key files:
 
 - `services/proxy/src/workers/ai-analysis/AnalysisWorker.ts` - Main worker class
-- `services/proxy/src/workers/ai-analysis/db.ts` - Database operations
-- `services/proxy/src/workers/ai-analysis/GeminiService.ts` - Gemini API client
+- `services/proxy/src/workers/ai-analysis/db.ts` - Database operations with `failJobsExceedingMaxRetries`
+- `services/proxy/src/workers/ai-analysis/GeminiService.ts` - Gemini API client with JSON fallback
 - `services/proxy/src/workers/ai-analysis/index.ts` - Worker lifecycle management
+
+### Phase 2 - Error Handling Improvements (Completed)
+
+- **JSON Parse Failures**: When the AI model returns unparseable JSON, the system now:
+  - Catches parse errors gracefully
+  - Stores the raw text response as `analysis_content`
+  - Sets `analysis_data` to null
+  - Displays the raw text in the UI instead of failing
+
+- **Maximum Retry Handling**: Jobs that exceed `AI_ANALYSIS_MAX_RETRIES`:
+  - Are automatically marked as failed during the worker's stuck job handling cycle
+  - Display error status in the UI with clear messaging
+  - No longer remain stuck in pending status indefinitely
+
+- **Schema Validation**: Updated retry prompts to match current data structure:
+  - Fixed `actionItems` schema from array of strings to array of objects
+  - Each action item now has `type`, `description`, and `priority` fields
+
+- **Utility Scripts**: Added management scripts for troubleshooting:
+  - `bun run ai:check-jobs` - Check analysis job statuses
+  - `bun run ai:check-content` - Inspect analysis content
+  - `bun run ai:reset-stuck` - Reset jobs with high retry counts
+  - `bun run ai:fail-exceeded` - Manually fail jobs exceeding retries
+  - `bun run ai:test-max-retry` - Create test jobs for max retry handling
 
 ## Links
 

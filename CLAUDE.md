@@ -566,7 +566,7 @@ When generating message hashes for conversation tracking, the system filters out
 
 ### AI-Powered Conversation Analysis
 
-The proxy supports automated analysis of conversations using AI models (currently Gemini 2.5 Pro):
+The proxy supports automated analysis of conversations using AI models (currently Gemini 1.5 Flash or 2.5 Pro):
 
 **Features:**
 
@@ -576,6 +576,15 @@ The proxy supports automated analysis of conversations using AI models (currentl
 - Retry logic with exponential backoff
 - Unique analyses per conversation and branch
 - Comprehensive environment variable configuration for prompt tuning
+- Graceful handling of unparseable JSON responses
+- Automatic failure of jobs exceeding max retries
+- Custom prompt support for targeted analysis
+
+**Error Handling:**
+
+- **JSON Parse Failures**: When the AI model returns malformed JSON, the system stores the raw text response instead of failing
+- **Max Retry Exceeded**: Jobs that exceed `AI_ANALYSIS_MAX_RETRIES` are automatically marked as failed with clear error messages
+- **Non-retryable Errors**: Sensitive information detection and API key issues fail immediately without retries
 
 **Database Schema:**
 
@@ -583,20 +592,31 @@ The proxy supports automated analysis of conversations using AI models (currentl
 - ENUM type for status field ensures data integrity
 - Automatic `updated_at` timestamp via trigger
 - Partial index on pending status for efficient queue processing
+- Supports both structured data (`analysis_data`) and raw text (`analysis_content`)
 
 **API Endpoints:**
 
-- `POST /api/analyses` - Create analysis request
+- `POST /api/analyses` - Create analysis request (supports `customPrompt`)
 - `GET /api/analyses/:conversationId/:branchId` - Get analysis status/result
-- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration
+- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration with optional custom prompt
+
+**Utility Scripts:**
+
+- `scripts/check-analysis-jobs.ts` - Check status of analysis jobs
+- `scripts/check-ai-worker-config.ts` - Verify AI worker configuration
+- `scripts/reset-stuck-analysis-jobs.ts` - Reset jobs stuck with high retry counts
+- `scripts/fail-exceeded-retry-jobs.ts` - Manually fail jobs exceeding max retries
+- `scripts/check-analysis-content.ts` - Inspect analysis content for a conversation
 
 **Implementation Status:**
 
-- ✅ Database schema (Migration 011)
-- ✅ API endpoints (Phase 2 - Task 2)
-- ✅ Prompt engineering (Phase 2 - Task 4)
-- ✅ Background worker (Phase 2 - Task 3)
-- ⏳ Dashboard UI (Phase 3)
+- ✅ Database schema (Migration 011, 012)
+- ✅ API endpoints with custom prompt support
+- ✅ Prompt engineering with actionable feedback
+- ✅ Background worker with resilient error handling
+- ✅ Dashboard UI with analysis panel
+- ✅ Graceful JSON parse failure handling
+- ✅ Automatic max retry failure
 
 See [ADR-016](docs/04-Architecture/ADRs/adr-016-ai-powered-conversation-analysis.md) for architectural decisions.
 

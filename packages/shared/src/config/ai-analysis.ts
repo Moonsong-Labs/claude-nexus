@@ -36,21 +36,43 @@ export const ANALYSIS_PROMPT_CONFIG = {
 }
 
 // Gemini API Configuration
+// Use getters to read environment variables lazily after dotenv has loaded
 export const GEMINI_CONFIG = {
-  API_URL: process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models',
-  API_KEY: process.env.GEMINI_API_KEY || '',
-  MODEL_NAME: process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash-exp',
+  get API_URL() {
+    return process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models'
+  },
+  get API_KEY() {
+    return process.env.GEMINI_API_KEY || ''
+  },
+  get MODEL_NAME() {
+    return process.env.GEMINI_MODEL_NAME || 'gemini-2.5-pro'
+  },
 }
 
 // AI Analysis Worker Configuration
+// Use getters to read environment variables lazily after dotenv has loaded
 export const AI_WORKER_CONFIG = {
-  ENABLED: process.env.AI_WORKER_ENABLED === 'true',
-  POLL_INTERVAL_MS: Number(process.env.AI_WORKER_POLL_INTERVAL_MS) || 5000,
-  MAX_CONCURRENT_JOBS: Number(process.env.AI_WORKER_MAX_CONCURRENT_JOBS) || 3,
-  JOB_TIMEOUT_MINUTES: Number(process.env.AI_WORKER_JOB_TIMEOUT_MINUTES) || 5,
+  get ENABLED() {
+    return process.env.AI_WORKER_ENABLED === 'true'
+  },
+  get POLL_INTERVAL_MS() {
+    return Number(process.env.AI_WORKER_POLL_INTERVAL_MS) || 5000
+  },
+  get MAX_CONCURRENT_JOBS() {
+    return Number(process.env.AI_WORKER_MAX_CONCURRENT_JOBS) || 3
+  },
+  get JOB_TIMEOUT_MINUTES() {
+    return Number(process.env.AI_WORKER_JOB_TIMEOUT_MINUTES) || 5
+  },
   // New resilience configurations
-  MAX_RETRIES: Number(process.env.AI_ANALYSIS_MAX_RETRIES) || 3,
-  GEMINI_REQUEST_TIMEOUT_MS: Number(process.env.AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS) || 60000,
+  // Note: Some errors are non-retryable (schema validation, PII detection, etc.)
+  // and will fail immediately regardless of this setting
+  get MAX_RETRIES() {
+    return Number(process.env.AI_ANALYSIS_MAX_RETRIES) || 3
+  },
+  get GEMINI_REQUEST_TIMEOUT_MS() {
+    return Number(process.env.AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS) || 60000
+  },
 }
 
 // Feature Flags and Analysis Configuration

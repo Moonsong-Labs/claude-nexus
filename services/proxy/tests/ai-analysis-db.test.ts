@@ -74,10 +74,10 @@ describe('AI Analysis DB Functions', () => {
       const result = await claimJob()
 
       expect(result).toEqual(mockJob)
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE conversation_analyses'),
-        [3] // MAX_RETRIES
-      )
+      expect(mockPool.query).toHaveBeenCalled()
+      const [query, params] = (mockPool.query as any).mock.calls[0]
+      expect(query).toContain('UPDATE conversation_analyses')
+      expect(params).toEqual([3]) // MAX_RETRIES
     })
 
     it('should return null when no jobs are available', async () => {
@@ -138,19 +138,19 @@ describe('AI Analysis DB Functions', () => {
         5000
       )
 
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE conversation_analyses'),
-        [
-          'Test analysis content',
-          JSON.stringify(analysisData),
-          JSON.stringify({ raw: 'response' }),
-          'gemini-2.0-flash-exp',
-          100,
-          200,
-          5000,
-          1,
-        ]
-      )
+      expect(mockPool.query).toHaveBeenCalled()
+      const [query, params] = (mockPool.query as any).mock.calls[0]
+      expect(query).toContain('UPDATE conversation_analyses')
+      expect(params).toEqual([
+        'Test analysis content',
+        JSON.stringify(analysisData),
+        JSON.stringify({ raw: 'response' }),
+        'gemini-2.0-flash-exp',
+        100,
+        200,
+        5000,
+        1,
+      ])
     })
 
     it('should throw error when database pool is not available', async () => {
@@ -180,10 +180,11 @@ describe('AI Analysis DB Functions', () => {
       const error = new Error('Temporary failure')
       await failJob(job, error)
 
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining("status = 'pending'"),
-        expect.arrayContaining([expect.stringContaining('retry_2'), 1])
-      )
+      expect(mockPool.query).toHaveBeenCalled()
+      const [query, params] = (mockPool.query as any).mock.calls[0]
+      expect(query).toContain("status = 'pending'")
+      expect(params[0]).toContain('retry_2')
+      expect(params[1]).toBe(1)
     })
 
     it('should permanently fail job when max retries exceeded', async () => {
@@ -203,10 +204,11 @@ describe('AI Analysis DB Functions', () => {
       const error = new Error('Permanent failure')
       await failJob(job, error)
 
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining("status = 'failed'"),
-        expect.arrayContaining([expect.stringContaining('final_error'), 1])
-      )
+      expect(mockPool.query).toHaveBeenCalled()
+      const [query, params] = (mockPool.query as any).mock.calls[0]
+      expect(query).toContain("status = 'failed'")
+      expect(params[0]).toContain('final_error')
+      expect(params[1]).toBe(1)
     })
 
     it('should handle JSON parse errors gracefully', async () => {
@@ -226,10 +228,11 @@ describe('AI Analysis DB Functions', () => {
       const error = new Error('New error')
       await failJob(job, error)
 
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.arrayContaining([expect.stringContaining('parse_error'), 1])
-      )
+      expect(mockPool.query).toHaveBeenCalled()
+      const [query, params] = (mockPool.query as any).mock.calls[0]
+      expect(typeof query).toBe('string')
+      expect(params[0]).toContain('parse_error')
+      expect(params[1]).toBe(1)
     })
   })
 
@@ -245,9 +248,9 @@ describe('AI Analysis DB Functions', () => {
       const result = await resetStuckJobs()
 
       expect(result).toBe(3)
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE conversation_analyses')
-      )
+      expect(mockPool.query).toHaveBeenCalled()
+      const [query] = (mockPool.query as any).mock.calls[0]
+      expect(query).toContain('UPDATE conversation_analyses')
     })
 
     it('should return 0 when database pool is not available', async () => {

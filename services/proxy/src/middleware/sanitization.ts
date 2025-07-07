@@ -1,22 +1,28 @@
 import { SyncRedactor } from 'redact-pii'
 import { logger } from './logger.js'
+import { 
+  ANTHROPIC_API_KEY_REGEX, 
+  CNP_API_KEY_REGEX, 
+  JWT_TOKEN_REGEX,
+  DATABASE_URL_PATTERNS 
+} from '@claude-nexus/shared/utils/validation'
 
 // Configure PII redaction with custom patterns
 const piiRedactor = new SyncRedactor({
   customRedactors: {
     after: [
       // API keys
-      { regexpPattern: /sk-ant-[a-zA-Z0-9-_]+/g, replaceWith: '[API_KEY]' },
-      { regexpPattern: /cnp_[a-zA-Z0-9_]+/g, replaceWith: '[API_KEY]' },
+      { regexpPattern: new RegExp(ANTHROPIC_API_KEY_REGEX.source, 'g'), replaceWith: '[API_KEY]' },
+      { regexpPattern: new RegExp(CNP_API_KEY_REGEX.source, 'g'), replaceWith: '[API_KEY]' },
       // JWT tokens
       {
-        regexpPattern: /eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+/g,
+        regexpPattern: new RegExp(JWT_TOKEN_REGEX.source, 'g'),
         replaceWith: '[JWT_TOKEN]',
       },
       // Database URLs
-      { regexpPattern: /postgresql:\/\/[^@]+@[^/]+\/\w+/g, replaceWith: '[DATABASE_URL]' },
-      { regexpPattern: /mysql:\/\/[^@]+@[^/]+\/\w+/g, replaceWith: '[DATABASE_URL]' },
-      { regexpPattern: /mongodb:\/\/[^@]+@[^/]+\/\w+/g, replaceWith: '[DATABASE_URL]' },
+      { regexpPattern: new RegExp(DATABASE_URL_PATTERNS.postgresql.source, 'g'), replaceWith: '[DATABASE_URL]' },
+      { regexpPattern: new RegExp(DATABASE_URL_PATTERNS.mysql.source, 'g'), replaceWith: '[DATABASE_URL]' },
+      { regexpPattern: new RegExp(DATABASE_URL_PATTERNS.mongodb.source, 'g'), replaceWith: '[DATABASE_URL]' },
     ],
   },
   // Use specific replacements for built-in patterns
@@ -103,18 +109,44 @@ export interface ValidationResult {
 export function validateAnalysisOutput(output: string): ValidationResult {
   const issues: string[] = []
 
-  // More flexible section detection
-  const requiredSections = [
-    { name: 'summary', pattern: /summary:?/i },
-    { name: 'key topics', pattern: /key\s+topics?:?/i },
-    { name: 'patterns', pattern: /patterns?:?/i },
-  ]
+  // Check if the output contains a JSON code block
+  const jsonMatch = output.match(/```json\s*([\s\S]*?)\s*```/)
+  
+  if (!jsonMatch) {
+    // If no JSON block, check for required sections in plain text
+    const requiredSections = [
+      { name: 'summary', pattern: /summary:?/i },
+      { name: 'key topics', pattern: /key\s+topics?:?/i },
+      { name: 'patterns', pattern: /patterns?:?/i },
+    ]
 
-  requiredSections.forEach(section => {
-    if (!section.pattern.test(output)) {
-      issues.push(`Missing required section: ${section.name}`)
+    requiredSections.forEach(section => {
+      if (!section.pattern.test(output)) {
+        issues.push(`Missing required section: ${section.name}`)
+      }
+    })
+  } else {
+    // If JSON block exists, validate the JSON structure
+    try {
+      const jsonContent = jsonMatch[1]
+      const parsed = JSON.parse(jsonContent)
+      
+      // Check for the analysis object
+      if (!parsed.analysis) {
+        issues.push('Missing "analysis" key in JSON response')
+      } else {
+        // Check for required fields in the analysis
+        const requiredFields = ['summary', 'keyTopics']
+        requiredFields.forEach(field => {
+          if (!parsed.analysis[field]) {
+            issues.push(`Missing required field: ${field}`)
+          }
+        })
+      }
+    } catch (_e) {
+      issues.push('Invalid JSON in response')
     }
-  })
+  }
 
   // Scan for PII leakage in output
   const outputWithRedactedPII = piiRedactor.redact(output)
@@ -147,9 +179,63 @@ export function enhancePromptForRetry(originalPrompt: string): string {
     originalPrompt +
     `
 
-IMPORTANT: Your response MUST include these three clearly labeled sections:
-1. "Summary:" followed by a brief summary
-2. "Key Topics:" followed by the main topics discussed
-3. "Patterns:" followed by any notable patterns observed`
+CRITICAL REMINDER: You MUST respond with a JSON object wrapped in a json code block.
+The JSON must have the following structure:
+
+\`\`\`json
+{
+  "analysis": {
+    "summary": "Your summary here",
+    "keyTopics": ["topic1", "topic2", "topic3"],
+    "sentiment": "positive/neutral/negative/mixed",
+    "userIntent": "What the user was trying to achieve",
+    "outcomes": ["outcome1", "outcome2"],
+    "actionItems": [
+      {
+        "type": "task",
+        "description": "Specific task description",
+        "priority": "high"
+      },
+      {
+        "type": "prompt_improvement",
+        "description": "How to improve your prompts",
+        "priority": "medium"
+      }
+    ],
+    "promptingTips": [
+      {
+        "category": "clarity",
+        "issue": "Specific issue observed",
+        "suggestion": "How to improve",
+        "example": "Example of improved prompt"
+      }
+    ],
+    "interactionPatterns": {
+      "promptClarity": 7,
+      "contextCompleteness": 8,
+      "followUpEffectiveness": "good",
+      "commonIssues": ["issue1", "issue2"],
+      "strengths": ["strength1", "strength2"]
+    },
+    "technicalDetails": {
+      "frameworks": ["framework1", "framework2"],
+      "issues": ["issue1", "issue2"],
+      "solutions": ["solution1", "solution2"],
+      "toolUsageEfficiency": "optimal",
+      "contextWindowManagement": "efficient"
+    },
+    "conversationQuality": {
+      "clarity": "high/medium/low",
+      "clarityImprovement": "How to improve clarity",
+      "completeness": "complete/partial/incomplete",
+      "completenessImprovement": "What was missing",
+      "effectiveness": "highly effective/effective/needs improvement",
+      "effectivenessImprovement": "Key changes for better effectiveness"
+    }
+  }
+}
+\`\`\`
+
+Do NOT include any text outside the code block.`
   )
 }

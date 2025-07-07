@@ -1,0 +1,780 @@
+openapi: 3.0.3
+info:
+  title: Claude Nexus Proxy - AI Analysis API
+  description: |
+    API endpoints for managing AI-powered conversation analysis in the Claude Nexus Proxy.
+    
+    These endpoints allow you to request, retrieve, and regenerate AI analyses of conversations
+    tracked by the proxy. The analysis provides insights including summaries, key topics,
+    sentiment, outcomes, and technical details.
+    
+    ## Authentication
+    
+    All endpoints require authentication using the `X-Dashboard-Key` header. The API also accepts
+    `X-API-Key` or `Authorization: Bearer <key>` headers as alternatives.
+    
+    ## Rate Limiting
+    
+    - **Analysis Creation**: 15 requests per minute per domain
+    - **Analysis Retrieval**: 100 requests per minute per domain
+    - **Analysis Regeneration**: Counts towards creation limit (15 requests per minute)
+    
+    Rate limit headers are included in 429 responses:
+    - `Retry-After`: Seconds until rate limit resets
+    - `X-RateLimit-Limit`: Total allowed requests
+    - `X-RateLimit-Remaining`: Remaining requests (always 0 on 429)
+    - `X-RateLimit-Reset`: ISO timestamp when limit resets
+    
+    ## Background Processing
+    
+    Analysis requests are processed asynchronously by a background worker. After creating
+    an analysis request, poll the GET endpoint to check the status until it completes.
+    
+  version: 1.0.0
+  contact:
+    name: Claude Nexus Proxy
+    url: https://github.com/alanpurestake/claude-nexus-proxy
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+security:
+  - DashboardKey: []
+  - ApiKey: []
+  - BearerAuth: []
+
+paths:
+  /api/analyses:
+    post:
+      summary: Create analysis request
+      description: |
+        Creates a new AI analysis request for a conversation. If an analysis already exists
+        for the conversation/branch combination and is completed, returns the existing analysis.
+        If an analysis is already in progress, returns the current status without creating a duplicate.
+      operationId: createAnalysis
+      tags:
+        - Analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnalysisRequest'
+            examples:
+              mainBranch:
+                summary: Analysis for main branch
+                value:
+                  conversationId: "123e4567-e89b-12d3-a456-426614174000"
+                  branchId: "main"
+              customBranch:
+                summary: Analysis for custom branch
+                value:
+                  conversationId: "123e4567-e89b-12d3-a456-426614174000"
+                  branchId: "feature-1"
+      responses:
+        '201':
+          description: Analysis request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAnalysisResponse'
+              examples:
+                created:
+                  summary: New analysis created
+                  value:
+                    message: "Analysis request created"
+                    analysisId: 42
+                    status: "pending"
+        '200':
+          description: Analysis already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAnalysisResponse'
+              examples:
+                completed:
+                  summary: Analysis already completed
+                  value:
+                    message: "Analysis already completed"
+                    analysisId: 42
+                    status: "completed"
+                inProgress:
+                  summary: Analysis in progress
+                  value:
+                    message: "Analysis already in progress"
+                    analysisId: 42
+                    status: "processing"
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: "Invalid request"
+                details:
+                  - code: "invalid_type"
+                    expected: "string"
+                    received: "number"
+                    path: ["conversationId"]
+                    message: "Expected string, received number"
+        '401':
+          description: Missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+              example:
+                error:
+                  code: "unauthorized"
+                  message: "API key required"
+        '403':
+          description: Invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+              example:
+                error:
+                  code: "forbidden"
+                  message: "Invalid API key"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+              example:
+                error:
+                  type: "rate_limit_error"
+                  message: "Too many analysis requests. Please try again later."
+                  retry_after: 60
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds until rate limit resets
+            X-RateLimit-Limit:
+              schema:
+                type: string
+              description: Total allowed requests per minute
+            X-RateLimit-Remaining:
+              schema:
+                type: string
+              description: Remaining requests (always 0 on 429)
+            X-RateLimit-Reset:
+              schema:
+                type: string
+                format: date-time
+              description: ISO timestamp when limit resets
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+              example:
+                error: "Failed to create analysis request"
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+              example:
+                error: "Database not configured"
+
+  /api/analyses/{conversationId}/{branchId}:
+    get:
+      summary: Get analysis result
+      description: |
+        Retrieves the status and result of an analysis for a specific conversation and branch.
+        The response includes the analysis status, and when completed, the full analysis content
+        and structured data.
+      operationId: getAnalysis
+      tags:
+        - Analysis
+      parameters:
+        - $ref: '#/components/parameters/conversationId'
+        - $ref: '#/components/parameters/branchId'
+      responses:
+        '200':
+          description: Analysis found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAnalysisResponse'
+              examples:
+                pending:
+                  summary: Analysis pending
+                  value:
+                    id: 42
+                    conversationId: "123e4567-e89b-12d3-a456-426614174000"
+                    branchId: "main"
+                    status: "pending"
+                    createdAt: "2024-01-15T10:00:00Z"
+                    updatedAt: "2024-01-15T10:00:00Z"
+                    tokenUsage:
+                      prompt: null
+                      completion: null
+                      total: 0
+                processing:
+                  summary: Analysis in progress
+                  value:
+                    id: 42
+                    conversationId: "123e4567-e89b-12d3-a456-426614174000"
+                    branchId: "main"
+                    status: "processing"
+                    createdAt: "2024-01-15T10:00:00Z"
+                    updatedAt: "2024-01-15T10:01:00Z"
+                    tokenUsage:
+                      prompt: null
+                      completion: null
+                      total: 0
+                completed:
+                  summary: Analysis completed
+                  value:
+                    id: 42
+                    conversationId: "123e4567-e89b-12d3-a456-426614174000"
+                    branchId: "main"
+                    status: "completed"
+                    content: "## Conversation Analysis\n\n### Summary\nThe user sought help with implementing..."
+                    data:
+                      summary: "The user sought help with implementing a TypeScript validation system..."
+                      keyTopics: ["TypeScript", "Zod validation", "Error handling"]
+                      sentiment: "positive"
+                      userIntent: "Implement robust input validation for API endpoints"
+                      outcomes: ["Successfully implemented Zod schemas", "Added proper error handling"]
+                      actionItems: ["Add unit tests for validation logic", "Document API schemas"]
+                      technicalDetails:
+                        frameworks: ["TypeScript", "Zod", "Express"]
+                        issues: ["Type inference complexity", "Runtime validation performance"]
+                        solutions: ["Used Zod inference for type safety", "Implemented caching for schemas"]
+                      conversationQuality:
+                        clarity: "high"
+                        completeness: "complete"
+                        effectiveness: "highly effective"
+                    createdAt: "2024-01-15T10:00:00Z"
+                    updatedAt: "2024-01-15T10:05:00Z"
+                    completedAt: "2024-01-15T10:05:00Z"
+                    tokenUsage:
+                      prompt: 8500
+                      completion: 750
+                      total: 9250
+                failed:
+                  summary: Analysis failed
+                  value:
+                    id: 42
+                    conversationId: "123e4567-e89b-12d3-a456-426614174000"
+                    branchId: "main"
+                    status: "failed"
+                    error: "Failed to analyze conversation: API rate limit exceeded"
+                    createdAt: "2024-01-15T10:00:00Z"
+                    updatedAt: "2024-01-15T10:02:00Z"
+                    tokenUsage:
+                      prompt: null
+                      completion: null
+                      total: 0
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: "Invalid parameters"
+                details:
+                  - code: "invalid_uuid"
+                    path: ["conversationId"]
+                    message: "Invalid UUID format"
+        '401':
+          description: Missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '403':
+          description: Invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '404':
+          description: Analysis not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+              example:
+                error: "Analysis not found"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+              example:
+                error: "Failed to retrieve analysis"
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+
+  /api/analyses/{conversationId}/{branchId}/regenerate:
+    post:
+      summary: Regenerate analysis
+      description: |
+        Forces regeneration of an analysis for a conversation. If an analysis exists,
+        it will be reset to pending status and reprocessed. If no analysis exists,
+        a new one will be created. The retry count is incremented for existing analyses.
+      operationId: regenerateAnalysis
+      tags:
+        - Analysis
+      parameters:
+        - $ref: '#/components/parameters/conversationId'
+        - $ref: '#/components/parameters/branchId'
+      responses:
+        '200':
+          description: Regeneration requested successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegenerateAnalysisResponse'
+              example:
+                message: "Analysis regeneration requested"
+                analysisId: 42
+                status: "pending"
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '403':
+          description: Invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+              example:
+                error: "Failed to regenerate analysis"
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+
+components:
+  securitySchemes:
+    DashboardKey:
+      type: apiKey
+      in: header
+      name: X-Dashboard-Key
+      description: Dashboard API key for authentication
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Alternative API key header
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token authentication
+
+  parameters:
+    conversationId:
+      name: conversationId
+      in: path
+      required: true
+      description: UUID of the conversation to analyze
+      schema:
+        type: string
+        format: uuid
+      example: "123e4567-e89b-12d3-a456-426614174000"
+    
+    branchId:
+      name: branchId
+      in: path
+      required: true
+      description: Branch identifier within the conversation (defaults to 'main')
+      schema:
+        type: string
+        minLength: 1
+      example: "main"
+
+  schemas:
+    CreateAnalysisRequest:
+      type: object
+      required:
+        - conversationId
+        - branchId
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+          description: UUID of the conversation to analyze
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        branchId:
+          type: string
+          description: Branch identifier (defaults to 'main')
+          default: "main"
+          example: "main"
+
+    CreateAnalysisResponse:
+      type: object
+      required:
+        - message
+        - analysisId
+        - status
+      properties:
+        message:
+          type: string
+          description: Human-readable status message
+          example: "Analysis request created"
+        analysisId:
+          type: integer
+          description: Unique identifier for the analysis
+          example: 42
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+
+    GetAnalysisResponse:
+      type: object
+      required:
+        - id
+        - conversationId
+        - branchId
+        - status
+        - createdAt
+        - updatedAt
+        - tokenUsage
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the analysis
+          example: 42
+        conversationId:
+          type: string
+          format: uuid
+          description: UUID of the analyzed conversation
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        branchId:
+          type: string
+          description: Branch identifier
+          example: "main"
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        content:
+          type: string
+          description: Markdown-formatted analysis content (only when status is 'completed')
+          example: "## Conversation Analysis\n\n### Summary\nThe user sought help..."
+        data:
+          $ref: '#/components/schemas/ConversationAnalysis'
+          description: Structured analysis data (only when status is 'completed')
+        error:
+          type: string
+          description: Error message (only when status is 'failed')
+          example: "Failed to analyze conversation: API rate limit exceeded"
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO timestamp when analysis was created
+          example: "2024-01-15T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO timestamp when analysis was last updated
+          example: "2024-01-15T10:05:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: ISO timestamp when analysis completed (only when status is 'completed')
+          example: "2024-01-15T10:05:00Z"
+        tokenUsage:
+          $ref: '#/components/schemas/TokenUsage'
+
+    RegenerateAnalysisResponse:
+      type: object
+      required:
+        - message
+        - analysisId
+        - status
+      properties:
+        message:
+          type: string
+          description: Human-readable status message
+          example: "Analysis regeneration requested"
+        analysisId:
+          type: integer
+          description: Unique identifier for the analysis
+          example: 42
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+
+    ConversationAnalysis:
+      type: object
+      required:
+        - summary
+        - keyTopics
+        - sentiment
+        - userIntent
+        - outcomes
+        - actionItems
+        - technicalDetails
+        - conversationQuality
+      properties:
+        summary:
+          type: string
+          description: A concise, neutral summary of the entire conversation (2-4 sentences)
+          example: "The user sought help with implementing a TypeScript validation system using Zod. The assistant provided guidance on schema creation, type inference, and error handling strategies."
+        keyTopics:
+          type: array
+          description: A list of the main subjects discussed (3-5 topics)
+          items:
+            type: string
+          example: ["TypeScript", "Zod validation", "Error handling", "API design"]
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative, mixed]
+          description: The overall sentiment of the user's messages
+          example: "positive"
+        userIntent:
+          type: string
+          description: The primary goal or question the user was trying to address
+          example: "Implement robust input validation for API endpoints using TypeScript and Zod"
+        outcomes:
+          type: array
+          description: Key conclusions, resolutions, or final answers provided
+          items:
+            type: string
+          example: 
+            - "Successfully implemented Zod schemas for all API endpoints"
+            - "Added proper error handling with detailed validation messages"
+        actionItems:
+          type: array
+          description: A list of clear, actionable tasks for the user or assistant
+          items:
+            type: string
+          example:
+            - "Add unit tests for validation logic"
+            - "Document API schemas in OpenAPI format"
+            - "Consider implementing request rate limiting"
+        technicalDetails:
+          $ref: '#/components/schemas/TechnicalDetails'
+        conversationQuality:
+          $ref: '#/components/schemas/ConversationQuality'
+
+    TechnicalDetails:
+      type: object
+      required:
+        - frameworks
+        - issues
+        - solutions
+      properties:
+        frameworks:
+          type: array
+          description: Technologies, frameworks, or libraries mentioned
+          items:
+            type: string
+          example: ["TypeScript", "Zod", "Express", "Node.js"]
+        issues:
+          type: array
+          description: Technical problems or errors encountered
+          items:
+            type: string
+          example: ["Type inference complexity", "Runtime validation performance"]
+        solutions:
+          type: array
+          description: Proposed or implemented solutions
+          items:
+            type: string
+          example: ["Used Zod inference for type safety", "Implemented caching for schemas"]
+
+    ConversationQuality:
+      type: object
+      required:
+        - clarity
+        - completeness
+        - effectiveness
+      properties:
+        clarity:
+          type: string
+          enum: [high, medium, low]
+          description: How clear and well-structured the conversation was
+          example: "high"
+        completeness:
+          type: string
+          enum: [complete, partial, incomplete]
+          description: Whether the user's goals were fully addressed
+          example: "complete"
+        effectiveness:
+          type: string
+          enum: ["highly effective", "effective", "needs improvement"]
+          description: Overall effectiveness of the interaction
+          example: "highly effective"
+
+    TokenUsage:
+      type: object
+      required:
+        - prompt
+        - completion
+        - total
+      properties:
+        prompt:
+          type: integer
+          nullable: true
+          description: Number of tokens in the prompt (null if not yet processed)
+          example: 8500
+        completion:
+          type: integer
+          nullable: true
+          description: Number of tokens in the completion (null if not yet processed)
+          example: 750
+        total:
+          type: integer
+          description: Total tokens used (prompt + completion)
+          example: 9250
+
+    AnalysisStatus:
+      type: string
+      enum: [pending, processing, completed, failed]
+      description: Current status of the analysis
+      example: "completed"
+
+    ValidationError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request"
+        details:
+          type: array
+          description: Detailed validation errors
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+                description: Error code
+                example: "invalid_type"
+              path:
+                type: array
+                description: Path to the invalid field
+                items:
+                  type: string
+                example: ["conversationId"]
+              message:
+                type: string
+                description: Human-readable error message
+                example: "Expected string, received number"
+              expected:
+                type: string
+                description: Expected type or value
+                example: "string"
+              received:
+                type: string
+                description: Received type or value
+                example: "number"
+
+    AuthError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum: [unauthorized, forbidden]
+              description: Authentication error code
+              example: "unauthorized"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "API key required"
+
+    RateLimitError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - type
+            - message
+            - retry_after
+          properties:
+            type:
+              type: string
+              description: Error type
+              example: "rate_limit_error"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Too many analysis requests. Please try again later."
+            retry_after:
+              type: integer
+              description: Seconds until rate limit resets
+              example: 60
+
+    ServerError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Database not configured"
+
+    NotFoundError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Analysis not found"
+
+tags:
+  - name: Analysis
+    description: AI-powered conversation analysis endpoints

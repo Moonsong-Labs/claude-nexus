@@ -806,6 +806,24 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           >
             Timeline
           </button>
+          <button
+            id="analytics-tab"
+            class="tab-button ${view === 'analytics' ? 'tab-active' : 'tab-inactive'}"
+            style="
+              padding: 0.75rem 1.5rem;
+              background: none;
+              border: none;
+              cursor: pointer;
+              text-decoration: none;
+              font-weight: 500;
+              border-bottom: 2px solid ${view === 'analytics' ? '#3b82f6' : 'transparent'};
+              color: ${view === 'analytics' ? '#3b82f6' : '#6b7280'};
+              transition: all 0.2s;
+            "
+            onclick="switchTab('analytics')"
+          >
+            AI Analysis
+          </button>
         </div>
       </div>
 
@@ -832,21 +850,27 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
         >
           ${raw(renderConversationMessages(filteredRequests, conversation.branches, subtasksMap))}
         </div>
-      </div>
 
-      <!-- AI Analysis Panel -->
-      <div
-        id="analysis-panel"
-        hx-get="/partials/analysis/status/${conversationId}/${selectedBranch || 'main'}"
-        hx-trigger="load"
-        hx-swap="outerHTML"
-        style="margin-top: 2rem;"
-      >
-        <div class="section">
-          <div class="section-content">
-            <div style="display: flex; align-items: center; gap: 0.75rem; color: #6b7280;">
-              <span class="spinner"></span>
-              <span>Loading AI Analysis...</span>
+        <!-- AI Analysis -->
+        <div
+          id="analytics-panel"
+          class="conversation-analytics"
+          style="display: ${view === 'analytics' ? 'block' : 'none'};"
+        >
+          <!-- AI Analysis Panel -->
+          <div
+            id="analysis-panel"
+            hx-get="/partials/analysis/status/${conversationId}/${selectedBranch || 'main'}"
+            hx-trigger="load"
+            hx-swap="outerHTML"
+          >
+            <div class="section">
+              <div class="section-content">
+                <div style="display: flex; align-items: center; gap: 0.75rem; color: #6b7280;">
+                  <span class="spinner"></span>
+                  <span>Loading AI Analysis...</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -860,32 +884,30 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             tabName === 'tree' ? 'block' : 'none'
           document.getElementById('timeline-panel').style.display =
             tabName === 'timeline' ? 'block' : 'none'
+          document.getElementById('analytics-panel').style.display =
+            tabName === 'analytics' ? 'block' : 'none'
 
           // Update tab styles
           const treeTab = document.getElementById('tree-tab')
           const timelineTab = document.getElementById('timeline-tab')
+          const analyticsTab = document.getElementById('analytics-tab')
 
-          if (tabName === 'tree') {
-            treeTab.style.borderBottomColor = '#3b82f6'
-            treeTab.style.color = '#3b82f6'
-            treeTab.classList.add('tab-active')
-            treeTab.classList.remove('tab-inactive')
+          // Reset all tabs
+          const allTabs = [treeTab, timelineTab, analyticsTab]
+          allTabs.forEach(tab => {
+            tab.style.borderBottomColor = 'transparent'
+            tab.style.color = '#6b7280'
+            tab.classList.remove('tab-active')
+            tab.classList.add('tab-inactive')
+          })
 
-            timelineTab.style.borderBottomColor = 'transparent'
-            timelineTab.style.color = '#6b7280'
-            timelineTab.classList.remove('tab-active')
-            timelineTab.classList.add('tab-inactive')
-          } else {
-            timelineTab.style.borderBottomColor = '#3b82f6'
-            timelineTab.style.color = '#3b82f6'
-            timelineTab.classList.add('tab-active')
-            timelineTab.classList.remove('tab-inactive')
-
-            treeTab.style.borderBottomColor = 'transparent'
-            treeTab.style.color = '#6b7280'
-            treeTab.classList.remove('tab-active')
-            treeTab.classList.add('tab-inactive')
-          }
+          // Activate selected tab
+          const activeTab = tabName === 'tree' ? treeTab : 
+                           tabName === 'timeline' ? timelineTab : analyticsTab
+          activeTab.style.borderBottomColor = '#3b82f6'
+          activeTab.style.color = '#3b82f6'
+          activeTab.classList.add('tab-active')
+          activeTab.classList.remove('tab-inactive')
 
           // Update URL without reload
           const url = new URL(window.location)

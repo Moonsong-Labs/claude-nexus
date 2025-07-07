@@ -8,16 +8,18 @@ import { requestIdMiddleware } from './middleware/request-id.js'
 import { dashboardRoutes } from './routes/dashboard-api.js'
 import { conversationDetailRoutes } from './routes/conversation-detail.js'
 import { dashboardAuth } from './middleware/auth.js'
-import { getErrorMessage, hasStatusCode } from '@claude-nexus/shared'
+import { getErrorMessage, getStatusCode } from '@claude-nexus/shared'
 import { sparkProxyRoutes } from './routes/spark-proxy.js'
 import { analysisRoutes } from './routes/analysis-api.js'
 import { analysisPartialsRoutes } from './routes/partials/analysis.js'
+import { analyticsPartialRoutes } from './routes/partials/analytics.js'
+import { analyticsConversationPartialRoutes } from './routes/partials/analytics-conversation.js'
 
 /**
  * Create and configure the Dashboard application
  */
-export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClient: any } }>> {
-  const app = new Hono<{ Variables: { apiClient: any } }>()
+export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClient: unknown } }>> {
+  const app = new Hono<{ Variables: { apiClient: unknown } }>()
 
   // Centralized error handler
   app.onError((err, c) => {
@@ -31,6 +33,8 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     // Don't expose internal errors to clients
     const message = process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
 
+    const status = getStatusCode(err)
+    
     return c.json(
       {
         error: {
@@ -38,7 +42,7 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
           type: 'internal_error',
         },
       },
-      hasStatusCode(err) ? (((err as any).status || 500) as any) : (500 as any)
+      status as 500
     )
   })
 
@@ -50,7 +54,7 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
   // Health check
   app.get('/health', async c => {
     const apiClient = container.getApiClient()
-    const health: any = {
+    const health: Record<string, unknown> = {
       status: 'healthy',
       service: 'claude-nexus-dashboard',
       version: process.env.npm_package_version || 'unknown',
@@ -190,6 +194,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
 
   // Mount analysis partials routes
   app.route('/partials/analysis', analysisPartialsRoutes)
+  
+  // Mount analytics partials routes  
+  app.route('/', analyticsPartialRoutes)
+  app.route('/', analyticsConversationPartialRoutes)
 
   // Root redirect to dashboard
   app.get('/', c => {

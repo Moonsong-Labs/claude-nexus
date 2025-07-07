@@ -12,10 +12,12 @@ export interface HTTPResponseError extends Error {
  * Type guard to check if an error has a status property
  */
 export function hasStatusCode(error: unknown): error is HTTPResponseError {
-  return (
-    error instanceof Error &&
-    (typeof (error as any).status === 'number' || typeof (error as any).statusCode === 'number')
-  )
+  if (!(error instanceof Error)) {
+    return false
+  }
+  
+  const err = error as HTTPResponseError
+  return typeof err.status === 'number' || typeof err.statusCode === 'number'
 }
 
 /**

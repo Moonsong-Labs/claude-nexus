@@ -4,8 +4,8 @@ import {
   getErrorMessage,
   type CreateAnalysisRequest,
   type GetAnalysisResponse,
+  getAnalysisPromptTemplate,
 } from '@claude-nexus/shared'
-import { getAnalysisPromptTemplate } from '@claude-nexus/shared/prompts/analysis/index.js'
 import { container } from '../../container.js'
 import { logger } from '../../middleware/logger.js'
 import { escapeHtml, escapeHtmlArray } from '../../utils/html.js'

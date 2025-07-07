@@ -82,6 +82,7 @@ async function migrate() {
           completion_tokens INTEGER,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          completed_at TIMESTAMPTZ,
           UNIQUE (conversation_id, branch_id)
       );
     `)
@@ -133,6 +134,7 @@ async function migrate() {
       COMMENT ON COLUMN conversation_analyses.processing_duration_ms IS 'Time taken to generate the analysis in milliseconds';
       COMMENT ON COLUMN conversation_analyses.prompt_tokens IS 'Number of tokens used in the prompt';
       COMMENT ON COLUMN conversation_analyses.completion_tokens IS 'Number of tokens in the completion';
+      COMMENT ON COLUMN conversation_analyses.completed_at IS 'Timestamp when the analysis was completed (status changed to completed or failed)';
     `)
     console.log('✓ Column comments added')
 

@@ -6,6 +6,7 @@ export * from './utils/errors.js'
 export * from './utils/conversation-hash.js'
 export * from './utils/conversation-linker.js'
 export * from './utils/system-reminder.js'
+export * from './utils/validation.js'
 
 // Re-export specific functions to ensure they're available
 export {
@@ -59,6 +60,7 @@ export {
   ConversationAnalysisSchema,
   type ConversationAnalysis,
   type AnalysisStatus,
+  ConversationAnalysisStatus,
   CreateAnalysisRequestSchema,
   type CreateAnalysisRequest,
   type CreateAnalysisResponse,
@@ -78,6 +80,7 @@ export {
   truncateConversation,
   buildAnalysisPrompt,
   parseAnalysisResponse,
+  getAnalysisPromptTemplate,
   type Message,
   type GeminiContent,
 } from './prompts/index.js'

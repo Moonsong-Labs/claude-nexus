@@ -12,6 +12,7 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 🔄 **Streaming Support** - Full SSE streaming with chunk storage
 - 🐳 **Docker Ready** - Separate optimized images for each service
 - 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
+- 🧠 **AI-Powered Analysis** - Automated conversation insights using Gemini Pro
 
 ## Quick Start
 
@@ -177,6 +178,12 @@ bun run format
 bun run db:backup              # Backup database
 bun run db:analyze-conversations # Analyze conversation structure
 bun run db:rebuild-conversations # Rebuild conversation data
+
+# AI Analysis management
+bun run ai:check-jobs          # Check analysis job statuses
+bun run ai:check-content       # Inspect analysis content
+bun run ai:reset-stuck         # Reset jobs with high retry counts
+bun run ai:fail-exceeded       # Manually fail jobs exceeding retries
 ```
 
 See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.

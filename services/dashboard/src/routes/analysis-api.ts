@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { z } from 'zod'
 import { ProxyApiClient } from '../services/api-client.js'
 import { logger } from '../middleware/logger.js'
 import {
@@ -9,6 +8,8 @@ import {
   type GetAnalysisResponse,
   type RegenerateAnalysisResponse,
 } from '@claude-nexus/shared'
+import { isValidUUID } from '@claude-nexus/shared/utils/validation'
+import { HttpError } from '../errors/HttpError.js'
 
 export const analysisRoutes = new Hono<{
   Variables: {
@@ -29,29 +30,26 @@ analysisRoutes.post('/analyses', async c => {
   try {
     // Parse and validate request body
     const body = await c.req.json()
-    const validatedData = CreateAnalysisRequestSchema.parse(body)
-
-    // Forward to proxy service
-    const response = await apiClient.post<CreateAnalysisResponse>('/api/analyses', validatedData)
-
-    return c.json(response, 201)
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+    const parseResult = CreateAnalysisRequestSchema.safeParse(body)
+    
+    if (!parseResult.success) {
       return c.json(
         {
           error: 'Invalid request data',
-          details: error.errors,
+          details: parseResult.error.errors,
         },
         400
       )
     }
 
+    // Forward to proxy service
+    const response = await apiClient.post<CreateAnalysisResponse>('/api/analyses', parseResult.data)
+
+    return c.json(response, 201)
+  } catch (error) {
     // Check if it's a 409 Conflict (analysis already exists)
-    if (error && typeof error === 'object' && 'status' in error && error.status === 409) {
-      const conflictResponse = error as { data?: unknown; body?: unknown; status: number }
-      const responseData = conflictResponse.data ||
-        conflictResponse.body || { error: 'Analysis already exists' }
-      return c.json(responseData, 409)
+    if (HttpError.isHttpError(error) && error.status === 409) {
+      return c.json(error.data || { error: 'Analysis already exists' }, 409)
     }
 
     logger.error('Failed to create analysis', {
@@ -76,8 +74,7 @@ analysisRoutes.get('/analyses/:conversationId/:branchId', async c => {
   const branchId = c.req.param('branchId')
 
   // Validate UUID format for conversationId
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!uuidRegex.test(conversationId)) {
+  if (!isValidUUID(conversationId)) {
     return c.json({ error: 'Invalid conversation ID format' }, 400)
   }
 
@@ -90,7 +87,7 @@ analysisRoutes.get('/analyses/:conversationId/:branchId', async c => {
     return c.json(response)
   } catch (error) {
     // Handle 404 Not Found
-    if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
+    if (HttpError.isHttpError(error) && error.status === 404) {
       return c.json({ error: 'Analysis not found' }, 404)
     }
     logger.error('Failed to get analysis', {
@@ -114,8 +111,7 @@ analysisRoutes.post('/analyses/:conversationId/:branchId/regenerate', async c =>
   const branchId = c.req.param('branchId')
 
   // Validate UUID format for conversationId
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!uuidRegex.test(conversationId)) {
+  if (!isValidUUID(conversationId)) {
     return c.json({ error: 'Invalid conversation ID format' }, 400)
   }
 
@@ -128,7 +124,7 @@ analysisRoutes.post('/analyses/:conversationId/:branchId/regenerate', async c =>
     return c.json(response)
   } catch (error) {
     // Handle 404 Not Found
-    if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
+    if (HttpError.isHttpError(error) && error.status === 404) {
       return c.json({ error: 'Conversation not found' }, 404)
     }
 

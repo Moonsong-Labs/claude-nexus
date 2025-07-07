@@ -1,5 +1,6 @@
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage } from '@claude-nexus/shared'
+import { HttpError } from '../errors/HttpError.js'
 
 interface StatsResponse {
   totalRequests: number
@@ -39,8 +40,8 @@ interface RequestsResponse {
 }
 
 interface RequestDetails extends RequestSummary {
-  requestBody: any
-  responseBody: any
+  requestBody: unknown
+  responseBody: unknown
   streamingChunks: Array<{
     chunkIndex: number
     timestamp: string
@@ -52,7 +53,7 @@ interface RequestDetails extends RequestSummary {
   // Optional fields that may be added in the future
   requestHeaders?: Record<string, string>
   responseHeaders?: Record<string, string>
-  telemetry?: any
+  telemetry?: unknown
   method?: string
   endpoint?: string
   streaming?: boolean
@@ -577,16 +578,16 @@ export class ProxyApiClient {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}) as any)
-        const error: any = new Error(
-          (errorData as any).error || `API error: ${response.status} ${response.statusText}`
-        )
-        error.status = response.status
-        throw error
+        throw await HttpError.fromResponse(response)
       }
 
       return (await response.json()) as T
     } catch (error) {
+      // If it's already an HttpError, just re-throw it
+      if (HttpError.isHttpError(error)) {
+        throw error
+      }
+      
       logger.error('API GET request failed', {
         error: getErrorMessage(error),
         path,
@@ -608,16 +609,16 @@ export class ProxyApiClient {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}) as any)
-        const error: any = new Error(
-          (errorData as any).error || `API error: ${response.status} ${response.statusText}`
-        )
-        error.status = response.status
-        throw error
+        throw await HttpError.fromResponse(response)
       }
 
       return (await response.json()) as T
     } catch (error) {
+      // If it's already an HttpError, just re-throw it
+      if (HttpError.isHttpError(error)) {
+        throw error
+      }
+      
       logger.error('API POST request failed', {
         error: getErrorMessage(error),
         path,

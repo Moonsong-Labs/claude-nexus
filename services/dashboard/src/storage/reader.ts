@@ -597,7 +597,7 @@ export class StorageReader {
           error, request_type, tool_call_count, conversation_id,
           current_message_hash, parent_message_hash, branch_id, message_count,
           parent_task_request_id, is_subtask, task_tool_invocation, parent_request_id,
-          response_body,
+          response_body, account_id,
           -- Only include full body for last request per branch
           CASE WHEN rn = 1 THEN body ELSE NULL END as body,
           CASE 
@@ -641,6 +641,7 @@ export class StorageReader {
         body: row.body,
         last_message: row.last_message,
         response_body: row.response_body,
+        account_id: row.account_id,
       }))
 
       const conversation = {

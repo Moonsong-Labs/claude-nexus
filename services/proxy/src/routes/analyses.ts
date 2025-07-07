@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { z } from 'zod'
+import { z, ZodError } from 'zod'
 import { Pool } from 'pg'
 import { logger } from '../middleware/logger.js'
 import {
@@ -7,17 +7,16 @@ import {
   rateLimitAnalysisRetrieval,
 } from '../middleware/analysis-rate-limit.js'
 import { ConversationAnalysisStatus } from '@claude-nexus/shared/types/ai-analysis'
+import { uuidSchema, conversationBranchParamsSchema } from '@claude-nexus/shared/utils/validation'
 
 // Request/Response schemas
 const createAnalysisSchema = z.object({
-  conversationId: z.string().uuid(),
+  conversationId: uuidSchema,
   branchId: z.string(),
+  customPrompt: z.string().optional(),
 })
 
-const getAnalysisParamsSchema = z.object({
-  conversationId: z.string().uuid(),
-  branchId: z.string(),
-})
+const getAnalysisParamsSchema = conversationBranchParamsSchema
 
 // Audit logging helper
 async function auditLog(
@@ -77,7 +76,7 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
   try {
     // Parse and validate request body
     const body = await c.req.json()
-    const { conversationId, branchId } = createAnalysisSchema.parse(body)
+    const { conversationId, branchId, customPrompt } = createAnalysisSchema.parse(body)
 
     // Log the analysis request
     await auditLog(pool, {
@@ -124,10 +123,10 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
     // Create new analysis request
     const insertResult = await pool.query(
       `INSERT INTO conversation_analyses 
-       (conversation_id, branch_id, status, created_at, updated_at)
-       VALUES ($1, $2, $3, NOW(), NOW())
+       (conversation_id, branch_id, status, custom_prompt, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
        RETURNING id`,
-      [conversationId, branchId, ConversationAnalysisStatus.PENDING]
+      [conversationId, branchId, ConversationAnalysisStatus.PENDING, customPrompt || null]
     )
 
     const analysisId = insertResult.rows[0].id
@@ -153,7 +152,7 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
   } catch (error) {
     logger.error('Failed to create analysis request', { error, requestId })
 
-    if (error instanceof z.ZodError) {
+    if (error instanceof ZodError) {
       return c.json(
         {
           error: 'Invalid request',
@@ -249,9 +248,12 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
       },
     })
   } catch (error) {
-    logger.error('Failed to get analysis', { error, requestId })
+    logger.error('Failed to get analysis', { 
+      error: error instanceof Error ? error.message : String(error),
+      requestId 
+    })
 
-    if (error instanceof z.ZodError) {
+    if (error instanceof ZodError) {
       return c.json(
         {
           error: 'Invalid parameters',
@@ -289,7 +291,15 @@ analysisRoutes.post(
       // Validate parameters
       const params = getAnalysisParamsSchema.parse(c.req.param())
       const { conversationId, branchId } = params
-
+      
+      // Parse optional body for custom prompt
+      let customPrompt: string | undefined
+      try {
+        const body = await c.req.json()
+        customPrompt = body.customPrompt
+      } catch {
+        // No body or invalid JSON, that's ok
+      }
       // Log the regeneration request
       await auditLog(pool, {
         event_type: 'ANALYSIS_REGENERATION_REQUEST',
@@ -314,18 +324,18 @@ analysisRoutes.post(
         analysisId = existingResult.rows[0].id
         await pool.query(
           `UPDATE conversation_analyses 
-         SET status = $1, updated_at = NOW(), retry_count = retry_count + 1
+         SET status = $1, updated_at = NOW(), retry_count = retry_count + 1, custom_prompt = $3
          WHERE id = $2`,
-          [ConversationAnalysisStatus.PENDING, analysisId]
+          [ConversationAnalysisStatus.PENDING, analysisId, customPrompt || null]
         )
       } else {
         // Create new analysis
         const insertResult = await pool.query(
           `INSERT INTO conversation_analyses 
-         (conversation_id, branch_id, status, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+         (conversation_id, branch_id, status, custom_prompt, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
          RETURNING id`,
-          [conversationId, branchId, ConversationAnalysisStatus.PENDING]
+          [conversationId, branchId, ConversationAnalysisStatus.PENDING, customPrompt || null]
         )
         analysisId = insertResult.rows[0].id
       }
@@ -348,7 +358,7 @@ analysisRoutes.post(
     } catch (error) {
       logger.error('Failed to regenerate analysis', { error, requestId })
 
-      if (error instanceof z.ZodError) {
+      if (error instanceof ZodError) {
         return c.json(
           {
             error: 'Invalid parameters',
