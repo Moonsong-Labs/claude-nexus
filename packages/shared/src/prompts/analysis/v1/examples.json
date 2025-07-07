@@ -64,7 +64,10 @@
         "promptClarity": 7,
         "contextCompleteness": 6,
         "followUpEffectiveness": "excellent",
-        "commonIssues": ["Missing version information", "No mention of TypeScript/JavaScript preference"],
+        "commonIssues": [
+          "Missing version information",
+          "No mention of TypeScript/JavaScript preference"
+        ],
         "strengths": ["Clear follow-up request", "Specific technology choice (Google OAuth)"]
       },
       "technicalDetails": {
@@ -154,7 +157,11 @@
         "promptClarity": 5,
         "contextCompleteness": 4,
         "followUpEffectiveness": "good",
-        "commonIssues": ["Missing environment details", "No execution context", "Incomplete error information"],
+        "commonIssues": [
+          "Missing environment details",
+          "No execution context",
+          "Incomplete error information"
+        ],
         "strengths": ["Provided feedback on attempted solution", "Responsive to suggestions"]
       },
       "technicalDetails": {
@@ -198,11 +205,7 @@
     ],
     "expectedOutput": {
       "summary": "User requested bug fix assistance but provided minimal context. Multiple attempts were needed to request essential debugging information.",
-      "keyTopics": [
-        "Bug fixing",
-        "Login function",
-        "Debugging process"
-      ],
+      "keyTopics": ["Bug fixing", "Login function", "Debugging process"],
       "sentiment": "neutral",
       "userIntent": "Get help fixing a bug in a login function",
       "outcomes": [
@@ -245,7 +248,11 @@
         "promptClarity": 2,
         "contextCompleteness": 1,
         "followUpEffectiveness": "needs_improvement",
-        "commonIssues": ["Extremely vague requests", "Missing critical information", "Reluctance to provide code/errors"],
+        "commonIssues": [
+          "Extremely vague requests",
+          "Missing critical information",
+          "Reluctance to provide code/errors"
+        ],
         "strengths": []
       },
       "technicalDetails": {

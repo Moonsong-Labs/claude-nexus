@@ -5,6 +5,7 @@ This module provides comprehensive validation utilities for the Claude Nexus Pro
 ## Overview
 
 The validation utilities include:
+
 - Regular expression patterns for common validation scenarios
 - Validation functions for runtime checks
 - Zod schemas for type-safe validation
@@ -17,11 +18,7 @@ The validation utilities include:
 ### Import from Shared Package
 
 ```typescript
-import { 
-  isValidUUID, 
-  uuidSchema,
-  maskSensitiveData 
-} from '@claude-nexus/shared/utils/validation'
+import { isValidUUID, uuidSchema, maskSensitiveData } from '@claude-nexus/shared/utils/validation'
 
 // Or import everything
 import * as validation from '@claude-nexus/shared/utils/validation'
@@ -44,7 +41,11 @@ const pattern = new RegExp(`^user-${UUID_REGEX.source}$`)
 ### Validation Functions
 
 ```typescript
-import { isValidUUID, isValidEmail, isValidAnthropicApiKey } from '@claude-nexus/shared/utils/validation'
+import {
+  isValidUUID,
+  isValidEmail,
+  isValidAnthropicApiKey,
+} from '@claude-nexus/shared/utils/validation'
 
 // Simple boolean checks
 if (isValidUUID(conversationId)) {
@@ -68,7 +69,7 @@ const params = paginationSchema.parse(req.query)
 const userSchema = z.object({
   id: uuidSchema,
   email: emailSchema,
-  name: z.string()
+  name: z.string(),
 })
 ```
 
@@ -102,9 +103,10 @@ function processId(value: unknown) {
 ## Available Utilities
 
 ### Regex Patterns
+
 - `UUID_REGEX` - Validates any version UUID
-- `ANTHROPIC_API_KEY_REGEX` - Validates sk-ant-* keys
-- `CNP_API_KEY_REGEX` - Validates cnp_live_* or cnp_test_* keys
+- `ANTHROPIC_API_KEY_REGEX` - Validates sk-ant-\* keys
+- `CNP_API_KEY_REGEX` - Validates cnp*live*_ or cnp*test*_ keys
 - `JWT_TOKEN_REGEX` - Validates JWT token format (WARNING: format only, not security)
 - `EMAIL_REGEX` - Validates email addresses
 - `DOMAIN_REGEX` - Validates domain names (ReDoS-safe)
@@ -115,6 +117,7 @@ function processId(value: unknown) {
 - `SEMVER_REGEX` - Semantic versioning validation
 
 ### Validation Functions
+
 - `isValidUUID(value: string): boolean`
 - `isValidAnthropicApiKey(value: string): boolean`
 - `isValidCNPApiKey(value: string): boolean`
@@ -128,6 +131,7 @@ function processId(value: unknown) {
 - `isValidSemver(value: string): boolean`
 
 ### Zod Schemas
+
 - `uuidSchema` - UUID string validation
 - `anthropicApiKeySchema` - Anthropic API key validation (with length constraints)
 - `cnpApiKeySchema` - CNP API key validation (with length constraints)
@@ -144,14 +148,17 @@ function processId(value: unknown) {
 - `semverSchema` - Semantic version validation
 
 ### Sanitization Functions
+
 - `maskSensitiveData(text: string): string` - Masks API keys, emails, database URLs
 - `truncateString(str: string, maxLength?: number): string` - Truncates with ellipsis
 
 ### Type Guards
+
 - `isUUID(value: unknown): value is string` - Type guard for UUID strings
 - `isNonEmptyString(value: unknown): value is string` - Type guard for non-empty strings
 
 ### Helper Functions
+
 - `validateRequestSize(sizeInBytes: number, maxSizeInMB?: number): boolean`
 - `createEnumSchema<T>(values: T, options?): z.ZodEnum<T>` - Create enum schemas
 
@@ -162,7 +169,7 @@ function processId(value: unknown) {
 ```typescript
 import { conversationBranchParamsSchema } from '@claude-nexus/shared/utils/validation'
 
-app.get('/api/analyses/:conversationId/:branchId', async (c) => {
+app.get('/api/analyses/:conversationId/:branchId', async c => {
   try {
     const params = conversationBranchParamsSchema.parse(c.req.param())
     // params.conversationId is guaranteed to be a valid UUID
@@ -183,10 +190,10 @@ import { maskSensitiveData, truncateString } from '@claude-nexus/shared/utils/va
 function logError(error: Error) {
   const safeMessage = maskSensitiveData(error.message)
   const truncatedStack = truncateString(error.stack || '', 2000)
-  
+
   logger.error('Error occurred', {
     message: safeMessage,
-    stack: maskSensitiveData(truncatedStack)
+    stack: maskSensitiveData(truncatedStack),
   })
 }
 ```
@@ -200,7 +207,7 @@ const createUserSchema = z.object({
   email: emailSchema,
   password: z.string().min(8),
   organizationId: uuidSchema.optional(),
-  role: z.enum(['admin', 'user', 'guest'])
+  role: z.enum(['admin', 'user', 'guest']),
 })
 
 const updateUserSchema = createUserSchema.partial()
@@ -211,35 +218,38 @@ const updateUserSchema = createUserSchema.partial()
 If you're updating existing code to use these utilities:
 
 1. Replace manual UUID regex patterns:
+
    ```typescript
    // Before
    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
    if (!uuidRegex.test(id)) { ... }
-   
+
    // After
    import { isValidUUID } from '@claude-nexus/shared/utils/validation'
    if (!isValidUUID(id)) { ... }
    ```
 
 2. Replace Zod UUID validation:
+
    ```typescript
    // Before
    const schema = z.object({
-     id: z.string().uuid()
+     id: z.string().uuid(),
    })
-   
+
    // After
    import { uuidSchema } from '@claude-nexus/shared/utils/validation'
    const schema = z.object({
-     id: uuidSchema
+     id: uuidSchema,
    })
    ```
 
 3. Replace manual sanitization:
+
    ```typescript
    // Before
    message.replace(/sk-ant-[\w-]+/g, 'sk-ant-****')
-   
+
    // After
    import { maskSensitiveData } from '@claude-nexus/shared/utils/validation'
    const safe = maskSensitiveData(message)
@@ -249,7 +259,7 @@ If you're updating existing code to use these utilities:
 
 ### JWT Token Validation
 
-**CRITICAL**: The `JWT_TOKEN_REGEX` and `jwtTokenSchema` only validate the *format* of a JWT token. They do NOT perform security validation. For actual JWT validation, you MUST:
+**CRITICAL**: The `JWT_TOKEN_REGEX` and `jwtTokenSchema` only validate the _format_ of a JWT token. They do NOT perform security validation. For actual JWT validation, you MUST:
 
 1. Verify the signature using the correct secret/public key
 2. Check expiration (`exp` claim)

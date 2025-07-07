@@ -34,7 +34,7 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     const message = process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
 
     const status = getStatusCode(err)
-    
+
     return c.json(
       {
         error: {
@@ -194,8 +194,8 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
 
   // Mount analysis partials routes
   app.route('/partials/analysis', analysisPartialsRoutes)
-  
-  // Mount analytics partials routes  
+
+  // Mount analytics partials routes
   app.route('/', analyticsPartialRoutes)
   app.route('/', analyticsConversationPartialRoutes)
 

@@ -82,7 +82,10 @@ function generateJsonSchema(): string {
         items: {
           type: 'object',
           properties: {
-            category: { type: 'string', enum: ['clarity', 'context', 'structure', 'specificity', 'efficiency'] },
+            category: {
+              type: 'string',
+              enum: ['clarity', 'context', 'structure', 'specificity', 'efficiency'],
+            },
             issue: { type: 'string' },
             suggestion: { type: 'string' },
             example: { type: 'string' },
@@ -96,7 +99,10 @@ function generateJsonSchema(): string {
         properties: {
           promptClarity: { type: 'number', minimum: 0, maximum: 10 },
           contextCompleteness: { type: 'number', minimum: 0, maximum: 10 },
-          followUpEffectiveness: { type: 'string', enum: ['excellent', 'good', 'needs_improvement'] },
+          followUpEffectiveness: {
+            type: 'string',
+            enum: ['excellent', 'good', 'needs_improvement'],
+          },
           commonIssues: { type: 'array', items: { type: 'string' } },
           strengths: { type: 'array', items: { type: 'string' } },
         },
@@ -109,7 +115,10 @@ function generateJsonSchema(): string {
           issues: { type: 'array', items: { type: 'string' } },
           solutions: { type: 'array', items: { type: 'string' } },
           toolUsageEfficiency: { type: 'string', enum: ['optimal', 'good', 'could_improve'] },
-          contextWindowManagement: { type: 'string', enum: ['efficient', 'acceptable', 'wasteful'] },
+          contextWindowManagement: {
+            type: 'string',
+            enum: ['efficient', 'acceptable', 'wasteful'],
+          },
         },
         description: ConversationAnalysisSchema.shape.technicalDetails._def.description,
       },
@@ -180,18 +189,18 @@ export function buildAnalysisPrompt(
 
   // 2. Use custom prompt if provided, otherwise load default
   let finalInstruction: string
-  
+
   if (customPrompt) {
     // Use the custom prompt directly
     finalInstruction = customPrompt
   } else {
     // Load prompt assets and build default prompt
     const { systemPrompt, examples } = loadPromptAssets(config.PROMPT_VERSION)
-    
+
     // Generate schema and format examples
     const jsonSchema = generateJsonSchema()
     const formattedExamples = formatExamples(examples)
-    
+
     // Build the final instruction by replacing placeholders
     finalInstruction = systemPrompt
       .replace('{{JSON_SCHEMA}}', jsonSchema)
@@ -265,15 +274,15 @@ export function parseAnalysisResponse(
 export function getAnalysisPromptTemplate(config = ANALYSIS_PROMPT_CONFIG): string {
   // Load prompt assets
   const { systemPrompt, examples } = loadPromptAssets(config.PROMPT_VERSION)
-  
+
   // Generate schema and format examples
   const jsonSchema = generateJsonSchema()
   const formattedExamples = formatExamples(examples)
-  
+
   // Build the final instruction by replacing placeholders
   const finalInstruction = systemPrompt
     .replace('{{JSON_SCHEMA}}', jsonSchema)
     .replace('{{EXAMPLES}}', formattedExamples)
-  
+
   return finalInstruction
 }

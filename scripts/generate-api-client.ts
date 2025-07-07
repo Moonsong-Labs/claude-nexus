@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
  * Generate TypeScript client from OpenAPI specification
- * 
+ *
  * This script uses openapi-typescript-codegen to generate a TypeScript client
  * from the AI Analysis API OpenAPI specification.
- * 
+ *
  * Usage:
  *   bun run scripts/generate-api-client.ts
  */
@@ -18,7 +18,7 @@ const OUTPUT_DIR = path.join(process.cwd(), 'packages/shared/src/generated/api-c
 
 async function generateClient() {
   console.log('🚀 Generating TypeScript client from OpenAPI spec...')
-  
+
   // Check if OpenAPI spec exists
   try {
     await fs.access(OPENAPI_SPEC)
@@ -33,9 +33,12 @@ async function generateClient() {
   // Generate client using openapi-typescript-codegen
   const args = [
     'openapi-typescript-codegen',
-    '--input', OPENAPI_SPEC,
-    '--output', OUTPUT_DIR,
-    '--client', 'fetch',
+    '--input',
+    OPENAPI_SPEC,
+    '--output',
+    OUTPUT_DIR,
+    '--client',
+    'fetch',
     '--useOptions',
     '--useUnionTypes',
   ]
@@ -46,7 +49,7 @@ async function generateClient() {
       shell: true,
     })
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       if (code === 0) {
         console.log('✅ Client generated successfully at:', OUTPUT_DIR)
         resolve()
@@ -55,7 +58,7 @@ async function generateClient() {
       }
     })
 
-    proc.on('error', (err) => {
+    proc.on('error', err => {
       reject(err)
     })
   })
@@ -64,12 +67,8 @@ async function generateClient() {
 // Alternative: Generate using OpenAPI TypeScript (more modern approach)
 async function generateClientV2() {
   console.log('🚀 Generating TypeScript types from OpenAPI spec...')
-  
-  const args = [
-    'openapi-typescript',
-    OPENAPI_SPEC,
-    '--output', path.join(OUTPUT_DIR, 'types.ts'),
-  ]
+
+  const args = ['openapi-typescript', OPENAPI_SPEC, '--output', path.join(OUTPUT_DIR, 'types.ts')]
 
   return new Promise<void>((resolve, reject) => {
     const proc = spawn('bunx', args, {
@@ -77,7 +76,7 @@ async function generateClientV2() {
       shell: true,
     })
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       if (code === 0) {
         console.log('✅ Types generated successfully')
         resolve()
@@ -86,7 +85,7 @@ async function generateClientV2() {
       }
     })
 
-    proc.on('error', (err) => {
+    proc.on('error', err => {
       reject(err)
     })
   })
@@ -95,7 +94,7 @@ async function generateClientV2() {
 // Simple fetch-based client generator (no external dependencies)
 async function generateSimpleClient() {
   console.log('🚀 Generating simple TypeScript client...')
-  
+
   const clientCode = `/**
  * Auto-generated API client for Claude Nexus Proxy AI Analysis API
  * Generated from: ${OPENAPI_SPEC}
@@ -270,7 +269,7 @@ export function createAnalysisClient(options: ApiClientOptions): AnalysisApiClie
   const clientPath = path.join(OUTPUT_DIR, 'index.ts')
   await fs.mkdir(OUTPUT_DIR, { recursive: true })
   await fs.writeFile(clientPath, clientCode)
-  
+
   console.log('✅ Simple client generated at:', clientPath)
 }
 
@@ -279,7 +278,7 @@ async function main() {
   try {
     // Use the simple client generator by default
     await generateSimpleClient()
-    
+
     console.log('\n📝 Example usage:')
     console.log(`
 import { createAnalysisClient } from '@claude-nexus/shared/generated/api-client'
@@ -307,7 +306,6 @@ const result = await client.waitForAnalysis(
 
 console.log('Analysis:', result.data)
 `)
-
   } catch (error) {
     console.error('❌ Error generating client:', error)
     process.exit(1)

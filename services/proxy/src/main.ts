@@ -164,7 +164,7 @@ if (hostIndex !== -1 && args[hostIndex + 1]) {
 // Main function
 async function main() {
   let analysisWorker: any = null
-  
+
   try {
     // Print proxy configuration
     console.log(`Claude Nexus Proxy Service v${getPackageVersion()}`)
@@ -223,7 +223,9 @@ async function main() {
     if (process.env.AI_WORKER_ENABLED === 'true') {
       if (process.env.GEMINI_API_KEY) {
         console.log('  - Enabled: Yes')
-        console.log(`  - Model: ${process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash-exp (default)'}`)
+        console.log(
+          `  - Model: ${process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash-exp (default)'}`
+        )
         console.log('  - API Key: Configured')
       } else {
         console.log('  - Enabled: No')
@@ -343,7 +345,7 @@ async function main() {
             process.exit(0)
           }
         }, 5000) // 5 second timeout
-        
+
         server.close(() => {
           serverClosed = true
           clearTimeout(serverCloseTimeout)

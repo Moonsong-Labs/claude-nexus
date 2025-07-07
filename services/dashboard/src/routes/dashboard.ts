@@ -165,7 +165,7 @@ const layout = (title: string, content: any) => html`
         .space-x-4 > * + * {
           margin-left: 1rem;
         }
-        
+
         /* Spinner animation */
         .spinner {
           display: inline-block;
@@ -176,9 +176,11 @@ const layout = (title: string, content: any) => html`
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
         }
-        
+
         @keyframes spin {
-          to { transform: rotate(360deg); }
+          to {
+            transform: rotate(360deg);
+          }
         }
       </style>
       <script src="https://unpkg.com/htmx.org@1.9.10"></script>
@@ -348,16 +350,27 @@ dashboardRoutes.get('/', async c => {
     </div>
 
     <!-- Analytics Panel (loaded via HTMX) -->
-    <div 
+    <div
       id="analytics-panel-placeholder"
-      hx-get="/partials/analytics${domain ? `?domain=${domain}` : ''}${c.req.query('analytics') === 'true' ? '&expanded=true' : ''}"
+      hx-get="/partials/analytics${domain ? `?domain=${domain}` : ''}${c.req.query('analytics') ===
+      'true'
+        ? '&expanded=true'
+        : ''}"
       hx-trigger="load"
       hx-swap="outerHTML"
     >
       <div class="section" style="margin-bottom: 1.5rem;">
         <div class="section-header">
           <span style="display: flex; align-items: center; gap: 0.5rem;">
-            <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="chevron-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
             Analytics & Token Usage

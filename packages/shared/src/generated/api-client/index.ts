@@ -77,11 +77,7 @@ export class AnalysisApiClient {
     }
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: unknown
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: this.headers,
@@ -107,10 +103,7 @@ export class AnalysisApiClient {
    * Get analysis result
    */
   async getAnalysis(conversationId: string, branchId: string): Promise<GetAnalysisResponse> {
-    return this.request<GetAnalysisResponse>(
-      'GET',
-      `/api/analyses/${conversationId}/${branchId}`
-    )
+    return this.request<GetAnalysisResponse>('GET', `/api/analyses/${conversationId}/${branchId}`)
   }
 
   /**
@@ -147,7 +140,7 @@ export class AnalysisApiClient {
 
     while (Date.now() - startTime < timeout) {
       const analysis = await this.getAnalysis(conversationId, branchId)
-      
+
       if (onProgress) {
         onProgress(analysis.status)
       }

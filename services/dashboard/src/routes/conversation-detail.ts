@@ -902,8 +902,8 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
           })
 
           // Activate selected tab
-          const activeTab = tabName === 'tree' ? treeTab : 
-                           tabName === 'timeline' ? timelineTab : analyticsTab
+          const activeTab =
+            tabName === 'tree' ? treeTab : tabName === 'timeline' ? timelineTab : analyticsTab
           activeTab.style.borderBottomColor = '#3b82f6'
           activeTab.style.color = '#3b82f6'
           activeTab.classList.add('tab-active')

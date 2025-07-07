@@ -51,10 +51,18 @@ async function checkTable() {
 
     // Check for specific columns the API expects
     const requiredColumns = [
-      'id', 'conversation_id', 'branch_id', 'status',
-      'analysis_content', 'analysis_data', 'error_message',
-      'created_at', 'updated_at', 'completed_at',
-      'prompt_tokens', 'completion_tokens'
+      'id',
+      'conversation_id',
+      'branch_id',
+      'status',
+      'analysis_content',
+      'analysis_data',
+      'error_message',
+      'created_at',
+      'updated_at',
+      'completed_at',
+      'prompt_tokens',
+      'completion_tokens',
     ]
 
     const existingColumns = columns.rows.map(row => row.column_name)
@@ -87,7 +95,6 @@ async function checkTable() {
     // Check if there's any data
     const countResult = await pool.query('SELECT COUNT(*) FROM conversation_analyses')
     console.log(`\nTable contains ${countResult.rows[0].count} rows`)
-
   } catch (error) {
     console.error('Error checking table:', error)
   } finally {

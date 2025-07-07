@@ -22,7 +22,7 @@ describe('Analysis API Routes', () => {
   beforeEach(() => {
     // Create a new Hono app and mount the routes
     app = new Hono()
-    
+
     // Create mock API client - use 'as any' to bypass strict typing for tests
     mockApiClient = {
       post: mock(() => Promise.resolve({})) as any,
@@ -80,18 +80,16 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(400)
-      const data = await response.json() as { error: string; details?: Array<{ path: string[] }> }
+      const data = (await response.json()) as { error: string; details?: Array<{ path: string[] }> }
       expect(data.error).toBe('Invalid request data')
       expect(data.details).toBeDefined()
       expect(data.details![0].path).toContain('conversationId')
     })
 
     it('should return 409 when analysis already exists', async () => {
-      const conflictError = new HttpError(
-        'Analysis already exists',
-        409,
-        { error: 'Analysis already exists' }
-      )
+      const conflictError = new HttpError('Analysis already exists', 409, {
+        error: 'Analysis already exists',
+      })
 
       mockApiClient.post = mock(() => Promise.reject(conflictError)) as any
 
@@ -105,7 +103,7 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(409)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Analysis already exists')
     })
 
@@ -123,7 +121,7 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(503)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('API client not configured')
     })
 
@@ -139,7 +137,7 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to create analysis')
     })
 
@@ -151,7 +149,7 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(400)
-      const data = await response.json() as { error: string; details?: Array<{ path: string[] }> }
+      const data = (await response.json()) as { error: string; details?: Array<{ path: string[] }> }
       expect(data.error).toBe('Invalid request data')
       expect(data.details).toBeDefined()
     })
@@ -250,7 +248,7 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(400)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Invalid conversation ID format')
     })
 
@@ -266,7 +264,7 @@ describe('Analysis API Routes', () => {
       )
 
       expect(response.status).toBe(404)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Analysis not found')
     })
 
@@ -282,7 +280,7 @@ describe('Analysis API Routes', () => {
       )
 
       expect(response.status).toBe(503)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('API client not configured')
     })
 
@@ -297,7 +295,7 @@ describe('Analysis API Routes', () => {
       )
 
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to retrieve analysis')
     })
 
@@ -358,7 +356,7 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(400)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Invalid conversation ID format')
     })
 
@@ -374,7 +372,7 @@ describe('Analysis API Routes', () => {
       )
 
       expect(response.status).toBe(404)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Conversation not found')
     })
 
@@ -390,7 +388,7 @@ describe('Analysis API Routes', () => {
       )
 
       expect(response.status).toBe(503)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('API client not configured')
     })
 
@@ -405,7 +403,7 @@ describe('Analysis API Routes', () => {
       )
 
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to regenerate analysis')
     })
   })

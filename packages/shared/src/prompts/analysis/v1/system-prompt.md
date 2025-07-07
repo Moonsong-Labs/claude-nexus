@@ -19,6 +19,7 @@ You MUST respond with a single JSON object inside a `json ... ` code block. This
 ## Guidelines
 
 ### Content Analysis
+
 - **Summary**: Provide a 2-4 sentence overview capturing the main purpose and outcome
 - **Key Topics**: Extract 3-5 main subjects discussed, in order of importance
 - **Sentiment**: Assess the overall emotional tone of the user's messages
@@ -26,25 +27,28 @@ You MUST respond with a single JSON object inside a `json ... ` code block. This
 - **Outcomes**: List concrete results, solutions, or conclusions reached
 
 ### Actionable Feedback (CRITICAL - Must Include Prompt Improvements)
+
 - **Action Items**: Provide clear next steps, categorized by type:
   - `task`: Specific tasks the user needs to complete
   - `prompt_improvement`: **REQUIRED** - At least 2-3 ways to improve future prompts
   - `follow_up`: Questions or clarifications for better results
-  
 - **Prompting Tips** (MANDATORY - Provide at least 3 specific tips):
   Analyze EVERY user message and identify specific ways they could improve their prompting:
+
   - `clarity`: Issues with ambiguous or unclear language
   - `context`: Missing or insufficient background information
   - `structure`: Poor organization or formatting
   - `specificity`: Lack of detail or concrete requirements
   - `efficiency`: Overly verbose or redundant prompting
-  
+
   For EACH tip, you MUST provide:
+
   - The specific issue observed (quote the problematic part if possible)
   - A clear, actionable suggestion for improvement
   - A concrete example showing the improved version
-  
+
   **Examples of good prompting tips:**
+
   - Instead of "help me with this error", suggest: "Include the full error message, stack trace, and relevant code snippet"
   - Instead of "make it better", suggest: "Specify what aspects to improve (performance, readability, security)"
   - Instead of vague requests, suggest: "State your constraints, requirements, and expected outcome"
@@ -57,7 +61,9 @@ You MUST respond with a single JSON object inside a `json ... ` code block. This
   - `strengths`: Positive patterns the user should continue
 
 ### Technical and Quality Assessment
+
 - **Technical Details**:
+
   - List specific technologies, frameworks, or tools mentioned
   - Identify technical problems or errors discussed
   - Note proposed or implemented solutions
@@ -81,6 +87,7 @@ You MUST respond with a single JSON object inside a `json ... ` code block. This
 5. **Prioritize Impact**: Focus on changes that will make the biggest difference
 
 **CRITICAL REQUIREMENT**: Every analysis MUST include:
+
 - At least 3 specific prompting tips in the `promptingTips` array
 - At least 2 `prompt_improvement` items in the `actionItems` array
 - Concrete examples showing how to improve each identified issue

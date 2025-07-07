@@ -12,7 +12,9 @@ console.log('AI Analysis Worker Configuration:')
 console.log('================================')
 console.log(`AI_WORKER_ENABLED: ${process.env.AI_WORKER_ENABLED}`)
 console.log(`GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'Set' : 'Not set'}`)
-console.log(`GEMINI_MODEL_NAME: ${process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash-exp (default)'}`)
+console.log(
+  `GEMINI_MODEL_NAME: ${process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash-exp (default)'}`
+)
 
 console.log('\nWorker Configuration:')
 console.log(`Poll Interval: ${process.env.AI_WORKER_POLL_INTERVAL_MS || '5000 (default)'}ms`)

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * Common validation utilities and patterns used across the application
- * 
+ *
  * SECURITY NOTES:
  * - JWT regex only validates format, NOT security. Use a proper JWT library for verification.
  * - Database URL patterns contain credentials - handle with extreme care.
@@ -61,7 +61,8 @@ export const DATABASE_URL_PATTERNS = {
  * Bearer token Authorization header pattern
  * Matches: Bearer <jwt>
  */
-export const BEARER_TOKEN_REGEX = /^Bearer\s+(eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)$/
+export const BEARER_TOKEN_REGEX =
+  /^Bearer\s+(eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)$/
 
 /**
  * URL-friendly slug pattern
@@ -83,7 +84,8 @@ export const CONTENT_TYPE_PATTERNS = {
  * Semantic Versioning (SemVer) 2.0.0 pattern
  * See: https://semver.org/
  */
-export const SEMVER_REGEX = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+export const SEMVER_REGEX =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
 
 // ============================================================================
 // Validation Functions
@@ -134,7 +136,10 @@ export function isValidDomain(value: string): boolean {
 /**
  * Validates if a string is a valid database URL
  */
-export function isValidDatabaseUrl(value: string, type?: keyof typeof DATABASE_URL_PATTERNS): boolean {
+export function isValidDatabaseUrl(
+  value: string,
+  type?: keyof typeof DATABASE_URL_PATTERNS
+): boolean {
   if (type) {
     return DATABASE_URL_PATTERNS[type].test(value)
   }
@@ -159,7 +164,10 @@ export function isValidSlug(value: string): boolean {
 /**
  * Validates if a string is a valid Content-Type header
  */
-export function isValidContentType(value: string, type?: keyof typeof CONTENT_TYPE_PATTERNS): boolean {
+export function isValidContentType(
+  value: string,
+  type?: keyof typeof CONTENT_TYPE_PATTERNS
+): boolean {
   if (type) {
     return CONTENT_TYPE_PATTERNS[type].test(value)
   }
@@ -210,9 +218,7 @@ export const cnpApiKeySchema = z
  * JWT token schema (format only - does NOT validate signature/claims)
  * WARNING: This only checks format. Use a proper JWT library for security validation.
  */
-export const jwtTokenSchema = z
-  .string()
-  .regex(JWT_TOKEN_REGEX, 'Must be a valid JWT token format')
+export const jwtTokenSchema = z.string().regex(JWT_TOKEN_REGEX, 'Must be a valid JWT token format')
 
 /**
  * Email schema
@@ -222,9 +228,7 @@ export const emailSchema = z.string().email()
 /**
  * Domain schema
  */
-export const domainSchema = z
-  .string()
-  .regex(DOMAIN_REGEX, 'Must be a valid domain name')
+export const domainSchema = z.string().regex(DOMAIN_REGEX, 'Must be a valid domain name')
 
 /**
  * Database URL schema
@@ -312,19 +316,21 @@ export const semverSchema = z
  * Masks sensitive data in strings for logging
  */
 export function maskSensitiveData(text: string): string {
-  return text
-    // Mask Anthropic API keys
-    .replace(/sk-ant-[a-zA-Z0-9-_]+/g, 'sk-ant-****')
-    // Mask CNP API keys
-    .replace(/cnp_(live|test)_[a-zA-Z0-9_]+/g, 'cnp_$1_****')
-    // Mask Bearer tokens
-    .replace(/Bearer\s+[\w\-._~+/]+/g, 'Bearer ****')
-    // Mask emails
-    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '****@****.com')
-    // Mask database URLs
-    .replace(/postgresql:\/\/[^@]+@[^/]+\/\w+/g, 'postgresql://****:****@****/****')
-    .replace(/mysql:\/\/[^@]+@[^/]+\/\w+/g, 'mysql://****:****@****/****')
-    .replace(/mongodb(\+srv)?:\/\/[^@]+@[^/]+\/\w+/g, 'mongodb$1://****:****@****/****')
+  return (
+    text
+      // Mask Anthropic API keys
+      .replace(/sk-ant-[a-zA-Z0-9-_]+/g, 'sk-ant-****')
+      // Mask CNP API keys
+      .replace(/cnp_(live|test)_[a-zA-Z0-9_]+/g, 'cnp_$1_****')
+      // Mask Bearer tokens
+      .replace(/Bearer\s+[\w\-._~+/]+/g, 'Bearer ****')
+      // Mask emails
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '****@****.com')
+      // Mask database URLs
+      .replace(/postgresql:\/\/[^@]+@[^/]+\/\w+/g, 'postgresql://****:****@****/****')
+      .replace(/mysql:\/\/[^@]+@[^/]+\/\w+/g, 'mysql://****:****@****/****')
+      .replace(/mongodb(\+srv)?:\/\/[^@]+@[^/]+\/\w+/g, 'mongodb$1://****:****@****/****')
+  )
 }
 
 /**

@@ -35,9 +35,9 @@ class Container {
         storageEnabled: config.storage.enabled,
         databaseUrl: config.database.url ? 'set' : 'not set',
         databaseUrlLength: config.database.url?.length || 0,
-      }
+      },
     })
-    
+
     if (config.storage.enabled && config.database.url) {
       this.pool = new Pool({
         connectionString: config.database.url,
@@ -51,11 +51,11 @@ class Container {
           error: { message: err.message, stack: err.stack },
         })
       })
-      
+
       logger.info('Database pool created', {
         metadata: {
           poolCreated: !!this.pool,
-        }
+        },
       })
     }
 

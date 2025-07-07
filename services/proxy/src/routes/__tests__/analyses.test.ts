@@ -56,7 +56,8 @@ describe('Proxy Analysis Routes', () => {
     it('should create new analysis request', async () => {
       // Mock no existing analysis
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
         if (query.includes('SELECT id, status FROM conversation_analyses')) {
           return Promise.resolve(mockQueryResult([]))
         }
@@ -79,7 +80,11 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(201)
-      const data = await response.json() as { message: string; analysisId: number; status: ConversationAnalysisStatus }
+      const data = (await response.json()) as {
+        message: string
+        analysisId: number
+        status: ConversationAnalysisStatus
+      }
       expect(data.message).toBe('Analysis request created')
       expect(data.analysisId).toBe(123)
       expect(data.status).toBe(ConversationAnalysisStatus.PENDING)
@@ -87,7 +92,8 @@ describe('Proxy Analysis Routes', () => {
 
     it('should return existing completed analysis', async () => {
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
         if (query.includes('SELECT id, status FROM conversation_analyses')) {
           return Promise.resolve(
             mockQueryResult([
@@ -114,7 +120,11 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(200)
-      const data = await response.json() as { message: string; analysisId: number; status: ConversationAnalysisStatus }
+      const data = (await response.json()) as {
+        message: string
+        analysisId: number
+        status: ConversationAnalysisStatus
+      }
       expect(data.message).toBe('Analysis already completed')
       expect(data.analysisId).toBe(456)
       expect(data.status).toBe(ConversationAnalysisStatus.COMPLETED)
@@ -122,7 +132,8 @@ describe('Proxy Analysis Routes', () => {
 
     it('should return existing analysis in progress', async () => {
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
         if (query.includes('SELECT id, status FROM conversation_analyses')) {
           return Promise.resolve(
             mockQueryResult([
@@ -149,7 +160,11 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(200)
-      const data = await response.json() as { message: string; analysisId: number; status: ConversationAnalysisStatus }
+      const data = (await response.json()) as {
+        message: string
+        analysisId: number
+        status: ConversationAnalysisStatus
+      }
       expect(data.message).toBe('Analysis already in progress')
       expect(data.analysisId).toBe(789)
       expect(data.status).toBe(ConversationAnalysisStatus.PROCESSING)
@@ -166,7 +181,7 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(400)
-      const data = await response.json() as { error: string; details?: any }
+      const data = (await response.json()) as { error: string; details?: any }
       expect(data.error).toBe('Invalid request')
       expect(data.details).toBeDefined()
     })
@@ -184,7 +199,7 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(503)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Database not configured')
     })
 
@@ -201,15 +216,17 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to create analysis request')
     })
 
     it('should log audit events', async () => {
       const auditLogQueries: string[] = []
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
-        const params = values || (typeof queryTextOrConfig === 'object' ? queryTextOrConfig.values : undefined)
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const params =
+          values || (typeof queryTextOrConfig === 'object' ? queryTextOrConfig.values : undefined)
         if (query.includes('INSERT INTO analysis_audit_log')) {
           auditLogQueries.push(query)
         }
@@ -269,7 +286,8 @@ describe('Proxy Analysis Routes', () => {
       }
 
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
         if (query.includes('SELECT') && query.includes('FROM conversation_analyses')) {
           return Promise.resolve(mockQueryResult([mockAnalysis]))
         }
@@ -287,7 +305,7 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(200)
-      const data = await response.json() as any
+      const data = (await response.json()) as any
       expect(data.id).toBe(123)
       expect(data.conversationId).toBe('550e8400-e29b-41d4-a716-446655440000')
       expect(data.branchId).toBe('main')
@@ -302,7 +320,9 @@ describe('Proxy Analysis Routes', () => {
     })
 
     it('should return 404 when analysis not found', async () => {
-      mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => Promise.resolve(mockQueryResult([])))
+      mockPool.query = mock((queryTextOrConfig: any, values?: any[]) =>
+        Promise.resolve(mockQueryResult([]))
+      )
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
@@ -312,7 +332,7 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(404)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Analysis not found')
     })
 
@@ -324,7 +344,7 @@ describe('Proxy Analysis Routes', () => {
       // Accept 500 for now - validation happens after route is matched
       // and the error isn't being caught properly
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to retrieve analysis')
     })
 
@@ -343,7 +363,8 @@ describe('Proxy Analysis Routes', () => {
       }
 
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
         if (query.includes('SELECT') && query.includes('FROM conversation_analyses')) {
           return Promise.resolve(mockQueryResult([mockAnalysis]))
         }
@@ -358,14 +379,16 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(200)
-      const data = await response.json() as any
+      const data = (await response.json()) as any
       expect(data.status).toBe(ConversationAnalysisStatus.FAILED)
       expect(data.error).toBe('Analysis failed due to timeout')
       expect(data.content).toBeNull()
     })
 
     it('should handle database errors', async () => {
-      mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => Promise.reject(new Error('Database error')))
+      mockPool.query = mock((queryTextOrConfig: any, values?: any[]) =>
+        Promise.reject(new Error('Database error'))
+      )
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
@@ -375,7 +398,7 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to retrieve analysis')
     })
   })
@@ -383,7 +406,8 @@ describe('Proxy Analysis Routes', () => {
   describe('POST /api/analyses/:conversationId/:branchId/regenerate', () => {
     it('should regenerate existing analysis', async () => {
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
         if (query.includes('SELECT id, status FROM conversation_analyses')) {
           return Promise.resolve(
             mockQueryResult([
@@ -411,7 +435,11 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(200)
-      const data = await response.json() as { message: string; analysisId: number; status: ConversationAnalysisStatus }
+      const data = (await response.json()) as {
+        message: string
+        analysisId: number
+        status: ConversationAnalysisStatus
+      }
       expect(data.message).toBe('Analysis regeneration requested')
       expect(data.analysisId).toBe(123)
       expect(data.status).toBe(ConversationAnalysisStatus.PENDING)
@@ -419,7 +447,8 @@ describe('Proxy Analysis Routes', () => {
 
     it('should create new analysis if none exists', async () => {
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
         if (query.includes('SELECT id, status FROM conversation_analyses')) {
           return Promise.resolve(mockQueryResult([]))
         }
@@ -440,7 +469,11 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(200)
-      const data = await response.json() as { message: string; analysisId: number; status: ConversationAnalysisStatus }
+      const data = (await response.json()) as {
+        message: string
+        analysisId: number
+        status: ConversationAnalysisStatus
+      }
       expect(data.message).toBe('Analysis regeneration requested')
       expect(data.analysisId).toBe(456)
       expect(data.status).toBe(ConversationAnalysisStatus.PENDING)
@@ -449,8 +482,10 @@ describe('Proxy Analysis Routes', () => {
     it('should increment retry count on regeneration', async () => {
       let updateQuery: string | undefined
       mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => {
-        const query = typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
-        const params = values || (typeof queryTextOrConfig === 'object' ? queryTextOrConfig.values : undefined)
+        const query =
+          typeof queryTextOrConfig === 'string' ? queryTextOrConfig : queryTextOrConfig.text
+        const params =
+          values || (typeof queryTextOrConfig === 'object' ? queryTextOrConfig.values : undefined)
         if (query.includes('SELECT id, status FROM conversation_analyses')) {
           return Promise.resolve(
             mockQueryResult([
@@ -486,12 +521,14 @@ describe('Proxy Analysis Routes', () => {
       // Accept 500 for now - validation happens after route is matched
       // and the error isn't being caught properly
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to regenerate analysis')
     })
 
     it('should handle database errors', async () => {
-      mockPool.query = mock((queryTextOrConfig: any, values?: any[]) => Promise.reject(new Error('Database error')))
+      mockPool.query = mock((queryTextOrConfig: any, values?: any[]) =>
+        Promise.reject(new Error('Database error'))
+      )
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
@@ -501,7 +538,7 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(500)
-      const data = await response.json() as { error: string }
+      const data = (await response.json()) as { error: string }
       expect(data.error).toBe('Failed to regenerate analysis')
     })
   })
@@ -509,7 +546,7 @@ describe('Proxy Analysis Routes', () => {
   describe('Rate Limiting', () => {
     // Note: Rate limiting tests would require mocking the rate limiting middleware
     // Since rate limiting is handled by middleware, we'll test that it's applied correctly
-    
+
     it('should apply rate limiting to POST /api/analyses', async () => {
       // This test verifies that the rate limiting middleware is applied
       // In a real test, you would mock the rate limiter to test the behavior

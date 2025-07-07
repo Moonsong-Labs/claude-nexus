@@ -11,7 +11,7 @@ config()
 
 async function processPending() {
   const conversationId = process.argv[2]
-  
+
   // Validate Gemini API key
   if (!process.env.GEMINI_API_KEY) {
     console.error('❌ GEMINI_API_KEY is not set in .env')
@@ -19,15 +19,15 @@ async function processPending() {
   }
 
   console.log('🤖 Starting manual analysis processing...')
-  
+
   try {
     const worker = new AnalysisWorker()
-    
+
     if (conversationId) {
       console.log(`Processing specific conversation: ${conversationId}`)
       // Process specific conversation by updating its status and running
       const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-      
+
       // Find pending analysis for this conversation
       const result = await pool.query(
         `SELECT id FROM conversation_analyses 
@@ -35,16 +35,16 @@ async function processPending() {
          LIMIT 1`,
         [conversationId]
       )
-      
+
       if (result.rows.length === 0) {
         console.log('No pending analysis found for this conversation')
         await pool.end()
         return
       }
-      
+
       const jobId = result.rows[0].id
       await pool.end()
-      
+
       // Process this specific job
       await worker.processJob({ id: jobId })
     } else {
@@ -52,7 +52,7 @@ async function processPending() {
       // Process all pending
       await worker.processPendingJobs()
     }
-    
+
     console.log('✅ Processing complete')
   } catch (error) {
     console.error('❌ Processing failed:', error)

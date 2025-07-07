@@ -37,11 +37,10 @@ async function main() {
 
     const failedCount = result.rowCount || 0
     console.log(`Failed ${failedCount} jobs that exceeded max retries (>= ${maxRetries}):`)
-    
+
     result.rows.forEach(row => {
       console.log(`  - Job ${row.id}: ${row.conversation_id} (retries: ${row.retry_count})`)
     })
-
   } catch (error) {
     console.error('Error failing jobs:', error)
   } finally {

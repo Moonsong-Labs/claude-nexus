@@ -30,6 +30,7 @@ The AI Analysis API provides endpoints for managing AI-powered conversation anal
 #### Authentication
 
 Include the dashboard API key in the request header:
+
 ```bash
 X-Dashboard-Key: your-api-key
 ```

@@ -248,9 +248,9 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
       },
     })
   } catch (error) {
-    logger.error('Failed to get analysis', { 
+    logger.error('Failed to get analysis', {
       error: error instanceof Error ? error.message : String(error),
-      requestId 
+      requestId,
     })
 
     if (error instanceof ZodError) {
@@ -291,7 +291,7 @@ analysisRoutes.post(
       // Validate parameters
       const params = getAnalysisParamsSchema.parse(c.req.param())
       const { conversationId, branchId } = params
-      
+
       // Parse optional body for custom prompt
       let customPrompt: string | undefined
       try {

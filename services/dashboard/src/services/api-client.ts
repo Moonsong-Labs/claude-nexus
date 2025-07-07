@@ -587,7 +587,7 @@ export class ProxyApiClient {
       if (HttpError.isHttpError(error)) {
         throw error
       }
-      
+
       logger.error('API GET request failed', {
         error: getErrorMessage(error),
         path,
@@ -618,7 +618,7 @@ export class ProxyApiClient {
       if (HttpError.isHttpError(error)) {
         throw error
       }
-      
+
       logger.error('API POST request failed', {
         error: getErrorMessage(error),
         path,

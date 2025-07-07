@@ -16,10 +16,10 @@ export function startAnalysisWorker(): AnalysisWorker {
     logger.error(
       'FATAL: AI_WORKER_ENABLED is true, but GEMINI_API_KEY is not set. The AI Analysis Worker cannot start.',
       {
-        metadata: { 
+        metadata: {
           worker: 'analysis-worker',
           GEMINI_CONFIG_API_KEY: GEMINI_CONFIG.API_KEY || 'empty',
-          ENV_GEMINI_API_KEY: process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET'
+          ENV_GEMINI_API_KEY: process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET',
         },
       }
     )

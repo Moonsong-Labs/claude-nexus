@@ -23,6 +23,7 @@ bun run scripts/db/migrations/012-add-analysis-audit-log.ts
 ```
 
 These migrations will create:
+
 - `conversation_analyses` table - Stores AI analysis results
 - `conversation_analysis_status` ENUM type
 - `analysis_audit_log` table - Tracks all analysis operations
@@ -85,6 +86,7 @@ bun run dev:dashboard
 ```
 
 Check the logs for:
+
 ```
 [INFO] AI Analysis Worker: Started (polling every 5000ms)
 ```
@@ -92,11 +94,13 @@ Check the logs for:
 ### 5. Using the Feature
 
 #### Via Dashboard UI
+
 The dashboard will show an "AI Analysis" panel for conversations (if UI is implemented).
 
 #### Via API
 
 1. **Create an analysis**:
+
 ```bash
 curl -X POST http://localhost:3001/api/analyses \
   -H "Content-Type: application/json" \
@@ -108,12 +112,14 @@ curl -X POST http://localhost:3001/api/analyses \
 ```
 
 2. **Check analysis status**:
+
 ```bash
 curl http://localhost:3001/api/analyses/550e8400-e29b-41d4-a716-446655440000/main \
   -H "X-Dashboard-Key: your-dashboard-api-key"
 ```
 
 3. **Regenerate analysis**:
+
 ```bash
 curl -X POST http://localhost:3001/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate \
   -H "X-Dashboard-Key: your-dashboard-api-key"
@@ -122,7 +128,9 @@ curl -X POST http://localhost:3001/api/analyses/550e8400-e29b-41d4-a716-44665544
 ## Monitoring
 
 ### Check Background Worker Status
+
 Look for these log entries:
+
 - `AI Analysis Worker: Checking for pending jobs...`
 - `AI Analysis Worker: Processing job {id}`
 - `AI Analysis Worker: Completed job {id}`
@@ -130,11 +138,13 @@ Look for these log entries:
 ### Database Queries
 
 Check pending analyses:
+
 ```sql
 SELECT * FROM conversation_analyses WHERE status = 'pending';
 ```
 
 Check audit log:
+
 ```sql
 SELECT * FROM analysis_audit_log ORDER BY timestamp DESC LIMIT 10;
 ```
@@ -142,23 +152,28 @@ SELECT * FROM analysis_audit_log ORDER BY timestamp DESC LIMIT 10;
 ## Troubleshooting
 
 ### Worker Not Processing Jobs
+
 1. Check `AI_WORKER_ENABLED=true` in `.env`
 2. Verify `GEMINI_API_KEY` is valid
 3. Check proxy logs for errors
 
 ### Analysis Failing
+
 1. Check `error_message` in conversation_analyses table
 2. Review audit log for failure details
 3. Verify conversation has messages to analyze
 
 ### Rate Limiting
+
 The API has built-in rate limits:
+
 - Create analysis: 15 requests/minute per domain
 - Get analysis: 100 requests/minute per domain
 
 ## Cost Considerations
 
 Gemini API pricing (as of 2024):
+
 - Gemini 2.0 Flash: Free tier available
 - Monitor token usage in `conversation_analyses.prompt_tokens` and `completion_tokens`
 
@@ -172,6 +187,7 @@ Gemini API pricing (as of 2024):
 ## Optional: Disable Feature
 
 To disable AI analysis:
+
 ```bash
 AI_WORKER_ENABLED=false
 ```

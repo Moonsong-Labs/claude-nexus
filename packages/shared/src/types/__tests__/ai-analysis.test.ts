@@ -357,7 +357,7 @@ describe('AI Analysis Types and Schemas', () => {
       }
 
       const parsed = ConversationAnalysisSchema.parse(testData)
-      
+
       // Verify the parsed result maintains the correct structure
       expect(parsed).toEqual(testData)
       expect(parsed.sentiment).toBe('positive')

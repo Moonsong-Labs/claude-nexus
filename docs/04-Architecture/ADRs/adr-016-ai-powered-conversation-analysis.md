@@ -183,7 +183,7 @@ Key files:
 - **Worker Architecture**: In-process background worker with database polling
 - **Job Management**: PostgreSQL row-level locking with `FOR UPDATE SKIP LOCKED`
 - **Gemini Integration**: Direct API integration with security improvements
-- **Error Handling**: 
+- **Error Handling**:
   - Exponential backoff with jitter for retries
   - Automatic failure of jobs exceeding MAX_RETRIES
   - Graceful handling of unparseable JSON responses
@@ -201,17 +201,20 @@ Key files:
 ### Phase 2 - Error Handling Improvements (Completed)
 
 - **JSON Parse Failures**: When the AI model returns unparseable JSON, the system now:
+
   - Catches parse errors gracefully
   - Stores the raw text response as `analysis_content`
   - Sets `analysis_data` to null
   - Displays the raw text in the UI instead of failing
 
 - **Maximum Retry Handling**: Jobs that exceed `AI_ANALYSIS_MAX_RETRIES`:
+
   - Are automatically marked as failed during the worker's stuck job handling cycle
   - Display error status in the UI with clear messaging
   - No longer remain stuck in pending status indefinitely
 
 - **Schema Validation**: Updated retry prompts to match current data structure:
+
   - Fixed `actionItems` schema from array of strings to array of objects
   - Each action item now has `type`, `description`, and `priority` fields
 

@@ -56,10 +56,7 @@ describe('AI Analysis API Integration Tests', () => {
     })
 
     // Create API client
-    apiClient = new ProxyApiClient(
-      `http://localhost:${proxyPort}`,
-      'test-dashboard-key'
-    )
+    apiClient = new ProxyApiClient(`http://localhost:${proxyPort}`, 'test-dashboard-key')
 
     // Setup dashboard app
     dashboardApp = new Hono()

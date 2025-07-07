@@ -1,10 +1,10 @@
 import { SyncRedactor } from 'redact-pii'
 import { logger } from './logger.js'
-import { 
-  ANTHROPIC_API_KEY_REGEX, 
-  CNP_API_KEY_REGEX, 
+import {
+  ANTHROPIC_API_KEY_REGEX,
+  CNP_API_KEY_REGEX,
   JWT_TOKEN_REGEX,
-  DATABASE_URL_PATTERNS 
+  DATABASE_URL_PATTERNS,
 } from '@claude-nexus/shared/utils/validation'
 
 // Configure PII redaction with custom patterns
@@ -20,9 +20,18 @@ const piiRedactor = new SyncRedactor({
         replaceWith: '[JWT_TOKEN]',
       },
       // Database URLs
-      { regexpPattern: new RegExp(DATABASE_URL_PATTERNS.postgresql.source, 'g'), replaceWith: '[DATABASE_URL]' },
-      { regexpPattern: new RegExp(DATABASE_URL_PATTERNS.mysql.source, 'g'), replaceWith: '[DATABASE_URL]' },
-      { regexpPattern: new RegExp(DATABASE_URL_PATTERNS.mongodb.source, 'g'), replaceWith: '[DATABASE_URL]' },
+      {
+        regexpPattern: new RegExp(DATABASE_URL_PATTERNS.postgresql.source, 'g'),
+        replaceWith: '[DATABASE_URL]',
+      },
+      {
+        regexpPattern: new RegExp(DATABASE_URL_PATTERNS.mysql.source, 'g'),
+        replaceWith: '[DATABASE_URL]',
+      },
+      {
+        regexpPattern: new RegExp(DATABASE_URL_PATTERNS.mongodb.source, 'g'),
+        replaceWith: '[DATABASE_URL]',
+      },
     ],
   },
   // Use specific replacements for built-in patterns
@@ -111,7 +120,7 @@ export function validateAnalysisOutput(output: string): ValidationResult {
 
   // Check if the output contains a JSON code block
   const jsonMatch = output.match(/```json\s*([\s\S]*?)\s*```/)
-  
+
   if (!jsonMatch) {
     // If no JSON block, check for required sections in plain text
     const requiredSections = [
@@ -130,7 +139,7 @@ export function validateAnalysisOutput(output: string): ValidationResult {
     try {
       const jsonContent = jsonMatch[1]
       const parsed = JSON.parse(jsonContent)
-      
+
       // Check for the analysis object
       if (!parsed.analysis) {
         issues.push('Missing "analysis" key in JSON response')

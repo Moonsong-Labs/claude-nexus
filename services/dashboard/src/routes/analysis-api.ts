@@ -31,7 +31,7 @@ analysisRoutes.post('/analyses', async c => {
     // Parse and validate request body
     const body = await c.req.json()
     const parseResult = CreateAnalysisRequestSchema.safeParse(body)
-    
+
     if (!parseResult.success) {
       return c.json(
         {

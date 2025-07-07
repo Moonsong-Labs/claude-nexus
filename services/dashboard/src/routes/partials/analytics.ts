@@ -39,16 +39,22 @@ analyticsPartialRoutes.get('/partials/analytics', async c => {
       <div id="analytics-panel" class="section" style="margin-bottom: 1.5rem;">
         <div class="section-header" style="cursor: pointer;" onclick="toggleAnalytics()">
           <span style="display: flex; align-items: center; gap: 0.5rem;">
-            <svg class="chevron-icon ${expanded ? 'chevron-down' : ''}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="chevron-icon ${expanded ? 'chevron-down' : ''}"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
             Analytics & Token Usage
           </span>
         </div>
         <div class="section-content" style="display: ${expanded ? 'block' : 'none'};">
-          <div class="error-banner">
-            <strong>Error:</strong> API client not configured
-          </div>
+          <div class="error-banner"><strong>Error:</strong> API client not configured</div>
         </div>
       </div>
     `)
@@ -62,7 +68,15 @@ analyticsPartialRoutes.get('/partials/analytics', async c => {
       <div id="analytics-panel" class="section" style="margin-bottom: 1.5rem;">
         <div class="section-header" style="cursor: pointer;" onclick="toggleAnalytics()">
           <span style="display: flex; align-items: center; gap: 0.5rem;">
-            <svg class="chevron-icon ${expanded ? 'chevron-down' : ''}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="chevron-icon ${expanded ? 'chevron-down' : ''}"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
             Analytics & Token Usage
@@ -70,8 +84,8 @@ analyticsPartialRoutes.get('/partials/analytics', async c => {
               (${accountsData.accounts.length} active accounts)
             </span>
           </span>
-          <a 
-            href="/dashboard/token-usage" 
+          <a
+            href="/dashboard/token-usage"
             class="btn btn-secondary"
             style="float: right; font-size: 0.75rem; padding: 0.25rem 0.75rem;"
             onclick="event.stopPropagation();"
@@ -175,11 +189,15 @@ analyticsPartialRoutes.get('/partials/analytics', async c => {
                             `
                               )
                               .join('')}
-                            ${account.domains.length > 3 ? `
+                            ${
+                              account.domains.length > 3
+                                ? `
                               <div style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 6px; border-radius: 3px;">
                                 +${account.domains.length - 3} more
                               </div>
-                            ` : ''}
+                            `
+                                : ''
+                            }
                           </div>
                         </div>
                         <div style="width: 150px; height: 60px; flex-shrink: 0;">
@@ -194,13 +212,15 @@ analyticsPartialRoutes.get('/partials/analytics', async c => {
                       .join('')
                   )}
                 </div>
-                ${accountsData.accounts.length > 5 ? html`
-                  <div style="margin-top: 1rem; text-align: center;">
-                    <a href="/dashboard/token-usage" class="text-blue-600 text-sm">
-                      View all ${accountsData.accounts.length} accounts →
-                    </a>
-                  </div>
-                ` : ''}
+                ${accountsData.accounts.length > 5
+                  ? html`
+                      <div style="margin-top: 1rem; text-align: center;">
+                        <a href="/dashboard/token-usage" class="text-blue-600 text-sm">
+                          View all ${accountsData.accounts.length} accounts →
+                        </a>
+                      </div>
+                    `
+                  : ''}
               `
             : html` <p class="text-gray-500">No active accounts found in the last 5 hours.</p> `}
         </div>
@@ -217,29 +237,33 @@ analyticsPartialRoutes.get('/partials/analytics', async c => {
 
       <script>
         function toggleAnalytics() {
-          const panel = document.getElementById('analytics-panel');
-          const content = panel.querySelector('.section-content');
-          const chevron = panel.querySelector('.chevron-icon');
-          const isExpanded = content.style.display === 'block';
-          
-          content.style.display = isExpanded ? 'none' : 'block';
-          chevron.classList.toggle('chevron-down', !isExpanded);
-          
+          const panel = document.getElementById('analytics-panel')
+          const content = panel.querySelector('.section-content')
+          const chevron = panel.querySelector('.chevron-icon')
+          const isExpanded = content.style.display === 'block'
+
+          content.style.display = isExpanded ? 'none' : 'block'
+          chevron.classList.toggle('chevron-down', !isExpanded)
+
           // Update URL parameter
-          const url = new URL(window.location);
+          const url = new URL(window.location)
           if (!isExpanded) {
-            url.searchParams.set('analytics', 'true');
+            url.searchParams.set('analytics', 'true')
           } else {
-            url.searchParams.delete('analytics');
+            url.searchParams.delete('analytics')
           }
-          window.history.replaceState({}, '', url);
-          
+          window.history.replaceState({}, '', url)
+
           // If expanding, reload the panel with expanded state
           if (!isExpanded) {
-            htmx.ajax('GET', '/partials/analytics?expanded=true${domain ? `&domain=${domain}` : ''}', {
-              target: '#analytics-panel',
-              swap: 'outerHTML'
-            });
+            htmx.ajax(
+              'GET',
+              '/partials/analytics?expanded=true${domain ? `&domain=${domain}` : ''}',
+              {
+                target: '#analytics-panel',
+                swap: 'outerHTML',
+              }
+            )
           }
         }
       </script>
@@ -252,16 +276,22 @@ analyticsPartialRoutes.get('/partials/analytics', async c => {
       <div id="analytics-panel" class="section" style="margin-bottom: 1.5rem;">
         <div class="section-header" style="cursor: pointer;" onclick="toggleAnalytics()">
           <span style="display: flex; align-items: center; gap: 0.5rem;">
-            <svg class="chevron-icon ${expanded ? 'chevron-down' : ''}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="chevron-icon ${expanded ? 'chevron-down' : ''}"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
             Analytics & Token Usage
           </span>
         </div>
         <div class="section-content" style="display: ${expanded ? 'block' : 'none'};">
-          <div class="error-banner">
-            <strong>Error:</strong> Failed to load analytics data
-          </div>
+          <div class="error-banner"><strong>Error:</strong> Failed to load analytics data</div>
         </div>
       </div>
     `)

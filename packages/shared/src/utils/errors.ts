@@ -15,7 +15,7 @@ export function hasStatusCode(error: unknown): error is HTTPResponseError {
   if (!(error instanceof Error)) {
     return false
   }
-  
+
   const err = error as HTTPResponseError
   return typeof err.status === 'number' || typeof err.statusCode === 'number'
 }

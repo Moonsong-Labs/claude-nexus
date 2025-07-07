@@ -5,6 +5,7 @@ This guide sets up the AI-powered conversation analysis feature for **on-demand*
 ## Important Architecture Note
 
 The current implementation uses a background worker pattern where:
+
 1. API creates analysis requests with `status='pending'`
 2. Background worker polls and processes pending jobs
 3. Results are stored in the database
@@ -65,6 +66,7 @@ AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS=4000
 When `AI_WORKER_ENABLED=false`, the API creates analysis records but they remain `pending`. You'll need to:
 
 1. Create analysis request via dashboard/API:
+
 ```bash
 curl -X POST http://localhost:3001/api/analyses \
   -H "Content-Type: application/json" \
@@ -76,6 +78,7 @@ curl -X POST http://localhost:3001/api/analyses \
 ```
 
 2. Manually trigger processing (requires custom endpoint or script):
+
 ```bash
 # This would need to be implemented
 curl -X POST http://localhost:3001/api/analyses/process-pending \
@@ -94,7 +97,7 @@ import { AnalysisWorker } from '../services/proxy/src/workers/ai-analysis/Analys
 
 async function processOnDemand(conversationId?: string) {
   const worker = new AnalysisWorker()
-  
+
   if (conversationId) {
     // Process specific conversation
     await worker.processConversation(conversationId)
@@ -146,8 +149,9 @@ If you want periodic processing instead of continuous:
 ## Monitoring
 
 Check analysis status:
+
 ```sql
-SELECT 
+SELECT
   conversation_id,
   branch_id,
   status,
@@ -161,6 +165,7 @@ ORDER BY created_at DESC;
 ## Cost Control
 
 With on-demand processing:
+
 - You control exactly when API calls are made
 - No surprise costs from background processing
 - Can implement approval workflow if needed

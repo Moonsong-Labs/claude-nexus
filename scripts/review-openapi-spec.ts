@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
  * Review OpenAPI specification using Gemini
- * 
+ *
  * This script uses Gemini to review the OpenAPI specification for completeness,
  * best practices, and potential improvements.
- * 
+ *
  * Usage:
  *   GEMINI_API_KEY=your-key bun run scripts/review-openapi-spec.ts
  */
