@@ -2,9 +2,9 @@
 
 ## Status
 
-Proposed
+Superseded
 
-> **Implementation Note**: The actual implementation diverged from this proposal. Instead of using a database-backed system, the MCP server was implemented as a file-based system using Handlebars templating. See the codebase for the current implementation.
+> **Implementation Note**: The actual implementation diverged significantly from this proposal. Instead of using a database-backed system with GitHub synchronization, the MCP server was implemented as a simpler file-based system. See the "Actual Implementation" section below for details.
 
 ## Context
 
@@ -174,13 +174,11 @@ GET /api/mcp/sync/status        // Get sync status
 ### Security Considerations
 
 1. **Authentication:**
-
    - MCP endpoint uses existing proxy authentication
    - Dashboard API uses `X-Dashboard-Key` header
    - GitHub API uses personal access token (stored in env)
 
 2. **Authorization:**
-
    - Domain-based access control for prompts
    - Audit trail for prompt usage
    - Rate limiting on MCP endpoints
@@ -193,19 +191,16 @@ GET /api/mcp/sync/status        // Get sync status
 ### Implementation Plan
 
 1. **Phase 1: Core MCP Server**
-
    - Implement JSON-RPC handler
    - Create database schema
    - Basic prompt listing/retrieval
 
 2. **Phase 2: GitHub Integration**
-
    - GitHub API client
    - File parsing (YAML/JSON/Markdown)
    - Sync service with polling
 
 3. **Phase 3: Dashboard UI**
-
    - Prompt listing page
    - Prompt detail view
    - Usage analytics
@@ -259,3 +254,63 @@ MCP_CACHE_TTL=300         // 5 minutes
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/specification)
 - [JSON-RPC 2.0 Specification](https://www.jsonrpc.org/specification)
 - [GitHub REST API Documentation](https://docs.github.com/en/rest)
+
+## Actual Implementation
+
+The MCP server was implemented with a much simpler architecture than originally proposed:
+
+### Key Differences
+
+1. **File-Based Storage**: Instead of PostgreSQL tables, prompts are stored as YAML files in a local `prompts/` directory
+2. **No GitHub Sync**: Removed the complex GitHub synchronization in favor of direct file management
+3. **Handlebars Templating**: Replaced custom `{variable}` syntax with industry-standard Handlebars `{{variable}}` templating
+4. **No Stats/Arguments**: Removed prompt usage tracking and argument validation features
+
+### Implemented Architecture
+
+#### 1. PromptRegistryService
+
+- Loads YAML files from the `prompts/` directory
+- Maintains an in-memory cache of compiled Handlebars templates
+- Supports hot-reloading via file system watcher
+- No database interactions
+
+#### 2. File Format
+
+```yaml
+# prompts/code-review.yaml
+name: Code Review Assistant
+description: Helps review code for best practices
+template: |
+  You are an expert code reviewer for {{language}} code.
+  {{#if focus}}
+  Focus area: {{focus}}
+  {{else}}
+  General code review
+  {{/if}}
+```
+
+#### 3. Simplified Configuration
+
+```bash
+MCP_ENABLED=true
+MCP_PROMPTS_DIR=./prompts     # Local directory for YAML files
+MCP_WATCH_FILES=true           # Enable hot-reloading
+```
+
+#### 4. Benefits of Actual Implementation
+
+- Significantly simpler codebase
+- No database migrations required
+- Easier local development and testing
+- Standard Handlebars templating with full feature support
+- Direct file editing without sync delays
+
+#### 5. Trade-offs
+
+- No centralized prompt repository
+- No usage analytics
+- Manual prompt distribution across deployments
+- No version control within the system (rely on git)
+
+This simpler implementation meets the core requirements while avoiding the complexity of database storage and GitHub synchronization.
