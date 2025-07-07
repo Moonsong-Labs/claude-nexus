@@ -11,8 +11,8 @@ import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shar
 
 export function createMcpApiRoutes(
   promptService: PromptService,
-  syncService: GitHubSyncService,
-  syncScheduler: SyncScheduler
+  syncService: GitHubSyncService | null,
+  syncScheduler: SyncScheduler | null
 ) {
   const mcpApi = new Hono()
 
@@ -114,6 +114,10 @@ export function createMcpApiRoutes(
 
   // Trigger manual sync
   mcpApi.post('/sync', async c => {
+    if (!syncScheduler) {
+      return c.json({ error: 'GitHub sync not configured' }, 501)
+    }
+
     try {
       await syncScheduler.triggerSync()
       return c.json({ message: 'Sync triggered successfully' })
@@ -132,6 +136,17 @@ export function createMcpApiRoutes(
 
   // Get sync status
   mcpApi.get('/sync/status', async c => {
+    if (!syncService) {
+      return c.json({
+        repository: null,
+        branch: null,
+        sync_status: 'not_configured',
+        last_sync_at: null,
+        last_commit_sha: null,
+        last_error: 'GitHub sync service not configured',
+      })
+    }
+
     try {
       const status = await syncService.getSyncStatus()
       return c.json(

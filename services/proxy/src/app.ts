@@ -181,6 +181,19 @@ export async function createProxyApp(): Promise<
     if (promptService && syncService && syncScheduler) {
       const mcpApiRoutes = createMcpApiRoutes(promptService, syncService, syncScheduler)
       app.route('/api/mcp', mcpApiRoutes)
+      logger.info('MCP API routes registered at /api/mcp')
+    } else if (promptService) {
+      // If we have prompt service but no sync services, still register the routes
+      // with null sync services (they'll return appropriate errors)
+      const mcpApiRoutes = createMcpApiRoutes(promptService, null as any, null as any)
+      app.route('/api/mcp', mcpApiRoutes)
+      logger.info('MCP API routes registered at /api/mcp (without sync services)')
+    } else {
+      logger.warn('MCP API routes not registered - services not available', {
+        promptService: !!promptService,
+        syncService: !!syncService,
+        syncScheduler: !!syncScheduler,
+      })
     }
   }
 
