@@ -6,7 +6,7 @@ Please groom the repository for code quality:
 3. Ensure code follows project conventions.
 4. Run and verify all tests and linters.
 5. Summarize key improvements made and make a PR with title starting with exactly "[grooming]" followed by meaningful title
-</instructions>
+   </instructions>
 
 <important>
 * When having doubt with best practice, search through perplexify tools
