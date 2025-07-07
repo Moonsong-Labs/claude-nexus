@@ -106,34 +106,32 @@ promptsRoute.get('/', async c => {
         <!-- Prompts List -->
         <div class="prompts-grid">
           ${prompts.length > 0
-            ? prompts
-                .map(
-                  (prompt: any) => html`
-                    <div class="prompt-card">
-                      <h3 class="prompt-name">${prompt.name}</h3>
-                      ${prompt.description
-                        ? html` <p class="prompt-description">${prompt.description}</p> `
+            ? prompts.map(
+                (prompt: any) => html`
+                  <div class="prompt-card">
+                    <h3 class="prompt-name">${prompt.name}</h3>
+                    ${prompt.description
+                      ? html` <p class="prompt-description">${prompt.description}</p> `
+                      : ''}
+                    <div class="prompt-meta">
+                      <span class="prompt-id">${prompt.promptId}</span>
+                      ${prompt.arguments && prompt.arguments.length > 0
+                        ? html`
+                            <span class="prompt-args"
+                              >${prompt.arguments.length}
+                              argument${prompt.arguments.length > 1 ? 's' : ''}</span
+                            >
+                          `
                         : ''}
-                      <div class="prompt-meta">
-                        <span class="prompt-id">${prompt.id}</span>
-                        ${prompt.arguments && prompt.arguments.length > 0
-                          ? html`
-                              <span class="prompt-args"
-                                >${prompt.arguments.length}
-                                argument${prompt.arguments.length > 1 ? 's' : ''}</span
-                              >
-                            `
-                          : ''}
-                      </div>
-                      <div class="prompt-actions">
-                        <a href="/dashboard/prompts/${prompt.id}" class="btn btn-small"
-                          >View Details</a
-                        >
-                      </div>
                     </div>
-                  `
-                )
-                .join('')
+                    <div class="prompt-actions">
+                      <a href="/dashboard/prompts/${prompt.promptId}" class="btn btn-small"
+                        >View Details</a
+                      >
+                    </div>
+                  </div>
+                `
+              )
             : html`
                 <div class="empty-state">
                   <p>
