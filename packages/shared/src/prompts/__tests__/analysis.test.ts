@@ -135,14 +135,29 @@ describe('parseAnalysisResponse', () => {
       { "type": "task", "description": "Configure providers", "priority": "medium" }
     ],
     "promptingTips": [
-      "Be more specific about which authentication provider you want to use",
-      "Include your current Next.js version for version-specific advice",
-      "Ask about specific authentication flows (OAuth, credentials, etc.)"
+      {
+        "category": "specificity",
+        "issue": "Authentication provider not specified",
+        "suggestion": "Be more specific about which authentication provider you want to use",
+        "example": "I want to implement Google OAuth with NextAuth.js"
+      },
+      {
+        "category": "context",
+        "issue": "Missing version information",
+        "suggestion": "Include your current Next.js version for version-specific advice"
+      },
+      {
+        "category": "structure",
+        "issue": "Authentication flow not specified",
+        "suggestion": "Ask about specific authentication flows (OAuth, credentials, etc.)"
+      }
     ],
     "interactionPatterns": {
-      "questioningStyle": "direct",
-      "contextProvision": "moderate",
-      "followUpFrequency": "low"
+      "promptClarity": 8,
+      "contextCompleteness": 7,
+      "followUpEffectiveness": "good",
+      "commonIssues": ["Missing version info", "Vague requirements"],
+      "strengths": ["Clear intent", "Good questions"]
     },
     "technicalDetails": {
       "frameworks": ["Next.js", "NextAuth.js"],
@@ -178,8 +193,8 @@ describe('parseAnalysisResponse', () => {
         "userIntent": "Test intent",
         "outcomes": ["Outcome 1"],
         "actionItems": [{ "type": "task", "description": "Action 1", "priority": "medium" }],
-        "promptingTips": ["Tip 1"],
-        "interactionPatterns": { "questioningStyle": "direct", "contextProvision": "minimal", "followUpFrequency": "low" },
+        "promptingTips": [{ "category": "clarity", "issue": "Test issue", "suggestion": "Tip 1" }],
+        "interactionPatterns": { "promptClarity": 5, "contextCompleteness": 5, "followUpEffectiveness": "needs_improvement", "commonIssues": [], "strengths": [] },
         "technicalDetails": { "frameworks": [], "issues": [], "solutions": [] },
         "conversationQuality": { "clarity": "medium", "completeness": "partial", "effectiveness": "effective" }
       }
@@ -245,8 +260,8 @@ describe('parseAnalysisResponse', () => {
     "userIntent": "Test intent",
     "outcomes": ["Outcome 1"],
     "actionItems": [{ "type": "task", "description": "Action 1", "priority": "low" }],
-    "promptingTips": ["Tip"],
-    "interactionPatterns": { "questioningStyle": "direct", "contextProvision": "minimal", "followUpFrequency": "low" },
+    "promptingTips": [{ "category": "clarity", "issue": "Test", "suggestion": "Tip" }],
+    "interactionPatterns": { "promptClarity": 5, "contextCompleteness": 5, "followUpEffectiveness": "good", "commonIssues": [], "strengths": [] },
     "technicalDetails": {
       "frameworks": "Not an array",
       "issues": [],
@@ -281,8 +296,8 @@ describe('parseAnalysisResponse', () => {
     "userIntent": "Intent",
     "outcomes": ["Outcome"],
     "actionItems": [{ "type": "task", "description": "Action", "priority": "low" }],
-    "promptingTips": ["Tip"],
-    "interactionPatterns": { "questioningStyle": "direct", "contextProvision": "minimal", "followUpFrequency": "low" },
+    "promptingTips": [{ "category": "clarity", "issue": "Test", "suggestion": "Tip" }],
+    "interactionPatterns": { "promptClarity": 5, "contextCompleteness": 5, "followUpEffectiveness": "good", "commonIssues": [], "strengths": [] },
     "technicalDetails": { "frameworks": [], "issues": [], "solutions": [] },
     "conversationQuality": { 
       "clarity": "high", 

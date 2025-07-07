@@ -113,6 +113,14 @@ describe('AI Analysis DB Functions', () => {
         userIntent: 'Test intent',
         outcomes: ['outcome1'],
         actionItems: [],
+        promptingTips: [],
+        interactionPatterns: {
+          promptClarity: 7,
+          contextCompleteness: 8,
+          followUpEffectiveness: 'good' as const,
+          commonIssues: [],
+          strengths: [],
+        },
         technicalDetails: {
           frameworks: ['framework1'],
           issues: [],

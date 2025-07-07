@@ -21,12 +21,31 @@ describe('AI Analysis Types and Schemas', () => {
         outcomes: ['Design pattern selected', 'Implementation plan created'],
         actionItems: [
           { type: 'task', description: 'Set up JWT library', priority: 'high' },
-          { type: 'improvement', description: 'Create user database schema', priority: 'medium' },
+          {
+            type: 'prompt_improvement',
+            description: 'Create user database schema',
+            priority: 'medium',
+          },
         ],
         promptingTips: [
-          'Be more specific about security requirements',
-          'Include example code for implementation',
-          'Ask about error handling strategies',
+          {
+            category: 'specificity',
+            issue: 'Security requirements were too vague',
+            suggestion:
+              'Be more specific about security requirements, such as authentication methods and authorization levels',
+            example:
+              'I need to implement JWT authentication with role-based access control for admin and user roles',
+          },
+          {
+            category: 'context',
+            issue: 'Missing implementation context',
+            suggestion: 'Include example code or current implementation attempts',
+          },
+          {
+            category: 'structure',
+            issue: 'Questions about error handling were unclear',
+            suggestion: 'Ask about specific error scenarios and handling strategies',
+          },
         ],
         technicalDetails: {
           frameworks: ['Express.js', 'jsonwebtoken'],
@@ -37,6 +56,13 @@ describe('AI Analysis Types and Schemas', () => {
           clarity: 'high',
           completeness: 'complete',
           effectiveness: 'effective',
+        },
+        interactionPatterns: {
+          promptClarity: 7,
+          contextCompleteness: 8,
+          followUpEffectiveness: 'good',
+          commonIssues: ['Vague security requirements', 'Missing context'],
+          strengths: ['Clear intent', 'Good follow-up questions'],
         },
       }
 
@@ -66,6 +92,13 @@ describe('AI Analysis Types and Schemas', () => {
           completeness: 'complete',
           effectiveness: 'effective',
         },
+        interactionPatterns: {
+          promptClarity: 5,
+          contextCompleteness: 5,
+          followUpEffectiveness: 'good',
+          commonIssues: [],
+          strengths: [],
+        },
       }
 
       const result = ConversationAnalysisSchema.safeParse(invalidData)
@@ -93,6 +126,13 @@ describe('AI Analysis Types and Schemas', () => {
           clarity: 'very-high', // Invalid
           completeness: 'complete',
           effectiveness: 'effective',
+        },
+        interactionPatterns: {
+          promptClarity: 5,
+          contextCompleteness: 5,
+          followUpEffectiveness: 'good',
+          commonIssues: [],
+          strengths: [],
         },
       }
 
@@ -132,6 +172,13 @@ describe('AI Analysis Types and Schemas', () => {
           clarity: 'medium',
           completeness: 'partial',
           effectiveness: 'needs improvement',
+        },
+        interactionPatterns: {
+          promptClarity: 5,
+          contextCompleteness: 4,
+          followUpEffectiveness: 'needs_improvement',
+          commonIssues: ['Insufficient context', 'Unclear requirements'],
+          strengths: ['Direct questions'],
         },
       }
 
@@ -263,6 +310,14 @@ describe('AI Analysis Types and Schemas', () => {
             userIntent: 'test',
             outcomes: [],
             actionItems: [],
+            promptingTips: [],
+            interactionPatterns: {
+              promptClarity: 5,
+              contextCompleteness: 5,
+              followUpEffectiveness: 'good',
+              commonIssues: [],
+              strengths: [],
+            },
             technicalDetails: {
               frameworks: [],
               issues: [],
@@ -328,6 +383,14 @@ describe('AI Analysis Types and Schemas', () => {
         userIntent: 'test',
         outcomes: [],
         actionItems: [],
+        promptingTips: [],
+        interactionPatterns: {
+          promptClarity: 5,
+          contextCompleteness: 4,
+          followUpEffectiveness: 'needs_improvement',
+          commonIssues: ['Insufficient context', 'Unclear requirements'],
+          strengths: ['Direct questions'],
+        },
         technicalDetails: {
           frameworks: [],
           issues: [],
@@ -354,7 +417,29 @@ describe('AI Analysis Types and Schemas', () => {
         sentiment: 'positive' as const,
         userIntent: 'Learn about secure authentication',
         outcomes: ['Understanding achieved', 'Plan created'],
-        actionItems: ['Implement JWT', 'Set up refresh tokens'],
+        actionItems: [
+          { type: 'task', description: 'Implement JWT', priority: 'high' },
+          { type: 'task', description: 'Set up refresh tokens', priority: 'medium' },
+        ],
+        promptingTips: [
+          {
+            category: 'specificity',
+            issue: 'Security requirements not detailed enough',
+            suggestion: 'Be specific about your security requirements',
+          },
+          {
+            category: 'context',
+            issue: 'Missing version information',
+            suggestion: 'Include version information for better compatibility advice',
+          },
+        ],
+        interactionPatterns: {
+          promptClarity: 7,
+          contextCompleteness: 8,
+          followUpEffectiveness: 'good',
+          commonIssues: ['Vague security requirements', 'Missing context'],
+          strengths: ['Clear intent', 'Good follow-up questions'],
+        },
         technicalDetails: {
           frameworks: ['Express', 'Passport.js'],
           issues: ['Session management'],
@@ -363,7 +448,7 @@ describe('AI Analysis Types and Schemas', () => {
         conversationQuality: {
           clarity: 'high' as const,
           completeness: 'complete' as const,
-          effectiveness: 'highly effective' as const,
+          effectiveness: 'effective' as const,
         },
       }
 
