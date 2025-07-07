@@ -28,19 +28,16 @@ The choice of CI/CD platform and strategy would significantly impact developer p
 ## Considered Options
 
 1. **GitHub Actions**
-
    - Description: GitHub's native CI/CD platform
    - Pros: Native integration, free for public repos, good marketplace
    - Cons: Limited free minutes for private repos
 
 2. **GitLab CI**
-
    - Description: GitLab's integrated CI/CD
    - Pros: Powerful, self-hostable, great for monorepos
    - Cons: Requires GitLab, learning curve
 
 3. **CircleCI**
-
    - Description: Cloud-based CI/CD service
    - Pros: Fast, good caching, Docker support
    - Cons: Cost, separate service to manage
@@ -135,7 +132,6 @@ We will use **GitHub Actions** for all CI/CD workflows.
 ### Risks and Mitigations
 
 - **Risk**: GitHub Actions outages affect deployments
-
   - **Mitigation**: Document manual deployment procedures
   - **Mitigation**: Consider backup CI/CD for critical situations
 
@@ -154,13 +150,11 @@ We will use **GitHub Actions** for all CI/CD workflows.
 ## Workflow Patterns
 
 1. **PR Validation**:
-
    - TypeScript checking
    - Build verification
    - Future: automated tests
 
 2. **Main Branch Protection**:
-
    - Require PR reviews
    - Require CI passing
    - No direct pushes

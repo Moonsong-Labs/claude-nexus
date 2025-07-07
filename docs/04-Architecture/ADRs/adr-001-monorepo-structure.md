@@ -19,13 +19,11 @@ The Claude Nexus Proxy project consists of multiple interconnected services: a p
 ## Considered Options
 
 1. **Separate Repositories**
-
    - Description: Each service in its own Git repository
    - Pros: Complete independence, clear boundaries, separate CI/CD
    - Cons: Complex dependency management, code duplication, harder to maintain consistency
 
 2. **Single Application**
-
    - Description: All code in one application with different entry points
    - Pros: Simple structure, easy sharing
    - Cons: Can't deploy services independently, mixing concerns, larger deployment artifacts
@@ -89,7 +87,6 @@ Root `package.json`:
 ### Risks and Mitigations
 
 - **Risk**: Accidental coupling between services
-
   - **Mitigation**: Enforce that services only communicate via APIs, not direct imports
 
 - **Risk**: Large repository size over time

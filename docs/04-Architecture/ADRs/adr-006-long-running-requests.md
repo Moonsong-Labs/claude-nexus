@@ -26,19 +26,16 @@ We needed to support requests that could run for 10+ minutes while maintaining s
 ## Considered Options
 
 1. **Fixed Extended Timeout**
-
    - Description: Increase all timeouts to 10 minutes
    - Pros: Simple implementation
    - Cons: Wastes resources on genuinely failed requests
 
 2. **Progressive Timeout**
-
    - Description: Start with short timeout, increase on retry
    - Pros: Fast failure for actual errors
    - Cons: Complex implementation, multiple request attempts
 
 3. **Configurable Timeouts**
-
    - Description: Environment variables for different timeout values
    - Pros: Flexible, adaptable to different needs
    - Cons: Requires configuration knowledge
@@ -63,7 +60,6 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
    ```
 
 2. **Timeout Hierarchy**:
-
    - Claude API timeout: 10 minutes
    - Proxy server timeout: 11 minutes (allows for overhead)
    - Client connection timeout: Should be > 11 minutes
@@ -114,12 +110,10 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
 ### Risks and Mitigations
 
 - **Risk**: Resource exhaustion from many long connections
-
   - **Mitigation**: Connection limits per domain
   - **Mitigation**: Monitor active connection count
 
 - **Risk**: Genuinely stuck requests waste resources
-
   - **Mitigation**: Server timeout slightly higher than API timeout
   - **Mitigation**: Proper error logging for investigation
 
@@ -138,7 +132,6 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
 ## Operational Considerations
 
 1. **Monitoring**:
-
    - Track request duration distribution
    - Alert on requests approaching timeout
    - Monitor timeout error rates

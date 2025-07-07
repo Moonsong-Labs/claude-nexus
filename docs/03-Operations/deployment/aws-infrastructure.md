@@ -41,7 +41,6 @@ Each EC2 instance should have the following structure in the ubuntu user's home 
 Each EC2 instance must be tagged appropriately:
 
 1. **Name Tag** (Required)
-
    - Must contain "Nexus Proxy" (case-insensitive)
    - Example: `"Nexus Proxy Production Server 1"`
 
@@ -121,12 +120,10 @@ The `manage-nexus-proxies.sh` script provides environment-aware operations:
 Each environment should have:
 
 1. **Separate Databases**
-
    - Production: High-availability RDS instance
    - Staging: Smaller RDS instance or containerized PostgreSQL
 
 2. **Separate Credentials**
-
    - Use different Claude API keys for each environment
    - Store in separate credential files
 

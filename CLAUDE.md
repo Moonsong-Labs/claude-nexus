@@ -345,13 +345,11 @@ The proxy can collect real request samples for test development:
 The project includes comprehensive tests for conversation and subtask linking:
 
 - **Conversation Linking Tests**: `packages/shared/src/utils/__tests__/conversation-linker.test.ts`
-
   - Tests message hashing, branch detection, and conversation linking
   - Includes JSON fixture tests for real-world scenarios
   - Tests integrated subtask detection within ConversationLinker
 
 - **Subtask Detection Tests**: `packages/shared/src/utils/__tests__/subtask-detection.test.ts`
-
   - Tests complete subtask detection logic in ConversationLinker
   - Validates TaskContext handling and invocation matching
   - Tests conversation inheritance and branch naming

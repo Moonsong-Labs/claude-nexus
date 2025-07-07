@@ -143,7 +143,7 @@ export class ProxyApiClient {
     }
 
     if (this.apiKey) {
-      headers['X-Api-Key'] = this.apiKey
+      headers['X-Dashboard-Key'] = this.apiKey
     }
 
     return headers
@@ -620,6 +620,31 @@ export class ProxyApiClient {
       }
 
       logger.error('API POST request failed', {
+        error: getErrorMessage(error),
+        path,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Make a generic fetch request to the proxy API
+   */
+  async fetch(path: string, options?: RequestInit): Promise<Response> {
+    try {
+      const url = new URL(path, this.baseUrl)
+
+      const response = await fetch(url.toString(), {
+        ...options,
+        headers: {
+          ...this.getHeaders(),
+          ...(options?.headers as Record<string, string>),
+        },
+      })
+
+      return response
+    } catch (error) {
+      logger.error('API fetch request failed', {
         error: getErrorMessage(error),
         path,
       })

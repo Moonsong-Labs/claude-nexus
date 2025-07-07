@@ -199,6 +199,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
   app.route('/', analyticsPartialRoutes)
   app.route('/', analyticsConversationPartialRoutes)
 
+  // Import and mount MCP proxy routes
+  const { mcpProxyRoutes } = await import('./routes/mcp-proxy.js')
+  app.route('/dashboard/api', mcpProxyRoutes)
+
   // Root redirect to dashboard
   app.get('/', c => {
     return c.redirect('/dashboard')

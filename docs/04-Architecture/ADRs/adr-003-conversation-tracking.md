@@ -19,13 +19,11 @@ Claude API conversations consist of a series of messages between users and the a
 ## Considered Options
 
 1. **Client-Provided IDs**
-
    - Description: Require clients to send conversation IDs
    - Pros: Simple implementation, explicit tracking
    - Cons: Requires client changes, breaks API compatibility
 
 2. **Session-Based Tracking**
-
    - Description: Use session cookies or tokens
    - Pros: Works with existing HTTP mechanisms
    - Cons: Doesn't work with API clients, loses context on session end
@@ -113,11 +111,9 @@ CREATE INDEX idx_message_hashes ON api_requests(parent_message_hash, current_mes
 ### Risks and Mitigations
 
 - **Risk**: Hash collisions could link unrelated conversations
-
   - **Mitigation**: Use SHA-256 for extremely low collision probability
 
 - **Risk**: Message format changes could break hashing
-
   - **Mitigation**: Comprehensive normalization and format detection
 
 - **Risk**: Performance impact on high-volume systems
