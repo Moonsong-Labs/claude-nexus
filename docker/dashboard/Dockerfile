@@ -12,6 +12,9 @@ COPY . .
 # Install all dependencies
 RUN bun install
 
+# Generate prompt assets
+RUN bun run scripts/generate-prompt-assets.ts
+
 # Build production bundle
 RUN cd services/dashboard && bun run build:production
 

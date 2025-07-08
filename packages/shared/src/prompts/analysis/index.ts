@@ -1,14 +1,8 @@
-import { readFileSync } from 'fs'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
 import { z } from 'zod'
 import { ConversationAnalysisSchema } from '../../types/ai-analysis.js'
 import { ANALYSIS_PROMPT_CONFIG } from '../../config/ai-analysis.js'
 import { truncateConversation, type Message } from '../truncation.js'
-
-// Get the directory of this file
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+import { PROMPT_ASSETS } from './prompt-assets.js'
 
 // Define the structure for Gemini API content
 export interface GeminiContent {
@@ -17,19 +11,19 @@ export interface GeminiContent {
 }
 
 /**
- * Loads prompt assets from the filesystem for a given version
+ * Loads prompt assets for a given version
  */
 function loadPromptAssets(version: string = 'v1') {
-  const versionDir = join(__dirname, version)
-
-  try {
-    const systemPrompt = readFileSync(join(versionDir, 'system-prompt.md'), 'utf-8')
-    const examples = JSON.parse(readFileSync(join(versionDir, 'examples.json'), 'utf-8'))
-
-    return { systemPrompt, examples }
-  } catch (error) {
-    throw new Error(`Failed to load prompt assets for version ${version}: ${error}`)
+  // Use embedded prompt assets instead of filesystem
+  if (version in PROMPT_ASSETS) {
+    const versionAssets = PROMPT_ASSETS[version as keyof typeof PROMPT_ASSETS]
+    return {
+      systemPrompt: versionAssets.systemPrompt,
+      examples: versionAssets.examples
+    }
   }
+  
+  throw new Error(`Unknown prompt version: ${version}. Available versions: ${Object.keys(PROMPT_ASSETS).join(', ')}`)
 }
 
 /**
