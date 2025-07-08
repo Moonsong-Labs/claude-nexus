@@ -12,11 +12,8 @@ COPY . .
 # Install all dependencies
 RUN bun install
 
-# Generate prompt assets
-RUN bun run scripts/generate-prompt-assets.ts
-
-# Build production bundle
-RUN cd services/dashboard && bun run build:production
+# Build production bundle (prompt assets already generated and committed)
+RUN cd services/dashboard && DOCKER_BUILD=true bun run build:production
 
 # ===== Runtime Stage =====
 FROM oven/bun:alpine AS runtime

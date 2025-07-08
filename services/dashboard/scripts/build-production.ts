@@ -9,9 +9,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 console.log('🏗️  Building Claude Nexus Dashboard Service for Production...')
 
-// Generate prompt assets first
-console.log('📝 Generating prompt assets...')
-await $`cd ../.. && bun run scripts/generate-prompt-assets.ts`
+// Generate prompt assets first (skip in Docker where file already exists)
+if (!process.env.DOCKER_BUILD) {
+  console.log('📝 Generating prompt assets...')
+  await $`cd ${join(__dirname, '../../..')} && bun scripts/generate-prompt-assets.ts`
+}
 
 const distDir = join(__dirname, '..', 'dist')
 const srcDir = join(__dirname, '..', 'src')
