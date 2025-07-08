@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Test script for AI Analysis prompt engineering functionality
- * 
+ *
  * This script tests:
  * - Message truncation with various conversation sizes
  * - Token counting accuracy
@@ -51,10 +51,10 @@ async function testTruncation() {
   console.log(`  Input: ${largeConv.length} messages`)
   console.log(`  Output: ${largeResult.length} messages`)
   console.log(`  Truncated: ${largeResult.length < largeConv.length}`)
-  
+
   // Check for truncation marker
-  const hasTruncationMarker = largeResult.some(
-    msg => msg.content.includes('[...conversation truncated...]')
+  const hasTruncationMarker = largeResult.some(msg =>
+    msg.content.includes('[...conversation truncated...]')
   )
   console.log(`  Has truncation marker: ${hasTruncationMarker}\n`)
 
@@ -98,7 +98,9 @@ async function testPromptAssembly() {
   console.log(`  Total length: ${prompt.length} chars`)
   console.log(`  Messages count: ${prompt.messages.length}`)
   console.log(`  First message role: ${prompt.messages[0].role}`)
-  console.log(`  Has system prompt: ${prompt.messages[0].content.includes('expert conversation analyst')}`)
+  console.log(
+    `  Has system prompt: ${prompt.messages[0].content.includes('expert conversation analyst')}`
+  )
   console.log(`  Has examples: ${prompt.messages.length > 1}\n`)
 }
 

@@ -19,11 +19,13 @@ function loadPromptAssets(version: string = 'v1') {
     const versionAssets = PROMPT_ASSETS[version as keyof typeof PROMPT_ASSETS]
     return {
       systemPrompt: versionAssets.systemPrompt,
-      examples: versionAssets.examples
+      examples: versionAssets.examples,
     }
   }
-  
-  throw new Error(`Unknown prompt version: ${version}. Available versions: ${Object.keys(PROMPT_ASSETS).join(', ')}`)
+
+  throw new Error(
+    `Unknown prompt version: ${version}. Available versions: ${Object.keys(PROMPT_ASSETS).join(', ')}`
+  )
 }
 
 /**
