@@ -6,6 +6,9 @@ describe('Theme Management', () => {
     getItem: mock(),
     setItem: mock(),
     clear: mock(),
+    length: 0,
+    key: mock(),
+    removeItem: mock(),
   }
 
   // Mock DOM elements
@@ -36,10 +39,8 @@ describe('Theme Management', () => {
     mockDocument.documentElement.setAttribute.mockReset()
 
     // Mock global objects
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    global.localStorage = localStorageMock as any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    global.document = mockDocument as any
+    global.localStorage = localStorageMock
+    global.document = mockDocument
   })
 
   it('should default to light theme when no preference is stored', () => {
