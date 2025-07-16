@@ -224,6 +224,56 @@ The proxy automatically tracks conversations and detects branches using message 
 - Stores refreshed tokens back to credential files
 - Adds `anthropic-beta: oauth-2025-04-20` header
 
+### MCP (Model Context Protocol) Server
+
+The proxy includes an MCP server for managing and serving prompts:
+
+**Features:**
+
+- File-based prompt storage using YAML files in `prompts/` directory
+- Handlebars templating with `{{variable}}` syntax
+- Hot-reloading when files change
+- Optional GitHub repository synchronization
+
+**Configuration:**
+
+```bash
+# Basic MCP setup (file-based)
+MCP_ENABLED=true
+MCP_PROMPTS_DIR=./prompts
+MCP_WATCH_FILES=true
+
+# Optional GitHub sync
+MCP_GITHUB_OWNER=your-org
+MCP_GITHUB_REPO=prompt-library
+MCP_GITHUB_BRANCH=main
+MCP_GITHUB_TOKEN=ghp_xxxx
+MCP_GITHUB_PATH=prompts/
+MCP_SYNC_INTERVAL=300
+```
+
+**How it works:**
+
+- When only `MCP_ENABLED=true` is set, prompts are loaded from local YAML files
+- When GitHub credentials are configured, the system syncs from the repository
+- GitHub sync fetches prompts and writes them to the local filesystem
+- **Important**: GitHub sync only replaces files that exist in the repository, preserving local-only prompts
+- Files are validated to prevent path traversal security vulnerabilities
+- The PromptRegistryService loads prompts from files into memory
+- MCP protocol endpoints are available at `/mcp/rpc`
+
+**Prompt format:**
+
+```yaml
+name: My Prompt
+description: Description of the prompt
+template: |
+  You are {{role}}.
+  {{#if context}}
+  Context: {{context}}
+  {{/if}}
+```
+
 ### Token Tracking
 
 **In-Memory Tracking (Legacy)**

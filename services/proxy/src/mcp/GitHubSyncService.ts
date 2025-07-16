@@ -64,7 +64,7 @@ export class GitHubSyncService {
       const { data: ref } = await this.octokit.git.getRef({
         owner: this.owner,
         repo: this.repo,
-        ref: `heads/${this.branch}`,
+        ref: `refs/heads/${this.branch}`,
       })
       const latestSha = ref.object.sha
 
@@ -78,22 +78,56 @@ export class GitHubSyncService {
       // Ensure prompts directory exists
       await fs.mkdir(this.promptsDir, { recursive: true })
 
-      // Clear existing prompts
+      // Fetch prompts first before any destructive operations
+      const prompts = await this.fetchPrompts()
+      logger.info(`Found ${prompts.length} prompt files`)
+
+      // Only proceed with sync if we successfully fetched prompts
+      if (prompts.length === 0) {
+        logger.warn('No prompts found in GitHub repository, skipping sync to prevent data loss')
+        return
+      }
+
+      // Create a set of valid filenames that will be synced
+      const validFilenames = new Set<string>()
+      for (const prompt of prompts) {
+        const safeFilename = path.basename(prompt.filename)
+        if (
+          !safeFilename.includes('/') &&
+          !safeFilename.includes('\\') &&
+          (safeFilename.endsWith('.yaml') || safeFilename.endsWith('.yml'))
+        ) {
+          validFilenames.add(safeFilename)
+        }
+      }
+
+      // Remove only files that will be replaced (not all YAML files)
       const existingFiles = await fs.readdir(this.promptsDir)
       for (const file of existingFiles) {
-        if (file.endsWith('.yaml') || file.endsWith('.yml')) {
+        if (validFilenames.has(file)) {
           await fs.unlink(path.join(this.promptsDir, file))
         }
       }
 
-      // Fetch and save prompts
-      const prompts = await this.fetchPrompts()
-      logger.info(`Found ${prompts.length} prompt files`)
-
       let successCount = 0
       for (const prompt of prompts) {
         try {
-          await fs.writeFile(path.join(this.promptsDir, prompt.filename), prompt.content, 'utf-8')
+          // Sanitize filename to prevent path traversal attacks
+          const safeFilename = path.basename(prompt.filename)
+
+          // Additional validation to ensure no directory separators
+          if (safeFilename.includes('/') || safeFilename.includes('\\')) {
+            logger.warn(`Skipping file with invalid characters in name: ${prompt.filename}`)
+            continue
+          }
+
+          // Only allow .yaml or .yml files
+          if (!safeFilename.endsWith('.yaml') && !safeFilename.endsWith('.yml')) {
+            logger.warn(`Skipping non-YAML file: ${prompt.filename}`)
+            continue
+          }
+
+          await fs.writeFile(path.join(this.promptsDir, safeFilename), prompt.content, 'utf-8')
           successCount++
         } catch (error) {
           logger.error(`Failed to write prompt ${prompt.filename}`, {
@@ -119,6 +153,17 @@ export class GitHubSyncService {
       })
 
       logger.info(`GitHub sync completed. Saved ${successCount}/${prompts.length} prompts`)
+
+      // Log files that were preserved (not in GitHub)
+      const finalFiles = await fs.readdir(this.promptsDir)
+      const preservedFiles = finalFiles.filter(
+        f => (f.endsWith('.yaml') || f.endsWith('.yml')) && !validFilenames.has(f)
+      )
+      if (preservedFiles.length > 0) {
+        logger.info(
+          `Preserved ${preservedFiles.length} local-only prompt files: ${preservedFiles.join(', ')}`
+        )
+      }
     } catch (error) {
       logger.error('GitHub sync failed', {
         error: {
