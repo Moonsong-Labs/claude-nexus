@@ -64,7 +64,7 @@ export class GitHubSyncService {
       const { data: ref } = await this.octokit.git.getRef({
         owner: this.owner,
         repo: this.repo,
-        ref: `refs/heads/${this.branch}`,
+        ref: `heads/${this.branch}`,
       })
       const latestSha = ref.object.sha
 
@@ -85,6 +85,17 @@ export class GitHubSyncService {
       // Only proceed with sync if we successfully fetched prompts
       if (prompts.length === 0) {
         logger.warn('No prompts found in GitHub repository, skipping sync to prevent data loss')
+
+        // Update sync status to reflect successful connection but no prompts
+        await this.updateSyncInfo({
+          repository: `${this.owner}/${this.repo}`,
+          branch: this.branch,
+          lastSyncAt: new Date().toISOString(),
+          lastCommitSha: latestSha,
+          syncStatus: 'success',
+          lastError: null,
+        })
+
         return
       }
 

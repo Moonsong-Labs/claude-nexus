@@ -4,12 +4,17 @@
 
 import { Hono } from 'hono'
 import { ProxyApiClient } from '../services/api-client.js'
+import { csrfProtection } from '../middleware/csrf.js'
 
 export const mcpProxyRoutes = new Hono<{
   Variables: {
     apiClient?: ProxyApiClient
+    csrfToken?: string
   }
 }>()
+
+// Apply CSRF protection to all routes
+mcpProxyRoutes.use('*', csrfProtection())
 
 // Proxy MCP sync endpoint
 mcpProxyRoutes.post('/mcp/sync', async c => {

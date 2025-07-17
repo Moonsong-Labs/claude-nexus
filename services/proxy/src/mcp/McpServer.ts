@@ -21,7 +21,7 @@ export class McpServer {
     version: '1.0.0',
   }
 
-  private readonly protocolVersion = '1.0.0'
+  private readonly protocolVersion = '2024-11-05'
 
   constructor(private promptRegistry: PromptRegistryService) {}
 
