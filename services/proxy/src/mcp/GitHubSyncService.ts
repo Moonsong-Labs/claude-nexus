@@ -93,7 +93,7 @@ export class GitHubSyncService {
           lastSyncAt: new Date().toISOString(),
           lastCommitSha: latestSha,
           syncStatus: 'success',
-          lastError: null,
+          lastError: undefined,
         })
 
         return

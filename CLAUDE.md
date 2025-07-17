@@ -232,6 +232,7 @@ The proxy includes an MCP server for managing and serving prompts:
 **Features:**
 
 - File-based prompt storage using YAML files in `prompts/` directory
+- Prompts are named after their file name (e.g., `feature.yaml` becomes `/feature`)
 - Handlebars templating with `{{variable}}` syntax
 - Hot-reloading when files change
 - Optional GitHub repository synchronization
@@ -266,7 +267,9 @@ MCP_SYNC_INTERVAL=300
 **Prompt format:**
 
 ```yaml
-name: My Prompt
+# Note: The prompt name in Claude will be the file name (without .yaml extension)
+# For example, this file saved as 'my-feature.yaml' will be available as '/my-feature'
+name: My Prompt # This field is ignored - file name is used instead
 description: Description of the prompt
 template: |
   You are {{role}}.

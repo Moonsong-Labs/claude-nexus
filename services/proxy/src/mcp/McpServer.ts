@@ -122,11 +122,20 @@ export class McpServer {
         }
       }
 
+      // Get the prompt info for description
+      const promptInfo = this.promptRegistry.getPrompt(promptId)
+
       const result: GetPromptResult = {
-        prompt: {
-          id: promptId,
-          content,
-        },
+        description: promptInfo?.description,
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: content,
+            },
+          },
+        ],
       }
 
       return {
