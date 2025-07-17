@@ -877,3 +877,92 @@ apiRoutes.get('/token-usage/accounts', async c => {
     return c.json({ error: 'Failed to retrieve accounts data' }, 500)
   }
 })
+
+/**
+ * GET /api/usage/requests/hourly - Get hourly request counts by domain
+ */
+apiRoutes.get('/usage/requests/hourly', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    pool = container.getDbPool()
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    const query = c.req.query()
+    const domain = query.domain
+    const days = parseInt(query.days || '7')
+
+    // Validate days parameter
+    if (days < 1 || days > 30) {
+      return c.json({ error: 'Days parameter must be between 1 and 30' }, 400)
+    }
+
+    const conditions = []
+    const values = []
+    let paramCount = 0
+
+    // Base condition for time range - using parameterized query for security
+    conditions.push(`timestamp >= NOW() - ($${++paramCount} * INTERVAL '1 day')`)
+    values.push(days)
+
+    // Optional domain filter
+    if (domain) {
+      conditions.push(`domain = $${++paramCount}`)
+      values.push(domain)
+    }
+
+    const whereClause = conditions.join(' AND ')
+
+    // Query to get hourly request counts grouped by domain
+    const hourlyQuery = `
+      SELECT
+        domain,
+        DATE_TRUNC('hour', timestamp AT TIME ZONE 'UTC') as hour,
+        COUNT(*) as request_count
+      FROM
+        api_requests
+      WHERE
+        ${whereClause}
+      GROUP BY
+        domain,
+        hour
+      ORDER BY
+        domain,
+        hour
+    `
+
+    const result = await pool.query(hourlyQuery, values)
+
+    // Transform the flat result into nested structure by domain
+    const data: Record<string, Array<{ hour: string; count: number }>> = {}
+
+    result.rows.forEach(row => {
+      const domainKey = row.domain || 'unknown'
+      if (!data[domainKey]) {
+        data[domainKey] = []
+      }
+      data[domainKey].push({
+        hour: row.hour,
+        count: parseInt(row.request_count),
+      })
+    })
+
+    return c.json({
+      data,
+      query: {
+        domain: domain || null,
+        days,
+      },
+    })
+  } catch (error) {
+    logger.error('Failed to get hourly usage data', {
+      error: getErrorMessage(error),
+      stack: getErrorStack(error),
+    })
+    return c.json({ error: 'Failed to retrieve hourly usage data' }, 500)
+  }
+})
