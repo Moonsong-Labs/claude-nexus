@@ -257,23 +257,39 @@ MCP_CACHE_TTL=300         // 5 minutes
 
 ## Actual Implementation
 
-The MCP server was implemented with a much simpler architecture than originally proposed:
+The MCP server was implemented with a hybrid architecture that combines file-based storage with optional GitHub synchronization:
 
-### Key Differences
+### Key Differences from Original Proposal
 
 1. **File-Based Storage**: Instead of PostgreSQL tables, prompts are stored as YAML files in a local `prompts/` directory
-2. **No GitHub Sync**: Removed the complex GitHub synchronization in favor of direct file management
-3. **Handlebars Templating**: Replaced custom `{variable}` syntax with industry-standard Handlebars `{{variable}}` templating
-4. **No Stats/Arguments**: Removed prompt usage tracking and argument validation features
+2. **GitHub Sync to Filesystem**: GitHub sync writes to local files instead of database, preserving local-only prompts
+3. **Handlebars Templating**: Uses industry-standard Handlebars `{{variable}}` templating with full feature support
+4. **Simplified Features**: No prompt usage tracking or argument validation for simplicity
+5. **MCP Protocol Compliance**: Follows MCP specification with protocol version `2024-11-05`
 
 ### Implemented Architecture
 
-#### 1. PromptRegistryService
+#### 1. Core Components
+
+**PromptRegistryService** (`services/proxy/src/mcp/PromptRegistryService.ts`):
 
 - Loads YAML files from the `prompts/` directory
-- Maintains an in-memory cache of compiled Handlebars templates
+- Maintains in-memory cache of compiled Handlebars templates
 - Supports hot-reloading via file system watcher
-- No database interactions
+- Exposes methods for listing and rendering prompts
+
+**GitHubSyncService** (`services/proxy/src/mcp/GitHubSyncService.ts`):
+
+- Optional service that syncs from GitHub repository to local filesystem
+- Preserves local-only prompts (only replaces files that exist in GitHub)
+- Includes security measures against path traversal attacks
+- Updates sync status with success/error states
+
+**McpServer** (`services/proxy/src/mcp/McpServer.ts`):
+
+- Implements JSON-RPC 2.0 protocol handler
+- Supports `initialize`, `prompts/list`, and `prompts/get` methods
+- Returns protocol version `2024-11-05` for Claude Desktop compatibility
 
 #### 2. File Format
 
@@ -290,7 +306,9 @@ template: |
   {{/if}}
 ```
 
-#### 3. Simplified Configuration
+#### 3. Configuration
+
+**Basic Configuration** (file-based only):
 
 ```bash
 MCP_ENABLED=true
@@ -298,19 +316,84 @@ MCP_PROMPTS_DIR=./prompts     # Local directory for YAML files
 MCP_WATCH_FILES=true           # Enable hot-reloading
 ```
 
-#### 4. Benefits of Actual Implementation
+**With GitHub Sync**:
 
-- Significantly simpler codebase
-- No database migrations required
-- Easier local development and testing
-- Standard Handlebars templating with full feature support
-- Direct file editing without sync delays
+```bash
+MCP_ENABLED=true
+MCP_PROMPTS_DIR=./prompts
+MCP_WATCH_FILES=true
+MCP_GITHUB_OWNER=your-org
+MCP_GITHUB_REPO=prompt-library
+MCP_GITHUB_BRANCH=main
+MCP_GITHUB_TOKEN=ghp_xxxx
+MCP_GITHUB_PATH=prompts/
+MCP_SYNC_INTERVAL=300         # Sync every 5 minutes
+```
 
-#### 5. Trade-offs
+#### 4. Security Measures
 
-- No centralized prompt repository
-- No usage analytics
-- Manual prompt distribution across deployments
-- No version control within the system (rely on git)
+- **Path Traversal Protection**: Uses `path.basename()` to sanitize filenames from GitHub
+- **File Type Validation**: Only accepts `.yaml` and `.yml` files
+- **Bearer Token Authentication**: MCP endpoint protected by client API key
+- **Non-Destructive Sync**: Only replaces files that exist in GitHub repository
 
-This simpler implementation meets the core requirements while avoiding the complexity of database storage and GitHub synchronization.
+#### 5. Claude Desktop Integration
+
+To use the MCP server with Claude Desktop:
+
+```bash
+claude mcp add nexus-prompts --scope user -- bunx -y mcp-remote@latest \
+  http://localhost:3000/mcp --header "Authorization: Bearer YOUR_CLIENT_API_KEY"
+```
+
+This command:
+
+- Registers the MCP server with Claude Desktop
+- Uses `mcp-remote` to connect over HTTP
+- Includes authentication header for security
+- Makes prompts available as slash commands in Claude
+
+#### 6. Dashboard Integration
+
+The dashboard provides a UI for:
+
+- Viewing all synced prompts
+- Displaying sync status and errors
+- Triggering manual sync operations
+- CSRF-protected sync endpoint
+
+#### 7. Benefits of Actual Implementation
+
+- **Simplicity**: Much simpler than database-backed approach
+- **Flexibility**: Supports both local files and GitHub sync
+- **Developer Experience**: Hot-reloading for rapid development
+- **Security**: Built-in protections against common vulnerabilities
+- **Compatibility**: Works with Claude Desktop out of the box
+
+#### 8. Trade-offs
+
+- **No Usage Analytics**: Simplified design omits tracking
+- **Manual Distribution**: Prompts must be manually synced across deployments
+- **Limited Versioning**: Relies on Git for version control
+- **No Argument Validation**: Templates accept any variables
+
+### Implementation Status
+
+✅ **Completed**:
+
+- File-based prompt storage with YAML format
+- Handlebars template engine integration
+- GitHub sync service with security measures
+- MCP protocol handler (JSON-RPC 2.0)
+- Claude Desktop compatibility
+- Dashboard UI for prompt management
+- Hot-reloading for development
+- CSRF protection for dashboard routes
+
+❌ **Not Implemented** (from original proposal):
+
+- Database storage (uses filesystem instead)
+- Prompt usage tracking
+- Argument validation
+- Webhook support for instant updates
+- Prompt versioning within the system
