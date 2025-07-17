@@ -6,13 +6,18 @@ import { Hono } from 'hono'
 import { html } from 'hono/html'
 import { layout } from '../layout/index.js'
 import { ProxyApiClient } from '../services/api-client.js'
+import { csrfProtection } from '../middleware/csrf.js'
 
 const promptsRoute = new Hono<{
   Variables: {
     apiClient?: ProxyApiClient
     domain?: string
+    csrfToken?: string
   }
 }>()
+
+// Apply CSRF protection to generate tokens
+promptsRoute.use('*', csrfProtection())
 
 promptsRoute.get('/', async c => {
   const apiClient = c.get('apiClient')
@@ -375,9 +380,15 @@ promptsRoute.get('/', async c => {
           button.textContent = 'Syncing...'
 
           try {
+            // Get CSRF token from meta tag
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
+
             const response = await fetch('/dashboard/api/mcp/sync', {
               method: 'POST',
               credentials: 'same-origin',
+              headers: {
+                'X-CSRF-Token': csrfToken || '',
+              },
             })
 
             if (response.ok) {
@@ -400,7 +411,7 @@ promptsRoute.get('/', async c => {
       </script>
     `
 
-    return c.html(layout('MCP Prompts', content))
+    return c.html(layout('MCP Prompts', content, '', c))
   } catch (error) {
     console.error('Error loading prompts page:', error)
     return c.html(
@@ -412,7 +423,9 @@ promptsRoute.get('/', async c => {
             <p>${error instanceof Error ? error.message : 'Unknown error'}</p>
             <a href="/dashboard" class="btn btn-primary">Back to Dashboard</a>
           </div>
-        `
+        `,
+        '',
+        c
       )
     )
   }

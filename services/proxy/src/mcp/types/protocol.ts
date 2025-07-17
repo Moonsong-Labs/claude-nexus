@@ -80,10 +80,14 @@ export interface GetPromptParams {
 }
 
 export interface GetPromptResult {
-  prompt: {
-    id: string
-    content: string
-  }
+  description?: string
+  messages: Array<{
+    role: string
+    content: {
+      type: string
+      text: string
+    }
+  }>
 }
 
 // Error codes

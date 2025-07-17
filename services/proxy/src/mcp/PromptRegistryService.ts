@@ -76,7 +76,7 @@ export class PromptRegistryService {
             })
 
             tempCache.set(promptId, {
-              name: parsed.name || promptId,
+              name: promptId, // Always use file name as the prompt name
               description: parsed.description,
               rawTemplate: parsed.template,
               compiledTemplate,

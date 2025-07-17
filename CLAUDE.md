@@ -10,10 +10,11 @@ Claude Nexus Proxy - A high-performance proxy for Claude API with monitoring das
 
 Technical decisions are documented in `docs/ADRs/`. Key architectural decisions:
 
-- **ADR-001**: Example ADR
 - **ADR-012**: Database Schema Evolution Strategy - TypeScript migrations with init SQL
 - **ADR-013**: TypeScript Project References - Monorepo type checking solution
-- **ADR-016**: AI-Powered Conversation Analysis - Background job architecture for AI analysis
+- **ADR-016**: MCP Server Implementation - Model Context Protocol server architecture (superseded)
+- **ADR-017**: MCP Prompt Sharing - Current implementation for prompt sharing via MCP
+- **ADR-018**: AI-Powered Conversation Analysis - Background job architecture for AI analysis
 
 **AI Assistant Directive**: When discussing architecture or making technical decisions, always reference relevant ADRs. If a new architectural decision is made during development, create or update an ADR to document it. This ensures all technical decisions have clear rationale and can be revisited if needed.
 
@@ -223,6 +224,87 @@ The proxy automatically tracks conversations and detects branches using message 
 - Auto-refresh tokens 1 minute before expiry
 - Stores refreshed tokens back to credential files
 - Adds `anthropic-beta: oauth-2025-04-20` header
+
+### MCP (Model Context Protocol) Server
+
+The proxy includes an MCP server for managing and serving prompts:
+
+**Features:**
+
+- File-based prompt storage using YAML files in `prompts/` directory
+- Prompts are named after their file name (e.g., `feature.yaml` becomes `/feature`)
+- Handlebars templating with `{{variable}}` syntax
+- Hot-reloading when files change
+- Optional GitHub repository synchronization
+
+**Configuration:**
+
+```bash
+# Basic MCP setup (file-based)
+MCP_ENABLED=true
+MCP_PROMPTS_DIR=./prompts
+MCP_WATCH_FILES=true
+
+# Optional GitHub sync
+MCP_GITHUB_OWNER=your-org
+MCP_GITHUB_REPO=prompt-library
+MCP_GITHUB_BRANCH=main
+MCP_GITHUB_TOKEN=ghp_xxxx
+MCP_GITHUB_PATH=prompts/
+MCP_SYNC_INTERVAL=300
+```
+
+**How it works:**
+
+- When only `MCP_ENABLED=true` is set, prompts are loaded from local YAML files
+- When GitHub credentials are configured, the system syncs from the repository
+- GitHub sync fetches prompts and writes them to the local filesystem
+- **Important**: GitHub sync only replaces files that exist in the repository, preserving local-only prompts
+- Files are validated to prevent path traversal security vulnerabilities
+- The PromptRegistryService loads prompts from files into memory
+- MCP protocol endpoints are available at `/mcp`
+
+**Prompt format:**
+
+```yaml
+# Note: The prompt name in Claude will be the file name (without .yaml extension)
+# For example, this file saved as 'my-feature.yaml' will be available as '/my-feature'
+name: My Prompt # This field is ignored - file name is used instead
+description: Description of the prompt
+template: |
+  You are {{role}}.
+  {{#if context}}
+  Context: {{context}}
+  {{/if}}
+```
+
+**Using MCP with Claude Desktop:**
+
+1. **Install the MCP server in Claude Desktop**:
+
+   ```bash
+   claude mcp add nexus-prompts --scope user -- bunx -y mcp-remote@latest http://localhost:3000/mcp --header "Authorization: Bearer YOUR_CLIENT_API_KEY"
+   ```
+
+2. **Replace YOUR_CLIENT_API_KEY** with the actual client API key from your domain's credential file (e.g., `cnp_live_...`)
+
+3. **Restart Claude Desktop** to load the MCP server
+
+4. **Available commands**:
+   - Prompts will appear as slash commands in Claude (e.g., `/feature` for a prompt named `feature.yaml`)
+   - Use tab completion to see available prompts
+
+**MCP Implementation Details:**
+
+- **Protocol Version**: Uses MCP protocol version `2024-11-05`
+- **Authentication**: Bearer token authentication via client API keys
+- **Endpoints**:
+  - `POST /mcp` - Main MCP JSON-RPC endpoint
+  - `GET /mcp` - Discovery endpoint
+- **Supported Methods**:
+  - `initialize` - Protocol handshake
+  - `prompts/list` - List available prompts
+  - `prompts/get` - Get and render a specific prompt with variables
 
 ### Token Tracking
 

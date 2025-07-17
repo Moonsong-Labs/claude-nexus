@@ -10,7 +10,6 @@ import {
   type InitializeResult,
   type ListPromptsParams,
   type ListPromptsResult,
-  type GetPromptParams,
   type GetPromptResult,
 } from './types/protocol.js'
 import type { PromptRegistryService } from './PromptRegistryService.js'
@@ -21,7 +20,7 @@ export class McpServer {
     version: '1.0.0',
   }
 
-  private readonly protocolVersion = '1.0.0'
+  private readonly protocolVersion = '2024-11-05'
 
   constructor(private promptRegistry: PromptRegistryService) {}
 
@@ -95,9 +94,17 @@ export class McpServer {
   }
 
   private async handleGetPrompt(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    const params = request.params as GetPromptParams | undefined
+    const params = request.params as Record<string, unknown>
 
-    if (!params?.promptId) {
+    // Debug logging to understand what Claude Code is sending
+    if (process.env.DEBUG) {
+      console.error('[MCP] handleGetPrompt request:', JSON.stringify(request, null, 2))
+    }
+
+    // Handle both 'promptId' and 'id' parameter names for compatibility
+    const promptId = (params?.promptId || params?.id || params?.name) as string | undefined
+
+    if (!promptId) {
       throw {
         code: MCP_ERRORS.INVALID_PARAMS,
         message: 'Missing required parameter: promptId',
@@ -106,20 +113,29 @@ export class McpServer {
 
     try {
       // Render the prompt with Handlebars
-      const content = this.promptRegistry.renderPrompt(params.promptId, params.arguments || {})
+      const content = this.promptRegistry.renderPrompt(promptId, params?.arguments || {})
 
       if (!content) {
         throw {
           code: MCP_ERRORS.PROMPT_NOT_FOUND,
-          message: `Prompt not found: ${params.promptId}`,
+          message: `Prompt not found: ${promptId}`,
         }
       }
 
+      // Get the prompt info for description
+      const promptInfo = this.promptRegistry.getPrompt(promptId)
+
       const result: GetPromptResult = {
-        prompt: {
-          id: params.promptId,
-          content,
-        },
+        description: promptInfo?.description,
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: content,
+            },
+          },
+        ],
       }
 
       return {

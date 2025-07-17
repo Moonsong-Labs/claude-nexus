@@ -168,7 +168,7 @@ export async function createProxyApp(): Promise<
 
     if (mcpHandler) {
       // MCP JSON-RPC endpoint (now protected by auth)
-      app.post('/mcp/rpc', c => mcpHandler.handle(c))
+      app.post('/mcp', c => mcpHandler.handle(c))
 
       // MCP discovery endpoint (now protected by auth)
       app.get('/mcp', c => {
@@ -272,7 +272,7 @@ export async function createProxyApp(): Promise<
     if (config.mcp.enabled) {
       endpoints.mcp = {
         discovery: '/mcp',
-        rpc: '/mcp/rpc',
+        rpc: '/mcp',
         'dashboard-api': {
           prompts: '/api/mcp/prompts',
           sync: '/api/mcp/sync',
