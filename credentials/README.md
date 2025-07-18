@@ -6,7 +6,9 @@ This directory contains credential files for domain-specific authentication.
 
 Each domain should have its own credential file named `<domain>.credentials.json`.
 
-Example: `example.com.credentials.json`
+Examples: 
+- `example.com.credentials.json` (OAuth authentication)
+- `example-api-key.com.credentials.json` (API key authentication)
 
 ## Credential Structure
 
@@ -65,7 +67,11 @@ bun run ../scripts/generate-api-key.ts
 
 2. Create credential file for your domain:
    ```bash
+   # For OAuth authentication:
    cp example.com.credentials.json yourdomain.com.credentials.json
+   
+   # For API key authentication:
+   cp example-api-key.com.credentials.json yourdomain.com.credentials.json
    ```
 
 3. Edit the file and add:

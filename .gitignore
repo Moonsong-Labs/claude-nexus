@@ -195,6 +195,9 @@ dashboard.log
 # Credentials (keep the directory but not the files)
 credentials/*.json
 credentials/*.credentials.json
+# But allow example credential files
+!credentials/example.com.credentials.json
+!credentials/example-api-key.com.credentials.json
 
 # Temporary files
 *.tmp
