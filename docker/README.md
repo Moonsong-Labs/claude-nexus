@@ -1,168 +1,81 @@
-# Claude Nexus Docker Images
+# Docker Quick Reference
 
-This directory contains the Docker configurations for the Claude Nexus Proxy project, split into two separate microservices following best practices.
+Quick Docker commands for Claude Nexus Proxy services.
 
-## Images
+For detailed documentation, see:
 
-### 1. Proxy Service (`alanpurestake/claude-nexus-proxy`)
+- [Docker Deployment Guide](../docs/03-Operations/deployment/docker.md) - Comprehensive deployment options
+- [Docker Compose Guide](../docs/03-Operations/deployment/docker-compose.md) - Full stack setup
+- [Main Documentation](../README.md) - Project overview
 
-- Port: 3000
-- Handles Claude API proxying
-- Manages authentication and token tracking
-- Stores request/response data
-
-### 2. Dashboard Service (`alanpurestake/claude-nexus-dashboard`)
-
-- Port: 3001
-- Web UI for monitoring and analytics
-- Real-time SSE updates
-- Request history browser
-
-## Building Images
-
-### Quick Build
+## Quick Start
 
 ```bash
-# Build both images with 'latest' tag
-./build-images.sh
-
-# Build with 'latest' and also tag as 'v9'
-./build-images.sh v9
-
-# Build with 'latest' and also tag as '1.2.3'
-./build-images.sh 1.2.3
-
-# Show help
-./build-images.sh --help
-```
-
-### Manual Build
-
-```bash
-# Build individually with custom tags
-docker build -f proxy/Dockerfile -t alanpurestake/claude-nexus-proxy:v9 ..
-docker build -f dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:v9 ..
-```
-
-## Pushing Images
-
-```bash
-# Push images with 'latest' tag
-./push-images.sh
-
-# Push specific version (also pushes 'latest')
-./push-images.sh v9
-
-# Push version only (skip 'latest')
-./push-images.sh v9 --no-latest
-
-# Preview what would be pushed (dry run)
-./push-images.sh --dry-run v9
-
-# Show help
-./push-images.sh --help
-
-# Show version
-./push-images.sh --version
-
-# Legacy syntax (deprecated)
-./push-images.sh v9 no  # Use --no-latest instead
-```
-
-**Features:**
-
-- Dry-run mode with `--dry-run` to preview operations
-- Image existence validation before pushing
-- Improved Docker Hub authentication detection
-- Timing information for push operations
-- Better error messages with troubleshooting tips
-
-**Note:** You must be logged in to Docker Hub first: `docker login`
-
-## Running Services
-
-### Using Docker Compose (Recommended)
-
-The `docker-compose.yml` file is located in this `docker/` directory.
-
-```bash
-# From project root (recommended)
+# Start all services (proxy, dashboard, database, Claude CLI)
 ./docker-up.sh up -d
-
-# Or from docker directory
-cd docker
-docker-compose --project-name claude-nexus --env-file ../.env up -d
-
-# Run specific service
-./docker-up.sh up proxy
-./docker-up.sh up dashboard
 
 # View logs
 ./docker-up.sh logs -f
 
-# Stop services
+# Stop all services
 ./docker-up.sh down
 ```
 
-### Running Individually
+## Essential Commands
+
+### Service Management
 
 ```bash
-# Proxy service
-docker run -p 3000:3000 \
-  -v ./credentials:/app/credentials:ro \
-  alanpurestake/claude-nexus-proxy:latest
+# Start specific service
+./docker-up.sh up -d proxy      # Just the proxy
+./docker-up.sh up -d dashboard  # Just the dashboard
 
-# Dashboard service
-docker run -p 3001:3001 \
-  -e DASHBOARD_API_KEY=your-key \
-  -e PROXY_API_URL=http://localhost:3000 \
-  alanpurestake/claude-nexus-dashboard:latest
+# Restart a service
+./docker-up.sh restart proxy
+
+# View service status
+./docker-up.sh ps
 ```
 
-## Environment Variables
+### Building Images
 
-### Proxy Service
+```bash
+# Build all images locally
+./docker-up.sh build
 
-- `DATABASE_URL` - PostgreSQL connection
-- `STORAGE_ENABLED` - Enable storage (default: false)
-- `SLACK_WEBHOOK_URL` - Slack notifications
-- `CREDENTIALS_DIR` - Domain credential directory
+# Build specific image
+./build-images.sh               # Build and tag as 'latest'
+./build-images.sh v1.2.3        # Build and tag with version
+```
 
-### Dashboard Service
+### Common Operations
 
-- `DASHBOARD_API_KEY` - Dashboard authentication
-- `PROXY_API_URL` - Proxy API endpoint
-- `DATABASE_URL` - PostgreSQL connection (read-only)
+```bash
+# Access Claude CLI
+./docker-up.sh exec claude-cli claude "your prompt here"
 
-## Architecture Benefits
+# Run usage monitor
+./docker-up.sh exec claude-cli monitor
 
-Splitting into separate images provides:
+# Execute commands in containers
+./docker-up.sh exec proxy sh
+./docker-up.sh exec dashboard sh
 
-- **Independent scaling** - Scale proxy and dashboard separately
-- **Smaller images** - Each service only includes what it needs
-- **Better security** - Reduced attack surface
-- **Easier maintenance** - Update services independently
-- **Resource efficiency** - Run only what you need
+# View real-time logs for specific service
+./docker-up.sh logs -f proxy
+```
 
-## Image Details
+## Architecture
 
-Both images use:
+- **Proxy** (Port 3000): API proxy with auth, token tracking, AI analysis
+- **Dashboard** (Port 3001): Web UI for monitoring and analytics
+- **Database**: PostgreSQL for persistence
+- **Claude CLI**: Optional CLI integration
 
-- Multi-stage builds for optimization
-- Bun runtime for performance
-- Alpine Linux base for minimal size
-- Health checks for container orchestration
-- Non-root user for security
+See [Architecture Documentation](../docs/04-Architecture/) for details.
 
-## Versioning Strategy
+## Troubleshooting
 
-1. **Development builds:** Use `latest` tag
-2. **Release candidates:** Use `rc-X` tags (e.g., `rc-1`, `rc-2`)
-3. **Production releases:** Use semantic versioning (e.g., `1.0.0`, `1.2.3`)
-4. **Major versions:** Use `vX` tags (e.g., `v9`, `v10`)
-
-When building a version tag, the scripts automatically:
-
-- Build images with the `latest` tag first
-- Additionally tag them with the specified version
-- Provide instructions for pushing both tags
+- Ensure `.env` file exists (copy from `.env.example`)
+- Check credentials in `credentials/` directory
+- For detailed troubleshooting: [Operations Guide](../docs/03-Operations/)
