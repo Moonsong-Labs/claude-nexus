@@ -6,23 +6,55 @@ This directory contains credential files for domain-specific authentication.
 
 Each domain should have its own credential file named `<domain>.credentials.json`.
 
-Examples: 
-- `example.com.credentials.json` (OAuth authentication)
-- `example-api-key.com.credentials.json` (API key authentication)
+Two example templates are provided:
+- `example.com.credentials.json` - OAuth authentication template
+- `example-api-key.com.credentials.json` - API key authentication template
+
+⚠️ **Security Note**: The example files use clear placeholder values like `YOUR-CLAUDE-API-KEY-HERE`. Never commit real credentials to version control. See [ADR-021](../docs/04-Architecture/ADRs/adr-021-credential-example-templates.md) for template design decisions.
 
 ## Credential Structure
 
+### API Key Authentication
+
 ```json
 {
-  "type": "api_key" | "oauth",
-  "accountId": "acc_unique_id",       // Unique account identifier
-  "api_key": "sk-ant-...",           // For type: api_key
-  "oauth": { ... },                  // For type: oauth
-  "client_api_key": "cnp_live_...",  // Required for proxy authentication
-  "slack": {                         // Optional Slack configuration
-    "webhook_url": "https://...",
-    "channel": "#alerts",
-    "enabled": true
+  "type": "api_key",
+  "accountId": "YOUR-UNIQUE-ACCOUNT-ID",       // Unique account identifier
+  "api_key": "YOUR-CLAUDE-API-KEY-HERE",       // Your Claude API key
+  "client_api_key": "YOUR-CLIENT-API-KEY-HERE", // Required for proxy authentication
+  "slack": {                                    // Optional Slack configuration
+    "webhook_url": "YOUR-SLACK-WEBHOOK-URL-HERE",
+    "channel": "#your-channel-name",
+    "username": "Claude Proxy",
+    "icon_emoji": ":robot_face:",
+    "enabled": false
+  }
+}
+```
+
+### OAuth Authentication
+
+```json
+{
+  "type": "oauth",
+  "accountId": "YOUR-UNIQUE-ACCOUNT-ID",        // Unique account identifier
+  "client_api_key": "YOUR-CLIENT-API-KEY-HERE",  // Required for proxy authentication
+  "oauth": {
+    "accessToken": "YOUR-CLAUDE-ACCESS-TOKEN-HERE",
+    "refreshToken": "YOUR-CLAUDE-REFRESH-TOKEN-HERE",
+    "expiresAt": 1234567890000,                // Token expiration timestamp
+    "scopes": [
+      "user:inference",
+      "user:profile"
+    ],
+    "isMax": true                               // Whether this is a Claude Pro account
+  },
+  "slack": {                                    // Optional Slack configuration
+    "webhook_url": "YOUR-SLACK-WEBHOOK-URL-HERE",
+    "channel": "#your-channel-name",
+    "username": "Claude Proxy",
+    "icon_emoji": ":robot_face:",
+    "enabled": false
   }
 }
 ```
@@ -33,9 +65,10 @@ Examples:
 
 Each domain can have its own `client_api_key` that clients must provide to access the proxy. This adds an extra layer of security on top of the Claude API authentication.
 
-To generate a secure API key:
+To generate a secure client API key:
 
 ```bash
+# From the credentials directory
 bun run ../scripts/generate-api-key.ts
 ```
 
@@ -62,6 +95,7 @@ bun run ../scripts/generate-api-key.ts
 
 1. Generate a client API key:
    ```bash
+   # From the credentials directory
    bun run ../scripts/generate-api-key.ts
    ```
 
@@ -74,10 +108,11 @@ bun run ../scripts/generate-api-key.ts
    cp example-api-key.com.credentials.json yourdomain.com.credentials.json
    ```
 
-3. Edit the file and add:
-   - Your Claude API key or OAuth credentials
-   - The generated client API key
-   - Optional Slack configuration
+3. Edit the file and replace all placeholder values:
+   - Replace `YOUR-UNIQUE-ACCOUNT-ID` with a unique identifier for your account
+   - Replace `YOUR-CLAUDE-API-KEY-HERE` or OAuth tokens with your actual Claude credentials
+   - Replace `YOUR-CLIENT-API-KEY-HERE` with the generated client API key
+   - Configure optional Slack webhook if needed
 
 4. Test the authentication:
    ```bash
