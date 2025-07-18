@@ -173,8 +173,8 @@ requestUsageRoutes.get('/usage', async c => {
             : html`<span class="text-sm text-gray-500">(All Domains)</span>`}
         </div>
         <div class="section-content">
-          ${(displayDomain && chartData.length > 0) ||
-          (!displayDomain && Object.keys(chartData).length > 0)
+          ${(displayDomain && Array.isArray(chartData) && chartData.length > 0) ||
+          (!displayDomain && !Array.isArray(chartData) && Object.keys(chartData).length > 0)
             ? html`
                 <canvas
                   id="hourlyChart"
@@ -509,15 +509,15 @@ requestUsageRoutes.get('/usage', async c => {
       </div>
 
       <!-- Summary Statistics -->
-      ${(displayDomain && chartData.length > 0) ||
-      (!displayDomain && Object.keys(chartData).length > 0)
+      ${(displayDomain && Array.isArray(chartData) && chartData.length > 0) ||
+      (!displayDomain && !Array.isArray(chartData) && Object.keys(chartData).length > 0)
         ? (() => {
             let totalRequests = 0
             let avgPerHour = 0
             let peakHour = { hour: '', count: 0 }
             let activeHours = 0
 
-            if (displayDomain) {
+            if (displayDomain && Array.isArray(chartData)) {
               // Single domain stats
               totalRequests = chartData.reduce(
                 (sum: number, point: HourlyDataPoint) => sum + point.count,
@@ -594,8 +594,10 @@ requestUsageRoutes.get('/usage', async c => {
             : html`<span class="text-sm text-gray-500">(All Domains)</span>`}
         </div>
         <div class="section-content">
-          ${(displayDomain && tokenChartData.length > 0) ||
-          (!displayDomain && Object.keys(tokenChartData).length > 0)
+          ${(displayDomain && Array.isArray(tokenChartData) && tokenChartData.length > 0) ||
+          (!displayDomain &&
+            !Array.isArray(tokenChartData) &&
+            Object.keys(tokenChartData).length > 0)
             ? html`
                 <canvas
                   id="tokenChart"
