@@ -966,3 +966,90 @@ apiRoutes.get('/usage/requests/hourly', async c => {
     return c.json({ error: 'Failed to retrieve hourly usage data' }, 500)
   }
 })
+
+/**
+ * GET /api/usage/tokens/hourly - Get hourly token counts by domain (output tokens only)
+ */
+apiRoutes.get('/usage/tokens/hourly', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    pool = container.getDbPool()
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    const query = c.req.query()
+    const domain = query.domain
+    const days = parseInt(query.days || '7')
+
+    // Validate days parameter
+    if (days < 1 || days > 30) {
+      return c.json({ error: 'Days parameter must be between 1 and 30' }, 400)
+    }
+
+    const conditions = []
+    const values = []
+    let paramCount = 0
+
+    // Base condition for time range
+    conditions.push(`timestamp >= NOW() - ($${++paramCount} * INTERVAL '1 day')`)
+    values.push(days)
+
+    // Optional domain filter
+    if (domain) {
+      conditions.push(`domain = $${++paramCount}`)
+      values.push(domain)
+    }
+
+    const whereClause = conditions.join(' AND ')
+
+    // Query to get hourly token sums grouped by domain (output tokens only)
+    const hourlyQuery = `
+      SELECT
+        domain,
+        DATE_TRUNC('hour', timestamp AT TIME ZONE 'UTC') as hour,
+        COALESCE(SUM(output_tokens), 0) as token_count
+      FROM
+        api_requests
+      WHERE
+        ${whereClause}
+      GROUP BY
+        domain,
+        hour
+      ORDER BY
+        domain,
+        hour
+    `
+
+    const { rows } = await pool.query(hourlyQuery, values)
+
+    // Group results by domain
+    const data: Record<string, Array<{ hour: string; count: number }>> = {}
+
+    for (const row of rows) {
+      const domainName = row.domain || 'unknown'
+      if (!data[domainName]) {
+        data[domainName] = []
+      }
+
+      data[domainName].push({
+        hour: row.hour.toISOString(),
+        count: parseInt(row.token_count),
+      })
+    }
+
+    return c.json({
+      data,
+      query: {
+        domain: domain || null,
+        days,
+      },
+    })
+  } catch (error) {
+    logger.error('Failed to get hourly token usage', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve hourly token usage data' }, 500)
+  }
+})
