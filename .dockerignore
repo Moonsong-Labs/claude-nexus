@@ -1,133 +1,204 @@
-# Git
+# Claude Nexus Proxy - Docker Ignore File
+# Optimized for Bun/TypeScript monorepo builds
+
+# =================
+# Version Control
+# =================
 .git
-.gitignore
 .github
+.gitignore
+.husky
 
-# Node modules and package manager files
+# =================
+# Dependencies
+# =================
 node_modules
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 .pnpm-store
+.bun
 
-# Environment files (except .env.example)
+# =================
+# Environment Files
+# =================
 .env
 .env.local
 .env.*.local
+# Keep example files for reference
+!.env.example
 
-# Build outputs
+# =================
+# Build Outputs
+# =================
 dist
 build
 bin
 *.tsbuildinfo
 .turbo
+# TypeScript build info anywhere in the tree
+**/*.tsbuildinfo
 
-# IDE and editor files
+# =================
+# IDE & Editor Files
+# =================
 .vscode
 .idea
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Test files and scripts
-test/
-tests/
-*.test.ts
-*.spec.ts
-test-*.js
-test-*.sh
+# =================
+# OS Files
+# =================
+.DS_Store
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# =================
+# Test Files & Coverage
+# =================
 coverage
 .nyc_output
 test-results/
 test-setup/
 vitest.config.ts
+test-samples/
+e2e/
+playwright.config.ts
 
+# =================
 # Documentation
+# =================
+docs
 *.md
+# Keep essential documentation
 !README.md
 !CLAUDE.md
-docs
-TEST_PLAN.md
-TESTING_IMPLEMENTATION.md
 
-# Development files
+# =================
+# Development Config
+# =================
 .eslintrc*
 .prettierrc*
 .editorconfig
+eslint.config.js
 
-# Cloudflare
-.wrangler
-wrangler.toml
-
-# Docker files (avoid recursive builds)
-Dockerfile*
-docker-compose*.yml
-compose*.yml
-.dockerignore
-
-# Credentials and sensitive files
-credentials/
-*.credentials.json
-.credentials.json
-*.pem
-*.key
-*.cert
-*.crt
-secrets/
-
+# =================
 # Logs
-logs
+# =================
 *.log
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+# Log files anywhere in the tree
+**/*.log
 
-# Temporary files
+# =================
+# Temporary Files
+# =================
 tmp
 temp
 *.tmp
 *.temp
-
-# Scripts and examples
-scripts/
-!scripts/start-services.sh
-examples/
-
-# Cache directories
 .cache
 .parcel-cache
 .next
 .nuxt
 .svelte-kit
 
-# OS generated files
-Thumbs.db
-.Spotlight-V100
-.Trashes
+# =================
+# Credentials & Secrets
+# =================
+# Note: credentials folder is needed for runtime
+# but specific credential files should not be in the image
+credentials/*.json
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
 
-# Backup files
+# =================
+# Backup & Archive Files
+# =================
 *.bak
 *.backup
 *.old
-
-# Archive files
 *.zip
 *.tar.gz
 *.rar
 *.7z
 
-# Kubernetes
-k8s/
-kubernetes/
-*.yaml
-!docker-compose.yml
-
-# CI/CD
-.github/
+# =================
+# CI/CD & Deployment
+# =================
 .gitlab-ci.yml
 .travis.yml
+k8s/
+kubernetes/
 
-# Lock files (keep package-lock.json and bun.lockb for reproducible builds)
-!package-lock.json
+# =================
+# Docker Files
+# =================
+# Avoid recursive builds
+Dockerfile*
+docker-compose*.yml
+compose*.yml
+# Keep the docker folder structure for reference
+!docker/
+
+# =================
+# Cloudflare
+# =================
+.wrangler
+wrangler.toml
+
+# =================
+# Lock Files
+# =================
+# Keep Bun lockfile for reproducible builds
 !bun.lockb
+# Exclude other package manager locks
 yarn.lock
 pnpm-lock.yaml
+package-lock.json
+
+# =================
+# Scripts & Tools
+# =================
+# Most scripts are development-only
+scripts/dev/
+scripts/ops/
+scripts/auth/
+scripts/test-*.sh
+# Keep essential database scripts
+!scripts/init-database.sql
+!scripts/db/migrations/
+
+# =================
+# Development Files
+# =================
+*.test.ts
+*.spec.ts
+test-*.js
+test-*.sh
+examples/
+GROOMING.md
+CONTRIBUTING.md
+QUICKSTART.md
+create-pr.sh
+start-dev.sh
+docker-up.sh
+test-*.html
+test-*.mjs
+test-*.sql
+*.test.js
+
+# =================
+# Prompts
+# =================
+# MCP prompts are loaded at runtime from the filesystem
+# Keep them in the image for the proxy service
+!prompts/
+!services/proxy/prompts/
