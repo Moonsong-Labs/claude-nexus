@@ -1,11 +1,12 @@
 # Docker Compose configuration for local development with locally built images
 # 
 # Usage from project root:
-#   ./docker-up.sh -f docker-compose.local.yml up -d
+#   ./docker-up.sh up -d
 # Or from docker directory:
-#   docker compose -f docker-compose.local.yml --env-file ../.env up -d
+#   docker compose --env-file ../.env up -d
 #
 # This file uses locally built images instead of registry images
+# Note: Ensure .env file exists with required configuration before running
 
 services:
   # PostgreSQL Database
@@ -88,7 +89,7 @@ services:
       HOST: 0.0.0.0
       
       # Dashboard authentication
-      DASHBOARD_API_KEY: key
+      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-default_dev_key}
       
       # Proxy API URL for data access
       PROXY_API_URL: http://proxy:3000
@@ -101,20 +102,37 @@ services:
       proxy:
         condition: service_started
     restart: unless-stopped
+    container_name: claude-nexus-dashboard
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Optional: pgAdmin for database management
   # To enable: docker-compose up
   pgadmin:
     image: dpage/pgadmin4:latest
+    container_name: claude-nexus-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     ports:
       - "5050:80"
     depends_on:
       - postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Claude CLI Service - Run Claude CLI connected to the proxy
   claude-cli:
@@ -141,9 +159,7 @@ services:
 
 volumes:
   postgres_data:
-  claude_data:
 
 networks:
   default:
     name: claude-nexus-network
-    external: true

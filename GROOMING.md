@@ -270,6 +270,45 @@ Last Updated: 2025-07-19
 
 ## Grooming Log
 
+### 2025-07-19 - Docker Compose Configuration Cleanup
+
+**Files Modified:**
+
+- `docker/docker-compose.yml`
+
+**Changes Made:**
+
+1. **Fixed Documentation**
+   - Updated usage instructions to reflect correct filename (was referencing non-existent `docker-compose.local.yml`)
+   - Added note about ensuring .env file exists before running
+
+2. **Removed Dead Code**
+   - Removed unused `claude_data` volume declaration that was never referenced by any service
+
+3. **Fixed Network Configuration**
+   - Changed network from external to internal (managed by docker-compose)
+   - Removed `external: true` flag that would cause startup failures if network didn't pre-exist
+
+4. **Improved Security**
+   - Made dashboard API key configurable via environment variable: `${DASHBOARD_API_KEY:-default_dev_key}`
+   - Made pgAdmin credentials configurable: `${PGADMIN_DEFAULT_EMAIL:-admin@example.com}` and `${PGADMIN_DEFAULT_PASSWORD:-admin}`
+   - Moved away from hardcoded credentials pattern
+
+5. **Added Missing Configurations**
+   - Added health check for dashboard service (HTTP check on port 3001)
+   - Added logging configuration for dashboard service (matching other services)
+   - Added container name for dashboard service: `claude-nexus-dashboard`
+   - Added container name for pgAdmin service: `claude-nexus-pgadmin`
+   - Added logging configuration for pgAdmin service
+
+6. **Consistency Improvements**
+   - Standardized container naming across all services
+   - Ensured all services have proper logging configurations
+   - Made configuration patterns consistent across services
+
+**Rationale:**
+These changes improve the local development experience by removing potential failure points (external network), improving security practices (no hardcoded credentials), and ensuring consistency in service configuration. The changes follow Docker Compose best practices while maintaining compatibility with the existing docker-up.sh wrapper script.
+
 ### 2025-07-18 - Docker Build Scripts Refactoring
 
 **Files Modified:**
