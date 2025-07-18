@@ -270,6 +270,34 @@ Last Updated: 2025-07-19
 
 ## Grooming Log
 
+### 2025-07-18 - Claude Monitor Integration Documentation Refactoring
+
+**Files Modified:**
+
+- `docker/claude-cli/CLAUDE_MONITOR_INTEGRATION.md`
+- `docker/claude-cli/README.md`
+
+**Changes Made:**
+
+1. **Refactored CLAUDE_MONITOR_INTEGRATION.md**
+   - Removed redundant content already covered in README.md, ADR-010, and CLAUDE.md
+   - Focused on monitor-specific technical implementation details
+   - Added cross-references to related documentation
+   - Reduced file from ~120 lines to ~58 lines while preserving unique content
+
+2. **Updated README.md**
+   - Added reference to CLAUDE_MONITOR_INTEGRATION.md in files list
+   - Added monitor and ccusage to Dockerfile description
+   - Added Token Monitoring section with usage examples
+   - Added link to CLAUDE.md for more examples
+
+**Rationale:**
+
+- The original file contained significant duplication with other documentation
+- Refactoring follows DRY principle while preserving valuable technical details
+- Monitor integration is actively used (as shown in CLAUDE.md) and needs documentation
+- Technical implementation details are now clearly separated from usage instructions
+
 ### 2025-07-19 - Dockerfile.local Cleanup
 
 **Files Modified:**
