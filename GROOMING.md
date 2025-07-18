@@ -429,3 +429,32 @@ The refactoring aligns with industry best practices for shell scripting, making 
 
 **Rationale:**
 The primary driver for these changes was improving security by eliminating root-level operations in the runtime script. According to container best practices, all permission and directory setup should happen at build time (Dockerfile), not runtime. The changes also improve maintainability through better documentation and error handling. These modifications were validated by Gemini 2.5 Pro with 9/10 confidence, confirming alignment with industry standards for container entrypoints.
+
+### 2025-07-18 - Docker Test Environment File Cleanup
+
+**Files Modified:**
+
+- Removed: `docker/.env.test`
+
+**Changes Made:**
+
+1. **Removed Orphaned File**
+   - Deleted `docker/.env.test` which was not referenced anywhere in the codebase
+   - File contained test environment variables that were never used
+   - All Docker configurations correctly use the root `.env` file via `docker-up.sh`
+
+**Analysis Findings:**
+
+- No scripts, CI/CD workflows, or test configurations referenced this file
+- Docker Compose explicitly loads `.env` from project root using `--env-file` flag
+- Test scripts use the main `.env` file for configuration
+- File appeared to be leftover from earlier development
+
+**Validation:**
+
+- Gemini-2.5-pro endorsed deletion with 10/10 confidence score
+- Confirmed as standard "code gardening" best practice
+- Aligns with Principle of Least Astonishment
+
+**Rationale:**
+Removing orphaned configuration files eliminates developer confusion and reduces maintenance burden. This cleanup reinforces the project's clear configuration pattern of using a single root `.env` file for all environments. The deletion has negligible risk since the file was completely unused, while providing high value by simplifying the project structure for current and future developers.
