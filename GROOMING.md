@@ -267,3 +267,43 @@ Create a recurring issue to remind the team about guide maintenance.
 ---
 
 Last Updated: 2025-07-19
+
+## Grooming Log
+
+### 2025-07-18 - Docker Build Scripts Refactoring
+
+**Files Modified:**
+
+- `docker/build-images.sh`
+- `docker/push-images.sh`
+
+**Changes Made:**
+
+1. **Enhanced Error Handling**
+   - Added `set -euo pipefail` for strict error handling
+   - Added prerequisite checks (Docker availability, Dockerfile existence)
+   - Improved error reporting with clear messages
+
+2. **Reduced Code Duplication**
+   - Created reusable functions (`build_image`, `push_image`)
+   - Used arrays to define services, eliminating repetitive code
+   - Centralized helper functions for consistent output
+
+3. **Improved Configuration**
+   - Made Docker Hub username configurable via `DOCKER_REGISTRY_USER` environment variable
+   - Added proper color code handling for non-terminal environments
+   - Used readonly variables for immutability where appropriate
+
+4. **Better User Experience**
+   - Added build time tracking
+   - Simplified and consolidated output messages
+   - Enhanced help documentation with environment variable information
+   - Added Docker version display at start
+
+5. **Code Quality**
+   - Fixed shellcheck compliance issues (proper variable quoting)
+   - Used direct command checks instead of `$?`
+   - Consistent function naming and structure
+
+**Rationale:**
+The refactoring aligns with industry best practices for shell scripting, making the scripts more maintainable, reliable, and flexible. The changes enable contributors to use their own Docker registries and provide better error handling for common failure scenarios.

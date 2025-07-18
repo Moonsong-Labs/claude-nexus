@@ -1,14 +1,31 @@
 #!/bin/bash
 # Build both proxy and dashboard Docker images
 
-set -e
+set -euo pipefail
 
-# Colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
+# Configuration
+readonly DOCKER_REGISTRY_USER="${DOCKER_REGISTRY_USER:-alanpurestake}"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+readonly BUILD_START_TIME=$(date +%s)
+
+# Services to build
+readonly -a SERVICES=("proxy" "dashboard")
+
+# Colors for output (disabled if not in terminal)
+if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
+    readonly GREEN='\033[0;32m'
+    readonly BLUE='\033[0;34m'
+    readonly RED='\033[0;31m'
+    readonly YELLOW='\033[0;33m'
+    readonly NC='\033[0m' # No Color
+else
+    readonly GREEN=''
+    readonly BLUE=''
+    readonly RED=''
+    readonly YELLOW=''
+    readonly NC=''
+fi
 
 # Parse command line arguments
 TAG="${1:-latest}"
@@ -16,117 +33,171 @@ TAG="${1:-latest}"
 # Show usage if requested
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     echo "Usage: $0 [TAG]"
-    echo "  TAG: Additional version tag to apply (optional)"
+    echo "  TAG: Additional version tag to apply (default: latest)"
     echo ""
-    echo "Build Process:"
-    echo "  - Always builds images with 'latest' tag"
-    echo "  - If TAG is provided, also tags images with that version"
+    echo "Environment Variables:"
+    echo "  DOCKER_REGISTRY_USER: Docker Hub username (default: alanpurestake)"
     echo ""
     echo "Examples:"
-    echo "  $0          # Builds with 'latest' tag only"
-    echo "  $0 v9       # Builds with 'latest' and tags as 'v9'"
-    echo "  $0 1.2.3    # Builds with 'latest' and tags as '1.2.3'"
+    echo "  $0              # Builds with 'latest' tag only"
+    echo "  $0 v9           # Builds with 'latest' and tags as 'v9'"
+    echo "  $0 1.2.3        # Builds with 'latest' and tags as '1.2.3'"
+    echo "  DOCKER_REGISTRY_USER=myuser $0    # Use different Docker Hub user"
     exit 0
 fi
 
-echo -e "${BLUE}Building Claude Nexus Docker Images...${NC}"
-if [ "$TAG" != "latest" ]; then
-    echo -e "${YELLOW}Will tag images as: latest and ${TAG}${NC}"
-else
-    echo -e "${YELLOW}Building with tag: latest${NC}"
-fi
+# Helper functions
+error() {
+    echo -e "${RED}Error: $1${NC}" >&2
+}
 
-# Get the script directory and project root
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
 
-cd "$PROJECT_ROOT"
+info() {
+    echo -e "${BLUE}$1${NC}"
+}
 
-# Build proxy image (always build as latest first)
-echo -e "\n${BLUE}Building Proxy Service...${NC}"
-docker build -f docker/proxy/Dockerfile -t alanpurestake/claude-nexus-proxy:latest .
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Proxy image built successfully${NC}"
-    # Tag with specific version if provided
-    if [ "$TAG" != "latest" ]; then
-        docker tag alanpurestake/claude-nexus-proxy:latest alanpurestake/claude-nexus-proxy:${TAG}
-        echo -e "${GREEN}✓ Also tagged as '${TAG}'${NC}"
+warning() {
+    echo -e "${YELLOW}$1${NC}"
+}
+
+# Check prerequisites
+check_prerequisites() {
+    local missing_deps=()
+    
+    if ! command -v docker &> /dev/null; then
+        missing_deps+=("docker")
     fi
-else
-    echo -e "${RED}✗ Failed to build proxy image${NC}"
-    exit 1
-fi
-
-# Build dashboard image (always build as latest first)
-echo -e "\n${BLUE}Building Dashboard Service...${NC}"
-docker build -f docker/dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:latest .
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Dashboard image built successfully${NC}"
-    # Tag with specific version if provided
-    if [ "$TAG" != "latest" ]; then
-        docker tag alanpurestake/claude-nexus-dashboard:latest alanpurestake/claude-nexus-dashboard:${TAG}
-        echo -e "${GREEN}✓ Also tagged as '${TAG}'${NC}"
+    
+    if [ ${#missing_deps[@]} -ne 0 ]; then
+        error "Missing required dependencies: ${missing_deps[*]}"
+        echo "Please install the missing dependencies and try again."
+        exit 1
     fi
-else
-    echo -e "${RED}✗ Failed to build dashboard image${NC}"
-    exit 1
-fi
+    
+    # Check if Docker daemon is running
+    if ! docker info &> /dev/null; then
+        error "Docker daemon is not running"
+        echo "Please start Docker and try again."
+        exit 1
+    fi
+    
+    # Verify Dockerfiles exist
+    for service in "${SERVICES[@]}"; do
+        if [ ! -f "${SCRIPT_DIR}/${service}/Dockerfile" ]; then
+            error "Dockerfile not found: ${SCRIPT_DIR}/${service}/Dockerfile"
+            exit 1
+        fi
+    done
+}
 
-# Show image sizes
-echo -e "\n${BLUE}Image Sizes:${NC}"
-docker images | grep -E "claude-nexus-(proxy|dashboard)|REPOSITORY" | grep -E "${TAG}|REPOSITORY" | head -5
+# Build and tag a Docker image
+build_image() {
+    local service="$1"
+    local image_name="${DOCKER_REGISTRY_USER}/claude-nexus-${service}"
+    
+    info "Building ${service} service..."
+    
+    if docker build -f "${SCRIPT_DIR}/${service}/Dockerfile" -t "${image_name}:latest" .; then
+        success "${service} image built successfully"
+        
+        # Tag with specific version if provided
+        if [ "$TAG" != "latest" ]; then
+            if docker tag "${image_name}:latest" "${image_name}:${TAG}"; then
+                success "Also tagged as '${TAG}'"
+            else
+                error "Failed to tag ${service} image as '${TAG}'"
+                return 1
+            fi
+        fi
+    else
+        error "Failed to build ${service} image"
+        return 1
+    fi
+}
 
-echo -e "\n${GREEN}Build completed successfully!${NC}"
-echo -e "\nImages built:"
-echo -e "  ${YELLOW}alanpurestake/claude-nexus-proxy:latest${NC}"
-echo -e "  ${YELLOW}alanpurestake/claude-nexus-dashboard:latest${NC}"
+# Main execution
+main() {
+    cd "$PROJECT_ROOT"
+    
+    info "Building Claude Nexus Docker Images..."
+    info "Docker version: $(docker --version)"
+    
+    if [ "$TAG" != "latest" ]; then
+        warning "Will tag images as: latest and ${TAG}"
+    else
+        info "Building with tag: latest"
+    fi
+    
+    check_prerequisites
+    
+    # Build all services
+    for service in "${SERVICES[@]}"; do
+        echo # Empty line for readability
+        build_image "$service" || exit 1
+    done
+    
+    # Calculate build time
+    local build_end_time=$(date +%s)
+    local build_duration=$((build_end_time - BUILD_START_TIME))
+    
+    # Show image sizes
+    echo
+    info "Image Sizes:"
+    docker images | grep -E "claude-nexus-(proxy|dashboard)|REPOSITORY" | grep -E "${TAG}|REPOSITORY|latest" | head -$((${#SERVICES[@]} * 2 + 1))
+    
+    echo
+    success "Build completed successfully in ${build_duration} seconds!"
+    
+    echo
+    info "Images built:"
+    for service in "${SERVICES[@]}"; do
+        echo -e "  ${YELLOW}${DOCKER_REGISTRY_USER}/claude-nexus-${service}:latest${NC}"
+    done
+    
+    if [ "$TAG" != "latest" ]; then
+        echo
+        info "Also tagged as:"
+        for service in "${SERVICES[@]}"; do
+            echo -e "  ${YELLOW}${DOCKER_REGISTRY_USER}/claude-nexus-${service}:${TAG}${NC}"
+        done
+    fi
+    
+    # Show next steps
+    echo
+    info "To run the services:"
+    echo -e "${YELLOW}Using Docker Compose (recommended):${NC}"
+    echo "  # From project root:"
+    echo "  ./docker-up.sh up -d"
+    echo
+    echo -e "${YELLOW}Using Docker Run:${NC}"
+    echo "  # Proxy service"
+    echo "  docker run -d -p 3000:3000 ${DOCKER_REGISTRY_USER}/claude-nexus-proxy:${TAG}"
+    echo "  # Dashboard service"
+    echo "  docker run -d -p 3001:3001 -e DASHBOARD_API_KEY=your-key ${DOCKER_REGISTRY_USER}/claude-nexus-dashboard:${TAG}"
+    
+    # Add push instructions
+    echo
+    info "To push to Docker Hub:"
+    if [ "$TAG" != "latest" ]; then
+        echo "  # Push both latest and version tags:"
+        echo "  docker push ${DOCKER_REGISTRY_USER}/claude-nexus-proxy:latest"
+        echo "  docker push ${DOCKER_REGISTRY_USER}/claude-nexus-proxy:${TAG}"
+        echo "  docker push ${DOCKER_REGISTRY_USER}/claude-nexus-dashboard:latest"
+        echo "  docker push ${DOCKER_REGISTRY_USER}/claude-nexus-dashboard:${TAG}"
+        echo
+        echo "  # Or use the push script:"
+        echo "  ./docker/push-images.sh ${TAG}"
+    else
+        echo "  docker push ${DOCKER_REGISTRY_USER}/claude-nexus-proxy:latest"
+        echo "  docker push ${DOCKER_REGISTRY_USER}/claude-nexus-dashboard:latest"
+        echo
+        echo "  # Or use the push script:"
+        echo "  ./docker/push-images.sh"
+    fi
+}
 
-if [ "$TAG" != "latest" ]; then
-    echo -e "\nAlso tagged as:"
-    echo -e "  ${YELLOW}alanpurestake/claude-nexus-proxy:${TAG}${NC}"
-    echo -e "  ${YELLOW}alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
-fi
-
-echo -e "\nTo run the services:"
-echo -e "${YELLOW}Using Docker Compose (recommended):${NC}"
-echo -e "  ${BLUE}# Copy environment file (in project root)${NC}"
-echo -e "  ${BLUE}cp .env.example .env${NC}"
-echo -e "  ${BLUE}# Edit .env with your API keys${NC}"
-echo -e "  ${BLUE}nano .env${NC}"
-echo -e "  ${BLUE}# Run both services${NC}"
-echo -e "  ${BLUE}./docker-up.sh up -d${NC}     # From project root"
-echo -e "  ${BLUE}# Or: cd docker && docker-compose --env-file ../.env up -d${NC}"
-
-if [ "$TAG" != "latest" ]; then
-    echo -e "\n  ${YELLOW}Note: docker-compose.yml uses the 'latest' tag by default${NC}"
-    echo -e "  ${YELLOW}To use version ${TAG}, either:${NC}"
-    echo -e "  ${BLUE}1. Edit docker/docker-compose.yml to use :${TAG} instead of :latest${NC}"
-    echo -e "  ${BLUE}2. Or use docker-compose.override.yml in the docker folder${NC}"
-fi
-
-echo -e "\n${YELLOW}Using Docker Run:${NC}"
-echo -e "  ${BLUE}# Proxy service${NC}"
-echo -e "  ${BLUE}docker run -d -p 3000:3000 alanpurestake/claude-nexus-proxy:${TAG}${NC}"
-echo -e "  ${BLUE}# Dashboard service${NC}"
-echo -e "  ${BLUE}docker run -d -p 3001:3001 -e DASHBOARD_API_KEY=your-key alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
-
-# Add push instructions
-echo -e "\n${YELLOW}To push to Docker Hub:${NC}"
-if [ "$TAG" != "latest" ]; then
-    echo -e "  ${BLUE}# Push both latest and version tags:${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-proxy:latest${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-proxy:${TAG}${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-dashboard:latest${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
-    echo -e "\n  ${YELLOW}Or use the push script:${NC}"
-    echo -e "  ${BLUE}./docker/push-images.sh ${TAG}${NC}"
-else
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-proxy:latest${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-dashboard:latest${NC}"
-    echo -e "\n  ${YELLOW}Or use the push script:${NC}"
-    echo -e "  ${BLUE}./docker/push-images.sh${NC}"
-fi
-
-echo -e "\n${YELLOW}Services will be available at:${NC}"
-echo -e "  Proxy API: ${GREEN}http://localhost:3000${NC}"
-echo -e "  Dashboard: ${GREEN}http://localhost:3001${NC}"
+# Run main function
+main
