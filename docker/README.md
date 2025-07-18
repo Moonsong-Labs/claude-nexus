@@ -54,11 +54,28 @@ docker build -f dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:v9 
 ./push-images.sh v9
 
 # Push version only (skip 'latest')
-./push-images.sh v9 no
+./push-images.sh v9 --no-latest
+
+# Preview what would be pushed (dry run)
+./push-images.sh --dry-run v9
 
 # Show help
 ./push-images.sh --help
+
+# Show version
+./push-images.sh --version
+
+# Legacy syntax (deprecated)
+./push-images.sh v9 no  # Use --no-latest instead
 ```
+
+**Features:**
+
+- Dry-run mode with `--dry-run` to preview operations
+- Image existence validation before pushing
+- Improved Docker Hub authentication detection
+- Timing information for push operations
+- Better error messages with troubleshooting tips
 
 **Note:** You must be logged in to Docker Hub first: `docker login`
 
