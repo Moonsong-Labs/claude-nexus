@@ -2,9 +2,31 @@
 
 This document outlines the grooming process for maintaining a clean and healthy Claude Nexus Proxy repository.
 
+## Quick Start / Common Commands
+
+```bash
+# Install dependencies
+bun install
+
+# Run type checking
+bun run typecheck
+
+# Run tests
+bun test
+
+# Format code
+bun run format
+
+# Start development servers
+bun run dev
+
+# Build for production
+bun run build:production
+```
+
 ## Overview
 
-Repository grooming is a regular maintenance activity to ensure code quality, reduce technical debt, and maintain consistency across the codebase.
+Repository grooming is a regular maintenance activity to ensure code quality, reduce technical debt, and maintain consistency across the codebase. Our goal is to maintain a clean, secure, and consistent codebase that is easy for all contributors to work with.
 
 ## Grooming Checklist
 
@@ -12,9 +34,10 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 - [ ] Run `bun run typecheck` and fix all TypeScript errors
 - [ ] Run `bun run format` to ensure consistent formatting
-- [ ] Run `bun run lint` and address all ESLint violations
+- [ ] Run `bun run lint` for workspace-specific linting (if available)
 - [ ] Remove or fix any console.log statements (use proper logging)
 - [ ] Check for and remove unused imports and dead code
+- [ ] Ensure pre-commit hooks are enabled (`bun install` installs them automatically)
 
 ### 2. Technical Debt
 
@@ -34,8 +57,11 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 - [ ] Review code for exposed secrets or credentials
 - [ ] Ensure sensitive data is properly masked in logs
-- [ ] Verify API keys are hashed before storage
+- [ ] Verify API keys are hashed before storage (check `API_KEY_SALT` configuration)
 - [ ] Check that test sample collection sanitizes data
+- [ ] Review OAuth token handling and refresh mechanisms
+- [ ] Verify environment variables are documented and secure
+- [ ] Check for dependency vulnerabilities with `bun audit` (when available)
 
 ### 5. Performance
 
@@ -95,24 +121,61 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ## Tools & Commands
 
+### Development Commands
+
 ```bash
 # Type checking
 bun run typecheck
+bun run typecheck:proxy    # Proxy service only
+bun run typecheck:dashboard # Dashboard service only
 
 # Formatting
 bun run format
 
-# Linting (when available)
-bun run lint
+# Linting
+bun run lint  # Runs workspace-specific linting
 
-# Run all checks
-bun run typecheck && bun run format
+# Testing
+bun test                    # All tests
+bun test:unit              # Unit tests only
+bun test:integration       # Integration tests
+bun test:coverage          # With coverage report
 
-# Database migrations
+# Pre-commit hooks (auto-installed)
+bun install  # Installs Husky hooks automatically
+```
+
+### Database Management
+
+```bash
+# Run all migrations
 for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 
+# Check analysis jobs
+bun run scripts/check-analysis-jobs.ts
+
+# Reset stuck analysis jobs
+bun run scripts/reset-stuck-analysis-jobs.ts
+```
+
+### Dependency Management
+
+```bash
 # Check for outdated dependencies
 bun outdated
+
+# Update dependencies (use with caution)
+bun update
+```
+
+### AI Analysis Tools
+
+```bash
+# Check AI worker configuration
+bun run scripts/check-ai-worker-config.ts
+
+# Inspect analysis content
+bun run scripts/check-analysis-content.ts <conversation-id>
 ```
 
 ## Common Issues & Fixes
@@ -135,13 +198,72 @@ bun outdated
 - Unmasked sensitive data: Add masking logic
 - Missing validation: Add input validation
 
+## Automated Grooming
+
+### Using the File Grooming Slash Command
+
+The `/nexus:crys-file-grooming` slash command provides automated file grooming capabilities:
+
+1. **Purpose**: Automates the process of reviewing and refactoring individual files
+2. **Usage**: Available in Claude Code when MCP is configured
+3. **Process**:
+   - Analyzes file purpose and functionality
+   - Identifies improvement areas
+   - Validates changes with AI models
+   - Implements refactoring
+   - Tests and commits changes
+
+### Best Practices for Automated Grooming
+
+- Focus on one file at a time
+- Review AI-suggested changes carefully
+- Always test after automated refactoring
+- Document significant changes in commit messages
+
+## Pre-commit Hooks
+
+The project uses Husky and lint-staged for automated code quality checks:
+
+- **Automatic Setup**: Hooks are installed automatically via `bun install`
+- **What Runs**: ESLint fixes and Prettier formatting on staged files
+- **Manual Setup** (if needed): `bunx husky init`
+
+**Note**: TypeScript type checking is not included in pre-commit hooks for performance reasons but runs in CI/CD.
+
+## Security Best Practices
+
+### Secret Management
+
+- **No secrets in code**: Use environment variables or credential files
+- **API Key Security**: Configure `API_KEY_SALT` for proper hashing
+- **OAuth Tokens**: Implement secure refresh mechanisms
+- **Credential Files**: Store in `credentials/` directory (gitignored)
+
+### Reporting Vulnerabilities
+
+- Create confidential issues in GitHub
+- Follow guidelines in SECURITY.md (if available)
+- Document security fixes in ADRs
+
+## Maintaining This Guide
+
+This document should be reviewed:
+
+- **Quarterly**: For comprehensive updates
+- **Before major releases**: To ensure accuracy
+- **When tools change**: Update commands and processes
+
+Create a recurring issue to remind the team about guide maintenance.
+
 ## References
 
 - [Technical Debt Register](docs/04-Architecture/technical-debt.md)
 - [Database Documentation](docs/03-Operations/database.md)
 - [Architecture Decision Records](docs/04-Architecture/ADRs/)
 - [CLAUDE.md](CLAUDE.md) - AI Assistant Guidelines
+- [ADR-012](docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md) - Database Schema Evolution
+- [ADR-018](docs/04-Architecture/ADRs/adr-018-ai-powered-conversation-analysis.md) - AI Analysis Architecture
 
 ---
 
-Last Updated: 2025-06-26
+Last Updated: 2025-07-19
