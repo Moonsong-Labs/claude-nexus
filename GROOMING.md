@@ -346,3 +346,35 @@ These changes improve the local development experience by removing potential fai
 
 **Rationale:**
 The refactoring aligns with industry best practices for shell scripting, making the scripts more maintainable, reliable, and flexible. The changes enable contributors to use their own Docker registries and provide better error handling for common failure scenarios.
+
+### 2025-07-18 - Claude CLI Entrypoint Security Improvements
+
+**Files Modified:**
+
+- `docker/claude-cli/entrypoint.sh`
+
+**Changes Made:**
+
+1. **Enhanced Security**
+   - Removed all `chown` operations that attempted to run as root
+   - Leveraged the fact that container runs as 'claude' user for automatic correct file ownership
+   - Added `set -euo pipefail` for fail-fast behavior on errors
+
+2. **Improved Error Handling**
+   - Script now exits immediately on any command failure
+   - Prevents container from running in partially configured state
+   - Aligns with container best practices for robust error handling
+
+3. **Code Quality Improvements**
+   - Added comprehensive documentation header explaining script purpose
+   - Consistent use of CLAUDE_HOME environment variable
+   - Removed redundant directory creation (already handled in Dockerfile)
+   - Added comments for each major section
+
+4. **Simplified Logic**
+   - Removed unnecessary permission operations since files copied by 'claude' user have correct ownership
+   - Used `${1:-}` pattern for safer parameter handling
+   - Consistent formatting and structure
+
+**Rationale:**
+The primary driver for these changes was improving security by eliminating root-level operations in the runtime script. According to container best practices, all permission and directory setup should happen at build time (Dockerfile), not runtime. The changes also improve maintainability through better documentation and error handling. These modifications were validated by Gemini 2.5 Pro with 9/10 confidence, confirming alignment with industry standards for container entrypoints.
