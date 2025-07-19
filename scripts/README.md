@@ -190,6 +190,40 @@ bun scripts/generate-conversation-test.ts --from-fixture my-test.json
 - Creates appropriate mocks for query and compact search executors
 - Includes all necessary assertions based on fixture expectations
 
+### compute-fixture-hashes.ts
+
+Updates hash values in conversation-linking test fixtures when the hashing algorithm changes.
+
+```bash
+# Update a single fixture
+bun scripts/compute-fixture-hashes.ts path/to/fixture.json
+
+# Update all fixtures in the default directory
+bun scripts/compute-fixture-hashes.ts --all
+
+# Dry run to see what would change
+bun scripts/compute-fixture-hashes.ts --all --dry-run
+
+# Verbose output
+bun scripts/compute-fixture-hashes.ts --all --verbose
+
+# Create backups before updating
+bun scripts/compute-fixture-hashes.ts --all --backup
+
+# Show help
+bun scripts/compute-fixture-hashes.ts --help
+```
+
+**Features:**
+
+- Batch processing of all fixtures with `--all` flag
+- Safe dry-run mode to preview changes
+- Backup creation to prevent data loss
+- Verbose mode for debugging
+- Validates fixture structure before processing
+- Handles all fixture types: standard, compact, branch, and subtask
+- Supports both string and array system prompts
+
 ## Environment Variables
 
 Most scripts require these environment variables:
