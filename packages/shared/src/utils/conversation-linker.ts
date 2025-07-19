@@ -4,6 +4,17 @@ import { hashSystemPrompt } from './conversation-hash.js'
 import { stripSystemReminder } from './system-reminder.js'
 import type { createLogger } from '../logger/index.js'
 
+// Custom error class for conversation linking errors
+export class ConversationLinkingError extends Error {
+  constructor(
+    message: string,
+    public readonly context?: Record<string, unknown>
+  ) {
+    super(message)
+    this.name = 'ConversationLinkingError'
+  }
+}
+
 // Constants
 const BRANCH_MAIN = 'main'
 const BRANCH_PREFIX = 'branch_'
@@ -118,6 +129,14 @@ export class ConversationLinker {
     private subtaskSequenceQueryExecutor?: SubtaskSequenceQueryExecutor
   ) {}
 
+  /**
+   * Links a conversation request by computing message hashes and finding parent-child relationships.
+   * Handles single and multi-message conversations, subtask detection, compact conversations, and branch management.
+   *
+   * @param request - The linking request containing messages, domain, and metadata
+   * @returns LinkingResult with conversation ID, parent request ID, branch ID, and message hashes
+   * @throws Error if messages array is empty or invalid
+   */
   async linkConversation(request: LinkingRequest): Promise<LinkingResult> {
     const { domain, messages, systemPrompt, requestId, timestamp } = request
     const linkingId = randomUUID()
@@ -136,7 +155,12 @@ export class ConversationLinker {
 
     // Validate messages before processing
     if (!messages || messages.length === 0) {
-      throw new Error('Cannot compute hash for empty messages array')
+      throw new ConversationLinkingError('Cannot link conversation with empty messages array', {
+        domain,
+        requestId,
+        hasMessages: !!messages,
+        messageCount: messages?.length || 0,
+      })
     }
 
     try {
@@ -619,7 +643,10 @@ export class ConversationLinker {
       const hash = createHash('sha256')
 
       if (!messages || messages.length === 0) {
-        throw new Error('Cannot compute hash for empty messages array')
+        throw new ConversationLinkingError('Cannot compute hash for empty messages array', {
+          messagesProvided: !!messages,
+          length: messages?.length || 0,
+        })
       }
 
       // Deduplicate messages if needed
@@ -627,7 +654,11 @@ export class ConversationLinker {
 
       for (const message of messagesToHash) {
         if (!message || !message.role) {
-          throw new Error('Invalid message: missing role')
+          throw new ConversationLinkingError('Invalid message: missing role', {
+            messageIndex: messagesToHash.indexOf(message),
+            hasMessage: !!message,
+            hasRole: message?.role,
+          })
         }
 
         hash.update(message.role)
@@ -640,13 +671,27 @@ export class ConversationLinker {
 
       return hash.digest('hex')
     } catch (error) {
+      // If it's already a ConversationLinkingError, re-throw it
+      if (error instanceof ConversationLinkingError) {
+        throw error
+      }
+
+      // Otherwise wrap it
       console.error('Error in computeMessageHash:', error)
-      throw new Error(
-        `Failed to compute message hash: ${error instanceof Error ? error.message : String(error)}`
+      throw new ConversationLinkingError(
+        `Failed to compute message hash: ${error instanceof Error ? error.message : String(error)}`,
+        { originalError: error }
       )
     }
   }
 
+  /**
+   * Normalizes message content to a consistent string format for hashing.
+   * Handles both string and array content types, filtering out system reminders.
+   *
+   * @param content - String or array of ClaudeContent items
+   * @returns Normalized string representation of the content
+   */
   private normalizeMessageContent(content: string | ClaudeContent[]): string {
     if (typeof content === 'string') {
       return this.normalizeStringContent(content)
@@ -675,7 +720,14 @@ export class ConversationLinker {
     })
   }
 
-  // This is because of bug https://github.com/anthropics/claude-code-action/issues/200
+  /**
+   * Deduplicates messages by removing duplicate tool_use and tool_result blocks.
+   * This handles a bug where Claude API may return duplicate tool invocations.
+   * @see https://github.com/anthropics/claude-code-action/issues/200
+   *
+   * @param messages - Array of Claude messages to deduplicate
+   * @returns Array of messages with duplicates removed
+   */
   private deduplicateMessages(messages: ClaudeMessage[]): ClaudeMessage[] {
     // Track seen tool IDs across all messages
     const seenToolUseIds = new Set<string>()

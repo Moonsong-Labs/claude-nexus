@@ -282,7 +282,7 @@ describe('ConversationLinker', () => {
 
       const promise = linker.linkConversation(request)
 
-      await expect(promise).rejects.toThrow('Cannot compute hash for empty messages array')
+      await expect(promise).rejects.toThrow('Cannot link conversation with empty messages array')
     })
   })
 
