@@ -7,8 +7,6 @@
  * - hashMessagesOnly: Wrapper around ConversationLinker.computeMessageHash
  * - extractMessageHashes: Dual hash system for conversation tracking
  * - generateConversationId: UUID generation for new conversations
- *
- * Test-only functions have been moved to test-utilities/conversation-hash-test-utils.ts
  */
 
 import { createHash } from 'crypto'
@@ -16,23 +14,18 @@ import type { ClaudeMessage } from '../types/claude.js'
 import { stripSystemReminder } from './system-reminder.js'
 import { ConversationLinker } from './conversation-linker.js'
 
-// Note: hashMessage has been moved to test-utilities/conversation-hash-test-utils.ts
-// Use ConversationLinker.computeMessageHash for production code
+// Constants for commonly used strings
+const CLI_TOOL_PREFIX =
+  'You are an interactive CLI tool that helps users with software engineering tasks'
 
 /**
- * Internal function for normalizing message content used by hashSystemPrompt
+ * Filters out system reminder content from an array of content blocks
+ * @param content - Array of content blocks
+ * @returns Filtered content blocks
  * @private
  */
-function normalizeMessageContent(content: string | any[]): string {
-  if (typeof content === 'string') {
-    // Normalize string content to match array format for consistency
-    // This ensures "hello" and [{type: "text", text: "hello"}] produce the same hash
-    return `[0]text:${content.trim().replace(/\r\n/g, '\n')}`
-  }
-
-  // For array content, create a deterministic string representation
-  // Filter out system-reminder content items before processing
-  const filteredContent = content.filter(item => {
+function filterSystemReminders(content: any[]): any[] {
+  return content.filter(item => {
     // Skip text items that contain system-reminder blocks
     if (item.type === 'text' && typeof item.text === 'string') {
       // If the entire text is just a system-reminder, filter it out
@@ -41,11 +34,19 @@ function normalizeMessageContent(content: string | any[]): string {
     }
     return true
   })
+}
 
-  // Deduplicate tool_use and tool_result items by their IDs
+/**
+ * Deduplicates tool_use and tool_result items by their IDs
+ * @param content - Array of content blocks
+ * @returns Deduplicated content blocks
+ * @private
+ */
+function deduplicateToolItems(content: any[]): any[] {
   const seenToolUseIds = new Set<string>()
   const seenToolResultIds = new Set<string>()
-  const dedupedContent = filteredContent.filter(item => {
+
+  return content.filter(item => {
     if (item.type === 'tool_use' && item.id) {
       if (seenToolUseIds.has(item.id)) {
         return false // Skip duplicate
@@ -62,47 +63,92 @@ function normalizeMessageContent(content: string | any[]): string {
     }
     return true // Keep all other types
   })
-
-  // DO NOT sort - preserve the original order as it's semantically important
-  return dedupedContent
-    .map((item, index) => {
-      // Extract only the essential fields, ignoring cache_control and other metadata
-      switch (item.type) {
-        case 'text': {
-          // Strip system-reminder blocks from text content before hashing
-          const cleanText = stripSystemReminder(item.text || '')
-          return `[${index}]text:${cleanText.trim().replace(/\r\n/g, '\n')}`
-        }
-        case 'image': {
-          // For images, hash the data to avoid storing large base64 strings
-          const imageHash = item.source?.data
-            ? createHash('sha256').update(item.source.data).digest('hex')
-            : 'no-data'
-          return `[${index}]image:${item.source?.media_type || 'unknown'}:${imageHash}`
-        }
-        case 'tool_use':
-          return `[${index}]tool_use:${item.name}:${item.id}:${JSON.stringify(item.input || {})}`
-        case 'tool_result': {
-          let resultContent =
-            typeof item.content === 'string' ? item.content : JSON.stringify(item.content || [])
-          // Remove system-reminder blocks from tool_result content
-          if (typeof item.content === 'string') {
-            resultContent = stripSystemReminder(item.content).trim()
-          }
-          return `[${index}]tool_result:${item.tool_use_id}:${resultContent}`
-        }
-        default: {
-          // For unknown types, only include type and essential content
-          const essentialItem = { type: item.type, content: item.content, text: item.text }
-          return `[${index}]${item.type}:${JSON.stringify(essentialItem)}`
-        }
-      }
-    })
-    .join('|')
 }
 
-// Note: hashConversationState has been moved to test-utilities/conversation-hash-test-utils.ts
-// Use ConversationLinker.computeMessageHash for production code
+/**
+ * Normalizes a single content item to a string representation
+ * @param item - Content item to normalize
+ * @param index - Index of the item in the array
+ * @returns String representation of the item
+ * @private
+ */
+function normalizeContentItem(item: any, index: number): string {
+  switch (item.type) {
+    case 'text': {
+      // Strip system-reminder blocks from text content before hashing
+      const cleanText = stripSystemReminder(item.text || '')
+      return `[${index}]text:${cleanText.trim().replace(/\r\n/g, '\n')}`
+    }
+    case 'image': {
+      // For images, hash the data to avoid storing large base64 strings
+      const imageHash = item.source?.data
+        ? createHash('sha256').update(item.source.data).digest('hex')
+        : 'no-data'
+      return `[${index}]image:${item.source?.media_type || 'unknown'}:${imageHash}`
+    }
+    case 'tool_use':
+      return `[${index}]tool_use:${item.name}:${item.id}:${JSON.stringify(item.input || {})}`
+    case 'tool_result': {
+      let resultContent =
+        typeof item.content === 'string' ? item.content : JSON.stringify(item.content || [])
+      // Remove system-reminder blocks from tool_result content
+      if (typeof item.content === 'string') {
+        resultContent = stripSystemReminder(item.content).trim()
+      }
+      return `[${index}]tool_result:${item.tool_use_id}:${resultContent}`
+    }
+    default: {
+      // For unknown types, only include type and essential content
+      const essentialItem = { type: item.type, content: item.content, text: item.text }
+      return `[${index}]${item.type}:${JSON.stringify(essentialItem)}`
+    }
+  }
+}
+
+/**
+ * Normalizes message content to a consistent string format for hashing
+ * @param content - String or array of content blocks
+ * @returns Normalized string representation
+ * @private
+ */
+function normalizeMessageContent(content: string | any[]): string {
+  if (typeof content === 'string') {
+    // Normalize string content to match array format for consistency
+    // This ensures "hello" and [{type: "text", text: "hello"}] produce the same hash
+    return `[0]text:${content.trim().replace(/\r\n/g, '\n')}`
+  }
+
+  // For array content, create a deterministic string representation
+  const filteredContent = filterSystemReminders(content)
+  const dedupedContent = deduplicateToolItems(filteredContent)
+
+  // DO NOT sort - preserve the original order as it's semantically important
+  return dedupedContent.map((item, index) => normalizeContentItem(item, index)).join('|')
+}
+
+// Regex patterns for removing volatile content from system prompts
+const REGEX_PATTERNS = {
+  // Matches <transient_context>...</transient_context> blocks
+  TRANSIENT_CONTEXT: /<transient_context>[\s\S]*?<\/transient_context>/g,
+
+  // Matches "gitStatus:" followed by content until double newline or end
+  GIT_STATUS: /gitStatus:[\s\S]*?(?:\n\n|$)/g,
+
+  // Matches standalone "Status:" sections containing git information
+  STATUS_SECTION: /(?:^|\n)Status:\s*\n(?:[^\n]*\n)*?(?=\n\n|$)/gm,
+
+  // Matches "Current branch:" lines
+  CURRENT_BRANCH: /(?:^|\n)Current branch:.*$/gm,
+
+  // Matches "Main branch:" lines (with optional text before colon)
+  MAIN_BRANCH: /(?:^|\n)Main branch.*:.*$/gm,
+
+  // Matches "Recent commits:" sections including all commit lines
+  RECENT_COMMITS: /(?:^|\n)Recent commits:.*\n(?:(?!^\n).*\n)*/gm,
+
+  // Matches 3 or more consecutive newlines
+  MULTIPLE_NEWLINES: /\n{3,}/g,
+}
 
 /**
  * Removes transient/volatile context from system prompts to ensure stable hashing
@@ -113,59 +159,44 @@ function getStableSystemPrompt(systemPrompt: string | any[]): string {
   if (typeof systemPrompt === 'string') {
     // Special case: If the system prompt starts with the CLI tool text,
     // only include this stable snippet to avoid dynamic content differences
-    const cliToolPrefix =
-      'You are an interactive CLI tool that helps users with software engineering tasks'
-    if (systemPrompt.trim().startsWith(cliToolPrefix)) {
+    if (systemPrompt.trim().startsWith(CLI_TOOL_PREFIX)) {
       // Return just the stable prefix, ignoring all the dynamic content that follows
-      return cliToolPrefix
+      return CLI_TOOL_PREFIX
     }
 
     let stable = systemPrompt
 
     // Remove transient_context blocks (future-proofing)
-    stable = stable.replace(/<transient_context>[\s\S]*?<\/transient_context>/g, '')
+    stable = stable.replace(REGEX_PATTERNS.TRANSIENT_CONTEXT, '')
 
     // Remove system-reminder blocks
     stable = stripSystemReminder(stable)
 
-    // Remove git status sections (common in Claude Code)
-    // Pattern: "gitStatus: " followed by content until double newline or end
-    stable = stable.replace(/gitStatus:[\s\S]*?(?:\n\n|$)/g, '\n\n')
-
-    // Remove standalone Status: sections that contain git information
-    // This captures multi-line status blocks that contain file changes
-    stable = stable.replace(/(?:^|\n)Status:\s*\n(?:[^\n]*\n)*?(?=\n\n|$)/gm, '\n')
-
-    // Remove Current branch: lines
-    stable = stable.replace(/(?:^|\n)Current branch:.*$/gm, '')
-
-    // Remove Main branch: lines
-    stable = stable.replace(/(?:^|\n)Main branch.*:.*$/gm, '')
-
-    // Remove Recent commits: sections including the content
-    stable = stable.replace(/(?:^|\n)Recent commits:.*\n(?:(?!^\n).*\n)*/gm, '\n')
+    // Remove git-related sections that change frequently
+    stable = stable.replace(REGEX_PATTERNS.GIT_STATUS, '\n\n')
+    stable = stable.replace(REGEX_PATTERNS.STATUS_SECTION, '\n')
+    stable = stable.replace(REGEX_PATTERNS.CURRENT_BRANCH, '')
+    stable = stable.replace(REGEX_PATTERNS.MAIN_BRANCH, '')
+    stable = stable.replace(REGEX_PATTERNS.RECENT_COMMITS, '\n')
 
     // Clean up multiple consecutive newlines
-    stable = stable.replace(/\n{3,}/g, '\n\n')
+    stable = stable.replace(REGEX_PATTERNS.MULTIPLE_NEWLINES, '\n\n')
 
     return stable.trim()
   }
 
   // For array content, check if any text item contains the CLI tool prefix
-  const cliToolPrefix =
-    'You are an interactive CLI tool that helps users with software engineering tasks'
-
   if (Array.isArray(systemPrompt)) {
     for (const item of systemPrompt) {
       if (
         item.type === 'text' &&
         typeof item.text === 'string' &&
-        item.text.trim().startsWith(cliToolPrefix)
+        item.text.trim().startsWith(CLI_TOOL_PREFIX)
       ) {
         // Found CLI tool text - return normalized content with just the first item and the CLI prefix
         const stableContent = [
           systemPrompt[0], // Keep the first item (usually "You are Claude Code...")
-          { type: 'text', text: cliToolPrefix }, // Replace the second item with just the prefix
+          { type: 'text', text: CLI_TOOL_PREFIX }, // Replace the second item with just the prefix
         ]
         return normalizeMessageContent(stableContent)
       }
@@ -176,13 +207,15 @@ function getStableSystemPrompt(systemPrompt: string | any[]): string {
   return normalizeMessageContent(systemPrompt)
 }
 
-// Note: hashConversationStateWithSystem has been moved to test-utilities/conversation-hash-test-utils.ts
-// Use ConversationLinker for production code
-
 /**
  * Hashes only the messages without system prompt
- * @param messages - Array of messages
- * @returns A hash representing the messages only
+ *
+ * This function delegates to ConversationLinker which is the source of truth
+ * for message hashing logic. It creates a minimal ConversationLinker instance
+ * just to access the computeMessageHash method.
+ *
+ * @param messages - Array of Claude messages to hash
+ * @returns SHA-256 hash of the normalized message content
  */
 export function hashMessagesOnly(messages: ClaudeMessage[]): string {
   // Create a no-op logger for hash computation
@@ -206,9 +239,13 @@ export function hashMessagesOnly(messages: ClaudeMessage[]): string {
 }
 
 /**
- * Hashes only the system prompt
- * @param system - System prompt (string or array of content blocks)
- * @returns A hash of the system prompt or null if no system
+ * Hashes only the system prompt after removing volatile content
+ *
+ * Removes transient context like git status, branch info, and recent commits
+ * to ensure stable hashing across different states of the same conversation.
+ *
+ * @param system - System prompt as string or array of content blocks
+ * @returns SHA-256 hash of the stable system prompt content, or null if empty
  */
 export function hashSystemPrompt(system?: string | any[]): string | null {
   if (!system) {
@@ -281,12 +318,10 @@ export function extractMessageHashes(
   return { currentMessageHash, parentMessageHash, systemHash }
 }
 
-// Note: extractMessageHashesLegacy has been moved to test-utilities/conversation-hash-test-utils.ts
-// Use extractMessageHashes for the dual hash system
-
 /**
- * Generates a new conversation ID
- * Uses crypto.randomUUID for a v4 UUID
+ * Generates a new conversation ID using crypto.randomUUID
+ *
+ * @returns A v4 UUID string for uniquely identifying conversations
  */
 export function generateConversationId(): string {
   return crypto.randomUUID()
