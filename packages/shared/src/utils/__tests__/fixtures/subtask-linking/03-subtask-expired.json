@@ -1,9 +1,14 @@
 {
-  "description": "Test sub-task detection but no linking when outside time window",
+  "description": "Test sub-task detection fails when child request is just outside the 30-second time window (31 seconds)",
   "type": "subtask",
   "expectedIsSubtask": false,
   "parent": {
     "request_id": "parent-request-123",
+    "domain": "test.com",
+    "conversation_id": "conv-123-456-789",
+    "branch_id": "main",
+    "current_message_hash": "abc123def456",
+    "parent_message_hash": null,
     "timestamp": "2024-01-01T10:00:00Z",
     "task_invocations": [
       {
@@ -16,7 +21,7 @@
   "child": {
     "request_id": "subtask-test-003",
     "domain": "test.com",
-    "timestamp": "2024-01-01T10:01:00Z",
+    "timestamp": "2024-01-01T10:00:31Z",
     "body": {
       "model": "claude-3-opus-20240229",
       "stream": true,
@@ -26,7 +31,12 @@
           "role": "user",
           "content": "Search for all instances of hardcoded credentials in the authentication module"
         }
-      ]
+      ],
+      "metadata": {
+        "user_id": "test-user"
+      },
+      "max_tokens": 4096,
+      "temperature": 0.7
     }
   }
 }
