@@ -737,6 +737,55 @@ Mock tests that don't test actual functionality are anti-patterns that provide f
 
 The credentials module handles sensitive authentication functionality and currently has zero unit test coverage. Creating proper unit tests for `credentials.ts` must be prioritized as a high-priority technical debt item.
 
+### 2025-07-19 - Subtask Detection Test Refactoring
+
+**Files Modified:**
+
+- `packages/shared/src/utils/__tests__/subtask-detection.test.ts`
+
+**Changes Made:**
+
+1. **Extracted Mock Factory Functions**
+   - Created `createMockLogger()`, `createMockQueryExecutor()`, etc. to eliminate duplication
+   - Centralized mock creation logic with type-safe factory functions
+   - Reduced code duplication by ~50 lines
+
+2. **Improved Test Organization**
+   - Combined JSON fixture tests into main describe block
+   - Added nested describe blocks for better test organization
+   - Grouped related tests under "Unit Tests > Basic Subtask Detection"
+
+3. **Enhanced Type Safety**
+   - Added explicit `MockLogger` type definition
+   - Used typed factory functions with proper return types
+   - Added const `DEFAULT_PARENT_REQUEST` for test data consistency
+
+4. **Simplified Mock Setup**
+   - Replaced verbose inline mock setup with clean `createLinker()` function
+   - Moved mock data to module scope for better encapsulation
+   - Removed redundant comments that stated the obvious
+
+5. **Removed Dead Code**
+   - Removed skip logic for non-existent `04-second-subtask.json` file
+   - Cleaned up unnecessary filtering in JSON file tests
+
+**Analysis Findings:**
+
+- Original file had significant code duplication between two describe blocks
+- Mock setup was repeated multiple times with identical logic
+- JSON fixture tests were artificially separated causing redundant setup
+- Test organization made it harder to understand test relationships
+
+**Validation:**
+
+- Gemini-2.5-flash: 9/10 confidence score, strongly endorsed refactoring plan
+- O3-mini: 9/10 confidence score, suggested considering parameterized tests
+- Both models confirmed alignment with DRY principle and testing best practices
+
+**Rationale:**
+
+The refactoring reduces technical debt, improves maintainability, and makes tests easier to understand and extend. By consolidating test setup and improving organization, future developers can more easily add new test cases and understand the test suite structure. The changes follow industry best practices for unit testing while maintaining 100% test compatibility.
+
 ### 2025-07-19 - Integration Test Anti-pattern Cleanup
 
 **Files Modified:**
