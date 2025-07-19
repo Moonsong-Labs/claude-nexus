@@ -1,88 +1,55 @@
-// Re-export all shared modules
+/**
+ * @file Main entry point for the @claude-nexus/shared package
+ *
+ * This barrel export file provides a centralized access point for all shared
+ * utilities, types, and configurations used across the Claude Nexus monorepo.
+ *
+ * Export Strategy:
+ * We use wildcard exports (export *) for all modules to simplify maintenance
+ * and ensure new exports are automatically available. This is appropriate for
+ * an internal monorepo package where we control all consumers.
+ *
+ * Organization:
+ * Exports are grouped by category for better discoverability:
+ * - Core Types & Interfaces
+ * - Configuration
+ * - Utilities
+ * - Constants
+ * - AI Analysis
+ * - Prompts
+ */
+
+// ============================================================================
+// Core Types & Interfaces
+// ============================================================================
 export * from './types/index.js'
+export * from './types/ai-analysis.js'
+
+// ============================================================================
+// Configuration
+// ============================================================================
 export * from './config/index.js'
+
+// ============================================================================
+// Logger
+// ============================================================================
 export * from './logger/index.js'
+
+// ============================================================================
+// Utilities
+// ============================================================================
 export * from './utils/errors.js'
 export * from './utils/conversation-hash.js'
 export * from './utils/conversation-linker.js'
 export * from './utils/system-reminder.js'
 export * from './utils/validation.js'
 
-// Re-export specific functions to ensure they're available
-export {
-  getErrorMessage,
-  getErrorStack,
-  getErrorCode,
-  hasStatusCode,
-  isError,
-  getStatusCode,
-  DEFAULT_ERROR_STATUS_CODE,
-} from './utils/errors.js'
+// ============================================================================
+// Constants
+// ============================================================================
+export * from './constants/model-limits.js'
 
-export { createLogger } from './logger/index.js'
-
-export {
-  hashMessagesOnly,
-  hashSystemPrompt,
-  extractMessageHashes,
-  generateConversationId,
-} from './utils/conversation-hash.js'
-
-export { config } from './config/index.js'
-
-export {
-  ConversationLinker,
-  type QueryExecutor,
-  type CompactSearchExecutor,
-  type RequestByIdExecutor,
-  type SubtaskQueryExecutor,
-  type SubtaskSequenceQueryExecutor,
-  type LinkingRequest,
-  type LinkingResult,
-  type ParentQueryCriteria,
-  type TaskInvocation,
-} from './utils/conversation-linker.js'
-
-export { stripSystemReminder, containsSystemReminder } from './utils/system-reminder.js'
-
-// Export model limits configuration
-export {
-  MODEL_CONTEXT_RULES,
-  DEFAULT_CONTEXT_LIMIT,
-  BATTERY_THRESHOLDS,
-  getModelContextLimit,
-  getBatteryColor,
-  getBatteryLevel,
-  type ModelContextRule,
-} from './constants/model-limits.js'
-
-// Export AI analysis types and configuration
-export {
-  ConversationAnalysisSchema,
-  type ConversationAnalysis,
-  type AnalysisStatus,
-  ConversationAnalysisStatus,
-  CreateAnalysisRequestSchema,
-  type CreateAnalysisRequest,
-  type CreateAnalysisResponse,
-  type GetAnalysisResponse,
-  type RegenerateAnalysisResponse,
-  type AnalysisConflictResponse,
-} from './types/ai-analysis.js'
-export {
-  ANALYSIS_PROMPT_CONFIG,
-  GEMINI_CONFIG,
-  AI_WORKER_CONFIG,
-  AI_ANALYSIS_CONFIG,
-} from './config/index.js'
-
-// Export prompt utilities
-export {
-  truncateConversation,
-  buildAnalysisPrompt,
-  parseAnalysisResponse,
-  getAnalysisPromptTemplate,
-  ConversationAnalysisResponseSchema,
-  type Message,
-  type GeminiContent,
-} from './prompts/index.js'
+// ============================================================================
+// Prompts & AI Analysis
+// ============================================================================
+export * from './prompts/index.js'
