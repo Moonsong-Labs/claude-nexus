@@ -29,36 +29,36 @@ bun run scripts/db/analyze-conversations.ts
 
 ### rebuild-conversations.ts
 
-Retroactively computes conversation IDs and branches from existing requests.
+Retroactively computes conversation IDs and branches from existing requests. Processes data in configurable batches for memory efficiency.
 
 ```bash
 # IMPORTANT: Backup first!
 bun run scripts/db/backup-database.ts
 
-# Standard version (loads all data into memory)
+# Dry run (default) - shows what would change without applying
 bun run scripts/db/rebuild-conversations.ts
 
+# Execute changes
+bun run scripts/db/rebuild-conversations.ts --execute
+
 # Options:
-#   --dry-run                    Run without making changes
+#   --execute                    Actually apply changes (default is dry run)
 #   --domain <domain>            Filter by specific domain
-#   --limit <number>             Limit number of requests
-#   --debug-conversation-changes Debug log conversation ID changes
-#   --only-orphan-conversations  Process only orphan conversations
-```
+#   --limit <number>             Limit number of requests to process
+#   --batch-size <number>        Number of requests per batch (default: 1000)
+#   --requests <ids>             Process specific request IDs (comma-separated)
+#   --debug                      Enable debug logging and SQL query logging
+#   --yes                        Skip confirmation prompt (auto-accept)
 
-### rebuild-conversations-batched.ts
+# Examples:
+# Process with custom batch size for memory optimization
+bun run scripts/db/rebuild-conversations.ts --batch-size 500 --execute
 
-Memory-efficient version that processes requests in batches. Recommended for large databases.
+# Process specific domain with debug output
+bun run scripts/db/rebuild-conversations.ts --domain example.com --debug
 
-```bash
-# Process in batches (default: 10,000 per batch)
-bun run scripts/db/rebuild-conversations-batched.ts
-
-# With custom batch size
-bun run scripts/db/rebuild-conversations-batched.ts --batch-size 5000
-
-# All options from standard version plus:
-#   --batch-size <number>  Number of requests per batch (default: 10000)
+# Process specific requests
+bun run scripts/db/rebuild-conversations.ts --requests "id1,id2,id3" --execute
 ```
 
 ### backup-database.ts
