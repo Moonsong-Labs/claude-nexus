@@ -3,8 +3,6 @@
  * Provides consistent logging across all services
  */
 
-export * from './types.js'
-
 export interface LoggerOptions {
   level?: string
   service: string
