@@ -272,6 +272,27 @@ Last Updated: 2025-07-19
 
 ## Grooming Log
 
+### 2025-07-19 - Subtask Linking Test Fixture Cleanup
+
+**Files Modified:**
+
+- `packages/shared/src/utils/__tests__/fixtures/subtask-linking/05-subtask-follow.json`
+
+**Changes Made:**
+
+1. **Removed unrelated project data** - The fixture contained data from an unrelated "Agrosken" agricultural technology project instead of Claude Nexus Proxy test data
+2. **Simplified fixture structure** - Aligned with the pattern of other fixtures in the same directory (e.g., `01-subtask-matched.json`)
+3. **Fixed test data** - Created proper test data for the "subtask follow" scenario with:
+   - Correct task invocation structure
+   - Matching prompt between parent and child
+   - Appropriate timestamps and metadata
+   - Expected branch ID of "subtask_1"
+4. **Maintained test integrity** - All subtask-linker tests continue to pass after refactoring
+
+**Rationale:**
+
+The fixture was incorrectly populated with data from a different project, making it inconsistent with other test fixtures and potentially confusing for developers. The cleanup improves test clarity and maintainability while ensuring the fixture properly tests its intended scenario.
+
 ### 2025-07-19 - Model Limits Test Refactoring
 
 **Files Modified:**
