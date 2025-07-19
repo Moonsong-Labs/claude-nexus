@@ -89,8 +89,8 @@ describe('buildAnalysisPrompt', () => {
     const lastContent = result[result.length - 1]
     expect(lastContent.role).toBe('user')
     expect(lastContent.parts[0].text).toContain('Based on the preceding conversation')
-    expect(lastContent.parts[0].text).toContain('JSON Schema')
-    expect(lastContent.parts[0].text).toContain('Examples')
+    expect(lastContent.parts[0].text).toContain('RESPONSE FORMAT')
+    expect(lastContent.parts[0].text).toContain('ANALYSIS GUIDELINES')
   })
 
   it('should include JSON schema in the prompt', () => {
