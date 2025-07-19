@@ -2,9 +2,15 @@
   "name": "@claude-nexus/shared",
   "version": "2.0.0",
   "description": "Shared utilities and types for Claude Nexus services",
+  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moonsong-labs/claude-nexus-proxy.git",
+    "directory": "packages/shared"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -21,14 +27,18 @@
   },
   "scripts": {
     "build": "rm -rf dist && bun x tsc --build",
-    "watch": "bun build ./src/index.ts --outdir ./dist --target bun --watch",
-    "typecheck": "tsc --build"
+    "watch": "bun x tsc --build --watch",
+    "typecheck": "tsc --build",
+    "test": "bun test",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@lenml/tokenizer-gemini": "^3.4.2",
     "zod": "^3.25.72"
   },
-  "devDependencies": {
-    "@types/glob": "^9.0.0"
+  "devDependencies": {},
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
