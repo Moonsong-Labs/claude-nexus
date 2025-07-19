@@ -272,6 +272,17 @@ Last Updated: 2025-07-19
 
 ## Grooming Log
 
+### 2025-07-19 - Conversation Linking Test Fixture Cleanup
+
+**Files Deleted:**
+
+- `packages/shared/src/utils/__tests__/fixtures/conversation-linking/10-general-linking.json`
+
+**Changes Made:**
+
+1. **Deleted misplaced test fixture** - The fixture contained data from an unrelated "DataHaven operator" project (Ethereum benchmarks, InvalidMessage errors) instead of Claude Nexus Proxy conversation linking test data
+2. **Verified test integrity** - Confirmed all conversation linking tests pass after deletion
+
 ### 2025-07-19 - Subtask Linking Test Fixture Cleanup
 
 **Files Modified:**
