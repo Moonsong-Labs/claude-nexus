@@ -106,14 +106,19 @@ export type ConversationAnalysis = z.infer<typeof ConversationAnalysisSchema>
 
 // API Request/Response types for conversation analysis endpoints
 
-export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed'
+// Define analysis status as Zod schema for consistency
+export const AnalysisStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
 
-export enum ConversationAnalysisStatus {
-  PENDING = 'pending',
-  PROCESSING = 'processing',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-}
+// Infer the TypeScript type from the schema
+export type AnalysisStatus = z.infer<typeof AnalysisStatusSchema>
+
+// Export enum-like object for programmatic access (backward compatibility)
+export const ConversationAnalysisStatus = {
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const
 
 // POST /api/analyses request body
 export const CreateAnalysisRequestSchema = z.object({
@@ -123,43 +128,53 @@ export const CreateAnalysisRequestSchema = z.object({
 
 export type CreateAnalysisRequest = z.infer<typeof CreateAnalysisRequestSchema>
 
-// POST /api/analyses response
-export interface CreateAnalysisResponse {
-  id: number
-  conversationId: string
-  branchId: string
-  status: AnalysisStatus
-  createdAt: string
-}
+// POST /api/analyses response schema
+export const CreateAnalysisResponseSchema = z.object({
+  id: z.number(),
+  conversationId: uuidSchema,
+  branchId: z.string(),
+  status: AnalysisStatusSchema,
+  createdAt: z.string().datetime({ message: 'Invalid ISO 8601 date string' }),
+})
 
-// GET /api/analyses/:conversationId/:branchId response
-export interface GetAnalysisResponse {
-  id: number
-  conversationId: string
-  branchId: string
-  status: AnalysisStatus
-  content?: string // Markdown formatted analysis
-  data?: ConversationAnalysis // Structured data
-  error?: string // Only present if status is 'failed'
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-  tokenUsage?: {
-    prompt: number | null
-    completion: number | null
-    total: number
-  }
-}
+export type CreateAnalysisResponse = z.infer<typeof CreateAnalysisResponseSchema>
 
-// POST /api/analyses/:conversationId/:branchId/regenerate response
-export interface RegenerateAnalysisResponse {
-  id: number
-  status: AnalysisStatus
-  message: string
-}
+// GET /api/analyses/:conversationId/:branchId response schema
+export const GetAnalysisResponseSchema = z.object({
+  id: z.number(),
+  conversationId: uuidSchema,
+  branchId: z.string(),
+  status: AnalysisStatusSchema,
+  content: z.string().optional().describe('Markdown formatted analysis'),
+  data: ConversationAnalysisSchema.optional().describe('Structured data'),
+  error: z.string().optional().describe('Only present if status is "failed"'),
+  createdAt: z.string().datetime({ message: 'Invalid ISO 8601 date string' }),
+  updatedAt: z.string().datetime({ message: 'Invalid ISO 8601 date string' }),
+  completedAt: z.string().datetime({ message: 'Invalid ISO 8601 date string' }).optional(),
+  tokenUsage: z
+    .object({
+      prompt: z.number().nullable(),
+      completion: z.number().nullable(),
+      total: z.number(),
+    })
+    .optional(),
+})
+
+export type GetAnalysisResponse = z.infer<typeof GetAnalysisResponseSchema>
+
+// POST /api/analyses/:conversationId/:branchId/regenerate response schema
+export const RegenerateAnalysisResponseSchema = z.object({
+  id: z.number(),
+  status: AnalysisStatusSchema,
+  message: z.string(),
+})
+
+export type RegenerateAnalysisResponse = z.infer<typeof RegenerateAnalysisResponseSchema>
 
 // Error response for 409 Conflict when analysis already exists
-export interface AnalysisConflictResponse {
-  error: string
-  analysis: GetAnalysisResponse
-}
+export const AnalysisConflictResponseSchema = z.object({
+  error: z.string(),
+  analysis: GetAnalysisResponseSchema,
+})
+
+export type AnalysisConflictResponse = z.infer<typeof AnalysisConflictResponseSchema>

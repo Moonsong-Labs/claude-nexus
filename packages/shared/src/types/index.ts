@@ -7,3 +7,4 @@
 export * from './claude'
 export * from './context'
 export * from './errors'
+export * from './ai-analysis'

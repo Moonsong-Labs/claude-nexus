@@ -1,7 +1,7 @@
 import { container } from '../../container.js'
 import { logger } from '../../middleware/logger.js'
 import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
-import type { AnalysisStatus, ConversationAnalysis } from '@claude-nexus/shared/types/ai-analysis'
+import type { AnalysisStatus, ConversationAnalysis } from '@claude-nexus/shared/types'
 import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 
 const MAX_RETRIES = AI_WORKER_CONFIG.MAX_RETRIES

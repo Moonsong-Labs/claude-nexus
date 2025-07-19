@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, mock } from 'bun:test'
 import { Hono } from 'hono'
 import type { Pool, QueryResult, QueryResultRow } from 'pg'
 import { analysisRoutes } from '../analyses.js'
-import { ConversationAnalysisStatus } from '@claude-nexus/shared/types/ai-analysis'
+import { ConversationAnalysisStatus, AnalysisStatus } from '@claude-nexus/shared/types'
 import { logger } from '../../middleware/logger.js'
 
 // Create a mock Pool type that's easier to work with
@@ -87,7 +87,7 @@ describe('Proxy Analysis Routes', () => {
       const data = (await response.json()) as {
         message: string
         analysisId: number
-        status: ConversationAnalysisStatus
+        status: AnalysisStatus
       }
       expect(data.message).toBe('Analysis request created')
       expect(data.analysisId).toBe(123)
@@ -127,7 +127,7 @@ describe('Proxy Analysis Routes', () => {
       const data = (await response.json()) as {
         message: string
         analysisId: number
-        status: ConversationAnalysisStatus
+        status: AnalysisStatus
       }
       expect(data.message).toBe('Analysis already completed')
       expect(data.analysisId).toBe(456)
@@ -167,7 +167,7 @@ describe('Proxy Analysis Routes', () => {
       const data = (await response.json()) as {
         message: string
         analysisId: number
-        status: ConversationAnalysisStatus
+        status: AnalysisStatus
       }
       expect(data.message).toBe('Analysis already in progress')
       expect(data.analysisId).toBe(789)
@@ -441,7 +441,7 @@ describe('Proxy Analysis Routes', () => {
       const data = (await response.json()) as {
         message: string
         analysisId: number
-        status: ConversationAnalysisStatus
+        status: AnalysisStatus
       }
       expect(data.message).toBe('Analysis regeneration requested')
       expect(data.analysisId).toBe(123)
@@ -475,7 +475,7 @@ describe('Proxy Analysis Routes', () => {
       const data = (await response.json()) as {
         message: string
         analysisId: number
-        status: ConversationAnalysisStatus
+        status: AnalysisStatus
       }
       expect(data.message).toBe('Analysis regeneration requested')
       expect(data.analysisId).toBe(456)

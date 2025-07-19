@@ -4,7 +4,7 @@ import {
   type GeminiContent,
   getErrorMessage,
 } from '@claude-nexus/shared'
-import type { ConversationAnalysis } from '@claude-nexus/shared/types/ai-analysis'
+import type { ConversationAnalysis } from '@claude-nexus/shared/types'
 import { GEMINI_CONFIG, AI_WORKER_CONFIG, config } from '@claude-nexus/shared/config'
 import { logger } from '../../middleware/logger.js'
 import {
