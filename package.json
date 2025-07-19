@@ -65,7 +65,6 @@
     "ai:check-jobs": "bun run scripts/check-analysis-jobs.ts",
     "ai:check-content": "bun run scripts/check-analysis-content.ts",
     "ai:fail-exceeded": "bun run scripts/fail-exceeded-retry-jobs.ts",
-    "ai:test-max-retry": "bun run scripts/test-max-retry-failure.ts",
     "ai:process-pending": "bun run scripts/process-pending-analyses.ts",
     "docker:secrets": "./scripts/create-docker-secrets.sh",
     "setup": "bun install && bun run build:shared",

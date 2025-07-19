@@ -316,6 +316,29 @@ Last Updated: 2025-07-19
 
 ## Grooming Log
 
+### 2025-07-19 - Test Script Cleanup
+
+**Files Deleted:**
+
+- `scripts/test-max-retry-failure.ts`
+- Removed `ai:test-max-retry` script from package.json
+
+**Rationale:**
+
+1. **Production Database Pollution** - The script created test data directly in the production database, violating best practices
+2. **Temporary Verification Script** - This was a one-off script to verify max retry functionality, not a reusable utility
+3. **Redundant Functionality** - The `fail-exceeded-retry-jobs.ts` script already handles failing jobs that exceed max retries
+4. **No Proper Tests** - Instead of ad-hoc scripts, proper unit/integration tests should be written for the AI analysis worker
+
+**Consensus Decision:**
+
+Both Gemini 2.5 Pro and O3-mini unanimously agreed (10/10 confidence) that deletion was the correct approach, citing:
+
+- Elimination of production risk
+- Alignment with industry best practices
+- Reduction of technical debt
+- Proper separation of test and production code
+
 ### 2025-07-19 - Conversation Linking Test Fixture Cleanup
 
 **Files Deleted:**
