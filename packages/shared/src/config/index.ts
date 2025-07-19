@@ -6,14 +6,22 @@
 // Note: Environment variables should be loaded before importing this module.
 // In development, use dotenv in your entry point or use bun which loads .env automatically.
 
-// Helper to parse environment variables
+// Helper to parse environment variables with improved type safety
 const env = {
   string: (key: string, defaultValue: string): string => {
     return process.env[key] || defaultValue
   },
   int: (key: string, defaultValue: number): number => {
     const value = process.env[key]
-    return value ? parseInt(value, 10) : defaultValue
+    if (!value) {
+      return defaultValue
+    }
+    const parsed = parseInt(value, 10)
+    if (isNaN(parsed)) {
+      console.warn(`Invalid integer value for ${key}: ${value}, using default: ${defaultValue}`)
+      return defaultValue
+    }
+    return parsed
   },
   bool: (key: string, defaultValue: boolean): boolean => {
     const value = process.env[key]
@@ -22,306 +30,243 @@ const env = {
     }
     return value.toLowerCase() === 'true'
   },
+  /**
+   * Parse JSON from environment variable with error handling
+   */
+  json: <T>(key: string, defaultValue: T): T => {
+    const value = process.env[key]
+    if (!value) {
+      return defaultValue
+    }
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      console.warn(`Failed to parse JSON from ${key}, using default`)
+      return defaultValue
+    }
+  },
 }
 
 export const config = {
   // Server configuration
   server: {
-    get port() {
-      return env.int('PORT', 3000)
-    },
-    get host() {
-      return env.string('HOST', '0.0.0.0')
-    },
-    get env() {
-      return env.string('NODE_ENV', 'development')
-    },
+    port: env.int('PORT', 3000),
+    host: env.string('HOST', '0.0.0.0'),
+    env: env.string('NODE_ENV', 'development'),
+    // Keep as getter since it depends on runtime NODE_ENV
     get isProduction() {
       return process.env.NODE_ENV === 'production'
     },
-    get timeout() {
-      return env.int('PROXY_SERVER_TIMEOUT', 660000)
-    }, // 11 minutes (longer than max request + retries)
+    timeout: env.int('PROXY_SERVER_TIMEOUT', 660000), // 11 minutes (longer than max request + retries)
   },
 
   // API configuration
   api: {
-    get claudeBaseUrl() {
-      return env.string('CLAUDE_API_BASE_URL', 'https://api.anthropic.com')
-    },
-    get claudeTimeout() {
-      return env.int('CLAUDE_API_TIMEOUT', 600000)
-    }, // 10 minutes
-    get oauthClientId() {
-      return env.string('CLAUDE_OAUTH_CLIENT_ID', '')
-    },
+    claudeBaseUrl: env.string('CLAUDE_API_BASE_URL', 'https://api.anthropic.com'),
+    claudeTimeout: env.int('CLAUDE_API_TIMEOUT', 600000), // 10 minutes
+    oauthClientId: env.string('CLAUDE_OAUTH_CLIENT_ID', ''),
   },
 
   // Authentication
   auth: {
-    get credentialsDir() {
-      return env.string('CREDENTIALS_DIR', 'credentials')
-    },
+    credentialsDir: env.string('CREDENTIALS_DIR', 'credentials'),
   },
 
   // Database configuration
   database: {
-    get url() {
-      return env.string('DATABASE_URL', '')
-    },
-    get host() {
-      return env.string('DB_HOST', 'localhost')
-    },
-    get port() {
-      return env.int('DB_PORT', 5432)
-    },
-    get name() {
-      return env.string('DB_NAME', 'claude_proxy')
-    },
-    get user() {
-      return env.string('DB_USER', 'postgres')
-    },
-    get password() {
-      return env.string('DB_PASSWORD', '')
-    },
+    url: env.string('DATABASE_URL', ''),
+    host: env.string('DB_HOST', 'localhost'),
+    port: env.int('DB_PORT', 5432),
+    name: env.string('DB_NAME', 'claude_proxy'),
+    user: env.string('DB_USER', 'postgres'),
+    password: env.string('DB_PASSWORD', ''),
+    // Keep as getter since default depends on NODE_ENV
     get ssl() {
       return env.bool('DB_SSL', process.env.NODE_ENV === 'production')
     },
-    get poolSize() {
-      return env.int('DB_POOL_SIZE', 20)
-    },
+    poolSize: env.int('DB_POOL_SIZE', 20),
   },
 
   // Storage configuration
   storage: {
-    get enabled() {
-      return env.bool('STORAGE_ENABLED', false)
-    },
-    get batchSize() {
-      return env.int('STORAGE_BATCH_SIZE', 100)
-    },
-    get batchInterval() {
-      return env.int('STORAGE_BATCH_INTERVAL', 5000)
-    },
+    enabled: env.bool('STORAGE_ENABLED', false),
+    batchSize: env.int('STORAGE_BATCH_SIZE', 100),
+    batchInterval: env.int('STORAGE_BATCH_INTERVAL', 5000), // 5 seconds
+    // Additional storage adapter settings
+    adapterCleanupMs: env.int('STORAGE_ADAPTER_CLEANUP_MS', 300000), // 5 minutes
+    adapterRetentionMs: env.int('STORAGE_ADAPTER_RETENTION_MS', 3600000), // 1 hour
   },
 
   // Rate limiting
   rateLimit: {
-    get windowMs() {
-      return env.int('RATE_LIMIT_WINDOW_MS', 3600000)
-    }, // 1 hour
-    get maxRequests() {
-      return env.int('RATE_LIMIT_MAX_REQUESTS', 1000)
-    },
-    get maxTokens() {
-      return env.int('RATE_LIMIT_MAX_TOKENS', 1000000)
-    },
-    get domainWindowMs() {
-      return env.int('DOMAIN_RATE_LIMIT_WINDOW_MS', 3600000)
-    },
-    get domainMaxRequests() {
-      return env.int('DOMAIN_RATE_LIMIT_MAX_REQUESTS', 5000)
-    },
-    get domainMaxTokens() {
-      return env.int('DOMAIN_RATE_LIMIT_MAX_TOKENS', 5000000)
-    },
+    windowMs: env.int('RATE_LIMIT_WINDOW_MS', 3600000), // 1 hour
+    maxRequests: env.int('RATE_LIMIT_MAX_REQUESTS', 1000),
+    maxTokens: env.int('RATE_LIMIT_MAX_TOKENS', 1000000),
+    domainWindowMs: env.int('DOMAIN_RATE_LIMIT_WINDOW_MS', 3600000), // 1 hour
+    domainMaxRequests: env.int('DOMAIN_RATE_LIMIT_MAX_REQUESTS', 5000),
+    domainMaxTokens: env.int('DOMAIN_RATE_LIMIT_MAX_TOKENS', 5000000),
   },
 
   // Circuit breaker
   circuitBreaker: {
-    get failureThreshold() {
-      return env.int('CIRCUIT_BREAKER_FAILURE_THRESHOLD', 5)
-    },
-    get successThreshold() {
-      return env.int('CIRCUIT_BREAKER_SUCCESS_THRESHOLD', 3)
-    },
-    get timeout() {
-      return env.int('CIRCUIT_BREAKER_TIMEOUT', 120000)
-    }, // 2 minutes
-    get volumeThreshold() {
-      return env.int('CIRCUIT_BREAKER_VOLUME_THRESHOLD', 10)
-    },
-    get errorThresholdPercentage() {
-      return env.int('CIRCUIT_BREAKER_ERROR_PERCENTAGE', 50)
-    },
+    failureThreshold: env.int('CIRCUIT_BREAKER_FAILURE_THRESHOLD', 5),
+    successThreshold: env.int('CIRCUIT_BREAKER_SUCCESS_THRESHOLD', 3),
+    timeout: env.int('CIRCUIT_BREAKER_TIMEOUT', 120000), // 2 minutes
+    volumeThreshold: env.int('CIRCUIT_BREAKER_VOLUME_THRESHOLD', 10),
+    errorThresholdPercentage: env.int('CIRCUIT_BREAKER_ERROR_PERCENTAGE', 50),
   },
 
   // Request validation
   validation: {
-    get maxRequestSize() {
-      return env.int('MAX_REQUEST_SIZE', 10 * 1024 * 1024)
-    }, // 10MB
-    get maxMessageCount() {
-      return env.int('MAX_MESSAGE_COUNT', 100)
-    },
-    get maxSystemLength() {
-      return env.int('MAX_SYSTEM_LENGTH', 10000)
-    },
-    get maxMessageLength() {
-      return env.int('MAX_MESSAGE_LENGTH', 100000)
-    },
-    get maxTotalLength() {
-      return env.int('MAX_TOTAL_LENGTH', 500000)
-    },
+    maxRequestSize: env.int('MAX_REQUEST_SIZE', 10 * 1024 * 1024), // 10MB
+    maxMessageCount: env.int('MAX_MESSAGE_COUNT', 100),
+    maxSystemLength: env.int('MAX_SYSTEM_LENGTH', 10000),
+    maxMessageLength: env.int('MAX_MESSAGE_LENGTH', 100000),
+    maxTotalLength: env.int('MAX_TOTAL_LENGTH', 500000),
   },
 
   // Logging
   logging: {
-    get level() {
-      return env.string('LOG_LEVEL', 'info')
-    },
+    level: env.string('LOG_LEVEL', 'info'),
+    // Keep as getter since default depends on NODE_ENV
     get prettyPrint() {
       return !env.bool('LOG_JSON', process.env.NODE_ENV === 'production')
     },
+    // SQL query logging
+    debugSql: env.bool('DEBUG_SQL', false),
+    slowQueryThresholdMs: env.int('SLOW_QUERY_THRESHOLD_MS', 5000), // 5 seconds
   },
 
   // Slack configuration
   slack: {
-    get webhookUrl() {
-      return env.string('SLACK_WEBHOOK_URL', '')
-    },
-    get channel() {
-      return env.string('SLACK_CHANNEL', '')
-    },
-    get username() {
-      return env.string('SLACK_USERNAME', 'Claude Proxy')
-    },
-    get iconEmoji() {
-      return env.string('SLACK_ICON_EMOJI', ':robot_face:')
-    },
-    // Only enable if webhook URL is provided
+    webhookUrl: env.string('SLACK_WEBHOOK_URL', ''),
+    channel: env.string('SLACK_CHANNEL', ''),
+    username: env.string('SLACK_USERNAME', 'Claude Proxy'),
+    iconEmoji: env.string('SLACK_ICON_EMOJI', ':robot_face:'),
+    // Keep as getter since it depends on webhookUrl
     get enabled() {
-      return env.bool('SLACK_ENABLED', !!env.string('SLACK_WEBHOOK_URL', ''))
+      return env.bool('SLACK_ENABLED', !!this.webhookUrl)
     },
   },
 
   // Spark API configuration
   spark: {
-    get apiUrl() {
-      return env.string('SPARK_API_URL', 'http://localhost:8000')
-    },
-    get apiKey() {
-      return env.string('SPARK_API_KEY', '')
-    },
+    apiUrl: env.string('SPARK_API_URL', 'http://localhost:8000'),
+    apiKey: env.string('SPARK_API_KEY', ''),
+    // Keep as getter since it depends on apiKey
     get enabled() {
-      return env.bool('SPARK_ENABLED', !!env.string('SPARK_API_KEY', ''))
+      return env.bool('SPARK_ENABLED', !!this.apiKey)
     },
   },
 
   // Telemetry
   telemetry: {
-    get endpoint() {
-      return env.string('TELEMETRY_ENDPOINT', '')
-    },
-    get enabled() {
-      return env.bool('TELEMETRY_ENABLED', true)
-    },
+    endpoint: env.string('TELEMETRY_ENDPOINT', ''),
+    enabled: env.bool('TELEMETRY_ENABLED', true),
   },
 
   // Feature flags
   features: {
-    get debug() {
-      return env.bool('DEBUG', false)
-    },
-    get enableHealthChecks() {
-      return env.bool('ENABLE_HEALTH_CHECKS', true)
-    },
-    get enableMetrics() {
-      return env.bool('ENABLE_METRICS', true)
-    },
-    get enableNotifications() {
-      return env.bool('ENABLE_NOTIFICATIONS', true)
-    },
-    get enableDashboard() {
-      return env.bool('ENABLE_DASHBOARD', true)
-    },
-    get collectTestSamples() {
-      return env.bool('COLLECT_TEST_SAMPLES', false)
-    },
-    get testSamplesDir() {
-      return env.string('TEST_SAMPLES_DIR', 'test-samples')
-    },
-    get enableClientAuth() {
-      return env.bool('ENABLE_CLIENT_AUTH', true)
-    },
+    debug: env.bool('DEBUG', false),
+    enableHealthChecks: env.bool('ENABLE_HEALTH_CHECKS', true),
+    enableMetrics: env.bool('ENABLE_METRICS', true),
+    enableNotifications: env.bool('ENABLE_NOTIFICATIONS', true),
+    enableDashboard: env.bool('ENABLE_DASHBOARD', true),
+    collectTestSamples: env.bool('COLLECT_TEST_SAMPLES', false),
+    testSamplesDir: env.string('TEST_SAMPLES_DIR', 'test-samples'),
+    enableClientAuth: env.bool('ENABLE_CLIENT_AUTH', true),
   },
 
   // Cache configuration
   cache: {
-    get messageCacheSize() {
-      return env.int('MESSAGE_CACHE_SIZE', 1000)
-    },
-    get credentialCacheTTL() {
-      return env.int('CREDENTIAL_CACHE_TTL', 3600000)
-    }, // 1 hour
-    get credentialCacheSize() {
-      return env.int('CREDENTIAL_CACHE_SIZE', 100)
-    },
+    messageCacheSize: env.int('MESSAGE_CACHE_SIZE', 1000),
+    credentialCacheTTL: env.int('CREDENTIAL_CACHE_TTL', 3600000), // 1 hour
+    credentialCacheSize: env.int('CREDENTIAL_CACHE_SIZE', 100),
+    // Dashboard cache
+    dashboardCacheTtl: env.int('DASHBOARD_CACHE_TTL', 30), // 30 seconds, 0 to disable
+  },
+
+  // Security configuration
+  security: {
+    apiKeySalt: env.string('API_KEY_SALT', 'claude-nexus-proxy-default-salt'),
+  },
+
+  // Dashboard configuration
+  dashboard: {
+    apiKey: env.string('DASHBOARD_API_KEY', ''),
   },
 
   // AI Analysis configuration
   aiAnalysis: {
     // Gemini API configuration
-    get geminiApiKey() {
-      return env.string('GEMINI_API_KEY', '')
-    },
-    get geminiApiUrl() {
-      return env.string('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/models')
-    },
-    get geminiModelName() {
-      return env.string('GEMINI_MODEL_NAME', 'gemini-2.0-flash-exp')
-    },
+    geminiApiKey: env.string('GEMINI_API_KEY', ''),
+    geminiApiUrl: env.string(
+      'GEMINI_API_URL',
+      'https://generativelanguage.googleapis.com/v1beta/models'
+    ),
+    geminiModelName: env.string('GEMINI_MODEL_NAME', 'gemini-2.0-flash-exp'),
 
     // Security configurations
-    get maxRetries() {
-      return env.int('AI_ANALYSIS_MAX_RETRIES', 2)
-    },
-    get requestTimeoutMs() {
-      return env.int('AI_ANALYSIS_REQUEST_TIMEOUT_MS', 60000)
-    }, // 60 seconds
+    maxRetries: env.int('AI_ANALYSIS_MAX_RETRIES', 3), // Note: ADR-018 mentions 3 retries
+    requestTimeoutMs: env.int('AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS', 60000), // 60 seconds
 
     // Rate limiting
     rateLimits: {
-      get creation() {
-        return env.int('AI_ANALYSIS_RATE_LIMIT_CREATION', 15)
-      }, // 15 per minute
-      get retrieval() {
-        return env.int('AI_ANALYSIS_RATE_LIMIT_RETRIEVAL', 100)
-      }, // 100 per minute
+      creation: env.int('AI_ANALYSIS_RATE_LIMIT_CREATION', 15), // 15 per minute
+      retrieval: env.int('AI_ANALYSIS_RATE_LIMIT_RETRIEVAL', 100), // 100 per minute
     },
 
     // Worker configuration
-    get workerEnabled() {
-      return env.bool('AI_WORKER_ENABLED', false)
-    },
-    get workerPollIntervalMs() {
-      return env.int('AI_WORKER_POLL_INTERVAL_MS', 5000)
-    },
-    get workerMaxConcurrentJobs() {
-      return env.int('AI_WORKER_MAX_CONCURRENT_JOBS', 3)
-    },
-    get workerJobTimeoutMinutes() {
-      return env.int('AI_WORKER_JOB_TIMEOUT_MINUTES', 5)
-    },
+    workerEnabled: env.bool('AI_WORKER_ENABLED', false),
+    workerPollIntervalMs: env.int('AI_WORKER_POLL_INTERVAL_MS', 5000), // 5 seconds
+    workerMaxConcurrentJobs: env.int('AI_WORKER_MAX_CONCURRENT_JOBS', 3),
+    workerJobTimeoutMinutes: env.int('AI_WORKER_JOB_TIMEOUT_MINUTES', 5),
 
     // Security features
-    get enablePIIRedaction() {
-      return env.bool('AI_ANALYSIS_ENABLE_PII_REDACTION', true)
-    },
-    get enablePromptInjectionProtection() {
-      return env.bool('AI_ANALYSIS_ENABLE_PROMPT_INJECTION_PROTECTION', true)
-    },
-    get enableOutputValidation() {
-      return env.bool('AI_ANALYSIS_ENABLE_OUTPUT_VALIDATION', true)
-    },
-    get enableAuditLogging() {
-      return env.bool('AI_ANALYSIS_ENABLE_AUDIT_LOGGING', true)
+    enablePIIRedaction: env.bool('AI_ANALYSIS_ENABLE_PII_REDACTION', true),
+    enablePromptInjectionProtection: env.bool(
+      'AI_ANALYSIS_ENABLE_PROMPT_INJECTION_PROTECTION',
+      true
+    ),
+    enableOutputValidation: env.bool('AI_ANALYSIS_ENABLE_OUTPUT_VALIDATION', true),
+    enableAuditLogging: env.bool('AI_ANALYSIS_ENABLE_AUDIT_LOGGING', true),
+
+    // Prompt configuration (consolidated from ai-analysis.ts)
+    prompt: {
+      // Context and token limits
+      maxContextTokens: env.int('AI_MAX_CONTEXT_TOKENS', 1000000), // 1M context window
+      maxPromptTokens: env.int(
+        'AI_MAX_PROMPT_TOKENS',
+        Math.floor(
+          (env.int('AI_MAX_PROMPT_TOKENS_BASE', 900000) || 900000) *
+            (env.int('AI_TOKENIZER_SAFETY_MARGIN', 0.95) || 0.95)
+        )
+      ), // ~855k with 5% safety margin
+
+      // Truncation strategy for managing large conversations
+      truncation: {
+        headMessages: env.int('AI_HEAD_MESSAGES', 5), // Keep first N messages
+        tailMessages: env.int('AI_TAIL_MESSAGES', 20), // Keep last M messages
+        // Input truncation for individual messages
+        inputTargetTokens: env.int('AI_ANALYSIS_INPUT_TRUNCATION_TARGET_TOKENS', 8192),
+        truncateFirstNTokens: env.int('AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS', 1000),
+        truncateLastMTokens: env.int('AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS', 4000),
+      },
+
+      // Token estimation
+      estimatedCharsPerToken: env.int('AI_ESTIMATED_CHARS_PER_TOKEN', 12), // Conservative estimate
+      promptVersion: env.string('AI_ANALYSIS_PROMPT_VERSION', 'v1'),
+      tokenizerSafetyMargin: env.int('AI_TOKENIZER_SAFETY_MARGIN', 0.95),
     },
   },
 
   // MCP (Model Context Protocol) configuration
   mcp: {
     enabled: env.bool('MCP_ENABLED', false),
+    promptsDir: env.string('MCP_PROMPTS_DIR', './prompts'), // Local prompts directory
+    watchFiles: env.bool('MCP_WATCH_FILES', true), // Hot-reload prompt files
+
+    // GitHub synchronization (optional)
     github: {
       owner: env.string('MCP_GITHUB_OWNER', ''),
       repo: env.string('MCP_GITHUB_REPO', ''),
@@ -329,10 +274,12 @@ export const config = {
       token: env.string('MCP_GITHUB_TOKEN', ''),
       path: env.string('MCP_GITHUB_PATH', 'prompts/'),
     },
+
     sync: {
       interval: env.int('MCP_SYNC_INTERVAL', 300), // 5 minutes
       webhookSecret: env.string('MCP_GITHUB_WEBHOOK_SECRET', ''),
     },
+
     cache: {
       ttl: env.int('MCP_CACHE_TTL', 300), // 5 minutes
       maxSize: env.int('MCP_CACHE_SIZE', 1000),
@@ -365,10 +312,55 @@ export function validateConfig(): void {
 // Export type for configuration
 export type Config = typeof config
 
-// Export AI analysis configuration
-export {
-  ANALYSIS_PROMPT_CONFIG,
-  GEMINI_CONFIG,
-  AI_WORKER_CONFIG,
-  AI_ANALYSIS_CONFIG,
-} from './ai-analysis.js'
+// Export legacy AI configuration for backward compatibility
+// TODO: Migrate these exports to use the main config object
+export const ANALYSIS_PROMPT_CONFIG = {
+  MAX_CONTEXT_TOKENS: config.aiAnalysis.prompt.maxContextTokens,
+  MAX_PROMPT_TOKENS: config.aiAnalysis.prompt.maxPromptTokens,
+  TRUNCATION_STRATEGY: {
+    HEAD_MESSAGES: config.aiAnalysis.prompt.truncation.headMessages,
+    TAIL_MESSAGES: config.aiAnalysis.prompt.truncation.tailMessages,
+  },
+  ESTIMATED_CHARS_PER_TOKEN: config.aiAnalysis.prompt.estimatedCharsPerToken,
+  PROMPT_VERSION: config.aiAnalysis.prompt.promptVersion,
+  TOKENIZER_SAFETY_MARGIN: config.aiAnalysis.prompt.tokenizerSafetyMargin,
+}
+
+export const GEMINI_CONFIG = {
+  get API_URL() {
+    return config.aiAnalysis.geminiApiUrl
+  },
+  get API_KEY() {
+    return config.aiAnalysis.geminiApiKey
+  },
+  get MODEL_NAME() {
+    return config.aiAnalysis.geminiModelName
+  },
+}
+
+export const AI_WORKER_CONFIG = {
+  get ENABLED() {
+    return config.aiAnalysis.workerEnabled
+  },
+  get POLL_INTERVAL_MS() {
+    return config.aiAnalysis.workerPollIntervalMs
+  },
+  get MAX_CONCURRENT_JOBS() {
+    return config.aiAnalysis.workerMaxConcurrentJobs
+  },
+  get JOB_TIMEOUT_MINUTES() {
+    return config.aiAnalysis.workerJobTimeoutMinutes
+  },
+  get MAX_RETRIES() {
+    return config.aiAnalysis.maxRetries
+  },
+  get GEMINI_REQUEST_TIMEOUT_MS() {
+    return config.aiAnalysis.requestTimeoutMs
+  },
+}
+
+export const AI_ANALYSIS_CONFIG = {
+  INPUT_TRUNCATION_TARGET_TOKENS: config.aiAnalysis.prompt.truncation.inputTargetTokens,
+  TRUNCATE_FIRST_N_TOKENS: config.aiAnalysis.prompt.truncation.truncateFirstNTokens,
+  TRUNCATE_LAST_M_TOKENS: config.aiAnalysis.prompt.truncation.truncateLastMTokens,
+}

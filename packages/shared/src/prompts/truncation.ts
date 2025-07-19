@@ -1,5 +1,5 @@
 import { fromPreTrained } from '@lenml/tokenizer-gemini'
-import { ANALYSIS_PROMPT_CONFIG } from '../config/ai-analysis.js'
+import { ANALYSIS_PROMPT_CONFIG } from '../config/index.js'
 
 // Define a Message type if not already available
 export interface Message {

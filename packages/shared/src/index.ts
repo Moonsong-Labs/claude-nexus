@@ -73,7 +73,7 @@ export {
   GEMINI_CONFIG,
   AI_WORKER_CONFIG,
   AI_ANALYSIS_CONFIG,
-} from './config/ai-analysis.js'
+} from './config/index.js'
 
 // Export prompt utilities
 export {

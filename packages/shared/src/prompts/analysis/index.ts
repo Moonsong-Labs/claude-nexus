@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ConversationAnalysisSchema } from '../../types/ai-analysis.js'
-import { ANALYSIS_PROMPT_CONFIG } from '../../config/ai-analysis.js'
+import { ANALYSIS_PROMPT_CONFIG } from '../../config/index.js'
 import { truncateConversation, type Message } from '../truncation.js'
 import { PROMPT_ASSETS, type AnalysisExample } from './prompt-assets.js'
 
