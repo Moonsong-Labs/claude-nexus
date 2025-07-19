@@ -41,8 +41,8 @@ template: |
 
 ## Available Prompts
 
-- `code-review.yaml` - Code review assistant for various programming languages
-- `test-generator.yaml` - Generates test cases for your code
+- `code-review.yaml` - Provides structured, actionable code reviews with severity levels and concrete suggestions
+- `test-generator.yaml` - Generates comprehensive test cases for your code
 
 ## Contributing
 

@@ -630,7 +630,9 @@ Rather than break working functionality by changing the implementation or the wo
 
 **Analysis Findings:**
 
-- All other files in `prompts/` directory are YAML files (code-review.yaml, test-generator.yaml)
+- All other files in `prompts/` directory are YAML files:
+  - code-review.yaml: Structured code review prompt with severity levels and actionable feedback
+  - test-generator.yaml: Test case generation prompt with framework support
 - MCP implementation expects YAML files with `name`, `description`, and `template` fields
 - The file contained shell command executions with `!` that are incompatible with Handlebars templating
 - Comprehensive grooming documentation already exists in GROOMING.md
