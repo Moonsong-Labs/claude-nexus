@@ -9,7 +9,7 @@
  * 1. Edit the source files in 'packages/shared/src/prompts/analysis/v1/'
  * 2. Run 'bun run scripts/generate-prompt-assets.ts' to regenerate
  *
- * Generated on: 2025-07-19T04:00:01.960Z
+ * Generated on: 2025-07-19T04:09:29.692Z
  */
 
 import type { Message } from '../truncation.js'
@@ -46,20 +46,24 @@ export const PROMPT_ASSETS: Record<string, PromptAssets> = {
 You are an expert in conversation analysis and prompt engineering. Your task is to analyze conversations and provide actionable feedback to help users improve their AI interactions.
 
 ## CRITICAL REQUIREMENTS
+
 - **MUST** include at least 3 specific prompting tips with before/after examples
 - **MUST** include at least 2 prompt_improvement action items
 - **MUST** respond with valid JSON in a code block: \`json { "analysis": {...} } \`
 - **NO** text outside the JSON code block
 
 ## RESPONSE FORMAT
+
 Respond with a single JSON object containing an \`analysis\` key that matches the schema below.
 
 <!-- Template placeholders - DO NOT MODIFY -->
+
 {{JSON_SCHEMA}}
 
 ## ANALYSIS GUIDELINES
 
 ### 1. Content Analysis
+
 - **Summary**: 2-4 sentence overview of purpose and outcome
 - **Key Topics**: 3-5 main subjects (ordered by importance)
 - **Sentiment**: Overall emotional tone (positive/neutral/negative/mixed)
@@ -67,13 +71,17 @@ Respond with a single JSON object containing an \`analysis\` key that matches th
 - **Outcomes**: Concrete results or conclusions reached
 
 ### 2. Actionable Feedback
+
 Provide clear next steps categorized as:
+
 - \`task\`: Specific actions to complete
 - \`prompt_improvement\`: Ways to enhance future prompts (REQUIRED: 2-3 minimum)
 - \`follow_up\`: Questions for better results
 
 ### 3. Prompting Tips (REQUIRED: 3+ specific tips)
+
 For EACH user message, identify improvements in these categories:
+
 - \`clarity\`: Ambiguous or unclear language
 - \`context\`: Missing background information
 - \`structure\`: Poor organization or formatting
@@ -81,12 +89,14 @@ For EACH user message, identify improvements in these categories:
 - \`efficiency\`: Overly verbose prompting
 
 **Each tip MUST include:**
+
 1. The specific issue (quote if possible)
 2. Clear suggestion for improvement
 3. Before/after example showing the fix
 
 ### 4. Scoring Rubric (0-10 scale)
-- **promptClarity**: 
+
+- **promptClarity**:
   - 0-3: Very unclear, multiple interpretations possible
   - 4-6: Generally clear with some ambiguity
   - 7-9: Clear and well-articulated
@@ -98,17 +108,20 @@ For EACH user message, identify improvements in these categories:
   - 10: Complete context with all relevant information
 
 ### 5. Technical and Quality Assessment
+
 - **Technical Details**: Technologies, problems, and solutions discussed
 - **Conversation Quality**: Clarity, completeness, and effectiveness ratings
 - **Improvement Suggestions**: Specific ways to enhance future interactions
 
 ## IMPORTANT NOTES
+
 - Conversations may be truncated (look for \`[...conversation truncated...]\`)
 - Be constructive and empowering, not critical
 - Focus on patterns, not one-off mistakes
 - Acknowledge user strengths alongside improvements
 
 <!-- Examples placeholder - DO NOT MODIFY -->
+
 {{EXAMPLES}}
 `,
     examples: [
@@ -129,7 +142,8 @@ For EACH user message, identify improvements in these categories:
           },
           {
             role: 'model',
-            content: '[Provides detailed code example for Google OAuth setup]',
+            content:
+              "Of course! Here's a complete example for setting up Google OAuth with NextAuth.js.\n\nFirst, create your API route at `pages/api/auth/[...nextauth].js`:\n\n```javascript\nimport NextAuth from 'next-auth'\nimport GoogleProvider from 'next-auth/providers/google'\n\nexport default NextAuth({\n  providers: [\n    GoogleProvider({\n      clientId: process.env.GOOGLE_CLIENT_ID,\n      clientSecret: process.env.GOOGLE_CLIENT_SECRET,\n    }),\n  ],\n  secret: process.env.NEXTAUTH_SECRET,\n})\n```\n\nThen, wrap your app with SessionProvider in `pages/_app.js`:\n\n```javascript\nimport { SessionProvider } from 'next-auth/react'\n\nfunction MyApp({ Component, pageProps: { session, ...pageProps } }) {\n  return (\n    <SessionProvider session={session}>\n      <Component {...pageProps} />\n    </SessionProvider>\n  )\n}\n\nexport default MyApp\n```\n\nDon't forget to set up your environment variables:\n- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from Google Cloud Console\n- `NEXTAUTH_SECRET` - generate with `openssl rand -base64 32`\n- `NEXTAUTH_URL` - your app's URL (e.g., http://localhost:3000)",
           },
         ],
         expectedOutput: {
@@ -205,8 +219,11 @@ For EACH user message, identify improvements in these categories:
           },
           conversationQuality: {
             clarity: 'high',
+            clarityImprovement: null,
             completeness: 'complete',
+            completenessImprovement: null,
             effectiveness: 'highly effective',
+            effectivenessImprovement: null,
           },
         },
       },
@@ -341,16 +358,33 @@ For EACH user message, identify improvements in these categories:
             content:
               "I understand the bug is in the login function. To help you effectively, I still need to see:\n1. The actual login function code\n2. The specific error or unexpected behavior\n3. What framework/language you're using\n\nCould you share the login function code and describe what's going wrong?",
           },
+          {
+            role: 'user',
+            content:
+              "ok here is the code:\n```javascript\nconst login = (req, res) => {\n  const user = db.findUser(req.body.username);\n  if (bcrypt.compareSync(req.body.password, user.password)) {\n    req.session.userId = user.id;\n    res.json({ success: true });\n  } else {\n    res.status(401).json({ error: 'Invalid credentials' });\n  }\n}\n```\nGetting error: TypeError: Cannot read property 'password' of null",
+          },
+          {
+            role: 'model',
+            content:
+              "I see the issue! The error `TypeError: Cannot read property 'password' of null` occurs because `db.findUser()` is returning `null` when the user isn't found, but your code tries to access `user.password` without checking if the user exists first.\n\nHere's the fixed code:\n\n```javascript\nconst login = (req, res) => {\n  const user = db.findUser(req.body.username);\n  \n  // Add null check for user\n  if (!user) {\n    return res.status(401).json({ error: 'Invalid credentials' });\n  }\n  \n  if (bcrypt.compareSync(req.body.password, user.password)) {\n    req.session.userId = user.id;\n    res.json({ success: true });\n  } else {\n    res.status(401).json({ error: 'Invalid credentials' });\n  }\n}\n```\n\nThe key change is checking if `user` exists before trying to access its properties. This prevents the null reference error and properly handles the case when a username doesn't exist in your database.",
+          },
         ],
         expectedOutput: {
           summary:
-            'User requested bug fix assistance but provided minimal context. Multiple attempts were needed to request essential debugging information.',
-          keyTopics: ['Bug fixing', 'Login function', 'Debugging process'],
+            'User requested bug fix assistance with minimal initial context. After prompting for details, the user provided code and error message, allowing the assistant to identify and fix a null reference error in the login function.',
+          keyTopics: [
+            'Bug fixing',
+            'Login function',
+            'Null reference error',
+            'Express.js',
+            'bcrypt',
+          ],
           sentiment: 'neutral',
           userIntent: 'Get help fixing a bug in a login function',
           outcomes: [
-            'No actual debugging occurred due to insufficient information',
-            'Assistant provided a clear checklist of needed information',
+            'Successfully identified the null reference error',
+            'Provided corrected code with proper null checking',
+            'Explained the root cause of the error',
           ],
           actionItems: [
             {
@@ -402,22 +436,28 @@ For EACH user message, identify improvements in these categories:
             strengths: [],
           },
           technicalDetails: {
-            frameworks: [],
-            issues: ['Unspecified bug in login function'],
-            solutions: [],
+            frameworks: ['Express.js', 'bcrypt'],
+            issues: [
+              'Null reference error when accessing user.password',
+              'Missing null check for database query result',
+            ],
+            solutions: [
+              'Added null check before accessing user properties',
+              'Proper error handling for non-existent users',
+            ],
             toolUsageEfficiency: 'could_improve',
-            contextWindowManagement: 'wasteful',
+            contextWindowManagement: 'acceptable',
           },
           conversationQuality: {
             clarity: 'low',
             clarityImprovement:
               'Provide complete information in your initial message to avoid multiple rounds of clarification',
-            completeness: 'incomplete',
+            completeness: 'complete',
             completenessImprovement:
-              'The conversation lacks any actual code or error details needed for debugging',
-            effectiveness: 'needs improvement',
+              'While eventually resolved, providing code and error details upfront would have saved time',
+            effectiveness: 'effective',
             effectivenessImprovement:
-              'Follow the debugging checklist provided by the assistant and share all requested information',
+              'The conversation was ultimately effective but could have been more efficient with better initial context',
           },
         },
       },
