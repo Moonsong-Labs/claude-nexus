@@ -462,6 +462,39 @@ The refactoring aligns with industry best practices for shell scripting, making 
 **Rationale:**
 The primary driver for these changes was improving security by eliminating root-level operations in the runtime script. According to container best practices, all permission and directory setup should happen at build time (Dockerfile), not runtime. The changes also improve maintainability through better documentation and error handling. These modifications were validated by Gemini 2.5 Pro with 9/10 confidence, confirming alignment with industry standards for container entrypoints.
 
+### 2025-07-19 - Orphaned Test Script Cleanup
+
+**Files Modified:**
+
+- Removed: `test-integration.sh` (root directory)
+- Removed: `test-api.sh` (root directory)
+
+**Changes Made:**
+
+1. **Removed Orphaned Test Scripts**
+   - Deleted two redundant curl-based test scripts from the project root
+   - Both scripts performed identical basic health checks on the proxy and dashboard
+   - No references to these files existed in CI/CD, package.json, or documentation
+   - The actual integration test runner is `scripts/test-integration.sh` (different file)
+
+**Analysis Findings:**
+
+- `test-integration.sh` and `test-api.sh` were nearly identical (only minor wording differences)
+- Both files contained simple curl commands to test basic API endpoints
+- Proper TypeScript integration tests exist in `tests/integration/`
+- The package.json references `./scripts/test-integration.sh`, not the root files
+- Git history showed minimal commits, suggesting they were quick verification scripts
+
+**Rationale:**
+
+These orphaned scripts represented technical debt that could cause confusion. They duplicated functionality, were in the wrong location (should be in `scripts/dev/test/` if needed), and provided no value over the existing comprehensive test infrastructure. Their removal simplifies the repository structure and eliminates potential confusion about which test scripts to use.
+
+**Validation:**
+
+- Gemini 2.5 Pro: 9/10 confidence score
+- O3: 9/10 confidence score
+- Integration tests continue to pass after removal
+
 ### 2025-07-18 - Docker Test Environment File Cleanup
 
 **Files Modified:**
