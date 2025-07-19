@@ -2,8 +2,11 @@
 /**
  * Generate TypeScript client from OpenAPI specification
  *
- * This script uses openapi-typescript-codegen to generate a TypeScript client
- * from the AI Analysis API OpenAPI specification.
+ * This script generates a TypeScript client from the AI Analysis API OpenAPI specification.
+ *
+ * WARNING: Only run this script when you actually need to use the API client in your code.
+ * The generated client should be properly tested and maintained. Do not generate the client
+ * unless it will be actively used, as unused generated code adds maintenance burden.
  *
  * Usage:
  *   bun run scripts/generate-api-client.ts

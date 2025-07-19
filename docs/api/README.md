@@ -54,15 +54,15 @@ curl http://localhost:3000/api/analyses/123e4567-e89b-12d3-a456-426614174000/mai
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
-### Generate TypeScript Client
+### Generate TypeScript Client (Optional)
 
-Generate a TypeScript client from the OpenAPI spec:
+If you need a TypeScript client for the API, you can generate one from the OpenAPI spec:
 
 ```bash
 bun run scripts/generate-api-client.ts
 ```
 
-This creates a client in `packages/shared/src/generated/api-client/`.
+**Note:** Client generation is optional and should only be done when you actively need to use the API client in your code. The generated client will be placed in `packages/shared/src/generated/api-client/` and should be properly tested and maintained if used.
 
 ### Review OpenAPI Spec
 
