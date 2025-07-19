@@ -1235,3 +1235,35 @@ Following GROOMING.md guidelines that "scripts generated to verify features shou
 **Rationale:**
 
 Manual test scripts that duplicate existing automated test coverage and directly manipulate database state are anti-patterns that increase maintenance burden and create potential risks. The comprehensive unit test suite already validates the subtask linking functionality in a safe, repeatable manner. Deletion aligns with modern testing best practices favoring automated tests over ad-hoc manual scripts.
+
+### 2025-07-19 - AI Analysis Prompts Test Script Removal
+
+**Files Deleted:**
+
+- `scripts/test-ai-analysis-prompts.ts`
+
+**Changes Made:**
+
+1. **Removed Redundant Manual Test Script**
+   - Deleted manual test script for AI analysis prompt functionality
+   - All functionality already covered by unit tests in `packages/shared/src/prompts/__tests__/analysis.test.ts`
+   - Test script was not referenced anywhere in the codebase
+   - Manual scripts in scripts folder violate project testing structure
+
+**Analysis Findings:**
+
+- Script tested truncation, token counting, prompt assembly, and response parsing
+- Comprehensive unit tests exist with 15 passing tests covering all scenarios
+- Manual test scripts create maintenance overhead with duplicate test logic
+- Proper tests are integrated with test runner and CI/CD pipeline
+
+**Validation:**
+
+- Gemini-2.5-pro: High confidence in deletion decision
+- O3-mini: 10/10 confidence, confirmed redundancy and project structure alignment
+- All related unit tests pass after deletion
+- Type checking completes successfully
+
+**Rationale:**
+
+The file represented complete redundancy with existing comprehensive unit tests. Manual test scripts in the scripts folder violate the project's testing structure and create maintenance overhead. The deletion simplifies the codebase while maintaining full test coverage through the proper test suite. This aligns with best practices of maintaining a single source of truth for test logic.
