@@ -160,7 +160,6 @@ function processId(value: unknown) {
 ### Helper Functions
 
 - `validateRequestSize(sizeInBytes: number, maxSizeInMB?: number): boolean`
-- `createEnumSchema<T>(values: T, options?): z.ZodEnum<T>` - Create enum schemas
 
 ## Examples
 

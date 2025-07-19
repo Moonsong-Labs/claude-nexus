@@ -313,23 +313,35 @@ export const semverSchema = z
 // ============================================================================
 
 /**
+ * Masking patterns for different types of sensitive data
+ */
+const MASKING_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
+  // API Keys
+  { pattern: /sk-ant-[a-zA-Z0-9-_]+/g, replacement: 'sk-ant-****' },
+  { pattern: /cnp_(live|test)_[a-zA-Z0-9_]+/g, replacement: 'cnp_$1_****' },
+
+  // Authentication
+  { pattern: /Bearer\s+[\w\-._~+/]+/g, replacement: 'Bearer ****' },
+
+  // Personal Information
+  { pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, replacement: '****@****.com' },
+
+  // Database URLs
+  { pattern: /postgresql:\/\/[^@]+@[^/]+\/\w+/g, replacement: 'postgresql://****:****@****/****' },
+  { pattern: /mysql:\/\/[^@]+@[^/]+\/\w+/g, replacement: 'mysql://****:****@****/****' },
+  {
+    pattern: /mongodb(\+srv)?:\/\/[^@]+@[^/]+\/\w+/g,
+    replacement: 'mongodb$1://****:****@****/****',
+  },
+]
+
+/**
  * Masks sensitive data in strings for logging
  */
 export function maskSensitiveData(text: string): string {
-  return (
+  return MASKING_PATTERNS.reduce(
+    (maskedText, { pattern, replacement }) => maskedText.replace(pattern, replacement),
     text
-      // Mask Anthropic API keys
-      .replace(/sk-ant-[a-zA-Z0-9-_]+/g, 'sk-ant-****')
-      // Mask CNP API keys
-      .replace(/cnp_(live|test)_[a-zA-Z0-9_]+/g, 'cnp_$1_****')
-      // Mask Bearer tokens
-      .replace(/Bearer\s+[\w\-._~+/]+/g, 'Bearer ****')
-      // Mask emails
-      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '****@****.com')
-      // Mask database URLs
-      .replace(/postgresql:\/\/[^@]+@[^/]+\/\w+/g, 'postgresql://****:****@****/****')
-      .replace(/mysql:\/\/[^@]+@[^/]+\/\w+/g, 'mysql://****:****@****/****')
-      .replace(/mongodb(\+srv)?:\/\/[^@]+@[^/]+\/\w+/g, 'mongodb$1://****:****@****/****')
   )
 }
 
@@ -337,7 +349,9 @@ export function maskSensitiveData(text: string): string {
  * Truncates long strings for display
  */
 export function truncateString(str: string, maxLength: number = 1000): string {
-  if (str.length <= maxLength) return str
+  if (str.length <= maxLength) {
+    return str
+  }
   return str.substring(0, maxLength) + '...'
 }
 
@@ -369,18 +383,6 @@ export function isNonEmptyString(value: unknown): value is string {
 export function validateRequestSize(sizeInBytes: number, maxSizeInMB: number = 10): boolean {
   const maxSizeInBytes = maxSizeInMB * 1024 * 1024
   return sizeInBytes <= maxSizeInBytes
-}
-
-/**
- * Creates a Zod schema for enum-like string unions
- * Note: Due to TypeScript limitations with const assertions and Zod's enum type,
- * you may need to use z.enum directly for complex cases
- */
-export function createEnumSchema<T extends [string, ...string[]]>(
-  values: T,
-  options?: { message?: string }
-): z.ZodEnum<T> {
-  return z.enum(values, options)
 }
 
 // Export commonly used Zod utilities for convenience
