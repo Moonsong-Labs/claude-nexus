@@ -879,6 +879,8 @@ bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174
   --source-table api_requests --dest-table api_requests_backup
 ```
 
+For detailed technical documentation including table structure, safety features, and error handling, see [Copy Conversation Utility Documentation](docs/03-Operations/utilities/copy-conversation.md).
+
 ## Maintenance
 
 ### Grooming
