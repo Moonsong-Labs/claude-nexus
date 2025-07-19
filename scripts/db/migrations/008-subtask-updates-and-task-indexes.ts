@@ -1,4 +1,20 @@
 #!/usr/bin/env bun
+/**
+ * Migration 008: Update subtask conversation IDs and optimize Task queries
+ *
+ * This migration:
+ * 1. Updates subtasks to inherit their parent task's conversation_id
+ * 2. Fixes subtask branch numbering to use sequential subtask_N format
+ * 3. Creates indexes to optimize queries for Task tool invocations
+ *
+ * Key changes:
+ * - Subtasks now properly belong to their parent's conversation
+ * - Branch IDs follow a consistent subtask_1, subtask_2... pattern
+ * - Optimized indexes for finding Task tool invocations in response_body
+ *
+ * Note: For production deployments with large tables, consider using
+ * CREATE INDEX CONCURRENTLY to avoid locking the table during index creation.
+ */
 
 import { Pool } from 'pg'
 import dotenv from 'dotenv'
@@ -11,13 +27,17 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 })
 
+// Constants
+const MIGRATION_NAME = '008-subtask-updates-and-task-indexes'
+const SUBTASK_BRANCH_PREFIX = 'subtask_'
+const SUBTASK_BRANCH_PATTERN = 'subtask_%'
+const TASK_TOOL_NAME = 'Task'
+
 async function migrate() {
   const client = await pool.connect()
 
   try {
-    console.log(
-      'Starting migration 008: Update subtask conversation IDs and optimize Task queries...'
-    )
+    console.log(`Starting migration: ${MIGRATION_NAME}...`)
 
     await client.query('BEGIN')
 
@@ -28,7 +48,7 @@ async function migrate() {
         COUNT(*) FILTER (WHERE is_subtask = true) as total_subtasks,
         COUNT(*) FILTER (WHERE is_subtask = true AND parent_task_request_id IS NOT NULL) as subtasks_with_parent,
         COUNT(*) FILTER (WHERE is_subtask = true AND conversation_id IS NOT NULL) as subtasks_with_conversation,
-        COUNT(*) FILTER (WHERE is_subtask = true AND branch_id LIKE 'subtask_%') as subtasks_with_branch
+        COUNT(*) FILTER (WHERE is_subtask = true AND branch_id LIKE '${SUBTASK_BRANCH_PATTERN}') as subtasks_with_branch
       FROM api_requests
     `)
     console.log('Current state:', analysisResult.rows[0])
@@ -55,8 +75,8 @@ async function migrate() {
         conversation_id = parent_conversations.parent_conversation_id,
         -- Keep the subtask branch if it exists, otherwise generate one
         branch_id = CASE 
-          WHEN api_requests.branch_id LIKE 'subtask_%' THEN api_requests.branch_id
-          ELSE 'subtask_1'
+          WHEN api_requests.branch_id LIKE '${SUBTASK_BRANCH_PATTERN}' THEN api_requests.branch_id
+          ELSE '${SUBTASK_BRANCH_PREFIX}1'
         END
       FROM parent_conversations
       WHERE api_requests.request_id = parent_conversations.subtask_id
@@ -65,7 +85,7 @@ async function migrate() {
           api_requests.conversation_id IS DISTINCT FROM parent_conversations.parent_conversation_id
           OR 
           -- Or if branch_id is not a subtask branch
-          api_requests.branch_id NOT LIKE 'subtask_%'
+          api_requests.branch_id NOT LIKE '${SUBTASK_BRANCH_PATTERN}'
         );
     `
 
@@ -102,10 +122,10 @@ async function migrate() {
           AND parent_task_request_id IS NOT NULL
       )
       UPDATE api_requests
-      SET branch_id = 'subtask_' || subtask_numbering.subtask_number
+      SET branch_id = '${SUBTASK_BRANCH_PREFIX}' || subtask_numbering.subtask_number
       FROM subtask_numbering
       WHERE api_requests.request_id = subtask_numbering.request_id
-        AND api_requests.branch_id != ('subtask_' || subtask_numbering.subtask_number);
+        AND api_requests.branch_id != ('${SUBTASK_BRANCH_PREFIX}' || subtask_numbering.subtask_number);
     `
 
     const branchResult = await client.query(branchFixQuery)
@@ -130,13 +150,12 @@ async function migrate() {
       WHERE response_body IS NOT NULL;
     `)
 
-    // Add a functional index for faster text searches
-    console.log('Creating functional index for Task name searches...')
+    // Add a JSONB path index for finding Task tool invocations
+    console.log('Creating JSONB path index for Task tool searches...')
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_api_requests_task_name
-      ON api_requests ((response_body::text))
-      WHERE response_body IS NOT NULL 
-        AND response_body::text LIKE '%"name":"Task"%';
+      CREATE INDEX IF NOT EXISTS idx_api_requests_task_invocation
+      ON api_requests ((jsonb_path_exists(response_body, '$.content[*] ? (@.name == "${TASK_TOOL_NAME}")')))
+      WHERE response_body IS NOT NULL;
     `)
 
     await client.query('COMMIT')
@@ -148,7 +167,7 @@ async function migrate() {
         COUNT(*) FILTER (WHERE is_subtask = true) as total_subtasks,
         COUNT(*) FILTER (WHERE is_subtask = true AND parent_task_request_id IS NOT NULL) as subtasks_with_parent,
         COUNT(*) FILTER (WHERE is_subtask = true AND conversation_id IS NOT NULL) as subtasks_with_conversation,
-        COUNT(*) FILTER (WHERE is_subtask = true AND branch_id LIKE 'subtask_%') as subtasks_with_branch,
+        COUNT(*) FILTER (WHERE is_subtask = true AND branch_id LIKE '${SUBTASK_BRANCH_PATTERN}') as subtasks_with_branch,
         COUNT(*) FILTER (
           WHERE is_subtask = true 
           AND parent_task_request_id IS NOT NULL
@@ -173,7 +192,7 @@ async function migrate() {
         AND indexname IN (
           'idx_api_requests_response_body_task',
           'idx_api_requests_domain_timestamp_response',
-          'idx_api_requests_task_name'
+          'idx_api_requests_task_invocation'
         )
       ORDER BY indexname;
     `)
@@ -184,7 +203,7 @@ async function migrate() {
     }
   } catch (error) {
     await client.query('ROLLBACK')
-    console.error('Migration 008 failed:', error)
+    console.error(`Migration ${MIGRATION_NAME} failed:`, error)
     throw error
   } finally {
     client.release()
@@ -196,13 +215,13 @@ async function rollback() {
   const client = await pool.connect()
 
   try {
-    console.log('Rolling back migration 008...')
+    console.log(`Rolling back migration ${MIGRATION_NAME}...`)
 
     await client.query('BEGIN')
 
     // Drop indexes first
     console.log('Dropping Task invocation indexes...')
-    await client.query('DROP INDEX IF EXISTS idx_api_requests_task_name;')
+    await client.query('DROP INDEX IF EXISTS idx_api_requests_task_invocation;')
     await client.query('DROP INDEX IF EXISTS idx_api_requests_domain_timestamp_response;')
     await client.query('DROP INDEX IF EXISTS idx_api_requests_response_body_task;')
 
@@ -223,10 +242,10 @@ async function rollback() {
     console.log(`Reset ${result.rowCount} subtask records`)
 
     await client.query('COMMIT')
-    console.log('Rollback 008 completed successfully!')
+    console.log(`Rollback ${MIGRATION_NAME} completed successfully!`)
   } catch (error) {
     await client.query('ROLLBACK')
-    console.error('Rollback 008 failed:', error)
+    console.error(`Rollback ${MIGRATION_NAME} failed:`, error)
     throw error
   } finally {
     client.release()
@@ -244,7 +263,7 @@ async function main() {
       await migrate()
     }
   } catch (error) {
-    console.error('Error:', error)
+    console.error(`${MIGRATION_NAME} error:`, error)
     process.exit(1)
   } finally {
     await pool.end()
