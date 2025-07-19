@@ -1,9 +1,32 @@
 #!/usr/bin/env bun
-import { loadCredentials, refreshToken } from '../../services/proxy/src/credentials'
+import {
+  loadCredentials,
+  refreshToken,
+  type OAuthCredentials,
+} from '../../services/proxy/src/credentials'
 import { resolve, dirname } from 'path'
 import { writeFileSync, mkdirSync, readFileSync } from 'fs'
 
-async function refreshOAuthToken() {
+// Constants
+const TOKEN_PREVIEW_LENGTH = 20
+const EXPIRY_WARNING_THRESHOLD_MS = 60000 // 1 minute
+
+// Types
+interface CliArguments {
+  credentialPath: string
+  forceRefresh: boolean
+}
+
+type TokenStatus = 'EXPIRED' | 'EXPIRING_SOON' | 'VALID'
+
+interface RefreshError extends Error {
+  status?: number
+  errorCode?: string
+  errorDescription?: string
+}
+
+// Helper functions
+function parseCliArguments(): CliArguments {
   const credentialPath = process.argv[2]
   const forceRefresh = process.argv[3] === '--force'
 
@@ -16,6 +39,55 @@ async function refreshOAuthToken() {
     console.error('  --force    Force refresh even if token is not expired')
     process.exit(1)
   }
+
+  return { credentialPath, forceRefresh }
+}
+
+function getTokenStatus(expiresAt: number): TokenStatus {
+  const now = Date.now()
+  if (now >= expiresAt) return 'EXPIRED'
+  if (now >= expiresAt - EXPIRY_WARNING_THRESHOLD_MS) return 'EXPIRING_SOON'
+  return 'VALID'
+}
+
+function formatTokenExpiryTime(expiresIn: number): string {
+  const hours = Math.floor(expiresIn / (1000 * 60 * 60))
+  const minutes = Math.floor((expiresIn % (1000 * 60 * 60)) / (1000 * 60))
+  return `${hours}h ${minutes}m`
+}
+
+function truncateToken(token: string | undefined): string {
+  if (!token) return 'missing'
+  return token.substring(0, TOKEN_PREVIEW_LENGTH) + '...'
+}
+
+function displayOAuthStatus(oauth: OAuthCredentials, label: string): void {
+  const status = getTokenStatus(oauth.expiresAt || 0)
+  const expiresIn = oauth.expiresAt - Date.now()
+
+  console.log(`\n${label}:`)
+  console.log(`- Access Token: ${truncateToken(oauth.accessToken)}`)
+  console.log(`- Refresh Token: ${truncateToken(oauth.refreshToken)}`)
+  console.log(
+    `- Expires At: ${oauth.expiresAt ? new Date(oauth.expiresAt).toISOString() : 'unknown'}`
+  )
+  console.log(`- Status: ${status}`)
+
+  if (status === 'VALID' && expiresIn > 0) {
+    console.log(`- Expires In: ${formatTokenExpiryTime(expiresIn)}`)
+  }
+
+  if (oauth.scopes) {
+    console.log(`- Scopes: ${oauth.scopes.join(', ')}`)
+  }
+
+  if ('isMax' in oauth) {
+    console.log(`- Is Max: ${oauth.isMax}`)
+  }
+}
+
+async function refreshOAuthToken() {
+  const { credentialPath, forceRefresh } = parseCliArguments()
 
   try {
     const fullPath = resolve(credentialPath)
@@ -36,26 +108,11 @@ async function refreshOAuthToken() {
     }
 
     const oauth = credentials.oauth
-    const now = Date.now()
-    const expiresAt = oauth.expiresAt || 0
-    const isExpired = now >= expiresAt
-    const willExpireSoon = now >= expiresAt - 60000 // 1 minute before expiry
+    const status = getTokenStatus(oauth.expiresAt || 0)
 
-    console.log('\nCurrent OAuth status:')
-    console.log(
-      `- Access Token: ${oauth.accessToken ? oauth.accessToken.substring(0, 20) + '...' : 'missing'}`
-    )
-    console.log(
-      `- Refresh Token: ${oauth.refreshToken ? oauth.refreshToken.substring(0, 20) + '...' : 'missing'}`
-    )
-    console.log(`- Expires At: ${expiresAt ? new Date(expiresAt).toISOString() : 'unknown'}`)
-    console.log(`- Status: ${isExpired ? 'EXPIRED' : willExpireSoon ? 'EXPIRING SOON' : 'VALID'}`)
+    displayOAuthStatus(oauth, 'Current OAuth status')
 
-    if (!isExpired && !willExpireSoon && !forceRefresh) {
-      const expiresIn = expiresAt - now
-      const hours = Math.floor(expiresIn / (1000 * 60 * 60))
-      const minutes = Math.floor((expiresIn % (1000 * 60 * 60)) / (1000 * 60))
-      console.log(`- Expires In: ${hours}h ${minutes}m`)
+    if (status === 'VALID' && !forceRefresh) {
       console.log('\nToken is still valid. Use --force to refresh anyway.')
       process.exit(0)
     }
@@ -101,40 +158,31 @@ async function refreshOAuthToken() {
       const refreshTime = Date.now() - startTime
 
       console.log(`\n✅ Token refreshed successfully in ${refreshTime}ms`)
-      console.log('\nNew OAuth status:')
-      console.log(`- Access Token: ${newOAuth.accessToken.substring(0, 20)}...`)
-      console.log(
-        `- Refresh Token: ${newOAuth.refreshToken ? newOAuth.refreshToken.substring(0, 20) + '...' : 'reused existing'}`
-      )
-      console.log(`- Expires At: ${new Date(newOAuth.expiresAt).toISOString()}`)
-      console.log(`- Scopes: ${newOAuth.scopes.join(', ')}`)
-      console.log(`- Is Max: ${newOAuth.isMax}`)
-
-      const expiresIn = newOAuth.expiresAt - Date.now()
-      const hours = Math.floor(expiresIn / (1000 * 60 * 60))
-      const minutes = Math.floor((expiresIn % (1000 * 60 * 60)) / (1000 * 60))
-      console.log(`- Valid For: ${hours}h ${minutes}m`)
-
+      displayOAuthStatus(newOAuth, 'New OAuth status')
       console.log(`\nCredentials saved to: ${fullPath}`)
-    } catch (error: any) {
-      console.error('\n❌ Failed to refresh token:', error.message)
-
-      if (error.errorCode === 'invalid_grant' || error.status === 400) {
-        console.error('\nThe refresh token is invalid or has been revoked.')
-        console.error('You need to re-authenticate to get new credentials.')
-        console.error(`\nRun: bun run scripts/oauth-login.ts ${credentialPath}`)
-      } else if (error.status) {
-        console.error(`\nHTTP Status: ${error.status}`)
-        console.error(`Error Code: ${error.errorCode || 'unknown'}`)
-        console.error(`Description: ${error.errorDescription || 'No description provided'}`)
-      }
-
-      process.exit(1)
+    } catch (error) {
+      handleRefreshError(error as RefreshError, credentialPath)
     }
   } catch (error) {
     console.error('Error:', error)
     process.exit(1)
   }
+}
+
+function handleRefreshError(error: RefreshError, credentialPath: string): never {
+  console.error('\n❌ Failed to refresh token:', error.message)
+
+  if (error.errorCode === 'invalid_grant' || error.status === 400) {
+    console.error('\nThe refresh token is invalid or has been revoked.')
+    console.error('You need to re-authenticate to get new credentials.')
+    console.error(`\nRun: bun run scripts/oauth-login.ts ${credentialPath}`)
+  } else if (error.status) {
+    console.error(`\nHTTP Status: ${error.status}`)
+    console.error(`Error Code: ${error.errorCode || 'unknown'}`)
+    console.error(`Description: ${error.errorDescription || 'No description provided'}`)
+  }
+
+  process.exit(1)
 }
 
 refreshOAuthToken()
