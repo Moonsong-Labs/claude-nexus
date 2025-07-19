@@ -157,16 +157,13 @@ bun install  # Installs Husky hooks automatically
 
 ### Database Management
 
-```bash
+````bash
 # Run all migrations
 for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 
 # Check analysis jobs
 bun run scripts/check-analysis-jobs.ts
 
-# Reset stuck analysis jobs
-bun run scripts/reset-stuck-analysis-jobs.ts
-```
 
 ### Dependency Management
 
@@ -176,7 +173,7 @@ bun outdated
 
 # Update dependencies (use with caution)
 bun update
-```
+````
 
 ### AI Analysis Tools
 
@@ -971,6 +968,41 @@ The cleanup removes unnecessary redundancy in the JSON override section while ma
 **Rationale:**
 
 Test fixtures should contain the minimum necessary data to validate their specific scenario. The original fixture was bloated with irrelevant project data that obscured the test's purpose. The cleanup improves test maintainability, readability, and clearly communicates what aspect of conversation linking is being tested.
+
+### 2025-07-19 - Dangerous Reset Script Removal
+
+**Files Deleted:**
+
+- `scripts/reset-stuck-analysis-jobs.ts`
+
+**Changes Made:**
+
+1. **Deleted Dangerous Script**
+   - Removed script that reset retry_count to 0 for stuck analysis jobs
+   - This approach violates the "fail fast" principle and could cause infinite retry loops
+   - No transaction support, confirmation prompts, or dry-run mode
+   - The better alternative `fail-exceeded-retry-jobs.ts` already exists
+
+2. **Updated Documentation**
+   - Removed references from package.json (npm script)
+   - Updated CLAUDE.md to remove the script reference
+   - Updated GROOMING.md to remove the example command
+
+**Rationale:**
+
+The script implemented a dangerous anti-pattern by resetting retry counters, which could:
+
+- Hide underlying systemic issues
+- Lead to resource exhaustion through infinite loops
+- Violate resilient system design principles
+
+The existing `fail-exceeded-retry-jobs.ts` script properly handles stuck jobs by failing them, which is the industry-standard approach for jobs that repeatedly fail after exhausting retries.
+
+**Validation:**
+
+- Gemini-2.5-pro: 10/10 confidence score for deletion
+- Confirmed alignment with "fail fast" principle
+- Type checking and all tests pass after deletion
 
 ### 2025-07-19 - Conversation Analysis Script Refactoring
 

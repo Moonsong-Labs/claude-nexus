@@ -748,7 +748,6 @@ The proxy supports automated analysis of conversations using AI models (currentl
 
 - `scripts/check-analysis-jobs.ts` - Check status of analysis jobs
 - `scripts/check-ai-worker-config.ts` - Verify AI worker configuration
-- `scripts/reset-stuck-analysis-jobs.ts` - Reset jobs stuck with high retry counts
 - `scripts/fail-exceeded-retry-jobs.ts` - Manually fail jobs exceeding max retries
 - `scripts/check-analysis-content.ts` - Inspect analysis content for a conversation
 

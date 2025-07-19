@@ -64,7 +64,6 @@
     "test:generate-fixture": "bun run scripts/generate-conversation-test-fixture.ts",
     "ai:check-jobs": "bun run scripts/check-analysis-jobs.ts",
     "ai:check-content": "bun run scripts/check-analysis-content.ts",
-    "ai:reset-stuck": "bun run scripts/reset-stuck-analysis-jobs.ts",
     "ai:fail-exceeded": "bun run scripts/fail-exceeded-retry-jobs.ts",
     "ai:test-max-retry": "bun run scripts/test-max-retry-failure.ts",
     "ai:process-pending": "bun run scripts/process-pending-analyses.ts",
