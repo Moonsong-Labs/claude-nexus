@@ -2,6 +2,61 @@ import { describe, it, expect } from 'bun:test'
 import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysis/index'
 import type { Message } from '../truncation'
 
+// Test constants
+const TRUNCATION_TEST_MESSAGE_COUNT = 10
+const TRUNCATION_TEST_REPEAT_COUNT = 500 // Reduced from 5000 for faster tests
+
+// Test fixtures
+const createValidAnalysisResponse = (overrides = {}) => ({
+  analysis: {
+    summary: 'User asked about Next.js authentication and received comprehensive guidance.',
+    keyTopics: ['Next.js', 'Authentication', 'NextAuth.js'],
+    sentiment: 'positive',
+    userIntent: 'Learn how to implement authentication in Next.js',
+    outcomes: ['Received authentication setup instructions', 'Got code examples'],
+    actionItems: [
+      { type: 'task', description: 'Install NextAuth.js', priority: 'high' },
+      { type: 'task', description: 'Configure providers', priority: 'medium' },
+    ],
+    promptingTips: [
+      {
+        category: 'specificity',
+        issue: 'Authentication provider not specified',
+        suggestion: 'Be more specific about which authentication provider you want to use',
+        example: 'I want to implement Google OAuth with NextAuth.js',
+      },
+      {
+        category: 'context',
+        issue: 'Missing version information',
+        suggestion: 'Include your current Next.js version for version-specific advice',
+      },
+      {
+        category: 'structure',
+        issue: 'Authentication flow not specified',
+        suggestion: 'Ask about specific authentication flows (OAuth, credentials, etc.)',
+      },
+    ],
+    interactionPatterns: {
+      promptClarity: 8,
+      contextCompleteness: 7,
+      followUpEffectiveness: 'good',
+      commonIssues: ['Missing version info', 'Vague requirements'],
+      strengths: ['Clear intent', 'Good questions'],
+    },
+    technicalDetails: {
+      frameworks: ['Next.js', 'NextAuth.js'],
+      issues: [],
+      solutions: ['Use NextAuth.js for authentication'],
+    },
+    conversationQuality: {
+      clarity: 'high',
+      completeness: 'complete',
+      effectiveness: 'highly effective',
+    },
+    ...overrides,
+  },
+})
+
 describe('buildAnalysisPrompt', () => {
   const createTestMessages = (): Message[] => [
     { role: 'user', content: 'How do I set up authentication in Next.js?' },
@@ -69,12 +124,13 @@ describe('buildAnalysisPrompt', () => {
   })
 
   it('should handle truncation for long conversations', () => {
-    // Create a very long conversation
+    // Create a conversation that exceeds token limits
     const messages: Message[] = []
-    // Need enough content to trigger truncation with ~16 chars/token
-    const longContent = 'The quick brown fox jumps over the lazy dog. '.repeat(5000) // ~225k chars per message
+    const longContent = 'The quick brown fox jumps over the lazy dog. '.repeat(
+      TRUNCATION_TEST_REPEAT_COUNT
+    )
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < TRUNCATION_TEST_MESSAGE_COUNT; i++) {
       messages.push({
         role: i % 2 === 0 ? 'user' : 'model',
         content: longContent + ` (Message ${i})`,
@@ -122,83 +178,47 @@ describe('buildAnalysisPrompt', () => {
 
 describe('parseAnalysisResponse', () => {
   it('should parse valid JSON response', () => {
+    const validAnalysis = createValidAnalysisResponse()
     const validResponse = `\`\`\`json
-{
-  "analysis": {
-    "summary": "User asked about Next.js authentication and received comprehensive guidance.",
-    "keyTopics": ["Next.js", "Authentication", "NextAuth.js"],
-    "sentiment": "positive",
-    "userIntent": "Learn how to implement authentication in Next.js",
-    "outcomes": ["Received authentication setup instructions", "Got code examples"],
-    "actionItems": [
-      { "type": "task", "description": "Install NextAuth.js", "priority": "high" },
-      { "type": "task", "description": "Configure providers", "priority": "medium" }
-    ],
-    "promptingTips": [
-      {
-        "category": "specificity",
-        "issue": "Authentication provider not specified",
-        "suggestion": "Be more specific about which authentication provider you want to use",
-        "example": "I want to implement Google OAuth with NextAuth.js"
-      },
-      {
-        "category": "context",
-        "issue": "Missing version information",
-        "suggestion": "Include your current Next.js version for version-specific advice"
-      },
-      {
-        "category": "structure",
-        "issue": "Authentication flow not specified",
-        "suggestion": "Ask about specific authentication flows (OAuth, credentials, etc.)"
-      }
-    ],
-    "interactionPatterns": {
-      "promptClarity": 8,
-      "contextCompleteness": 7,
-      "followUpEffectiveness": "good",
-      "commonIssues": ["Missing version info", "Vague requirements"],
-      "strengths": ["Clear intent", "Good questions"]
-    },
-    "technicalDetails": {
-      "frameworks": ["Next.js", "NextAuth.js"],
-      "issues": [],
-      "solutions": ["Use NextAuth.js for authentication"]
-    },
-    "conversationQuality": {
-      "clarity": "high",
-      "completeness": "complete",
-      "effectiveness": "highly effective"
-    }
-  }
-}
+${JSON.stringify(validAnalysis, null, 2)}
 \`\`\``
 
     const result = parseAnalysisResponse(validResponse)
 
     expect(result.summary).toBeDefined()
-    expect(result.keyTopics).toBeArray()
-    expect(result.sentiment).toBeOneOf(['positive', 'neutral', 'negative', 'mixed'])
-    expect(result.conversationQuality.clarity).toBeOneOf(['high', 'medium', 'low'])
+    expect(Array.isArray(result.keyTopics)).toBe(true)
+    expect(['positive', 'neutral', 'negative', 'mixed']).toContain(result.sentiment)
+    expect(['high', 'medium', 'low']).toContain(result.conversationQuality.clarity)
   })
 
   it('should handle response with extra whitespace', () => {
+    const minimalAnalysis = createValidAnalysisResponse({
+      summary: 'Test summary',
+      keyTopics: ['Topic 1'],
+      sentiment: 'neutral',
+      userIntent: 'Test intent',
+      outcomes: ['Outcome 1'],
+      actionItems: [{ type: 'task', description: 'Action 1', priority: 'medium' }],
+      promptingTips: [{ category: 'clarity', issue: 'Test issue', suggestion: 'Tip 1' }],
+      interactionPatterns: {
+        promptClarity: 5,
+        contextCompleteness: 5,
+        followUpEffectiveness: 'needs_improvement',
+        commonIssues: [],
+        strengths: [],
+      },
+      technicalDetails: { frameworks: [], issues: [], solutions: [] },
+      conversationQuality: {
+        clarity: 'medium',
+        completeness: 'partial',
+        effectiveness: 'effective',
+      },
+    })
+
     const responseWithWhitespace = `
     
     \`\`\`json
-    {
-      "analysis": {
-        "summary": "Test summary",
-        "keyTopics": ["Topic 1"],
-        "sentiment": "neutral",
-        "userIntent": "Test intent",
-        "outcomes": ["Outcome 1"],
-        "actionItems": [{ "type": "task", "description": "Action 1", "priority": "medium" }],
-        "promptingTips": [{ "category": "clarity", "issue": "Test issue", "suggestion": "Tip 1" }],
-        "interactionPatterns": { "promptClarity": 5, "contextCompleteness": 5, "followUpEffectiveness": "needs_improvement", "commonIssues": [], "strengths": [] },
-        "technicalDetails": { "frameworks": [], "issues": [], "solutions": [] },
-        "conversationQuality": { "clarity": "medium", "completeness": "partial", "effectiveness": "effective" }
-      }
-    }
+    ${JSON.stringify(minimalAnalysis, null, 2)}
     \`\`\`
     
     `
@@ -287,28 +307,57 @@ describe('parseAnalysisResponse', () => {
 
     // Test each sentiment value
     testEnumValues.sentiment.forEach(sentiment => {
+      const testAnalysis = createValidAnalysisResponse({
+        summary: 'Test',
+        keyTopics: ['Topic'],
+        sentiment,
+        userIntent: 'Intent',
+        outcomes: ['Outcome'],
+        actionItems: [{ type: 'task', description: 'Action', priority: 'low' }],
+        promptingTips: [{ category: 'clarity', issue: 'Test', suggestion: 'Tip' }],
+        interactionPatterns: {
+          promptClarity: 5,
+          contextCompleteness: 5,
+          followUpEffectiveness: 'good',
+          commonIssues: [],
+          strengths: [],
+        },
+        technicalDetails: { frameworks: [], issues: [], solutions: [] },
+        conversationQuality: {
+          clarity: 'high',
+          completeness: 'complete',
+          effectiveness: 'effective',
+        },
+      })
+
       const response = `\`\`\`json
-{
-  "analysis": {
-    "summary": "Test",
-    "keyTopics": ["Topic"],
-    "sentiment": "${sentiment}",
-    "userIntent": "Intent",
-    "outcomes": ["Outcome"],
-    "actionItems": [{ "type": "task", "description": "Action", "priority": "low" }],
-    "promptingTips": [{ "category": "clarity", "issue": "Test", "suggestion": "Tip" }],
-    "interactionPatterns": { "promptClarity": 5, "contextCompleteness": 5, "followUpEffectiveness": "good", "commonIssues": [], "strengths": [] },
-    "technicalDetails": { "frameworks": [], "issues": [], "solutions": [] },
-    "conversationQuality": { 
-      "clarity": "high", 
-      "completeness": "complete", 
-      "effectiveness": "effective" 
-    }
-  }
-}
+${JSON.stringify(testAnalysis, null, 2)}
 \`\`\``
 
       expect(() => parseAnalysisResponse(response)).not.toThrow()
     })
+  })
+
+  it('should handle JSON with extra fields gracefully', () => {
+    const responseWithExtraFields = createValidAnalysisResponse({
+      extraField: 'This should be ignored',
+      nestedExtra: { field: 'Also ignored' },
+    })
+
+    const response = `\`\`\`json
+${JSON.stringify(responseWithExtraFields, null, 2)}
+\`\`\``
+
+    expect(() => parseAnalysisResponse(response)).not.toThrow()
+  })
+
+  it('should handle malformed JSON inside code block', () => {
+    const malformedResponse = `\`\`\`json
+{ "analysis": { "summary": "Test", incomplete json...
+\`\`\``
+
+    expect(() => parseAnalysisResponse(malformedResponse)).toThrow(
+      'Failed to parse analysis response as JSON'
+    )
   })
 })
