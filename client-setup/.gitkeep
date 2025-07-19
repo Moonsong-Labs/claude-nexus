@@ -1,1 +1,2 @@
-{}
+# This directory is used by Docker deployments to store client credentials
+# See docker/claude-cli/README.md for more information
