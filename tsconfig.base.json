@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Base TypeScript configuration for the Claude Nexus Proxy monorepo
+  // This file contains shared compiler options used by all packages and services
+  // Individual projects extend this configuration and can override settings as needed
+  "compilerOptions": {
+    // Language and Environment
+    "target": "esnext", // Use latest ECMAScript features
+    "lib": ["ESNext"], // Include latest ECMAScript library features
+    "module": "esnext", // Use ES modules
+    "moduleResolution": "bundler", // Bundler-style module resolution for Bun
+    "moduleDetection": "force", // Treat all files as modules
+
+    // Type Checking
+    "strict": true, // Enable all strict type checking options
+    "skipLibCheck": true, // Skip type checking of declaration files
+    "forceConsistentCasingInFileNames": true, // Ensure consistent casing in imports
+
+    // Emit Configuration
+    "downlevelIteration": true, // Enable downlevel iteration for for...of loops
+
+    // Module Resolution
+    "allowSyntheticDefaultImports": true, // Allow default imports from modules without default export
+    "allowJs": true, // Allow JavaScript files to be compiled
+
+    // JSX
+    "jsx": "preserve", // Preserve JSX for processing by other tools
+
+    // Bun-specific
+    "types": ["bun-types"] // Include Bun global types
+  }
+}

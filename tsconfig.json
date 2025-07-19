@@ -1,26 +1,18 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Root TypeScript configuration for the Claude Nexus Proxy monorepo
+  // This file serves as the orchestrator for TypeScript project references
+  // It does not contain source files itself, but coordinates builds across all packages
+  // Use `tsc --build` at the root to type check the entire monorepo
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ESNext"],
-    "module": "esnext",
-    "target": "esnext",
-    "moduleResolution": "bundler",
-    "moduleDetection": "force",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "composite": false,
-    "strict": true,
-    "downlevelIteration": true,
-    "skipLibCheck": true,
-    "jsx": "preserve",
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "allowJs": true,
-    "types": [
-      "bun-types" // add Bun global
-    ]
+    "composite": true, // Enable project references
+    "noEmit": true, // Don't emit outputs at root level
+    "allowImportingTsExtensions": true // Allow .ts imports (Bun feature, safe with noEmit)
   },
-  "files": [],
+  "files": [], // No source files at root
   "references": [
+    // List all packages and services in the monorepo
     { "path": "./packages/shared" },
     { "path": "./services/dashboard" },
     { "path": "./services/proxy" }

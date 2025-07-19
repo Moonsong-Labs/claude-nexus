@@ -1,25 +1,23 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // Project-specific overrides
     "target": "ES2022",
     "module": "ES2022",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "allowJs": true,
     "composite": true,
     "declaration": true,
     "declarationMap": true,
+    "noEmit": false, // Override base to allow emit for project references
     "baseUrl": ".",
     "paths": {
       "@claude-nexus/shared": ["../../packages/shared/src/index.ts"],
       "@claude-nexus/shared/*": ["../../packages/shared/src/*"]
     },
+    "esModuleInterop": true,
     "types": ["node", "bun-types"]
   },
   "include": ["src/**/*", "scripts/**/*", "src/**/*.test.ts"],
