@@ -207,7 +207,7 @@ export const config = {
     geminiModelName: env.string('GEMINI_MODEL_NAME', 'gemini-2.0-flash-exp'),
 
     // Security configurations
-    maxRetries: env.int('AI_ANALYSIS_MAX_RETRIES', 3), // Note: ADR-018 mentions 3 retries
+    maxRetries: env.int('AI_ANALYSIS_MAX_RETRIES', 3), // Per ADR-018: 3 retries with exponential backoff
     requestTimeoutMs: env.int('AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS', 60000), // 60 seconds
 
     // Rate limiting
@@ -234,14 +234,16 @@ export const config = {
     // Prompt configuration (consolidated from ai-analysis.ts)
     prompt: {
       // Context and token limits
-      maxContextTokens: env.int('AI_MAX_CONTEXT_TOKENS', 1000000), // 1M context window
+      maxContextTokens: env.int('AI_MAX_CONTEXT_TOKENS', 1000000), // 1M context window for Gemini 2.0
+      // Calculate max prompt tokens with safety margin to prevent token limit errors
+      // Default: 900k base * 0.95 safety margin = 855k tokens
       maxPromptTokens: env.int(
         'AI_MAX_PROMPT_TOKENS',
         Math.floor(
           (env.int('AI_MAX_PROMPT_TOKENS_BASE', 900000) || 900000) *
             (env.int('AI_TOKENIZER_SAFETY_MARGIN', 0.95) || 0.95)
         )
-      ), // ~855k with 5% safety margin
+      ),
 
       // Truncation strategy for managing large conversations
       truncation: {
@@ -254,9 +256,9 @@ export const config = {
       },
 
       // Token estimation
-      estimatedCharsPerToken: env.int('AI_ESTIMATED_CHARS_PER_TOKEN', 12), // Conservative estimate
+      estimatedCharsPerToken: env.int('AI_ESTIMATED_CHARS_PER_TOKEN', 12), // Conservative estimate: ~12 chars per token
       promptVersion: env.string('AI_ANALYSIS_PROMPT_VERSION', 'v1'),
-      tokenizerSafetyMargin: env.int('AI_TOKENIZER_SAFETY_MARGIN', 0.95),
+      tokenizerSafetyMargin: env.int('AI_TOKENIZER_SAFETY_MARGIN', 0.95), // 5% buffer to prevent token limit errors
     },
   },
 
@@ -312,8 +314,11 @@ export function validateConfig(): void {
 // Export type for configuration
 export type Config = typeof config
 
-// Export legacy AI configuration for backward compatibility
-// TODO: Migrate these exports to use the main config object
+/**
+ * @deprecated Since 2025-01-19 - Use config.aiAnalysis.prompt instead
+ * Legacy exports maintained for backward compatibility.
+ * These will be removed in a future version.
+ */
 export const ANALYSIS_PROMPT_CONFIG = {
   MAX_CONTEXT_TOKENS: config.aiAnalysis.prompt.maxContextTokens,
   MAX_PROMPT_TOKENS: config.aiAnalysis.prompt.maxPromptTokens,
@@ -326,6 +331,10 @@ export const ANALYSIS_PROMPT_CONFIG = {
   TOKENIZER_SAFETY_MARGIN: config.aiAnalysis.prompt.tokenizerSafetyMargin,
 }
 
+/**
+ * @deprecated Since 2025-01-19 - Use config.aiAnalysis instead
+ * Legacy export maintained for backward compatibility.
+ */
 export const GEMINI_CONFIG = {
   get API_URL() {
     return config.aiAnalysis.geminiApiUrl
@@ -338,6 +347,10 @@ export const GEMINI_CONFIG = {
   },
 }
 
+/**
+ * @deprecated Since 2025-01-19 - Use config.aiAnalysis instead
+ * Legacy export maintained for backward compatibility.
+ */
 export const AI_WORKER_CONFIG = {
   get ENABLED() {
     return config.aiAnalysis.workerEnabled
@@ -359,6 +372,10 @@ export const AI_WORKER_CONFIG = {
   },
 }
 
+/**
+ * @deprecated Since 2025-01-19 - Use config.aiAnalysis.prompt.truncation instead
+ * Legacy export maintained for backward compatibility.
+ */
 export const AI_ANALYSIS_CONFIG = {
   INPUT_TRUNCATION_TARGET_TOKENS: config.aiAnalysis.prompt.truncation.inputTargetTokens,
   TRUNCATE_FIRST_N_TOKENS: config.aiAnalysis.prompt.truncation.truncateFirstNTokens,

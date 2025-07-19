@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import { truncateConversation, type Message } from '../truncation'
-import { ANALYSIS_PROMPT_CONFIG } from '../../config/ai-analysis'
+import { ANALYSIS_PROMPT_CONFIG } from '../../config'
 
 /**
  * Performance Note: Test suite optimized for speed while maintaining edge case coverage.
