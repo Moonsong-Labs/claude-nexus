@@ -16,6 +16,7 @@ export {
   hasStatusCode,
   isError,
   getStatusCode,
+  DEFAULT_ERROR_STATUS_CODE,
 } from './utils/errors.js'
 
 export { createLogger } from './logger/index.js'
