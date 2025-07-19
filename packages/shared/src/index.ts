@@ -81,6 +81,7 @@ export {
   buildAnalysisPrompt,
   parseAnalysisResponse,
   getAnalysisPromptTemplate,
+  ConversationAnalysisResponseSchema,
   type Message,
   type GeminiContent,
 } from './prompts/index.js'

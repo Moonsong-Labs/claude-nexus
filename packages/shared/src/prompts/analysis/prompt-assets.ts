@@ -9,7 +9,7 @@
  * 1. Edit the source files in 'packages/shared/src/prompts/analysis/v1/'
  * 2. Run 'bun run scripts/generate-prompt-assets.ts' to regenerate
  *
- * Generated on: 2025-07-19T04:09:29.692Z
+ * Generated on: 2025-07-19T04:19:59.128Z
  */
 
 import type { Message } from '../truncation.js'
@@ -219,11 +219,8 @@ For EACH user message, identify improvements in these categories:
           },
           conversationQuality: {
             clarity: 'high',
-            clarityImprovement: null,
             completeness: 'complete',
-            completenessImprovement: null,
             effectiveness: 'highly effective',
-            effectivenessImprovement: null,
           },
         },
       },

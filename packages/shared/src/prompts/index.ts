@@ -6,5 +6,6 @@ export {
   buildAnalysisPrompt,
   parseAnalysisResponse,
   getAnalysisPromptTemplate,
+  ConversationAnalysisResponseSchema,
   type GeminiContent,
 } from './analysis/index.js'

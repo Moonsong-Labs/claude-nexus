@@ -82,11 +82,8 @@
       },
       "conversationQuality": {
         "clarity": "high",
-        "clarityImprovement": null,
         "completeness": "complete",
-        "completenessImprovement": null,
-        "effectiveness": "highly effective",
-        "effectivenessImprovement": null
+        "effectiveness": "highly effective"
       }
     }
   },

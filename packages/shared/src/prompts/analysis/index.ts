@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ConversationAnalysisSchema } from '../../types/ai-analysis.js'
 import { ANALYSIS_PROMPT_CONFIG } from '../../config/ai-analysis.js'
 import { truncateConversation, type Message } from '../truncation.js'
-import { PROMPT_ASSETS } from './prompt-assets.js'
+import { PROMPT_ASSETS, type AnalysisExample } from './prompt-assets.js'
 
 // Define the structure for Gemini API content
 export interface GeminiContent {
@@ -28,12 +28,34 @@ function loadPromptAssets(version: string = 'v1') {
   )
 }
 
+// Constants for enum values used in JSON schema
+const SENTIMENT_VALUES = ['positive', 'neutral', 'negative', 'mixed'] as const
+const ACTION_ITEM_TYPES = ['task', 'prompt_improvement', 'follow_up'] as const
+const PRIORITY_LEVELS = ['high', 'medium', 'low'] as const
+const PROMPTING_CATEGORIES = [
+  'clarity',
+  'context',
+  'structure',
+  'specificity',
+  'efficiency',
+] as const
+const FOLLOW_UP_EFFECTIVENESS = ['excellent', 'good', 'needs_improvement'] as const
+const TOOL_USAGE_EFFICIENCY = ['optimal', 'good', 'could_improve'] as const
+const CONTEXT_WINDOW_MANAGEMENT = ['efficient', 'acceptable', 'wasteful'] as const
+const CONVERSATION_CLARITY = ['high', 'medium', 'low'] as const
+const CONVERSATION_COMPLETENESS = ['complete', 'partial', 'incomplete'] as const
+const CONVERSATION_EFFECTIVENESS = ['highly effective', 'effective', 'needs improvement'] as const
+
 /**
- * Generates a JSON schema string from the Zod schema
+ * Generates a JSON schema string from the Zod schema for LLM consumption.
+ *
+ * We use manual schema generation instead of automated tools to maintain precise control
+ * over the schema format, ensuring it's optimized for LLM understanding with clear
+ * descriptions and structured examples.
+ *
+ * @returns JSON schema string formatted for inclusion in LLM prompts
  */
 function generateJsonSchema(): string {
-  // For Phase 1, we'll use a simplified JSON schema representation
-  // In production, you might want to use a library like zod-to-json-schema
   const schema = {
     type: 'object',
     properties: {
@@ -48,7 +70,7 @@ function generateJsonSchema(): string {
       },
       sentiment: {
         type: 'string',
-        enum: ['positive', 'neutral', 'negative', 'mixed'],
+        enum: [...SENTIMENT_VALUES],
         description: ConversationAnalysisSchema.shape.sentiment._def.description,
       },
       userIntent: {
@@ -65,9 +87,9 @@ function generateJsonSchema(): string {
         items: {
           type: 'object',
           properties: {
-            type: { type: 'string', enum: ['task', 'prompt_improvement', 'follow_up'] },
+            type: { type: 'string', enum: [...ACTION_ITEM_TYPES] },
             description: { type: 'string' },
-            priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+            priority: { type: 'string', enum: [...PRIORITY_LEVELS] },
           },
           required: ['type', 'description'],
         },
@@ -80,7 +102,7 @@ function generateJsonSchema(): string {
           properties: {
             category: {
               type: 'string',
-              enum: ['clarity', 'context', 'structure', 'specificity', 'efficiency'],
+              enum: [...PROMPTING_CATEGORIES],
             },
             issue: { type: 'string' },
             suggestion: { type: 'string' },
@@ -97,7 +119,7 @@ function generateJsonSchema(): string {
           contextCompleteness: { type: 'number', minimum: 0, maximum: 10 },
           followUpEffectiveness: {
             type: 'string',
-            enum: ['excellent', 'good', 'needs_improvement'],
+            enum: [...FOLLOW_UP_EFFECTIVENESS],
           },
           commonIssues: { type: 'array', items: { type: 'string' } },
           strengths: { type: 'array', items: { type: 'string' } },
@@ -110,10 +132,10 @@ function generateJsonSchema(): string {
           frameworks: { type: 'array', items: { type: 'string' } },
           issues: { type: 'array', items: { type: 'string' } },
           solutions: { type: 'array', items: { type: 'string' } },
-          toolUsageEfficiency: { type: 'string', enum: ['optimal', 'good', 'could_improve'] },
+          toolUsageEfficiency: { type: 'string', enum: [...TOOL_USAGE_EFFICIENCY] },
           contextWindowManagement: {
             type: 'string',
-            enum: ['efficient', 'acceptable', 'wasteful'],
+            enum: [...CONTEXT_WINDOW_MANAGEMENT],
           },
         },
         description: ConversationAnalysisSchema.shape.technicalDetails._def.description,
@@ -121,13 +143,13 @@ function generateJsonSchema(): string {
       conversationQuality: {
         type: 'object',
         properties: {
-          clarity: { type: 'string', enum: ['high', 'medium', 'low'] },
+          clarity: { type: 'string', enum: [...CONVERSATION_CLARITY] },
           clarityImprovement: { type: 'string' },
-          completeness: { type: 'string', enum: ['complete', 'partial', 'incomplete'] },
+          completeness: { type: 'string', enum: [...CONVERSATION_COMPLETENESS] },
           completenessImprovement: { type: 'string' },
           effectiveness: {
             type: 'string',
-            enum: ['highly effective', 'effective', 'needs improvement'],
+            enum: [...CONVERSATION_EFFECTIVENESS],
           },
           effectivenessImprovement: { type: 'string' },
         },
@@ -153,12 +175,9 @@ function generateJsonSchema(): string {
 
 /**
  * Formats examples for inclusion in the prompt
+ * @param examples Array of analysis examples to format
+ * @returns Formatted string of examples for LLM consumption
  */
-interface AnalysisExample {
-  transcript: Message[]
-  expectedOutput: z.infer<typeof ConversationAnalysisSchema>
-}
-
 function formatExamples(examples: AnalysisExample[]): string {
   return examples
     .map((example, i) => {
@@ -225,7 +244,7 @@ export function buildAnalysisPrompt(
 }
 
 // Define the response schema that includes the analysis wrapper
-const ConversationAnalysisResponseSchema = z.object({
+export const ConversationAnalysisResponseSchema = z.object({
   analysis: ConversationAnalysisSchema,
 })
 
@@ -234,6 +253,7 @@ const ConversationAnalysisResponseSchema = z.object({
  *
  * @param response - The raw response from the LLM
  * @returns Parsed and validated ConversationAnalysis object
+ * @throws Error with detailed validation information if parsing fails
  */
 export function parseAnalysisResponse(
   response: string
@@ -253,11 +273,22 @@ export function parseAnalysisResponse(
     return validated.analysis
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new Error(
-        `Invalid analysis response format: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`
-      )
+      // Provide detailed error information for debugging
+      const details = error.errors
+        .map(e => {
+          const path = e.path.join('.')
+          const field = path || 'root'
+          return `Field '${field}': ${e.message}`
+        })
+        .join('; ')
+
+      throw new Error(`Invalid analysis response format - ${details}`)
     } else if (error instanceof SyntaxError) {
-      throw new Error(`Failed to parse analysis response as JSON: ${error.message}`)
+      // Include the problematic JSON snippet for debugging
+      const preview = response.length > 100 ? response.substring(0, 100) + '...' : response
+      throw new Error(
+        `Failed to parse analysis response as JSON: ${error.message}. Response preview: ${preview}`
+      )
     }
     throw error
   }
