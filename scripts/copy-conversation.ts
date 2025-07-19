@@ -7,9 +7,7 @@
  */
 
 import { parseArgs } from 'util'
-import pg from 'pg'
-
-const { Client } = pg
+import { Client } from 'pg'
 
 // ============================================================================
 // Type Definitions
@@ -35,8 +33,8 @@ interface ApiRequest {
 }
 
 interface DatabaseClients {
-  source: pg.Client
-  destination: pg.Client
+  source: Client
+  destination: Client
 }
 
 interface TableAnalysis {
@@ -189,6 +187,11 @@ function parseCliArguments(): Config | null {
 // Environment Validation
 // ============================================================================
 
+/**
+ * Validates that required environment variables are set
+ * @returns The validated DATABASE_URL
+ * @throws Process exits if DATABASE_URL is not set
+ */
 function validateEnvironment(): string {
   const sourceDbUrl = process.env.DATABASE_URL
   if (!sourceDbUrl) {
@@ -202,6 +205,12 @@ function validateEnvironment(): string {
 // Database Operations
 // ============================================================================
 
+/**
+ * Creates database client instances for source and destination
+ * @param sourceUrl - Source database connection string
+ * @param destUrl - Destination database connection string
+ * @returns Database client instances
+ */
 async function createDatabaseClients(sourceUrl: string, destUrl: string): Promise<DatabaseClients> {
   return {
     source: new Client({ connectionString: sourceUrl }),
@@ -209,6 +218,10 @@ async function createDatabaseClients(sourceUrl: string, destUrl: string): Promis
   }
 }
 
+/**
+ * Establishes connections to both databases
+ * @param clients - Database client instances
+ */
 async function connectDatabases(clients: DatabaseClients): Promise<void> {
   await clients.source.connect()
   console.log('Connected to source database')
@@ -241,12 +254,24 @@ async function closeDatabaseConnections(clients: DatabaseClients): Promise<void>
   await clients.destination.end()
 }
 
-async function tableExists(client: pg.Client, tableName: string): Promise<boolean> {
+/**
+ * Checks if a table exists in the database
+ * @param client - Database client
+ * @param tableName - Name of the table to check
+ * @returns True if table exists, false otherwise
+ */
+async function tableExists(client: Client, tableName: string): Promise<boolean> {
   const result = await client.query(QUERIES.TABLE_EXISTS, [tableName])
   return result.rows[0].exists
 }
 
-async function getTableColumns(client: pg.Client, tableName: string): Promise<string[]> {
+/**
+ * Retrieves column names for a table
+ * @param client - Database client
+ * @param tableName - Name of the table
+ * @returns Array of column names
+ */
+async function getTableColumns(client: Client, tableName: string): Promise<string[]> {
   const result = await client.query(QUERIES.GET_COLUMNS, [tableName])
   return result.rows.map(row => row.column_name)
 }
@@ -262,12 +287,16 @@ async function validateTables(clients: DatabaseClients, config: Config): Promise
   const destExists = await tableExists(clients.destination, config.destTable)
 
   if (!sourceExists) {
-    throw new Error(`Source table "${config.sourceTable}" does not exist in source database`)
+    throw new Error(
+      `Source table "${config.sourceTable}" does not exist in source database. ` +
+        `Please verify the table name and database connection.`
+    )
   }
 
   if (!destExists) {
     throw new Error(
-      `Destination table "${config.destTable}" does not exist in destination database`
+      `Destination table "${config.destTable}" does not exist in destination database. ` +
+        `Please create the table first or verify the table name.`
     )
   }
 
@@ -304,7 +333,14 @@ async function analyzeTableStructures(
 // Data Operations
 // ============================================================================
 
-async function getConversationRequests(client: pg.Client, config: Config): Promise<ApiRequest[]> {
+/**
+ * Fetches all requests for a given conversation ID
+ * @param client - Source database client
+ * @param config - Configuration options
+ * @returns Array of API requests
+ * @throws Error if table or column doesn't exist
+ */
+async function getConversationRequests(client: Client, config: Config): Promise<ApiRequest[]> {
   const query = `
     SELECT * FROM ${config.sourceTable}
     WHERE conversation_id = $1
@@ -314,19 +350,34 @@ async function getConversationRequests(client: pg.Client, config: Config): Promi
   try {
     const result = await client.query(query, [config.conversationId])
     return result.rows
-  } catch (error: any) {
-    if (error.code === ERROR_CODES.UNDEFINED_TABLE) {
-      throw new Error(`Table "${config.sourceTable}" does not exist in source database`)
+  } catch (error) {
+    const pgError = error as { code?: string; message?: string }
+    if (pgError.code === ERROR_CODES.UNDEFINED_TABLE) {
+      throw new Error(
+        `Table "${config.sourceTable}" does not exist in source database. ` +
+          `Please verify the table name and database connection.`
+      )
     }
-    if (error.code === ERROR_CODES.UNDEFINED_COLUMN) {
-      throw new Error(`Column "conversation_id" does not exist in table "${config.sourceTable}"`)
+    if (pgError.code === ERROR_CODES.UNDEFINED_COLUMN) {
+      throw new Error(
+        `Column "conversation_id" does not exist in table "${config.sourceTable}". ` +
+          `This script requires a conversation_id column to filter requests.`
+      )
     }
     throw error
   }
 }
 
+/**
+ * Copies API requests to the destination database
+ * @param destClient - Destination database client
+ * @param requests - Array of requests to copy
+ * @param commonColumns - Columns that exist in both tables
+ * @param config - Configuration options
+ * @returns Number of requests successfully copied
+ */
 async function copyRequests(
-  destClient: pg.Client,
+  destClient: Client,
   requests: ApiRequest[],
   commonColumns: string[],
   config: Config
@@ -359,8 +410,9 @@ async function copyRequests(
         if (result.rowCount && result.rowCount > 0) {
           copiedCount++
         }
-      } catch (error: any) {
-        console.error(`Error copying request ${request.request_id}:`, error.message)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error(`Error copying request ${request.request_id}:`, errorMessage)
         throw error
       }
     } else {
@@ -371,6 +423,13 @@ async function copyRequests(
   return copiedCount
 }
 
+/**
+ * Copies streaming chunks associated with the requests
+ * @param clients - Database client instances
+ * @param requestIds - Array of request IDs
+ * @param config - Configuration options
+ * @returns Number of chunks successfully copied
+ */
 async function copyStreamingChunks(
   clients: DatabaseClients,
   requestIds: string[],
@@ -402,10 +461,10 @@ async function copyStreamingChunks(
         if (result.rowCount && result.rowCount > 0) {
           copiedCount++
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error(
           `Error copying chunk ${chunk.request_id}[${chunk.chunk_index}]:`,
-          error.message
+          error instanceof Error ? error.message : String(error)
         )
         throw error
       }
