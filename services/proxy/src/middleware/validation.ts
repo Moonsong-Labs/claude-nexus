@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono'
 import { ValidationError } from '@claude-nexus/shared'
-import { validateClaudeRequest } from '../types/claude'
+import { validateClaudeRequest } from '@claude-nexus/shared/validators'
 import { getRequestLogger } from './logger'
 import { maskSensitiveData, truncateString } from '@claude-nexus/shared/utils/validation'
 

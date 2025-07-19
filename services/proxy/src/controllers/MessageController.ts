@@ -1,8 +1,8 @@
 import { Context } from 'hono'
 import { ProxyService } from '../services/ProxyService'
 import { RequestContext } from '../domain/value-objects/RequestContext'
-import { validateClaudeRequest } from '../types/claude'
 import { ValidationError } from '@claude-nexus/shared'
+import { validateClaudeRequest } from '@claude-nexus/shared/validators'
 import { serializeError } from '../utils/error-serialization'
 import { getRequestLogger } from '../middleware/logger'
 
@@ -36,7 +36,7 @@ export class MessageController {
         hasSystemField: !!body.system,
         systemFieldType: Array.isArray(body.system) ? 'array' : typeof body.system,
         systemFieldLength: Array.isArray(body.system) ? body.system.length : body.system ? 1 : 0,
-        messageRoles: body.messages.map(m => m.role),
+        messageRoles: body.messages.map((m: any) => m.role),
       })
 
       // Delegate to service

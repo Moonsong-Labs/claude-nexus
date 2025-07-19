@@ -91,7 +91,7 @@ export class ProxyService {
         // Use the new ConversationLinker through StorageAdapter
         const linkingResult = await this.storageAdapter.linkConversation(
           context.host,
-          rawRequest.messages,
+          rawRequest.messages as any, // Cast to any due to type mismatch between proxy and shared types
           rawRequest.system,
           context.requestId,
           new Date(context.startTime) // Pass the request timestamp

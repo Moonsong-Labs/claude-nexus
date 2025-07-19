@@ -1,4 +1,5 @@
-import { ClaudeMessagesRequest, countSystemMessages } from '../../types/claude'
+import { ClaudeMessagesRequest } from '../../types/claude'
+import { countSystemMessages } from '@claude-nexus/shared'
 
 export type RequestType = 'query_evaluation' | 'inference' | 'quota'
 
@@ -137,20 +138,7 @@ export class ProxyRequest {
   }
 
   countSystemMessages(): number {
-    let count = 0
-
-    // Handle system field - can be string or array
-    if (this.raw.system) {
-      if (Array.isArray(this.raw.system)) {
-        count = this.raw.system.length
-      } else {
-        count = 1
-      }
-    }
-
-    // Add system messages from messages array
-    count += this.raw.messages.filter(m => m.role === 'system').length
-    return count
+    return countSystemMessages(this.raw)
   }
 
   /**

@@ -1,5 +1,12 @@
 import { createHash, randomUUID } from 'crypto'
-import type { ClaudeMessage, ClaudeContent } from '../types/index.js'
+import type {
+  ClaudeMessage,
+  ClaudeContent,
+  ClaudeTextContent,
+  ClaudeImageContent,
+  ClaudeToolUseContent,
+  ClaudeToolResultContent,
+} from '../types/index.js'
 import { hashSystemPrompt } from './conversation-hash.js'
 import { stripSystemReminder } from './system-reminder.js'
 import type { createLogger } from '../logger/index.js'
@@ -784,41 +791,45 @@ export class ConversationLinker {
       case 'tool_result':
         return this.serializeToolResultItem(item, index)
       default:
-        return `[${index}]${item.type}:unknown`
+        return `[${index}]${(item as any).type}:unknown`
     }
   }
 
   private serializeTextItem(item: ClaudeContent, index: number): string {
     // Strip system-reminder blocks from text content before serializing
-    const cleanText = stripSystemReminder(item.text || '')
+    const textItem = item as ClaudeTextContent
+    const cleanText = stripSystemReminder(textItem.text || '')
     const text = cleanText.trim().replace(/\r\n/g, '\n')
     return `[${index}]text:${text}`
   }
 
   private serializeImageItem(item: ClaudeContent, index: number): string {
-    if (!item.source) {
+    const imageItem = item as ClaudeImageContent
+    if (!imageItem.source) {
       return `[${index}]image:no-source`
     }
     // Hash the image data to avoid massive strings
     const imageHash = createHash('sha256')
-      .update(item.source.data || '')
+      .update(imageItem.source.data || '')
       .digest('hex')
-    return `[${index}]image:${item.source.media_type}:${imageHash}`
+    return `[${index}]image:${imageItem.source.media_type}:${imageHash}`
   }
 
   private serializeToolUseItem(item: ClaudeContent, index: number): string {
-    return `[${index}]tool_use:${item.name}:${item.id}:${JSON.stringify(item.input)}`
+    const toolUseItem = item as ClaudeToolUseContent
+    return `[${index}]tool_use:${toolUseItem.name}:${toolUseItem.id}:${JSON.stringify(toolUseItem.input)}`
   }
 
   private serializeToolResultItem(item: ClaudeContent, index: number): string {
+    const toolResultItem = item as ClaudeToolResultContent
     let contentStr = ''
-    if (typeof item.content === 'string') {
+    if (typeof toolResultItem.content === 'string') {
       // Strip system-reminder blocks from tool_result content
-      contentStr = stripSystemReminder(item.content)
-    } else if (Array.isArray(item.content)) {
-      contentStr = JSON.stringify(item.content)
+      contentStr = stripSystemReminder(toolResultItem.content)
+    } else if (Array.isArray(toolResultItem.content)) {
+      contentStr = JSON.stringify(toolResultItem.content)
     }
-    return `[${index}]tool_result:${item.tool_use_id}:${contentStr}`
+    return `[${index}]tool_result:${toolResultItem.tool_use_id}:${contentStr}`
   }
 
   private computeParentHashFromDeduplicated(deduplicatedMessages: ClaudeMessage[]): string {
