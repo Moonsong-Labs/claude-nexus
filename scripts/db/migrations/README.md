@@ -55,12 +55,12 @@ All migrations are TypeScript files that can be run with Bun:
 
 ```bash
 # Run a specific migration
-bun run scripts/migrations/000-init-database.ts
-bun run scripts/migrations/001-add-conversation-tracking.ts
-bun run scripts/migrations/002-optimize-conversation-indexes.ts
+bun run scripts/db/migrations/000-init-database.ts
+bun run scripts/db/migrations/001-add-conversation-tracking.ts
+bun run scripts/db/migrations/002-optimize-conversation-indexes.ts
 
 # Run all migrations in order
-for file in scripts/migrations/*.ts; do
+for file in scripts/db/migrations/*.ts; do
   bun run "$file"
 done
 ```
@@ -149,20 +149,20 @@ Adds indexes for temporal queries:
 
 ### 011-add-conversation-analyses.ts
 
-Creates infrastructure for AI-powered conversation analysis:
+Creates infrastructure for AI-powered conversation analysis and audit logging:
 
-- `conversation_analyses` table for storing AI-generated analyses
+**conversation_analyses table:**
+
+- Stores AI-generated analyses for conversations
 - ENUM type `conversation_analysis_status` for processing states
 - Automatic `updated_at` trigger for timestamp management
 - Unique constraint on (conversation_id, branch_id)
 - Optimized indexes for pending analyses and conversation lookups
 - Supports multiple AI models and comprehensive token tracking
 
-### 012-add-analysis-audit-log.ts
+**analysis_audit_log table:**
 
-Creates audit logging infrastructure for AI analysis security:
-
-- `analysis_audit_log` table for tracking all analysis-related events
+- Tracks all AI analysis related events for security monitoring
 - Event types: ANALYSIS_REQUEST, ANALYSIS_REGENERATION_REQUEST, etc.
 - Outcome tracking: SUCCESS, FAILURE_AUTH, FAILURE_RATE_LIMIT, etc.
 - Comprehensive metadata storage with JSONB fields
@@ -173,7 +173,7 @@ Creates audit logging infrastructure for AI analysis security:
 
 When adding new migrations:
 
-1. Use the next sequential number (e.g., 006-)
+1. Use the next sequential number (e.g., 012-)
 2. Use descriptive names after the number
 3. Include comments explaining what the migration does
 4. Add idempotency checks where possible (IF NOT EXISTS, etc.)
