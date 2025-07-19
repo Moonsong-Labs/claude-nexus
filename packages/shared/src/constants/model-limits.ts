@@ -4,6 +4,9 @@
  * This file contains the context window limits for various Claude models.
  * The limits are based on official Anthropic announcements and documentation.
  *
+ * Note: Regex patterns use wildcards (.*) to future-proof against new model versions
+ * and date variants, as this proxy needs to handle various Claude model formats.
+ *
  * @see https://docs.anthropic.com/en/docs/about-claude/models
  */
 
@@ -67,7 +70,15 @@ export function getModelContextLimit(model: string): { limit: number; isEstimate
 
 /**
  * Battery level thresholds for visualization
- * Non-linear scale to emphasize urgency near the limit
+ *
+ * Uses a non-linear scale to emphasize urgency near the context limit:
+ * - 0-70%: Safe zone with plenty of context remaining (green)
+ * - 71-90%: Caution zone where users should start thinking about context (yellow)
+ * - 91-100%: Warning zone where context is nearly exhausted (red)
+ * - >100%: Overflow state indicating context limit exceeded (red with warning)
+ *
+ * This UX pattern helps users manage their context proactively rather than
+ * hitting the limit unexpectedly.
  */
 export const BATTERY_THRESHOLDS = {
   GREEN: 0.7, // 0-70% = green (safe)
@@ -83,18 +94,26 @@ export const BATTERY_THRESHOLDS = {
  */
 export function getBatteryColor(percentage: number): string {
   if (percentage <= BATTERY_THRESHOLDS.GREEN) {
-    return '#22c55e'
-  } // green-500
+    return '#22c55e' // green-500: Safe zone
+  }
   if (percentage <= BATTERY_THRESHOLDS.YELLOW) {
-    return '#eab308'
-  } // yellow-500
-  return '#ef4444' // red-500
+    return '#eab308' // yellow-500: Caution zone
+  }
+  return '#ef4444' // red-500: Warning/overflow zone
 }
 
 /**
  * Get battery level (1-5) based on usage percentage
+ *
+ * Note: Scale is inverted for backward compatibility
+ * - 5 = Lowest usage (0-20%)
+ * - 4 = Low usage (21-40%)
+ * - 3 = Medium usage (41-60%)
+ * - 2 = High usage (61-80%)
+ * - 1 = Very high usage (81%+)
+ *
  * @param percentage - Usage percentage (0-1+)
- * @returns Battery level 1-5
+ * @returns Battery level 1-5 (inverted scale)
  */
 export function getBatteryLevel(percentage: number): number {
   if (percentage <= 0.2) {
