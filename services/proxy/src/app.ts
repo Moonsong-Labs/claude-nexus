@@ -18,6 +18,20 @@ import { apiAuthMiddleware } from './middleware/api-auth.js'
 import { domainExtractorMiddleware } from './middleware/domain-extractor.js'
 import { clientAuthMiddleware } from './middleware/client-auth.js'
 import { HonoVariables, HonoBindings } from '@claude-nexus/shared'
+import { createErrorResponse } from './utils/error-response.js'
+import { createEndpointMetadata } from './utils/endpoint-metadata.js'
+import { handleClientSetup } from './handlers/client-setup.js'
+import { ERROR_MESSAGES, ERROR_TYPES, HTTP_STATUS, SERVICE_NAME, SERVICE_VERSION } from './constants.js'
+
+/**
+ * Apply rate limiting middleware to a route pattern
+ */
+function applyRateLimitingMiddleware(app: Hono<{ Variables: HonoVariables; Bindings: HonoBindings }>, pattern: string) {
+  if (config.features.enableMetrics) {
+    app.use(pattern, createRateLimiter())
+    app.use(pattern, createDomainRateLimiter())
+  }
+}
 
 /**
  * Create and configure the Proxy application
@@ -60,18 +74,10 @@ export async function createProxyApp(): Promise<
     })
 
     // Don't expose internal errors to clients
-    const message = config.server.env === 'development' ? err.message : 'Internal server error'
+    const message = config.server.env === 'development' ? err.message : ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+    const status = (err as any).status || HTTP_STATUS.INTERNAL_SERVER_ERROR
 
-    return c.json(
-      {
-        error: {
-          message,
-          type: 'internal_error',
-          request_id: requestId,
-        },
-      },
-      ((err as { status?: number }).status || 500) as 500
-    )
+    return createErrorResponse(c, message, status)
   })
 
   // Global middleware
@@ -89,10 +95,7 @@ export async function createProxyApp(): Promise<
   }
 
   // Rate limiting
-  if (config.features.enableMetrics) {
-    app.use('/v1/*', createRateLimiter())
-    app.use('/v1/*', createDomainRateLimiter())
-  }
+  applyRateLimitingMiddleware(app, '/v1/*')
 
   // Validation for API routes
   app.use('/v1/*', validationMiddleware())
@@ -101,7 +104,7 @@ export async function createProxyApp(): Promise<
   if (config.features.enableHealthChecks) {
     const healthRoutes = createHealthRoutes({
       pool: container.getDbPool(),
-      version: process.env.npm_package_version,
+      version: SERVICE_VERSION,
     })
     app.route('/health', healthRoutes)
   }
@@ -129,14 +132,12 @@ export async function createProxyApp(): Promise<
       logger.error('Database pool not available for API request', {
         path: c.req.path,
       })
-      return c.json(
-        {
-          error: {
-            code: 'service_unavailable',
-            message: 'Database service is not available',
-          },
-        },
-        503
+      return createErrorResponse(
+        c,
+        ERROR_MESSAGES.DATABASE_UNAVAILABLE,
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        ERROR_TYPES.SERVICE_UNAVAILABLE,
+        'service_unavailable'
       )
     }
     c.set('pool', pool)
@@ -156,10 +157,7 @@ export async function createProxyApp(): Promise<
     app.use('/mcp/*', clientAuthMiddleware())
 
     // Apply rate limiting to MCP routes
-    if (config.features.enableMetrics) {
-      app.use('/mcp/*', createRateLimiter())
-      app.use('/mcp/*', createDomainRateLimiter())
-    }
+    applyRateLimitingMiddleware(app, '/mcp/*')
 
     const mcpHandler = container.getMcpHandler()
     const promptRegistry = container.getPromptRegistry()
@@ -173,7 +171,7 @@ export async function createProxyApp(): Promise<
       // MCP discovery endpoint (now protected by auth)
       app.get('/mcp', c => {
         return c.json({
-          name: 'claude-nexus-mcp-server',
+          name: `${SERVICE_NAME}-mcp-server`,
           version: '1.0.0',
           capabilities: {
             prompts: {
@@ -200,54 +198,7 @@ export async function createProxyApp(): Promise<
   }
 
   // Client setup files
-  app.get('/client-setup/:filename', async c => {
-    const filename = c.req.param('filename')
-
-    // Validate filename to prevent directory traversal
-    if (!filename || filename.includes('..') || filename.includes('/')) {
-      return c.text('Invalid filename', 400)
-    }
-
-    try {
-      const fs = await import('fs')
-      const path = await import('path')
-      const { fileURLToPath } = await import('url')
-
-      // Get the directory of this source file
-      const __filename = fileURLToPath(import.meta.url)
-      const __dirname = path.dirname(__filename)
-
-      // Navigate from services/proxy/src to project root, then to client-setup
-      const projectRoot = path.join(__dirname, '..', '..', '..')
-      const filePath = path.join(projectRoot, 'client-setup', filename)
-
-      if (!fs.existsSync(filePath)) {
-        return c.text('File not found', 404)
-      }
-
-      const content = fs.readFileSync(filePath, 'utf-8')
-      const contentType = filename.endsWith('.json')
-        ? 'application/json'
-        : filename.endsWith('.js')
-          ? 'application/javascript'
-          : filename.endsWith('.sh')
-            ? 'text/x-shellscript'
-            : 'text/plain'
-
-      return c.text(content, 200, {
-        'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=3600',
-      })
-    } catch (error) {
-      logger.error('Failed to serve client setup file', {
-        metadata: {
-          filename,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      })
-      return c.text('Internal server error', 500)
-    }
-  })
+  app.get('/client-setup/:filename', handleClientSetup)
 
   // Main API routes
   const messageController = container.getMessageController()
@@ -255,39 +206,7 @@ export async function createProxyApp(): Promise<
   app.options('/v1/messages', c => messageController.handleOptions(c))
 
   // Root endpoint
-  app.get('/', c => {
-    const endpoints: any = {
-      api: '/v1/messages',
-      health: '/health',
-      stats: '/token-stats',
-      'client-setup': '/client-setup/*',
-      'dashboard-api': {
-        stats: '/api/stats',
-        requests: '/api/requests',
-        'request-details': '/api/requests/:id',
-        domains: '/api/domains',
-      },
-    }
-
-    if (config.mcp.enabled) {
-      endpoints.mcp = {
-        discovery: '/mcp',
-        rpc: '/mcp',
-        'dashboard-api': {
-          prompts: '/api/mcp/prompts',
-          sync: '/api/mcp/sync',
-          'sync-status': '/api/mcp/sync/status',
-        },
-      }
-    }
-
-    return c.json({
-      service: 'claude-nexus-proxy',
-      version: process.env.npm_package_version || 'unknown',
-      status: 'operational',
-      endpoints,
-    })
-  })
+  app.get('/', c => c.json(createEndpointMetadata()))
 
   return app
 }
@@ -328,7 +247,7 @@ async function initializeExternalServices(): Promise<void> {
   // Log startup configuration
   logger.info('Proxy service starting', {
     metadata: {
-      version: process.env.npm_package_version || 'unknown',
+      version: SERVICE_VERSION,
       environment: config.server.env,
       features: {
         storage: config.storage.enabled,
