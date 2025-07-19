@@ -613,3 +613,35 @@ Lockfiles are critical infrastructure files that ensure consistent dependency in
 **Rationale:**
 
 Rather than break working functionality by changing the implementation or the working prompt files, updating the documentation to match reality was the most sensible approach. This maintains backward compatibility while eliminating confusion for future contributors. The test-generator.yaml file required no changes as it was already correctly formatted for the current implementation.
+
+### 2025-07-19 - Obsolete MCP Prompt File Cleanup
+
+**Files Modified:**
+
+- Removed: `prompts/grooming.md`
+
+**Changes Made:**
+
+1. **Removed Obsolete File**
+   - Deleted `prompts/grooming.md` which was incompatible with MCP implementation
+   - File was in Markdown format while all other prompts are YAML
+   - Contained XML-like tags and shell commands instead of proper YAML structure
+   - Not referenced anywhere in the codebase
+
+**Analysis Findings:**
+
+- All other files in `prompts/` directory are YAML files (code-review.yaml, test-generator.yaml)
+- MCP implementation expects YAML files with `name`, `description`, and `template` fields
+- The file contained shell command executions with `!` that are incompatible with Handlebars templating
+- Comprehensive grooming documentation already exists in GROOMING.md
+- The `/nexus:crys-file-grooming` command appears to be the actual grooming implementation
+
+**Validation:**
+
+- Gemini-2.5-flash: 10/10 confidence score for deletion
+- O3-mini: 9/10 confidence score for deletion
+- Type checking passes after deletion
+
+**Rationale:**
+
+The file represented technical debt that could cause confusion about MCP prompt format and functionality. Its removal simplifies the prompts directory structure and ensures all prompt files follow the consistent YAML format expected by the MCP implementation. The grooming functionality is properly documented in GROOMING.md and appears to be implemented elsewhere in the system.
