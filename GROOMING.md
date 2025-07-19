@@ -889,3 +889,56 @@ The cleanup removes unnecessary redundancy in the JSON override section while ma
 **Rationale:**
 
 Test fixtures should contain the minimum necessary data to validate their specific scenario. The original fixture was bloated with irrelevant project data that obscured the test's purpose. The cleanup improves test maintainability, readability, and clearly communicates what aspect of conversation linking is being tested.
+
+### 2025-07-19 - Conversation Analysis Script Refactoring
+
+**Files Modified:**
+
+- `scripts/db/analyze-conversations.ts`
+
+**Changes Made:**
+
+1. **Replaced Memory-Intensive Approach with Batch Processing**
+   - Changed from loading all requests into memory to processing in configurable batches (default 10K)
+   - Added streaming capabilities to handle databases of any size without OOM issues
+   - Implemented progress tracking during batch processing
+
+2. **Eliminated Code Duplication**
+   - Removed custom conversation linking logic that duplicated production code
+   - Now uses the production `ConversationLinker` from `packages/shared`
+   - Ensures consistency with actual conversation tracking behavior
+
+3. **Improved Type Safety**
+   - Fixed all TypeScript type issues
+   - Replaced `any` types with proper interfaces
+   - Added complete type definitions for all data structures
+
+4. **Added Configuration Options**
+   - `--batch-size <number>`: Control memory usage for large databases
+   - `--format <json|console>`: Choose output format
+   - `--help`: Show usage information
+   - Made the script more flexible for different use cases
+
+5. **Enhanced Code Quality**
+   - Extracted magic numbers into named constants
+   - Simplified complex nested logic
+   - Added proper error handling
+   - Improved code organization and readability
+
+**Rationale:**
+
+The original script was functional but had significant technical debt:
+
+- Would crash on large databases due to loading all data into memory
+- Duplicated conversation tracking logic that could diverge from production
+- Poor type safety with `any` types
+- No configuration options for different use cases
+
+The refactoring was validated by AI models (Gemini-2.5-pro and O3-mini) who confirmed that reusing production utilities was the correct approach. This ensures the analysis script accurately reflects what the production system does while handling databases of any size efficiently.
+
+**Technical Notes:**
+
+- The script maintains backward compatibility with existing npm scripts
+- Import paths use `.js` extensions per TypeScript ESM conventions
+- Batch processing prevents memory issues on large production databases
+- JSON output format enables integration with other tools
