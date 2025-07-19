@@ -15,7 +15,6 @@ const SUMMARY_SUFFIX_MARKER = 'Please continue the conversation'
 const SUMMARIZATION_SYSTEM_PROMPT =
   'You are a helpful AI assistant tasked with summarizing conversations'
 const COMPACT_SEARCH_DAYS = 7 // Search window for compact conversations
-// const QUERY_LIMIT = 10 // Reserved for future use0
 const MIN_MESSAGES_FOR_PARENT_HASH = 3
 
 export interface TaskInvocation {
@@ -609,7 +608,13 @@ export class ConversationLinker {
     }
   }
 
-  public computeMessageHash(messages: ClaudeMessage[]): string {
+  /**
+   * Computes SHA-256 hash of messages for conversation tracking
+   * @param messages - Array of Claude messages to hash
+   * @param skipDeduplication - Skip message deduplication (used internally when messages are already deduplicated)
+   * @returns Hex-encoded SHA-256 hash
+   */
+  public computeMessageHash(messages: ClaudeMessage[], skipDeduplication = false): string {
     try {
       const hash = createHash('sha256')
 
@@ -617,10 +622,10 @@ export class ConversationLinker {
         throw new Error('Cannot compute hash for empty messages array')
       }
 
-      // Deduplicate messages first
-      const deduplicatedMessages = this.deduplicateMessages(messages)
+      // Deduplicate messages if needed
+      const messagesToHash = skipDeduplication ? messages : this.deduplicateMessages(messages)
 
-      for (const message of deduplicatedMessages) {
+      for (const message of messagesToHash) {
         if (!message || !message.role) {
           throw new Error('Invalid message: missing role')
         }
@@ -636,37 +641,6 @@ export class ConversationLinker {
       return hash.digest('hex')
     } catch (error) {
       console.error('Error in computeMessageHash:', error)
-      throw new Error(
-        `Failed to compute message hash: ${error instanceof Error ? error.message : String(error)}`
-      )
-    }
-  }
-
-  // This version does NOT deduplicate - for internal use when messages are already deduplicated
-  private computeMessageHashNoDedupe(messages: ClaudeMessage[]): string {
-    try {
-      const hash = createHash('sha256')
-
-      if (!messages || messages.length === 0) {
-        throw new Error('Cannot compute hash for empty messages array')
-      }
-
-      for (const message of messages) {
-        if (!message || !message.role) {
-          throw new Error('Invalid message: missing role')
-        }
-
-        hash.update(message.role)
-        hash.update('\n')
-
-        const normalizedContent = this.normalizeMessageContent(message.content)
-        hash.update(normalizedContent)
-        hash.update('\n')
-      }
-
-      return hash.digest('hex')
-    } catch (error) {
-      console.error('Error in computeMessageHashNoDedupe:', error)
       throw new Error(
         `Failed to compute message hash: ${error instanceof Error ? error.message : String(error)}`
       )
@@ -804,8 +778,8 @@ export class ConversationLinker {
     }
 
     const parentMessages = deduplicatedMessages.slice(0, -2)
-    // Use the non-deduplicating version since messages are already deduplicated
-    return this.computeMessageHashNoDedupe(parentMessages)
+    // Use skipDeduplication since messages are already deduplicated
+    return this.computeMessageHash(parentMessages, true)
   }
 
   /**
@@ -827,8 +801,8 @@ export class ConversationLinker {
     }
 
     const grandparentMessages = deduplicatedMessages.slice(0, -4)
-    // Use the non-deduplicating version since messages are already deduplicated
-    return this.computeMessageHashNoDedupe(grandparentMessages)
+    // Use skipDeduplication since messages are already deduplicated
+    return this.computeMessageHash(grandparentMessages, true)
   }
 
   private detectCompactConversation(message: ClaudeMessage): CompactInfo | null {
@@ -980,18 +954,6 @@ export class ConversationLinker {
       console.error('Error finding request by ID:', error)
       return null
     }
-  }
-
-  private normalizeSummaryForComparison(summary: string): string {
-    // Remove common variations in formatting
-    return summary
-      .replace(/\s+/g, ' ')
-      .replace(/<analysis>/g, '')
-      .replace(/<\/analysis>/g, '')
-      .replace(/<summary>/g, '')
-      .replace(/<\/summary>/g, '')
-      .replace(/analysis:/gi, '')
-      .trim()
   }
 
   private async findParentByHash(
