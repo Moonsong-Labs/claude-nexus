@@ -118,11 +118,8 @@ bun test
 Test specific functionality:
 
 ```bash
-# Test any model
-./scripts/test/test-any-model.sh
-
-# Test dashboard API
-./scripts/test/test-dashboard-api.sh
+# Run tests
+bun test
 ```
 
 ## Common Development Tasks

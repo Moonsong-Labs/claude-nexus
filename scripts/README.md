@@ -9,8 +9,7 @@ scripts/
 ├── db/           # Database management scripts
 ├── auth/         # Authentication and OAuth utilities
 ├── dev/          # Development helper scripts
-├── ops/          # Operations and deployment scripts
-└── test/         # Testing utilities
+└── ops/          # Operations and deployment scripts
 ```
 
 ## Database Scripts (`db/`)
@@ -145,22 +144,6 @@ Updates proxy deployment.
 ```bash
 ./scripts/ops/update-proxy.sh
 ```
-
-## Test Scripts (`test/`)
-
-Testing utilities and scripts for validating proxy functionality.
-
-### test-any-model.sh
-
-Tests proxy with various model configurations.
-
-### test-dashboard-api.sh
-
-Tests dashboard API endpoints.
-
-### test-storage-behavior.sh
-
-Validates storage functionality.
 
 ## Test Generation Scripts
 
