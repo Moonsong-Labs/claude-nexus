@@ -151,7 +151,7 @@ The original implementation included system prompts in the conversation hash, wh
 **Migration:**
 
 - Added `system_hash` column to `api_requests` table
-- Existing data can be backfilled using `scripts/db/backfill-system-hashes.ts`
+- System hash is now automatically populated during normal operations
 
 Future enhancements could include:
 
