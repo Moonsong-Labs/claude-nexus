@@ -1139,3 +1139,35 @@ While the migration has code quality issues compared to newer standards, the pri
 - Apply improved standards (dotenv, rollback, dry-run) to NEW migrations only
 - If the TODO functionality is needed, create a new migration (e.g., 013-complete-subtask-linking.ts)
 - Consider creating a migration template with current best practices
+
+### 2025-07-19 - Storage Behavior Test Script Cleanup
+
+**Files Deleted:**
+
+- `scripts/dev/test/test-storage-behavior.sh`
+
+**Changes Made:**
+
+1. **Removed Redundant Test Script**
+   - Deleted manual verification script that tested storage behavior based on system message count
+   - Core logic (system message counting) is already comprehensively unit tested in `request-type-identification.test.ts`
+   - Storage skipping for query_evaluation requests is already implemented and tested
+   - Script had no error handling, hardcoded values, and didn't validate results
+
+**Analysis Findings:**
+
+- The script tested whether requests with different system message counts were stored in the database
+- Requests with ≤1 system messages are classified as `query_evaluation` and skipped from storage
+- Comprehensive unit tests already cover all edge cases of system message counting
+- No integration test framework exists for this specific behavior
+
+**Validation:**
+
+- Gemini-2.5-pro: 9/10 confidence for transformation to integration test
+- O3-mini: 8/10 confidence for deletion to reduce maintenance burden
+- Unit tests continue to pass after deletion (15/15 tests passing)
+- Type checking passes without issues
+
+**Rationale:**
+
+Following GROOMING.md guidelines that "scripts generated to verify features should be removed or transformed to test if really needed", the script was deleted rather than transformed. The behavior is already well-tested at the unit level, and creating integration test infrastructure for this single edge case would add unnecessary complexity. This aligns with the project's grooming history where similar verification scripts were removed to reduce technical debt.
