@@ -1,8 +1,22 @@
-import { Hono } from 'hono'
+import { Hono, type Context, type Next } from 'hono'
 import { z } from 'zod'
 import { getErrorMessage, config } from '@claude-nexus/shared'
+import { HTTP_STATUS } from '../constants.js'
 
 export const sparkApiRoutes = new Hono()
+
+// Constants
+const MAX_BATCH_SESSION_IDS = 100
+
+/**
+ * Middleware to check Spark API configuration
+ */
+const checkSparkConfig = async (c: Context, next: Next) => {
+  if (!config.spark.enabled || !config.spark.apiUrl || !config.spark.apiKey) {
+    return c.json({ error: 'Spark API not configured' }, HTTP_STATUS.SERVICE_UNAVAILABLE as any)
+  }
+  await next()
+}
 
 // Schema definitions
 const FeedbackSchema = z.object({
@@ -60,18 +74,14 @@ const SendFeedbackRequestSchema = z.object({
 })
 
 const BatchFeedbackRequestSchema = z.object({
-  session_ids: z.array(z.string()).max(100),
+  session_ids: z.array(z.string()).max(MAX_BATCH_SESSION_IDS),
 })
 
 /**
  * Get feedback for a specific session
  */
-sparkApiRoutes.get('/spark/sessions/:sessionId/feedback', async c => {
+sparkApiRoutes.get('/spark/sessions/:sessionId/feedback', checkSparkConfig, async c => {
   const sessionId = c.req.param('sessionId')
-
-  if (!config.spark.enabled || !config.spark.apiUrl || !config.spark.apiKey) {
-    return c.json({ error: 'Spark API not configured' }, 503)
-  }
 
   try {
     const response = await fetch(`${config.spark.apiUrl}/sessions/${sessionId}/feedback`, {
@@ -83,14 +93,21 @@ sparkApiRoutes.get('/spark/sessions/:sessionId/feedback', async c => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}) as any)
-      return c.json(
-        { error: (errorData as any).detail || `Failed to get feedback: ${response.statusText}` },
-        response.status as any
-      )
+      let errorDetail = `Failed to get feedback: ${response.statusText}`
+      try {
+        const errorData = await response.json()
+        if (errorData && typeof errorData === 'object' && 'detail' in errorData) {
+          errorDetail = String(errorData.detail)
+        }
+      } catch {
+        // Use default error message if JSON parsing fails
+      }
+      return c.json({ error: errorDetail }, response.status as any)
     }
 
-    const data = await response.json()
+    // Note: Using 'as any' for external API responses to avoid complex type definitions
+    // In a future refactor, consider adding proper type definitions for Spark API responses
+    const data: unknown = await response.json()
     return c.json(data as any)
   } catch (error) {
     console.error('Error fetching feedback:', error)
@@ -101,10 +118,7 @@ sparkApiRoutes.get('/spark/sessions/:sessionId/feedback', async c => {
 /**
  * Send feedback for a recommendation session
  */
-sparkApiRoutes.post('/spark/feedback', async c => {
-  if (!config.spark.enabled || !config.spark.apiUrl || !config.spark.apiKey) {
-    return c.json({ error: 'Spark API not configured' }, 503)
-  }
+sparkApiRoutes.post('/spark/feedback', checkSparkConfig, async c => {
 
   try {
     const body = await c.req.json()
@@ -120,14 +134,21 @@ sparkApiRoutes.post('/spark/feedback', async c => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}) as any)
-      return c.json(
-        { error: (errorData as any).detail || `Failed to send feedback: ${response.statusText}` },
-        response.status as any
-      )
+      let errorDetail = `Failed to send feedback: ${response.statusText}`
+      try {
+        const errorData = await response.json()
+        if (errorData && typeof errorData === 'object' && 'detail' in errorData) {
+          errorDetail = String(errorData.detail)
+        }
+      } catch {
+        // Use default error message if JSON parsing fails
+      }
+      return c.json({ error: errorDetail }, response.status as any)
     }
 
-    const data = await response.json()
+    // Note: Using 'as any' for external API responses to avoid complex type definitions
+    // In a future refactor, consider adding proper type definitions for Spark API responses
+    const data: unknown = await response.json()
     return c.json(data as any)
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -141,10 +162,7 @@ sparkApiRoutes.post('/spark/feedback', async c => {
 /**
  * Get feedback for multiple sessions in batch
  */
-sparkApiRoutes.post('/spark/feedback/batch', async c => {
-  if (!config.spark.enabled || !config.spark.apiUrl || !config.spark.apiKey) {
-    return c.json({ error: 'Spark API not configured' }, 503)
-  }
+sparkApiRoutes.post('/spark/feedback/batch', checkSparkConfig, async c => {
 
   try {
     const body = await c.req.json()
@@ -161,27 +179,33 @@ sparkApiRoutes.post('/spark/feedback/batch', async c => {
     })
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-
-      let errorData: any = {}
+      let errorDetail = `Failed to fetch batch feedback: ${response.statusText}`
+      
       try {
-        errorData = errorText ? JSON.parse(errorText) : {}
+        const errorText = await response.text()
+        if (errorText) {
+          try {
+            const errorData = JSON.parse(errorText)
+            if (errorData && typeof errorData === 'object' && 'detail' in errorData) {
+              errorDetail = String(errorData.detail)
+            }
+          } catch {
+            // If not JSON, use the text as error message if it's not too long
+            if (errorText.length < 200) {
+              errorDetail = errorText
+            }
+          }
+        }
       } catch {
-        // Not JSON
+        // Use default error message if reading response fails
       }
-
-      return c.json(
-        {
-          error:
-            (errorData as any).detail ||
-            errorText ||
-            `Failed to fetch batch feedback: ${response.statusText}`,
-        },
-        response.status as any
-      )
+      
+      return c.json({ error: errorDetail }, response.status as any)
     }
 
-    const data = await response.json()
+    // Note: Using 'as any' for external API responses to avoid complex type definitions
+    // In a future refactor, consider adding proper type definitions for Spark API responses
+    const data: unknown = await response.json()
     return c.json(data as any)
   } catch (error) {
     if (error instanceof z.ZodError) {

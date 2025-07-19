@@ -1,5 +1,37 @@
 # Grooming Log
 
+## 2025-01-19: Spark API Routes Refactoring
+
+### File: `services/proxy/src/routes/spark-api.ts`
+
+#### Action: REFACTORED
+
+#### Changes Made:
+
+1. **Removed duplicate configuration checks**: Created a `checkSparkConfig` middleware to DRY up the repeated config validation across all three endpoints
+2. **Fixed TypeScript import**: Consolidated Hono imports to avoid duplicate import warning
+3. **Improved error handling**: Made error parsing more robust and consistent across endpoints
+4. **Added constant for magic number**: Extracted `MAX_BATCH_SESSION_IDS` constant instead of hardcoded 100
+5. **Type safety improvements**: 
+   - Replaced unsafe `catch(() => ({}))` patterns with proper error handling
+   - Added explicit `unknown` type annotations for external API responses
+   - Documented the use of `as any` casts for external API responses with a comment explaining the rationale
+
+#### Rationale:
+
+1. **Code duplication**: The same Spark configuration check was repeated in all three endpoints
+2. **Type safety**: Multiple `as any` casts were defeating TypeScript's type checking
+3. **Error handling**: Inconsistent error response structures and silent error swallowing
+4. **Maintainability**: Extracted constants and improved code organization
+
+#### Minimal Approach:
+
+Given this is production code that's working well, the refactoring focused on:
+- Essential improvements for code quality
+- Keeping Zod schemas in the file since they're only used here
+- Minimal risk changes while improving maintainability
+- Preserved existing functionality while removing code smells
+
 ## 2025-01-19: Test Script test-any-model.sh Deletion
 
 ### File: `scripts/dev/test/test-any-model.sh`
