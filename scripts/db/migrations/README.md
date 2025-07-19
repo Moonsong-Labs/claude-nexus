@@ -15,13 +15,20 @@ Migrations are named with a 3-digit numeric prefix to ensure they run in the cor
 
 ### 000-init-database.ts
 
-Initial database schema creation with core tables:
+Initial database schema creation wrapper that executes `init-database.sql`:
 
-- `api_requests` - Main table for storing API requests and responses
-- `streaming_chunks` - Table for SSE response chunks
-- `hourly_stats` - Materialized view for dashboard performance
-- Basic indexes for efficient querying
-- Table comments and documentation
+- **Special Role**: This migration serves as a wrapper for the init-database.sql file
+- **Single Source of Truth**: Executes scripts/init-database.sql instead of duplicating schema
+- **Idempotent**: Checks if core tables exist before execution
+- **Path Resolution**: Searches multiple paths to find init-database.sql
+- **Alignment with ADR-012**: Follows the principle that "init-database.sql remains for fresh installations"
+
+This approach ensures that:
+
+- Schema is maintained in one place (init-database.sql)
+- No risk of schema drift between migration and init script
+- Consistent with how writer.ts handles auto-initialization
+- Easier maintenance - update only init-database.sql
 
 ### 001-add-conversation-tracking.ts
 
