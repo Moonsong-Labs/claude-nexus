@@ -353,14 +353,6 @@ Reviews and validates OpenAPI specifications.
 bun run scripts/review-openapi-spec.ts
 ```
 
-### simulate-subtask-creation.ts
-
-Simulates the creation of subtasks for testing conversation linking.
-
-```bash
-bun run scripts/simulate-subtask-creation.ts
-```
-
 ### test-hash-system-reminder.ts
 
 Tests the system reminder hash filtering functionality.
