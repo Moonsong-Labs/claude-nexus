@@ -12,8 +12,6 @@
     {
       "files": "*.json",
       "options": {
-        "semi": false,
-        "singleQuote": false,
         "trailingComma": "none"
       }
     },

@@ -714,3 +714,33 @@ The credentials module handles sensitive authentication functionality and curren
 **Rationale:**
 
 Testing a mock that duplicates production logic provides negative value by creating false confidence and maintenance burden. The existing unit tests properly validate the authentication middleware logic in isolation. For true end-to-end testing, integration tests should use the real proxy server, not a mock. This deletion corrects a fundamental testing anti-pattern and improves the overall test architecture.
+
+### 2025-07-19 - Prettier Configuration Cleanup
+
+**Files Modified:**
+
+- `.prettierrc.json`
+
+**Changes Made:**
+
+1. **Removed Redundant JSON Override Settings**
+   - Removed `"semi": false` from JSON override (redundant with root setting)
+   - Removed `"singleQuote": false` from JSON override (matches Prettier's default for JSON)
+   - Kept only `"trailingComma": "none"` which is necessary for JSON compatibility
+
+**Analysis Findings:**
+
+- Best practices research confirmed keeping explicit settings even if they match defaults
+- This provides stability across Prettier version upgrades and serves as documentation
+- JSON files in JavaScript ignore the `singleQuote` setting by design
+- The remaining overrides (JSON trailing comma, Markdown prose wrap) are intentional deviations
+
+**Validation:**
+
+- Gemini-2.5-pro: Endorsed keeping explicit root settings for stability
+- O3-mini: Confirmed current Prettier defaults and recommended explicit configuration
+- Prettier format check passes with updated configuration
+
+**Rationale:**
+
+The cleanup removes unnecessary redundancy in the JSON override section while maintaining explicit root settings for clarity and version stability. This follows the principle of being explicit about style choices in shared projects, especially monorepos, while eliminating genuinely redundant configuration that adds no value.
