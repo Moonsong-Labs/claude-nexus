@@ -647,3 +647,39 @@ Rather than break working functionality by changing the implementation or the wo
 **Rationale:**
 
 The file represented technical debt that could cause confusion about MCP prompt format and functionality. Its removal simplifies the prompts directory structure and ensures all prompt files follow the consistent YAML format expected by the MCP implementation. The grooming functionality is properly documented in GROOMING.md and appears to be implemented elsewhere in the system.
+
+### 2025-07-19 - Misleading Credentials Unit Test Cleanup
+
+**Files Modified:**
+
+- Removed: `tests/unit/credentials.test.ts`
+
+**Changes Made:**
+
+1. **Removed Misleading Test File**
+   - Deleted test file that only tested mock implementations, not actual code
+   - Tests were using `require('fs').readFileSync` directly instead of importing from credentials module
+   - No functions from `services/proxy/src/credentials.ts` were being tested
+   - Critical functions like `refreshToken`, `getApiKey`, `validateCredentialMapping` had zero coverage
+
+**Analysis Findings:**
+
+- The test file existed in the correct location (`tests/unit/`)
+- However, it provided false confidence without actual test coverage
+- Tests were essentially testing Node.js fs module behavior, not our credentials logic
+- No other unit tests exist for the credentials module
+- Integration tests handle credential functionality at a higher level
+
+**Validation:**
+
+- Gemini-2.5-flash: 9/10 confidence score, strongly endorsed deletion
+- Emphasized that misleading tests are worse than no tests (industry best practice)
+- Highlighted critical need for proper unit tests as follow-up task
+
+**Rationale:**
+
+Mock tests that don't test actual functionality are anti-patterns that provide false confidence and can hide real bugs. Deleting this file makes the lack of test coverage explicit, which is preferable to maintaining misleading tests. The deletion is a pragmatic short-term fix that removes a negative element while clearly highlighting the need for proper unit tests for this security-critical module.
+
+**Critical Follow-up Required:**
+
+The credentials module handles sensitive authentication functionality and currently has zero unit test coverage. Creating proper unit tests for `credentials.ts` must be prioritized as a high-priority technical debt item.
