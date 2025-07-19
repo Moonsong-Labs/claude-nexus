@@ -35,9 +35,6 @@
         "@lenml/tokenizer-gemini": "^3.4.2",
         "zod": "^3.25.72",
       },
-      "devDependencies": {
-        "@types/glob": "^9.0.0",
-      },
     },
     "services/dashboard": {
       "name": "@claude-nexus/dashboard",
