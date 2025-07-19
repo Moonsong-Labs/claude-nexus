@@ -1,6 +1,40 @@
 # CLAUDE.md
 
+_Last Updated: 2025-01-19_
+
 This file provides guidance to Claude Code (claude.ai/code) when working with this repository.
+
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Architectural Decision Records (ADRs)](#architectural-decision-records-adrs)
+- [Architecture](#architecture)
+  - [Monorepo Structure](#monorepo-structure)
+  - [Key Services](#key-services)
+- [Development](#development)
+  - [Git Pre-commit Hooks](#git-pre-commit-hooks)
+- [Docker Deployment](#docker-deployment)
+  - [Docker Compose Environment](#docker-compose-environment)
+- [Key Implementation Details](#key-implementation-details)
+  - [Request Timeout Configuration](#request-timeout-configuration)
+  - [Conversation Tracking & Branching](#conversation-tracking--branching)
+  - [Authentication Flow](#authentication-flow)
+  - [OAuth Support](#oauth-support)
+  - [MCP (Model Context Protocol) Server](#mcp-model-context-protocol-server)
+  - [Token Tracking](#token-tracking)
+  - [Storage](#storage)
+  - [Debug Logging](#debug-logging)
+  - [SQL Query Logging](#sql-query-logging)
+- [Environment Variables](#environment-variables)
+- [Testing & Type Safety](#testing--type-safety)
+- [Database Schema](#database-schema)
+  - [Main Tables](#main-tables)
+  - [Account-Based Token Tracking](#account-based-token-tracking)
+  - [Database Schema Evolution](#database-schema-evolution)
+- [Common Tasks](#common-tasks)
+- [Sub-task Tracking & Visualization](#sub-task-tracking--visualization)
+- [Important Implementation Notes](#important-implementation-notes)
+- [Maintenance](#maintenance)
 
 ## Project Overview
 
@@ -12,7 +46,6 @@ Technical decisions are documented in `docs/ADRs/`. Key architectural decisions:
 
 - **ADR-012**: Database Schema Evolution Strategy - TypeScript migrations with init SQL
 - **ADR-013**: TypeScript Project References - Monorepo type checking solution
-- **ADR-016**: MCP Server Implementation - Model Context Protocol server architecture (superseded)
 - **ADR-017**: MCP Prompt Sharing - Current implementation for prompt sharing via MCP
 - **ADR-018**: AI-Powered Conversation Analysis - Background job architecture for AI analysis
 
@@ -119,7 +152,7 @@ docker/docker-compose.yml: Postgres + Proxy + Dashboard + Claude CLI (with ccusa
 # Build the local images
 ./docker-up.sh build
 
-# Run the full environment (requires real Claude account in )
+# Run the full environment (requires real Claude account in credentials)
 ./docker-up.sh up -d
 
 # Run a claude query
@@ -308,14 +341,7 @@ template: |
 
 ### Token Tracking
 
-**In-Memory Tracking (Legacy)**
-
-- Per-domain statistics
-- Request type classification (query evaluation vs inference)
-- Tool call counting
-- Available at `/token-stats` endpoint
-
-**Comprehensive Token Usage Tracking (New)**
+**Comprehensive Token Usage Tracking**
 
 - Tracks ALL request types (including query_evaluation and quota)
 - Persistent storage in partitioned `token_usage` table
@@ -369,30 +395,72 @@ SQL logging features:
 
 ## Environment Variables
 
-**Essential:**
+### Essential Configuration
 
-- `DATABASE_URL` - PostgreSQL connection
-- `DASHBOARD_API_KEY` - Dashboard authentication
+- `DATABASE_URL` - PostgreSQL connection string
+- `DASHBOARD_API_KEY` - Dashboard authentication key
 
-**Optional:**
+### Storage & Database
 
-- `DEBUG` - Enable debug logging
-- `DEBUG_SQL` - Enable SQL query logging (default: false)
-- `STORAGE_ENABLED` - Enable storage (default: false)
-- `SLACK_WEBHOOK_URL` - Slack notifications
-- `CREDENTIALS_DIR` - Domain credential directory
-- `COLLECT_TEST_SAMPLES` - Collect request samples for testing (default: false)
-- `TEST_SAMPLES_DIR` - Directory for test samples (default: test-samples)
-- `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true). Set to false to allow anyone to use the proxy without authentication
-- `DASHBOARD_CACHE_TTL` - Dashboard cache TTL in seconds (default: 30). Set to 0 to disable caching
-- `SLOW_QUERY_THRESHOLD_MS` - Threshold in milliseconds for logging slow SQL queries (default: 5000)
+- `STORAGE_ENABLED` - Enable request/response storage (default: false)
+- `API_KEY_SALT` - Salt for hashing API keys in database (default: 'claude-nexus-proxy-default-salt')
+- `STORAGE_ADAPTER_CLEANUP_MS` - Interval for cleaning up orphaned request ID mappings (default: 300000 / 5 minutes)
+- `STORAGE_ADAPTER_RETENTION_MS` - Retention time for request ID mappings (default: 3600000 / 1 hour)
+
+### Authentication & Security
+
+- `ENABLE_CLIENT_AUTH` - Enable client API key authentication (default: true)
+- `CREDENTIALS_DIR` - Directory containing domain credential files
+
+### Performance & Timeouts
+
 - `CLAUDE_API_TIMEOUT` - Timeout for Claude API requests in milliseconds (default: 600000 / 10 minutes)
 - `PROXY_SERVER_TIMEOUT` - Server-level timeout in milliseconds (default: 660000 / 11 minutes)
-- `STORAGE_ADAPTER_CLEANUP_MS` - Interval for cleaning up orphaned request ID mappings in milliseconds (default: 300000 / 5 minutes)
-- `STORAGE_ADAPTER_RETENTION_MS` - Retention time for request ID mappings in milliseconds (default: 3600000 / 1 hour)
-- `API_KEY_SALT` - Salt for hashing API keys in database (default: 'claude-nexus-proxy-default-salt')
+- `DASHBOARD_CACHE_TTL` - Dashboard cache TTL in seconds (default: 30, set to 0 to disable)
+- `SLOW_QUERY_THRESHOLD_MS` - Threshold for logging slow SQL queries (default: 5000)
+
+### Debugging & Development
+
+- `DEBUG` - Enable comprehensive debug logging
+- `DEBUG_SQL` - Enable SQL query logging (default: false)
+- `COLLECT_TEST_SAMPLES` - Collect request samples for testing (default: false)
+- `TEST_SAMPLES_DIR` - Directory for test samples (default: test-samples)
+
+### Integrations
+
+- `SLACK_WEBHOOK_URL` - Webhook URL for Slack notifications
 - `SPARK_API_URL` - Spark API base URL for recommendation feedback (default: 'http://localhost:8000')
 - `SPARK_API_KEY` - API key for authenticating with Spark API
+
+### AI Analysis Worker
+
+- `AI_WORKER_ENABLED` - Enable the AI analysis background worker (default: false)
+- `AI_WORKER_POLL_INTERVAL_MS` - Worker polling interval (default: 5000)
+- `AI_WORKER_MAX_CONCURRENT_JOBS` - Maximum concurrent analysis jobs (default: 3)
+- `AI_WORKER_JOB_TIMEOUT_MINUTES` - Job timeout in minutes (default: 5)
+- `AI_ANALYSIS_MAX_RETRIES` - Maximum retry attempts for failed jobs (default: 3)
+- `AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS` - Gemini API request timeout (default: 60000)
+- `GEMINI_API_KEY` - Google Gemini API key for AI analysis
+- `GEMINI_API_URL` - Gemini API base URL (default: 'https://generativelanguage.googleapis.com/v1beta/models')
+- `GEMINI_MODEL_NAME` - Gemini model to use (default: 'gemini-2.0-flash-exp')
+- `AI_MAX_PROMPT_TOKENS` - Override calculated token limit
+- `AI_HEAD_MESSAGES` - Messages to keep from conversation start
+- `AI_TAIL_MESSAGES` - Messages to keep from conversation end
+- `AI_ANALYSIS_INPUT_TRUNCATION_TARGET_TOKENS` - Target token count for truncation (default: 8192)
+- `AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS` - Tokens from start (default: 1000)
+- `AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS` - Tokens from end (default: 4000)
+
+### MCP Server
+
+- `MCP_ENABLED` - Enable Model Context Protocol server (default: false)
+- `MCP_PROMPTS_DIR` - Directory containing prompt YAML files (default: './prompts')
+- `MCP_WATCH_FILES` - Enable hot-reloading of prompt files (default: true)
+- `MCP_GITHUB_OWNER` - GitHub organization/user for prompt sync
+- `MCP_GITHUB_REPO` - GitHub repository name for prompts
+- `MCP_GITHUB_BRANCH` - Git branch to sync from (default: 'main')
+- `MCP_GITHUB_TOKEN` - GitHub personal access token
+- `MCP_GITHUB_PATH` - Path within repository (default: 'prompts/')
+- `MCP_SYNC_INTERVAL` - Sync interval in seconds (default: 300)
 
 ## Important Notes
 
@@ -529,11 +597,13 @@ bun run scripts/generate-api-key.ts
 cat > credentials/domain.com.credentials.json << EOF
 {
   "type": "api_key",
-  "accountId": "acc_f9e1c2d3b4a5",  # Unique account identifier
+  "accountId": "acc_f9e1c2d3b4a5",
   "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_..."
 }
 EOF
+
+# Note: JSON does not support comments. The accountId is a unique account identifier.
 ```
 
 ### Enable Storage
@@ -698,7 +768,7 @@ The proxy supports automated analysis of conversations using AI models (currentl
 - ✅ Graceful JSON parse failure handling
 - ✅ Automatic max retry failure
 
-See [ADR-016](docs/04-Architecture/ADRs/adr-016-ai-powered-conversation-analysis.md) for architectural decisions.
+See [ADR-018](docs/04-Architecture/ADRs/adr-018-ai-powered-conversation-analysis.md) for architectural decisions.
 
 **Background Worker Configuration:**
 
@@ -820,4 +890,4 @@ bun run db:copy-conversation --conversation-id 123e4567-e89b-12d3-a456-426614174
 
 ### Grooming
 
-The process of `grooming` is used to keep a clean repository. It should be performed regularly and rely on [GROOMING.md](GROOMING.md)
+The process of `grooming` involves regular code quality reviews and cleanup to maintain a clean, production-ready repository. This includes removing dead code, fixing inconsistencies, updating documentation, and ensuring all files follow project standards. It should be performed regularly and follows the guidelines in [GROOMING.md](GROOMING.md)
