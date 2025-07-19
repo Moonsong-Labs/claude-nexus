@@ -1,5 +1,5 @@
 {
-  "description": "Test sub-task detection but no linking when prompt doesn't match",
+  "description": "Test that subtask linking fails when child prompt differs from parent Task invocation",
   "type": "subtask",
   "expectedIsSubtask": false,
   "parent": {
@@ -8,7 +8,7 @@
     "task_invocations": [
       {
         "tool_use_id": "tool-use-456",
-        "prompt": "Different task entirely",
+        "prompt": "Generate unit tests for the payment processing module",
         "timestamp": "2024-01-01T10:00:00Z"
       }
     ]
@@ -26,7 +26,12 @@
           "role": "user",
           "content": "Search for all instances of hardcoded credentials in the authentication module"
         }
-      ]
+      ],
+      "metadata": {
+        "user_id": "test-user"
+      },
+      "max_tokens": 4096,
+      "temperature": 0.7
     }
   }
 }
