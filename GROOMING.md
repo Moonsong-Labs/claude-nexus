@@ -942,3 +942,32 @@ The refactoring was validated by AI models (Gemini-2.5-pro and O3-mini) who conf
 - Import paths use `.js` extensions per TypeScript ESM conventions
 - Batch processing prevents memory issues on large production databases
 - JSON output format enables integration with other tools
+
+### 2025-07-19 - System Prompts Extract Script Cleanup
+
+**Files Deleted:**
+
+- `scripts/db/extract-system-prompts.ts`
+
+**Changes Made:**
+
+1. **Deleted One-Time Debugging Script**
+   - Removed script with hardcoded request IDs (b5068a6b-ccfb-465b-a524-6dfb7f5233fb, d83ea021-04f2-4ab1-9344-68a454e5a0f2)
+   - Script was created for specific debugging session in commit ba4c90d
+   - Not referenced anywhere in the codebase
+   - Functionality now covered by `analyze-request-linking.ts`
+
+**Rationale:**
+
+The script was a one-time debugging utility created to investigate conversation hash stability issues. According to repository best practices:
+
+- One-time debugging scripts should not be kept in the codebase
+- Hardcoded values specific to a debugging session add clutter
+- The more comprehensive `analyze-request-linking.ts` provides the same functionality with CLI arguments
+- Git history preserves the script for reference if needed
+
+**Validation:**
+
+- Gemini-2.5-pro: 10/10 confidence score, identified as "textbook example of technical debt"
+- Confirmed deletion aligns with industry standards for code maintenance
+- No functionality loss as better tooling exists
