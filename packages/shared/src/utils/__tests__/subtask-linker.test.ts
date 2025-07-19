@@ -239,6 +239,18 @@ describe('SubtaskLinker - JSON Fixture Tests', () => {
       const content = await readFile(filePath, 'utf-8')
       const testCase = JSON.parse(content)
 
+      // Validate fixture format
+      if (
+        !testCase.child?.body?.messages ||
+        !testCase.child?.domain ||
+        !testCase.child?.request_id
+      ) {
+        throw new Error(`Invalid fixture format in ${file}: missing required child fields`)
+      }
+      if (!testCase.description || testCase.type === undefined) {
+        throw new Error(`Invalid fixture format in ${file}: missing description or type`)
+      }
+
       const linker = new SubtaskLinker()
 
       // If parent exists with Task invocations, store them
