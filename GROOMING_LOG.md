@@ -1,5 +1,45 @@
 # Grooming Log
 
+## 2025-01-19: Archive recalculate-message-counts.ts
+
+### Summary
+
+Archived the one-time database migration script `scripts/db/recalculate-message-counts.ts` that was used to backfill the `message_count` column when it was initially added to the database.
+
+### Rationale
+
+1. **Obsolete functionality**: The message_count is now calculated during insertion by the application (in writer.ts)
+2. **Prevent confusion**: Keeping one-time migration scripts in the active codebase can confuse future developers
+3. **Reduce risk**: The script could be run accidentally, potentially overwriting correct data with outdated logic
+4. **Best practice**: Following industry best practices for handling completed one-time migrations
+
+### Changes Made
+
+1. Created `scripts/db/archived-migrations/` directory for historical migrations
+2. Added README.md to archived-migrations explaining the purpose and warnings
+3. Moved `recalculate-message-counts.ts` to the archived folder
+4. Updated migration 001 documentation to include the historical backfill logic
+5. Removed references from:
+   - `scripts/README.md`
+   - `package.json` (db:recalculate-counts script)
+   - Updated `docs/04-Architecture/message-count-implementation.md`
+
+### Validation
+
+- Consulted with Gemini-2.5-pro and O3-mini for best practices
+- Ran typecheck to ensure no breaking changes
+- Verified archived script syntax is still valid
+
+### Decision
+
+Adopted a balanced approach combining both AI recommendations:
+
+- Archive the script (per Gemini's recommendation) to prevent accidental execution
+- Keep it in the repository (per O3-mini's recommendation) for audit trail
+- Document the historical logic in the migration file for future reference
+
+This maintains a complete migration history while ensuring obsolete scripts don't interfere with production operations.
+
 ## 2025-01-19: packages/shared/README.md Grooming
 
 ### File: `packages/shared/README.md`

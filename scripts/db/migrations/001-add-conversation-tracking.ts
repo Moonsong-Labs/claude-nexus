@@ -3,6 +3,26 @@ import { Pool } from 'pg'
 
 /**
  * Migration script to add conversation tracking columns to the database
+ *
+ * Adds support for tracking conversations and message relationships:
+ * - current_message_hash: SHA-256 hash of the last message in the request
+ * - parent_message_hash: SHA-256 hash of the previous message
+ * - conversation_id: UUID to group related messages
+ * - branch_id: Support for conversation branches
+ * - message_count: Number of messages in the conversation at this point
+ *
+ * Historical Note: A one-time backfill script was used to populate message_count
+ * for existing records when this column was added. The backfill logic was:
+ *
+ * ```sql
+ * -- For each record with messages in the body:
+ * UPDATE api_requests
+ * SET message_count = json_array_length(body->'messages')
+ * WHERE body IS NOT NULL AND body::jsonb ? 'messages'
+ * ```
+ *
+ * This backfill is no longer needed as message_count is now calculated during
+ * insertion by the application. The original script has been archived.
  */
 async function migrateConversationSchema() {
   const databaseUrl = process.env.DATABASE_URL

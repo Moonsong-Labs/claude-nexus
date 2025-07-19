@@ -61,14 +61,6 @@ bun run scripts/db/rebuild-conversations-batched.ts --batch-size 5000
 #   --batch-size <number>  Number of requests per batch (default: 10000)
 ```
 
-### recalculate-message-counts.ts
-
-Updates the message_count field for all requests in the database.
-
-```bash
-bun run scripts/db/recalculate-message-counts.ts
-```
-
 ### backup-database.ts
 
 Creates database backups with automatic timestamping.

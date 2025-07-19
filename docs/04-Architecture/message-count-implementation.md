@@ -51,5 +51,6 @@ Added support for tracking message count as a database column, computed during i
 ## Migration Steps
 
 1. Run the migration script: `bun run scripts/migrate-conversation-schema.ts`
-2. For existing records, run: `bun run scripts/recalculate-message-counts.ts`
-3. Or use rebuild script which now includes message count: `bun run scripts/rebuild-conversations.ts`
+2. For existing records, use rebuild script which includes message count: `bun run scripts/rebuild-conversations.ts`
+
+Note: The original `recalculate-message-counts.ts` script has been archived to `scripts/db/archived-migrations/` as it's no longer needed for new deployments.
