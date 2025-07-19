@@ -6,11 +6,16 @@ This directory contains utility scripts for managing the Claude Nexus Proxy proj
 
 ```
 scripts/
-├── db/           # Database management scripts
-├── auth/         # Authentication and OAuth utilities
-├── dev/          # Development helper scripts
-└── ops/          # Operations and deployment scripts
+├── db/              # Database management scripts
+│   ├── migrations/  # Schema migration scripts
+│   └── archived-migrations/  # Historical migrations (reference only)
+├── auth/            # Authentication and OAuth utilities
+├── dev/             # Development helper scripts
+├── ops/             # Operations and deployment scripts
+└── *.ts             # Root-level utility scripts
 ```
+
+**Note:** The directory also contains `GROOMING_SUMMARY_*.md` files which are auto-generated summaries from code grooming sessions. These document the refactoring history of various scripts.
 
 ## Database Scripts (`db/`)
 
@@ -75,6 +80,22 @@ bun run scripts/db/backup-database.ts --file
 bun run scripts/db/backup-database.ts --file=backup.sql
 ```
 
+### analyze-request-linking.ts
+
+Analyzes request linking and conversation structure for debugging.
+
+```bash
+bun run scripts/db/analyze-request-linking.ts
+```
+
+### check-conversation-analyses.ts
+
+Checks the status of conversation analyses in the database.
+
+```bash
+bun run scripts/db/check-conversation-analyses.ts
+```
+
 ## Authentication Scripts (`auth/`)
 
 ### generate-api-key.ts
@@ -127,6 +148,14 @@ Sets up test client configuration.
 ./scripts/dev/test-client-setup.sh
 ```
 
+### test-sample-collection.sh
+
+Tests the sample collection functionality for request/response data.
+
+```bash
+./scripts/dev/test/test-sample-collection.sh
+```
+
 ## Operations Scripts (`ops/`)
 
 ### manage-nexus-proxies.sh
@@ -144,6 +173,87 @@ Updates proxy deployment.
 ```bash
 ./scripts/ops/update-proxy.sh
 ```
+
+## AI Analysis Scripts
+
+### check-ai-worker-config.ts
+
+Validates AI Analysis Worker configuration and provides troubleshooting guidance.
+
+```bash
+bun run scripts/check-ai-worker-config.ts
+```
+
+**Features:**
+
+- Validates all AI worker environment variables
+- Checks API key configuration
+- Verifies model settings and token limits
+- Provides actionable feedback for misconfigurations
+
+### check-analysis-jobs.ts
+
+Monitors the status of AI analysis jobs in the database.
+
+```bash
+bun run scripts/check-analysis-jobs.ts
+```
+
+### check-analysis-content.ts
+
+Inspects analysis content for a specific conversation.
+
+```bash
+bun run scripts/check-analysis-content.ts <conversation_id> <branch_id>
+```
+
+### process-pending-analyses.ts
+
+Manually triggers processing of pending analysis jobs.
+
+```bash
+bun run scripts/process-pending-analyses.ts
+```
+
+### fail-exceeded-retry-jobs.ts
+
+Manually fails jobs that have exceeded the maximum retry limit.
+
+```bash
+# Preview changes without updating
+bun run scripts/fail-exceeded-retry-jobs.ts --dry-run
+
+# Execute changes
+bun run scripts/fail-exceeded-retry-jobs.ts
+
+# Skip confirmation prompt
+bun run scripts/fail-exceeded-retry-jobs.ts --force
+```
+
+## Database Utility Scripts
+
+### copy-conversation.ts
+
+Copies conversations between databases, useful for debugging or migration.
+
+```bash
+# Copy a conversation to another database
+bun run scripts/copy-conversation.ts --conversation-id <uuid> --dest-db <url> [options]
+
+# Options:
+#   --dry-run           Preview what would be copied
+#   --include-chunks    Include streaming chunks
+#   --source-table      Source table name (default: api_requests)
+#   --dest-table        Destination table name (default: api_requests)
+
+# Example
+bun run scripts/copy-conversation.ts \
+  --conversation-id 123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db "postgresql://user:pass@host:5432/db" \
+  --dry-run
+```
+
+See [detailed documentation](../docs/03-Operations/utilities/copy-conversation.md) for more information.
 
 ## Test Generation Scripts
 
@@ -166,29 +276,6 @@ bun scripts/generate-conversation-test-fixture.ts abc-123 def-456 branch-test.js
 - Sanitizes sensitive data (API keys, tokens)
 - Automatically detects fixture type (standard or compact)
 - Extracts summary content for compact conversations
-
-### generate-conversation-test.ts
-
-Advanced script that can both generate fixtures from database and create test code from fixtures.
-
-```bash
-# Generate fixture from database
-bun scripts/generate-conversation-test.ts <parent_id> <child_id> [output_file] [description]
-
-# Generate test code from fixture
-bun scripts/generate-conversation-test.ts --from-fixture <fixture_file>
-
-# Examples
-bun scripts/generate-conversation-test.ts abc-123 def-456 my-test.json "Test system prompt change"
-bun scripts/generate-conversation-test.ts --from-fixture my-test.json
-```
-
-**Features:**
-
-- Generates complete test code ready to paste into test files
-- Handles both standard and compact conversation types
-- Creates appropriate mocks for query and compact search executors
-- Includes all necessary assertions based on fixture expectations
 
 ### compute-fixture-hashes.ts
 
@@ -223,6 +310,66 @@ bun scripts/compute-fixture-hashes.ts --help
 - Validates fixture structure before processing
 - Handles all fixture types: standard, compact, branch, and subtask
 - Supports both string and array system prompts
+
+## Other Utility Scripts
+
+### generate-api-client.ts
+
+Generates TypeScript API client code from OpenAPI specifications.
+
+```bash
+bun run scripts/generate-api-client.ts
+```
+
+### generate-prompt-assets.ts
+
+Generates prompt assets for MCP (Model Context Protocol) integration.
+
+```bash
+bun run scripts/generate-prompt-assets.ts
+```
+
+### review-openapi-spec.ts
+
+Reviews and validates OpenAPI specifications.
+
+```bash
+bun run scripts/review-openapi-spec.ts
+```
+
+### simulate-subtask-creation.ts
+
+Simulates the creation of subtasks for testing conversation linking.
+
+```bash
+bun run scripts/simulate-subtask-creation.ts
+```
+
+### test-hash-system-reminder.ts
+
+Tests the system reminder hash filtering functionality.
+
+```bash
+bun run scripts/test-hash-system-reminder.ts
+```
+
+### init-database.sql
+
+SQL script for initializing the database schema. This is automatically used by the writer service when tables don't exist.
+
+```bash
+# Manually initialize database
+psql $DATABASE_URL < scripts/init-database.sql
+```
+
+### find-conversations-not-starting-at-1.sql
+
+SQL query to find conversations that don't start at message number 1, useful for debugging conversation linking issues.
+
+```bash
+# Run the query
+psql $DATABASE_URL < scripts/find-conversations-not-starting-at-1.sql
+```
 
 ## Environment Variables
 
