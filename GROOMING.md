@@ -971,3 +971,45 @@ The script was a one-time debugging utility created to investigate conversation 
 - Gemini-2.5-pro: 10/10 confidence score, identified as "textbook example of technical debt"
 - Confirmed deletion aligns with industry standards for code maintenance
 - No functionality loss as better tooling exists
+
+### 2025-07-19 - Database Timestamp Verification Script to Test Transformation
+
+**Files Modified:**
+
+- Deleted: `scripts/db/verify-timestamp-types.ts`
+- Created: `packages/shared/src/db/__tests__/schema-validation.test.ts`
+
+**Changes Made:**
+
+1. **Transformed One-Time Verification Script to Automated Test**
+   - Converted the verification logic into a proper test suite
+   - Moved from scripts directory to shared package test structure
+   - Added comprehensive test coverage for all tables with timestamp columns
+   - Included specific column existence tests for core tables
+
+2. **Improved Test Structure**
+   - Added proper test setup/teardown with database connection handling
+   - Gracefully skips tests when DATABASE_URL is not set (e.g., in CI without DB)
+   - Better error messages with specific column violations
+   - Added test for expected timestamp columns in core tables
+
+3. **Enhanced Code Quality**
+   - Uses Bun's test framework for consistency
+   - Proper async/await handling
+   - Clear test descriptions
+   - Improved type safety
+
+**Rationale:**
+
+Following the grooming guideline that "scripts generated to verify features should be removed or transformed to test if really needed", this transformation provides long-term value:
+
+- Acts as an "architectural fitness function" preventing regression
+- Ensures all future schema changes maintain TIMESTAMPTZ standard
+- Prevents timezone-related bugs in production
+- Aligns with industry best practices for production systems
+
+**Validation:**
+
+- Gemini-2.5-pro: 9/10 confidence score, strongly recommended transformation over deletion
+- Emphasized that automated tests are crucial for maintaining architectural constraints
+- Test passes successfully with current database schema
