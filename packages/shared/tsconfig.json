@@ -1,20 +1,32 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // TypeScript configuration for the shared package in the Claude Nexus Proxy monorepo
+  // This package contains shared types, utilities, and configurations used by all services
+  // It's built as a library that other services depend on via TypeScript project references
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // Project-specific overrides
+    // Language and Environment - Override base to use ES2022 for consistency with services
     "target": "ES2022",
     "module": "ES2022",
+    "moduleResolution": "bundler", // Modern resolution for Bun and other bundlers
     "lib": ["ES2022"],
+
+    // Output Configuration - This package emits built files
     "outDir": "./dist",
     "rootDir": "./src",
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "composite": true,
+
+    // Type Checking and Emit
+    "declaration": true, // Generate .d.ts files
+    "declarationMap": true, // Generate sourcemaps for declarations
+    "composite": true, // Enable project references
     "noEmit": false, // Override base to allow emit for project references
-    "emitDeclarationOnly": false,
+
+    // Module Resolution
+    "resolveJsonModule": true,
     "esModuleInterop": true,
-    "types": ["node", "bun-types"]
+
+    // Type Dependencies
+    "types": ["node", "bun-types"] // Both needed despite conflicts - requires skipLibCheck in base
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/__tests__/**"]
