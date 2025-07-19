@@ -12,91 +12,18 @@
  *   bun run scripts/generate-api-client.ts
  */
 
-import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
 import path from 'path'
 
 const OPENAPI_SPEC = path.join(process.cwd(), 'docs/api/openapi-analysis.yaml')
 const OUTPUT_DIR = path.join(process.cwd(), 'packages/shared/src/generated/api-client')
 
-async function generateClient() {
-  console.log('🚀 Generating TypeScript client from OpenAPI spec...')
-
-  // Check if OpenAPI spec exists
-  try {
-    await fs.access(OPENAPI_SPEC)
-  } catch (error) {
-    console.error('❌ OpenAPI spec not found at:', OPENAPI_SPEC)
-    process.exit(1)
-  }
-
-  // Ensure output directory exists
-  await fs.mkdir(OUTPUT_DIR, { recursive: true })
-
-  // Generate client using openapi-typescript-codegen
-  const args = [
-    'openapi-typescript-codegen',
-    '--input',
-    OPENAPI_SPEC,
-    '--output',
-    OUTPUT_DIR,
-    '--client',
-    'fetch',
-    '--useOptions',
-    '--useUnionTypes',
-  ]
-
-  return new Promise<void>((resolve, reject) => {
-    const proc = spawn('bunx', args, {
-      stdio: 'inherit',
-      shell: true,
-    })
-
-    proc.on('close', code => {
-      if (code === 0) {
-        console.log('✅ Client generated successfully at:', OUTPUT_DIR)
-        resolve()
-      } else {
-        reject(new Error(`Process exited with code ${code}`))
-      }
-    })
-
-    proc.on('error', err => {
-      reject(err)
-    })
-  })
-}
-
-// Alternative: Generate using OpenAPI TypeScript (more modern approach)
-async function generateClientV2() {
-  console.log('🚀 Generating TypeScript types from OpenAPI spec...')
-
-  const args = ['openapi-typescript', OPENAPI_SPEC, '--output', path.join(OUTPUT_DIR, 'types.ts')]
-
-  return new Promise<void>((resolve, reject) => {
-    const proc = spawn('bunx', args, {
-      stdio: 'inherit',
-      shell: true,
-    })
-
-    proc.on('close', code => {
-      if (code === 0) {
-        console.log('✅ Types generated successfully')
-        resolve()
-      } else {
-        reject(new Error(`Process exited with code ${code}`))
-      }
-    })
-
-    proc.on('error', err => {
-      reject(err)
-    })
-  })
-}
-
-// Simple fetch-based client generator (no external dependencies)
-async function generateSimpleClient() {
-  console.log('🚀 Generating simple TypeScript client...')
+/**
+ * Generates a TypeScript API client from the OpenAPI specification
+ * Creates a self-contained client with all necessary types and methods
+ */
+async function generateApiClient() {
+  console.log('🚀 Generating TypeScript API client...')
 
   const clientCode = `/**
  * Auto-generated API client for Claude Nexus Proxy AI Analysis API
@@ -270,17 +197,41 @@ export function createAnalysisClient(options: ApiClientOptions): AnalysisApiClie
 `
 
   const clientPath = path.join(OUTPUT_DIR, 'index.ts')
+
+  // Ensure output directory exists
   await fs.mkdir(OUTPUT_DIR, { recursive: true })
+
+  // Write the generated client
   await fs.writeFile(clientPath, clientCode)
 
-  console.log('✅ Simple client generated at:', clientPath)
+  // Verify the file was written
+  try {
+    await fs.access(clientPath)
+    console.log('✅ API client generated successfully at:', clientPath)
+  } catch (error) {
+    throw new Error(`Failed to verify generated client at ${clientPath}`)
+  }
 }
 
-// Main execution
+/**
+ * Main execution function
+ * Validates prerequisites and generates the API client
+ */
 async function main() {
   try {
-    // Use the simple client generator by default
-    await generateSimpleClient()
+    // Check if OpenAPI spec exists
+    try {
+      await fs.access(OPENAPI_SPEC)
+    } catch (error) {
+      console.error('❌ OpenAPI spec not found at:', OPENAPI_SPEC)
+      console.error(
+        '   Please ensure the OpenAPI specification exists before generating the client'
+      )
+      process.exit(1)
+    }
+
+    // Generate the API client
+    await generateApiClient()
 
     console.log('\n📝 Example usage:')
     console.log(`
