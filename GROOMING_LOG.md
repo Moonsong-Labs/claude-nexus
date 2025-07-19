@@ -1,5 +1,34 @@
 # Grooming Log
 
+## 2025-01-19: Test Script test-any-model.sh Deletion
+
+### File: `scripts/dev/test/test-any-model.sh`
+
+#### Action: DELETED
+
+#### Rationale:
+
+1. **Temporary verification script**: The file was a one-off script to verify the proxy's model-agnostic behavior
+2. **Feature already documented**: The proxy is documented as "Model-agnostic (accepts any model name)" in CLAUDE.md
+3. **Not integrated with test framework**: Docker-based shell script not part of any formal testing
+4. **Wrong location**: Located in `scripts/dev/test/` instead of proper `test/` directory
+5. **No references**: Not referenced anywhere in the codebase
+6. **Repository hygiene**: Removing unused scripts reduces clutter and technical debt
+
+#### AI Consensus:
+
+Both Gemini (9/10 confidence) and O3 (10/10 confidence) strongly agreed with deletion:
+
+- Aligns with industry best practices for removing dead code
+- Reduces maintenance burden and improves codebase clarity
+- If model-agnostic testing is needed in future, it should be implemented as proper unit tests
+
+#### Impact:
+
+- No functional impact - the feature remains documented and working
+- Cleaner repository structure
+- Reduced confusion for future developers
+
 ## 2025-01-19: Migration 002-optimize-conversation-indexes.ts Grooming
 
 ### File: `scripts/db/migrations/002-optimize-conversation-indexes.ts`
