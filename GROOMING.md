@@ -318,8 +318,40 @@ Last Updated: 2025-07-19
 - Both AI models (Gemini-2.5-flash and O3-mini) validated the deletion as the correct approach
 - No functionality loss as docker-compose.yml correctly references the main Dockerfile
 
+### 2025-07-18 - Test Sample Collection Script Refactoring
+
+**Files Modified:**
+
+- Moved: `test-sample-collection.sh` from root to `scripts/dev/test/`
+- Refactored: Complete rewrite for production readiness
+
+**Changes Made:**
+
+1. **Relocated File**
+   - Moved from project root to `scripts/dev/test/` alongside other test scripts
+   - Aligns with project structure conventions
+
+2. **Added Production Features**
+   - Comprehensive documentation header with purpose, prerequisites, and usage
+   - Error handling with `set -eo pipefail` for strict execution
+   - Prerequisite validation (curl, jq, API key, proxy status)
+   - Configurable proxy URL via argument or environment variable
+   - Interactive safety prompt before removing existing samples
+   - Colored output for better user experience
+   - Proper exit codes for CI/CD integration (0-4)
+
+3. **Improved User Experience**
+   - Clear status messages throughout execution
+   - Helpful error messages with remediation hints
+   - Sample content preview with jq formatting
+   - Detailed file listing of collected samples
+
 **Rationale:**
-Removing unused files is a key part of repository grooming. This file added no value but increased cognitive load and potential for confusion. The deletion simplifies the codebase without any negative impact.
+
+- Script was a development utility at the wrong location with no error handling
+- Refactoring makes it CI/CD ready and follows shell scripting best practices
+- Gemini-2.5-pro validated the plan with 10/10 confidence score
+- Essential for automated testing of the proxy's test sample collection feature
 
 ### 2025-07-19 - Docker Compose Configuration Cleanup
 
