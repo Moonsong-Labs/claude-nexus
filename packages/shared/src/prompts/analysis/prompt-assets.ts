@@ -1,8 +1,45 @@
-// Generated file containing embedded prompt assets
-// This file is generated during build to avoid runtime filesystem access
-// Run 'bun run scripts/generate-prompt-assets.ts' to regenerate
+/**
+ * @file Embedded prompt assets for AI conversation analysis
+ * @generated
+ *
+ * DO NOT EDIT! THIS FILE IS AUTO-GENERATED.
+ * This file is generated during build to avoid runtime filesystem access.
+ *
+ * To make changes:
+ * 1. Edit the source files in 'packages/shared/src/prompts/analysis/v1/'
+ * 2. Run 'bun run scripts/generate-prompt-assets.ts' to regenerate
+ *
+ * Generated on: 2025-07-19T03:50:26.370Z
+ */
 
-export const PROMPT_ASSETS: Record<string, { systemPrompt: string; examples: any[] }> = {
+import type { Message } from '../truncation.js'
+import type { ConversationAnalysis } from '../../types/ai-analysis.js'
+
+/**
+ * Structure for analysis examples used in prompts
+ */
+export interface AnalysisExample {
+  /** The conversation transcript to analyze */
+  transcript: Message[]
+  /** The expected analysis output for this conversation */
+  expectedOutput: ConversationAnalysis
+}
+
+/**
+ * Structure for prompt assets
+ */
+export interface PromptAssets {
+  /** The system prompt template with placeholders */
+  systemPrompt: string
+  /** Example conversations with expected analysis outputs */
+  examples: AnalysisExample[]
+}
+
+/**
+ * Embedded prompt assets for AI conversation analysis
+ * Organized by version (currently only 'v1' is available)
+ */
+export const PROMPT_ASSETS: Record<string, PromptAssets> = {
   v1: {
     systemPrompt: `You are a highly intelligent conversation analysis expert with expertise in AI prompt engineering. Your task is to analyze the provided conversation transcript and generate a structured analysis that includes actionable feedback to help users improve their future interactions.
 
