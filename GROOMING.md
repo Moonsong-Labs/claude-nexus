@@ -28,6 +28,31 @@ bun run build:production
 
 Repository grooming is a regular maintenance activity to ensure code quality, reduce technical debt, and maintain consistency across the codebase. Our goal is to maintain a clean, secure, and consistent codebase that is easy for all contributors to work with.
 
+## Recent Grooming Activities
+
+### 2025-01-19
+
+- **client-setup/.claude.json**: Removed user-specific Claude configuration from version control
+  - Created `.claude.json.example` template with generic values
+  - Added actual `.claude.json` to .gitignore to prevent future commits
+  - Updated documentation to explain the setup process
+  - Rationale: User-specific data (userID, usage stats) should not be in public repositories
+
+- **client-setup/.gitkeep**: Deleted redundant file
+  - The directory already contains tracked files (README.md, .claude.json.example, .credentials.json)
+  - Git automatically tracks directories with files, making .gitkeep unnecessary
+  - Follows Git best practices: .gitkeep should only exist in otherwise empty directories
+  - Rationale: Removing redundant files improves repository hygiene and reduces clutter
+
+- **client-setup/.credentials.json**: **CRITICAL SECURITY ISSUE** - Removed OAuth credentials from repository
+  - File contained real OAuth tokens (access token, refresh token) and was committed to git history
+  - Deleted the file and added to .gitignore to prevent future commits
+  - Created `.credentials.json.example` with placeholder values
+  - Updated README.md with proper setup instructions
+  - Created ADR-020 documenting the security issue and remediation steps
+  - **IMPORTANT**: Git history still contains the sensitive data (commit d88479428b8ef50ec19445c29474cc5c0c9a8045)
+  - **ACTION REQUIRED**: Credentials must be revoked and git history should be rewritten using git-filter-repo
+
 ## Grooming Checklist
 
 ### 1. Code Quality
@@ -1610,3 +1635,62 @@ The refactoring improves the configuration's robustness, flexibility, and mainta
 - Suggested using dotenv for local environment management (future consideration)
 - TypeScript compilation passes without errors
 - Configuration follows Playwright best practices
+
+### .husky Directory (2025-01-19)
+
+**Changes Made:**
+
+1. **Re-initialized Husky Setup**
+   - Removed and reinstalled Husky to ensure clean v9 configuration
+   - Eliminated legacy artifacts and deprecated husky.sh warnings
+   - Fixed file permissions (pre-commit hook now properly executable)
+
+2. **Maintained Minimal Hook Configuration**
+   - Kept single pre-commit hook running `bunx lint-staged`
+   - Preserved existing lint-staged configuration for ESLint and Prettier
+   - No additional hooks added (following project's performance-first approach)
+
+3. **Fixed Permission Issues**
+   - Pre-commit hook changed from 644 to 755 (executable)
+   - Ensures consistent behavior across different environments
+
+**Rationale:**
+
+The .husky directory had accumulated legacy artifacts from an older installation, including a deprecation warning about v10 that was misleading. Re-initialization provides a clean, modern Husky v9 setup that will work reliably for all team members. The minimal hook configuration aligns with the project's documented approach of keeping pre-commit checks fast by excluding TypeScript compilation.
+
+**Validation:**
+
+- Tested pre-commit hook execution successfully
+- Verified lint-staged runs correctly on staged files
+- Confirmed with Gemini-2.5-pro and O3-mini that re-initialization was the correct approach
+- No functionality changes, only cleanup and permission fixes
+
+### 2025-07-19 - JSON Viewer Test Files Cleanup
+
+**Files Deleted:**
+
+- `test-arrow-size.html`
+- `test-collapse-fix.html`
+- `test-inspect-arrows.html`
+
+**Rationale:**
+
+1. **Manual Test Artifacts** - These were temporary HTML files for manually testing JSON viewer component styling
+2. **Root Directory Pollution** - Test files don't belong at the project root
+3. **Not Part of Test Suite** - These files weren't referenced by any automated tests or other code
+4. **Technical Debt** - Manual test files should not be committed to version control
+
+**Consensus Decision:**
+
+Gemini 2.5 Pro strongly validated the deletion with 10/10 confidence, citing:
+
+- Alignment with software engineering best practices
+- Improved repository hygiene and reduced cognitive load
+- Proper approach is automated testing (visual regression/snapshot tests)
+- Sets positive precedent for code quality standards
+
+**Impact:**
+
+- No impact on functionality - the dashboard uses the same JSON viewer library but with its own configuration
+- Cleaner repository structure
+- Encourages development of proper automated tests for UI components

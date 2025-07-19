@@ -8,9 +8,12 @@ When running Claude Nexus Proxy with Docker Compose, this directory serves as a 
 
 ## Usage
 
-1. Place your `.credentials.json` file in this directory for Docker deployments
-2. The Claude CLI container will automatically copy these credentials during startup
-3. Files in this directory can be accessed via `http://proxy-host:3000/client-setup/filename`
+1. Copy `.claude.json.example` to `.claude.json` and customize with your settings (if needed)
+2. Copy `.credentials.json.example` to `.credentials.json` and populate with your OAuth credentials
+3. The Claude CLI container will automatically copy these files during startup
+4. Files in this directory can be accessed via `http://proxy-host:3000/client-setup/filename`
+
+**Note:** The actual `.claude.json` and `.credentials.json` files are ignored by git to prevent committing user-specific data and sensitive credentials.
 
 ## Security Note
 

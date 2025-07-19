@@ -94,3 +94,7 @@ sync-info.json
 
 # Cloudflare Wrangler cache
 .wrangler/
+
+# Client setup - ignore actual config but keep example
+client-setup/.claude.json
+client-setup/.credentials.json

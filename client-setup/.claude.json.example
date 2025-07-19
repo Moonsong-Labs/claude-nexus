@@ -1,0 +1,14 @@
+{
+  "numStartups": 0,
+  "tipsHistory": {},
+  "firstStartTime": "2025-01-01T00:00:00.000Z",
+  "userID": "claude-user",
+  "projects": {},
+  "hasCompletedOnboarding": false,
+  "lastOnboardingVersion": "1.0.0",
+  "subscriptionNoticeCount": 0,
+  "hasAvailableSubscription": false,
+  "cachedChangelog": "skipped",
+  "changelogLastFetched": 0,
+  "fallbackAvailableWarningThreshold": 0.5
+}
