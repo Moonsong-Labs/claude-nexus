@@ -1,0 +1,84 @@
+{
+  "description": "Branch creation for non-compact conversations with existing children",
+  "type": "branch",
+  "expectedLink": true,
+  "parent": {
+    "request_id": "regular-parent-id",
+    "domain": "test.com",
+    "conversation_id": "conv-456",
+    "branch_id": "main",
+    "current_message_hash": "computed-parent-hash",
+    "parent_message_hash": null,
+    "system_hash": "system-hash-1",
+    "body": {
+      "model": "claude-opus-4-20250514",
+      "stream": true,
+      "system": "System prompt",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Original message"
+        }
+      ],
+      "metadata": {
+        "user_id": "test-user"
+      },
+      "max_tokens": 32000,
+      "temperature": 1
+    },
+    "response_body": {
+      "id": "msg_test",
+      "role": "assistant",
+      "type": "message",
+      "model": "claude-opus-4-20250514",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "content": [
+        {
+          "text": "Response to original message",
+          "type": "text"
+        }
+      ],
+      "stop_reason": "end_turn"
+    }
+  },
+  "child": {
+    "request_id": "new-branch-request-id",
+    "domain": "test.com",
+    "body": {
+      "model": "claude-opus-4-20250514",
+      "stream": true,
+      "system": "System prompt",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Original message"
+        },
+        {
+          "role": "assistant",
+          "content": "Response"
+        },
+        {
+          "role": "user",
+          "content": "New branch question"
+        }
+      ],
+      "metadata": {
+        "user_id": "test-user"
+      },
+      "max_tokens": 32000,
+      "temperature": 1
+    }
+  },
+  "existingChild": {
+    "request_id": "existing-child-id",
+    "conversation_id": "conv-456",
+    "branch_id": "main",
+    "current_message_hash": "hash-existing-child",
+    "parent_message_hash": "computed-parent-hash",
+    "system_hash": "system-hash-1"
+  },
+  "expectedBranchPattern": "^branch_\\d+$"
+}
