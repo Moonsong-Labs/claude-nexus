@@ -15,24 +15,24 @@ import type {
 // Initialize rate limiters for tests
 initializeAnalysisRateLimiters()
 
-/**
- * Note: This test file may fail when run in parallel with other tests due to a known issue
- * with Bun's test runner and Hono's _Response object serialization. If you encounter
- * "Expected a Response object, but received '_Response'" errors, run this test file
- * separately or use the scripts/test-integration.sh script.
- *
- * See: https://github.com/honojs/hono/issues/[issue-number]
- */
+// Test constants
+const TEST_CONVERSATION_ID = '550e8400-e29b-41d4-a716-446655440000'
+const TEST_BRANCH_ID = 'main'
+const TEST_DOMAIN = 'test.example.com'
+const TEST_REQUEST_ID = 'test-request-id'
+const TEST_DASHBOARD_KEY = 'test-dashboard-key'
+const SERVER_RETRY_ATTEMPTS = 3
+const SERVER_RETRY_DELAY_MS = 100
 describe('AI Analysis API Integration Tests', () => {
   let proxyApp: Hono
   let dashboardApp: Hono
-  let proxyServer: any
-  let mockPool: any
+  let proxyServer: ReturnType<typeof Bun.serve>
+  let mockPool: Partial<Pool>
   let proxyPort: number
   let apiClient: ProxyApiClient
 
   // Helper to create mock query result
-  const mockQueryResult = <T = any>(rows: T[]) => ({
+  const mockQueryResult = <T = unknown>(rows: T[]) => ({
     rows,
     rowCount: rows.length,
     command: '',
@@ -40,49 +40,86 @@ describe('AI Analysis API Integration Tests', () => {
     fields: [],
   })
 
+  // Helper to create mock analysis data
+  const createMockAnalysisData = () => ({
+    summary: 'Test summary',
+    keyTopics: ['topic1'],
+    sentiment: 'positive' as const,
+    userIntent: 'test',
+    outcomes: [],
+    actionItems: [],
+    technicalDetails: {
+      frameworks: [],
+      issues: [],
+      solutions: [],
+    },
+    conversationQuality: {
+      clarity: 'high' as const,
+      completeness: 'complete' as const,
+      effectiveness: 'effective' as const,
+    },
+  })
+
+  // Helper to setup mock query handlers
+  const setupMockQuery = (handlers: Record<string, () => Promise<unknown>>) => {
+    mockPool.query = mock((query: string) => {
+      for (const [pattern, handler] of Object.entries(handlers)) {
+        if (query.includes(pattern)) {
+          return handler()
+        }
+      }
+      return Promise.resolve(mockQueryResult([]))
+    })
+  }
+
+  // Helper to start server with retry logic
+  const startServerWithRetry = async (app: Hono, port: number = 0): Promise<ReturnType<typeof Bun.serve>> => {
+    let retries = SERVER_RETRY_ATTEMPTS
+    while (retries > 0) {
+      try {
+        return Bun.serve({
+          port,
+          fetch: app.fetch,
+          hostname: '127.0.0.1', // Bind to localhost only
+        })
+      } catch (error) {
+        retries--
+        if (retries === 0) {
+          console.error(`Failed to start test server after ${SERVER_RETRY_ATTEMPTS} attempts: ${error}`)
+          throw error
+        }
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, SERVER_RETRY_DELAY_MS))
+      }
+    }
+    throw new Error('Server start failed')
+  }
+
+  // Helper to create mock pool with typed queries
+  const createMockPool = (): Partial<Pool> => ({
+    query: mock(() => Promise.resolve(mockQueryResult([]))),
+  })
+
   beforeEach(async () => {
     // Create mock pool
-    mockPool = {
-      query: mock(() => Promise.resolve(mockQueryResult([]))),
-    }
+    mockPool = createMockPool()
 
     // Setup proxy app
     proxyApp = new Hono()
     proxyApp.use('*', async (c, next) => {
       c.set('pool', mockPool as Pool)
-      c.set('domain', 'test.example.com')
-      c.set('requestId', 'test-request-id')
+      c.set('domain', TEST_DOMAIN)
+      c.set('requestId', TEST_REQUEST_ID)
       await next()
     })
     proxyApp.route('/api/analyses', proxyRoutes)
 
-    // Use a more predictable port for CI
-    proxyPort = 0 // Let the OS assign a port
-
-    // Start proxy server with retry logic for CI environments
-    let retries = 3
-    while (retries > 0) {
-      try {
-        proxyServer = Bun.serve({
-          port: proxyPort,
-          fetch: proxyApp.fetch,
-          hostname: '127.0.0.1', // Bind to localhost only
-        })
-        proxyPort = proxyServer.port // Get the actual assigned port
-        break
-      } catch (error) {
-        retries--
-        if (retries === 0) {
-          console.error(`Failed to start test server after 3 attempts: ${error}`)
-          throw error
-        }
-        // Wait a bit before retrying
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-    }
+    // Start proxy server
+    proxyServer = await startServerWithRetry(proxyApp)
+    proxyPort = proxyServer.port
 
     // Create API client
-    apiClient = new ProxyApiClient(`http://127.0.0.1:${proxyPort}`, 'test-dashboard-key')
+    apiClient = new ProxyApiClient(`http://127.0.0.1:${proxyPort}`, TEST_DASHBOARD_KEY)
 
     // Setup dashboard app
     dashboardApp = new Hono()
@@ -100,17 +137,10 @@ describe('AI Analysis API Integration Tests', () => {
   describe('End-to-End Request Flow', () => {
     it('should create analysis through dashboard to proxy', async () => {
       // Setup proxy mock responses
-      mockPool.query = mock((query: string) => {
-        if (query.includes('SELECT id, status FROM conversation_analyses')) {
-          return Promise.resolve(mockQueryResult([]))
-        }
-        if (query.includes('INSERT INTO conversation_analyses')) {
-          return Promise.resolve(mockQueryResult([{ id: 123 }]))
-        }
-        if (query.includes('INSERT INTO analysis_audit_log')) {
-          return Promise.resolve(mockQueryResult([]))
-        }
-        return Promise.resolve(mockQueryResult([]))
+      setupMockQuery({
+        'SELECT id, status FROM conversation_analyses': () => Promise.resolve(mockQueryResult([])),
+        'INSERT INTO conversation_analyses': () => Promise.resolve(mockQueryResult([{ id: 123 }])),
+        'INSERT INTO analysis_audit_log': () => Promise.resolve(mockQueryResult([])),
       })
 
       // Make request through dashboard
@@ -118,8 +148,8 @@ describe('AI Analysis API Integration Tests', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conversationId: '550e8400-e29b-41d4-a716-446655440000',
-          branchId: 'main',
+          conversationId: TEST_CONVERSATION_ID,
+          branchId: TEST_BRANCH_ID,
         }),
       })
 
@@ -138,24 +168,7 @@ describe('AI Analysis API Integration Tests', () => {
         id: 123,
         status: ConversationAnalysisStatus.COMPLETED,
         analysis_content: '# Analysis\n\nTest content',
-        analysis_data: {
-          summary: 'Test summary',
-          keyTopics: ['topic1'],
-          sentiment: 'positive',
-          userIntent: 'test',
-          outcomes: [],
-          actionItems: [],
-          technicalDetails: {
-            frameworks: [],
-            issues: [],
-            solutions: [],
-          },
-          conversationQuality: {
-            clarity: 'high',
-            completeness: 'complete',
-            effectiveness: 'effective',
-          },
-        },
+        analysis_data: createMockAnalysisData(),
         error_message: null,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
@@ -175,7 +188,7 @@ describe('AI Analysis API Integration Tests', () => {
       })
 
       const response = await dashboardApp.request(
-        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
+        `/api/analyses/${TEST_CONVERSATION_ID}/${TEST_BRANCH_ID}`,
         {
           method: 'GET',
         }
@@ -184,8 +197,8 @@ describe('AI Analysis API Integration Tests', () => {
       expect(response.status).toBe(200)
       const data: GetAnalysisResponse = await response.json()
       expect(data.id).toBe(123)
-      expect(data.conversationId).toBe('550e8400-e29b-41d4-a716-446655440000')
-      expect(data.branchId).toBe('main')
+      expect(data.conversationId).toBe(TEST_CONVERSATION_ID)
+      expect(data.branchId).toBe(TEST_BRANCH_ID)
       expect(data.status).toBe(ConversationAnalysisStatus.COMPLETED)
     })
 
@@ -193,7 +206,7 @@ describe('AI Analysis API Integration Tests', () => {
       mockPool.query = mock(() => Promise.resolve(mockQueryResult([])))
 
       const response = await dashboardApp.request(
-        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
+        `/api/analyses/${TEST_CONVERSATION_ID}/${TEST_BRANCH_ID}`,
         {
           method: 'GET',
         }
@@ -227,8 +240,8 @@ describe('AI Analysis API Integration Tests', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conversationId: '550e8400-e29b-41d4-a716-446655440000',
-          branchId: 'main',
+          conversationId: TEST_CONVERSATION_ID,
+          branchId: TEST_BRANCH_ID,
         }),
       })
 
@@ -262,7 +275,7 @@ describe('AI Analysis API Integration Tests', () => {
       })
 
       const response = await dashboardApp.request(
-        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
+        `/api/analyses/${TEST_CONVERSATION_ID}/${TEST_BRANCH_ID}/regenerate`,
         {
           method: 'POST',
         }
@@ -306,8 +319,8 @@ describe('AI Analysis API Integration Tests', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conversationId: '550e8400-e29b-41d4-a716-446655440000',
-          branchId: 'main',
+          conversationId: TEST_CONVERSATION_ID,
+          branchId: TEST_BRANCH_ID,
         }),
       })
 
@@ -360,7 +373,7 @@ describe('AI Analysis API Integration Tests', () => {
       })
 
       const response = await dashboardApp.request(
-        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
+        `/api/analyses/${TEST_CONVERSATION_ID}/${TEST_BRANCH_ID}`,
         {
           method: 'GET',
         }
@@ -431,7 +444,7 @@ describe('AI Analysis API Integration Tests', () => {
       })
 
       const response = await dashboardApp.request(
-        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
+        `/api/analyses/${TEST_CONVERSATION_ID}/${TEST_BRANCH_ID}`,
         {
           method: 'GET',
         }
@@ -448,16 +461,24 @@ describe('AI Analysis API Integration Tests', () => {
 
   describe('Audit Logging', () => {
     it('should create audit logs for all operations', async () => {
-      const auditLogs: any[] = []
-      mockPool.query = mock((query: string, params?: any[]) => {
+      interface AuditLog {
+        event_type: string
+        outcome: string
+        conversation_id: string
+        branch_id: string
+        domain: string
+        request_id: string
+      }
+      const auditLogs: AuditLog[] = []
+      mockPool.query = mock((query: string, params?: unknown[]) => {
         if (query.includes('INSERT INTO analysis_audit_log')) {
           auditLogs.push({
-            event_type: params?.[0],
-            outcome: params?.[1],
-            conversation_id: params?.[2],
-            branch_id: params?.[3],
-            domain: params?.[4],
-            request_id: params?.[5],
+            event_type: params?.[0] as string,
+            outcome: params?.[1] as string,
+            conversation_id: params?.[2] as string,
+            branch_id: params?.[3] as string,
+            domain: params?.[4] as string,
+            request_id: params?.[5] as string,
           })
           return Promise.resolve(mockQueryResult([]))
         }
@@ -475,8 +496,8 @@ describe('AI Analysis API Integration Tests', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conversationId: '550e8400-e29b-41d4-a716-446655440000',
-          branchId: 'main',
+          conversationId: TEST_CONVERSATION_ID,
+          branchId: TEST_BRANCH_ID,
         }),
       })
 
@@ -485,9 +506,9 @@ describe('AI Analysis API Integration Tests', () => {
       expect(auditLogs[0]).toMatchObject({
         event_type: 'ANALYSIS_REQUEST',
         outcome: 'INITIATED',
-        conversation_id: '550e8400-e29b-41d4-a716-446655440000',
-        branch_id: 'main',
-        domain: 'test.example.com',
+        conversation_id: TEST_CONVERSATION_ID,
+        branch_id: TEST_BRANCH_ID,
+        domain: TEST_DOMAIN,
       })
       expect(auditLogs[1]).toMatchObject({
         event_type: 'ANALYSIS_REQUEST',
