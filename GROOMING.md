@@ -272,6 +272,27 @@ Last Updated: 2025-07-19
 
 ## Grooming Log
 
+### 2025-07-19 - Model Limits Test Refactoring
+
+**Files Modified:**
+
+- `packages/shared/src/constants/__tests__/model-limits.test.ts`
+
+**Changes Made:**
+
+1. **Reduced test data repetition** by extracting common test data into constants (`MODEL_LIMITS`) and test fixtures (`TEST_MODELS`)
+2. **Improved test organization** by grouping related tests using nested describes (by model family)
+3. **Enhanced test readability** with:
+   - More descriptive test names that include context
+   - Table-driven tests using `forEach` for similar scenarios
+   - Clear comments explaining test intent
+4. **Added edge case coverage** including empty string model names and negative percentages
+5. **Improved type safety** with const assertions on test data
+6. **Better test structure** separating normal cases from edge cases
+
+**Rationale:**
+The test file was functional but had significant repetition and could be better organized. The refactoring makes tests easier to maintain, understand, and extend without changing any test logic or coverage.
+
 ### 2025-07-18 - Claude Monitor Integration Documentation Refactoring
 
 **Files Modified:**
