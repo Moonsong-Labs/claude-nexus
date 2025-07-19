@@ -1,6 +1,71 @@
-# Conversation Copy Script Refactoring
+# Script Refactoring Notes
 
-## Overview
+This document tracks refactoring efforts for various scripts in the project to improve code quality, maintainability, and type safety.
+
+## 2025-01-19: fail-exceeded-retry-jobs.ts
+
+### Summary
+
+Refactored the `fail-exceeded-retry-jobs.ts` script to align with project standards and improve safety/usability.
+
+### Changes Made
+
+1. **Added TypeScript Type Safety**
+   - Imported `ConversationAnalysisJob` type from the AI worker
+   - Used `ConversationAnalysisStatus` enum from shared types
+   - Added proper typing for Pool, PoolClient, and query results
+   - Created `FailureError` interface for consistent error structure
+
+2. **Implemented CLI Arguments**
+   - Added `--dry-run` flag to preview changes without database updates
+   - Added `--force` flag to skip confirmation prompt (useful for automation)
+   - Simple argument parsing using `process.argv`
+
+3. **Enhanced Error Handling**
+   - Added DATABASE_URL validation with proper exit code
+   - Proper exit codes: 0 for success, 1 for errors
+   - Comprehensive error handling with transaction rollback
+   - Top-level catch handler for unhandled errors
+
+4. **Added Transaction Support**
+   - All database operations wrapped in a transaction
+   - Automatic rollback on errors
+   - Ensures atomicity of batch updates
+
+5. **Improved Logging**
+   - Added script header with timestamp and configuration
+   - Clear visual separation with Unicode box characters
+   - Detailed job information display
+   - Progress indicators and success/error messages
+
+6. **Better Code Organization**
+   - Extracted helper functions: `getExceededJobs()` and `failJobs()`
+   - Clear separation of concerns
+   - Constants defined at the top
+   - Consistent error message schema
+
+7. **Standardized Error Storage**
+   - Stores errors as JSON strings (matching TEXT column type)
+   - Includes metadata: script name, timestamp, retry counts
+   - Consistent with AI worker error handling patterns
+
+### Rationale
+
+- **Safety**: Dry-run mode prevents accidental data loss
+- **Automation**: Force flag enables CI/CD integration
+- **Reliability**: Transactions ensure data consistency
+- **Maintainability**: TypeScript types catch errors at compile time
+- **Consistency**: Follows patterns from other maintenance scripts
+
+### Future Considerations
+
+As suggested by Gemini's analysis, the long-term goal should be to integrate this logic directly into the AI worker to automatically fail jobs that exceed retry limits, making this script a fallback for edge cases only.
+
+---
+
+## Conversation Copy Script Refactoring
+
+### Overview
 
 This document outlines the refactoring applied to the `copy-conversation.ts` script to improve code quality, maintainability, and type safety.
 
