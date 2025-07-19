@@ -1,5 +1,24 @@
 -- Initialize Claude Nexus Proxy Database
--- This script creates the necessary tables for the proxy
+-- Version: 1.0.0
+-- Last Updated: 2025-01-19
+-- 
+-- This script creates the complete database schema for Claude Nexus Proxy.
+-- It serves as the single source of truth for fresh installations.
+-- See ADR-012 for the database schema evolution strategy.
+--
+-- All operations use IF NOT EXISTS for idempotency, allowing this script
+-- to be run multiple times safely.
+
+-- Exit immediately on error
+\set ON_ERROR_STOP on
+
+-- Set explicit search path
+SET search_path TO public;
+
+-- Start transaction for atomic schema creation
+BEGIN;
+
+/* --- Section: Tables --- */
 
 -- Create api_requests table with all required columns including branch_id
 CREATE TABLE IF NOT EXISTS api_requests (
@@ -55,42 +74,34 @@ CREATE TABLE IF NOT EXISTS streaming_chunks (
     UNIQUE(request_id, chunk_index)
 );
 
--- Create indexes for api_requests
-CREATE INDEX IF NOT EXISTS idx_requests_domain ON api_requests(domain);
-CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON api_requests(timestamp);
-CREATE INDEX IF NOT EXISTS idx_requests_model ON api_requests(model);
-CREATE INDEX IF NOT EXISTS idx_requests_request_type ON api_requests(request_type);
-CREATE INDEX IF NOT EXISTS idx_requests_conversation_id ON api_requests(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_requests_branch_id ON api_requests(branch_id);
-CREATE INDEX IF NOT EXISTS idx_requests_conversation_branch ON api_requests(conversation_id, branch_id);
-CREATE INDEX IF NOT EXISTS idx_requests_message_count ON api_requests(message_count);
-CREATE INDEX IF NOT EXISTS idx_requests_parent_hash ON api_requests(parent_message_hash);
-CREATE INDEX IF NOT EXISTS idx_requests_current_hash ON api_requests(current_message_hash);
-CREATE INDEX IF NOT EXISTS idx_requests_account_id ON api_requests(account_id);
+/* --- Section: Indexes --- */
+
+-- Indexes for api_requests table
+CREATE INDEX IF NOT EXISTS idx_api_requests_domain ON api_requests(domain);
+CREATE INDEX IF NOT EXISTS idx_api_requests_timestamp ON api_requests(timestamp);
+CREATE INDEX IF NOT EXISTS idx_api_requests_model ON api_requests(model);
+CREATE INDEX IF NOT EXISTS idx_api_requests_request_type ON api_requests(request_type);
+CREATE INDEX IF NOT EXISTS idx_api_requests_conversation_id ON api_requests(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_api_requests_branch_id ON api_requests(branch_id);
+CREATE INDEX IF NOT EXISTS idx_api_requests_conversation_branch ON api_requests(conversation_id, branch_id);
+CREATE INDEX IF NOT EXISTS idx_api_requests_message_count ON api_requests(message_count);
+CREATE INDEX IF NOT EXISTS idx_api_requests_parent_hash ON api_requests(parent_message_hash);
+CREATE INDEX IF NOT EXISTS idx_api_requests_current_hash ON api_requests(current_message_hash);
+CREATE INDEX IF NOT EXISTS idx_api_requests_account_id ON api_requests(account_id);
+CREATE INDEX IF NOT EXISTS idx_api_requests_parent_request_id ON api_requests(parent_request_id);
+CREATE INDEX IF NOT EXISTS idx_api_requests_system_hash ON api_requests(system_hash);
 
 -- Performance indexes for window function queries (from migration 004)
-CREATE INDEX IF NOT EXISTS idx_requests_conversation_timestamp_id 
+CREATE INDEX IF NOT EXISTS idx_api_requests_conversation_timestamp_id 
 ON api_requests(conversation_id, timestamp DESC, request_id DESC) 
 WHERE conversation_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_requests_conversation_subtask 
+CREATE INDEX IF NOT EXISTS idx_api_requests_conversation_subtask 
 ON api_requests(conversation_id, is_subtask, timestamp ASC, request_id ASC) 
 WHERE conversation_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_requests_request_id 
-ON api_requests(request_id);
-
--- Create index for parent_request_id
-CREATE INDEX IF NOT EXISTS idx_api_requests_parent_request_id 
-ON api_requests(parent_request_id);
-
--- Create index for system_hash
-CREATE INDEX IF NOT EXISTS idx_api_requests_system_hash 
-ON api_requests(system_hash);
-
--- Create indexes for Task invocation queries (from migration 008)
--- GIN index for faster JSONB searches on response_body
-CREATE INDEX IF NOT EXISTS idx_api_requests_response_body_task
+-- GIN index for JSONB queries on response_body (from migration 008)
+CREATE INDEX IF NOT EXISTS idx_api_requests_response_body_gin
 ON api_requests USING gin (response_body)
 WHERE response_body IS NOT NULL;
 
@@ -99,16 +110,18 @@ CREATE INDEX IF NOT EXISTS idx_api_requests_domain_timestamp_response
 ON api_requests(domain, timestamp DESC)
 WHERE response_body IS NOT NULL;
 
--- Functional index for faster text searches
-CREATE INDEX IF NOT EXISTS idx_api_requests_task_name
-ON api_requests ((response_body::text))
-WHERE response_body IS NOT NULL 
-  AND response_body::text LIKE '%"name":"Task"%';
+-- Indexes for streaming_chunks table
+CREATE INDEX IF NOT EXISTS idx_streaming_chunks_request_id ON streaming_chunks(request_id);
 
--- Create indexes for streaming_chunks
-CREATE INDEX IF NOT EXISTS idx_chunks_request_id ON streaming_chunks(request_id);
+/* --- Section: Comments --- */
 
--- Add column comments
+-- Table comments
+COMMENT ON TABLE api_requests IS 'Stores all API requests to Claude with responses, token tracking, and conversation metadata';
+COMMENT ON TABLE streaming_chunks IS 'Stores individual chunks from streaming API responses';
+COMMENT ON TABLE conversation_analyses IS 'Stores AI-generated analyses of conversations';
+COMMENT ON TABLE analysis_audit_log IS 'Audit log for AI analysis operations. Consider partitioning by timestamp for high-volume deployments.';
+
+-- Column comments for api_requests
 COMMENT ON COLUMN api_requests.current_message_hash IS 'SHA-256 hash of the last message in this request';
 COMMENT ON COLUMN api_requests.parent_message_hash IS 'SHA-256 hash of the previous message (null for conversation start)';
 COMMENT ON COLUMN api_requests.conversation_id IS 'UUID grouping related messages into conversations';
@@ -120,19 +133,20 @@ COMMENT ON COLUMN api_requests.task_tool_invocation IS 'JSONB array storing Task
 COMMENT ON COLUMN api_requests.account_id IS 'Account identifier from credential file for per-account tracking';
 COMMENT ON COLUMN api_requests.parent_request_id IS 'UUID of the parent request in the conversation chain, references the immediate parent';
 COMMENT ON COLUMN api_requests.system_hash IS 'SHA-256 hash of the system prompt only, separate from message content hash';
+COMMENT ON COLUMN api_requests.cache_creation_input_tokens IS 'Number of tokens used for cache creation in the request';
+COMMENT ON COLUMN api_requests.cache_read_input_tokens IS 'Number of tokens read from cache in the request';
+COMMENT ON COLUMN api_requests.usage_data IS 'Complete token usage data returned by Claude API';
+
+/* --- Section: Types and Functions --- */
 
 -- Create ENUM type for conversation analysis status
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'conversation_analysis_status') THEN
-        CREATE TYPE conversation_analysis_status AS ENUM (
-            'pending',
-            'processing',
-            'completed',
-            'failed'
-        );
-    END IF;
-END$$;
+-- Note: PostgreSQL 15+ supports CREATE TYPE IF NOT EXISTS
+CREATE TYPE IF NOT EXISTS conversation_analysis_status AS ENUM (
+    'pending',
+    'processing',
+    'completed',
+    'failed'
+);
 
 -- Create function for automatic updated_at timestamp
 CREATE OR REPLACE FUNCTION trigger_set_timestamp()
@@ -142,6 +156,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+/* --- Section: Additional Tables --- */
 
 -- Create conversation_analyses table
 CREATE TABLE IF NOT EXISTS conversation_analyses (
@@ -166,6 +182,8 @@ CREATE TABLE IF NOT EXISTS conversation_analyses (
     UNIQUE (conversation_id, branch_id)
 );
 
+/* --- Section: Triggers --- */
+
 -- Create trigger for automatic updated_at
 DROP TRIGGER IF EXISTS set_timestamp_on_conversation_analyses ON conversation_analyses;
 CREATE TRIGGER set_timestamp_on_conversation_analyses
@@ -173,7 +191,9 @@ BEFORE UPDATE ON conversation_analyses
 FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();
 
--- Create indexes for conversation_analyses
+/* --- Section: Additional Indexes --- */
+
+-- Indexes for conversation_analyses table
 CREATE INDEX IF NOT EXISTS idx_conversation_analyses_status
 ON conversation_analyses (status)
 WHERE status = 'pending';
@@ -185,7 +205,9 @@ CREATE INDEX IF NOT EXISTS idx_conversation_analyses_has_custom_prompt
 ON conversation_analyses ((custom_prompt IS NOT NULL))
 WHERE custom_prompt IS NOT NULL;
 
--- Add column comments for conversation_analyses
+/* --- Section: Additional Comments --- */
+
+-- Column comments for conversation_analyses
 COMMENT ON TABLE conversation_analyses IS 'Stores AI-generated analyses of conversations';
 COMMENT ON COLUMN conversation_analyses.conversation_id IS 'UUID of the conversation being analyzed';
 COMMENT ON COLUMN conversation_analyses.branch_id IS 'Branch within the conversation (defaults to main)';
@@ -217,11 +239,11 @@ CREATE TABLE IF NOT EXISTS analysis_audit_log (
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for analysis_audit_log
-CREATE INDEX IF NOT EXISTS idx_audit_conversation ON analysis_audit_log (conversation_id, branch_id);
-CREATE INDEX IF NOT EXISTS idx_audit_domain ON analysis_audit_log (domain);
-CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON analysis_audit_log (timestamp);
-CREATE INDEX IF NOT EXISTS idx_audit_event_type ON analysis_audit_log (event_type);
+-- Indexes for analysis_audit_log table
+CREATE INDEX IF NOT EXISTS idx_analysis_audit_log_conversation ON analysis_audit_log (conversation_id, branch_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_audit_log_domain ON analysis_audit_log (domain);
+CREATE INDEX IF NOT EXISTS idx_analysis_audit_log_timestamp ON analysis_audit_log (timestamp);
+CREATE INDEX IF NOT EXISTS idx_analysis_audit_log_event_type ON analysis_audit_log (event_type);
 
--- Add comment on analysis_audit_log
-COMMENT ON TABLE analysis_audit_log IS 'Audit log for AI analysis operations. Consider partitioning by timestamp for high-volume deployments.';
+-- Commit the transaction
+COMMIT;
