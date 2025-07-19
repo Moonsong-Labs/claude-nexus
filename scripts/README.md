@@ -263,19 +263,35 @@ Generates test fixtures from real database requests for conversation linking tes
 
 ```bash
 # Usage
-bun scripts/generate-conversation-test-fixture.ts <parent_request_id> <child_request_id> [output_file] [description]
+bun scripts/generate-conversation-test-fixture.ts <parent_request_id> <child_request_id> [output_file] [description] [options]
+
+# Options
+--dry-run   Preview the fixture without writing to file
+--verbose   Show detailed output including full fixture data
+--quiet     Suppress non-error output
+
+# Environment Variables
+TEST_FIXTURE_DIR   Override default fixture directory (default: packages/shared/src/utils/__tests__/fixtures/conversation-linking)
 
 # Examples
 bun scripts/generate-conversation-test-fixture.ts abc-123 def-456
 bun scripts/generate-conversation-test-fixture.ts abc-123 def-456 branch-test.json "Test branch creation"
+bun scripts/generate-conversation-test-fixture.ts abc-123 def-456 --dry-run --verbose
+
+# Or using npm script
+bun run test:generate-fixture abc-123 def-456
 ```
 
 **Features:**
 
-- Creates JSON fixtures in `packages/shared/src/utils/__tests__/fixtures/conversation-linking/`
+- Creates JSON fixtures in configurable directory (via TEST_FIXTURE_DIR env var)
+- Validates database data structure using Zod schemas
 - Sanitizes sensitive data (API keys, tokens)
 - Automatically detects fixture type (standard or compact)
 - Extracts summary content for compact conversations
+- Dry-run mode for previewing fixtures before writing
+- Verbose/quiet output modes for different use cases
+- Improved error handling with detailed messages
 
 ### compute-fixture-hashes.ts
 
