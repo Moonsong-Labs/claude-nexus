@@ -786,3 +786,46 @@ Testing a mock that duplicates production logic provides negative value by creat
 **Rationale:**
 
 The cleanup removes unnecessary redundancy in the JSON override section while maintaining explicit root settings for clarity and version stability. This follows the principle of being explicit about style choices in shared projects, especially monorepos, while eliminating genuinely redundant configuration that adds no value.
+
+### 2025-07-19 - Conversation Linking Test Fixture Cleanup
+
+**Files Modified:**
+
+- `packages/shared/src/utils/__tests__/fixtures/conversation-linking/08-weird-review.json` → `08-tool-response-linking.json`
+
+**Changes Made:**
+
+1. **Renamed File for Clarity**
+   - Changed from `08-weird-review.json` to `08-tool-response-linking.json`
+   - New name clearly describes what the test case validates
+
+2. **Improved Test Description**
+   - Updated from generic "Test linking between [ID1] and [ID2]"
+   - New description: "Test conversation linking with TodoWrite tool response in parent - verifies that tool invocations in responses don't affect conversation continuity"
+
+3. **Simplified Fixture Data**
+   - Removed verbose system prompts containing unrelated project information
+   - Simplified system prompt to: "You are Claude Code, Anthropic's official CLI for Claude. You help with software engineering tasks."
+   - Removed system reminder content blocks that were irrelevant to testing
+   - Kept only essential TodoWrite tool invocation in response to test the specific scenario
+
+4. **Maintained Test Integrity**
+   - Preserved all necessary fields for conversation linking (hashes, IDs, etc.)
+   - Tests continue to pass after refactoring
+   - File size reduced from ~36KB to ~4KB
+
+**Analysis Findings:**
+
+- Fixture was testing that TodoWrite tool invocations in parent responses don't break conversation linking
+- Original data contained unrelated Rust SDK upgrade content from a different project
+- The verbose system prompts were unnecessary for testing conversation linking logic
+
+**Validation:**
+
+- Gemini-2.5-flash: Recommended focusing on minimal viable data for test fixtures
+- O3-mini: Suggested investigating the "weird" naming convention and endorsed cleanup
+- All conversation linker tests pass after changes
+
+**Rationale:**
+
+Test fixtures should contain the minimum necessary data to validate their specific scenario. The original fixture was bloated with irrelevant project data that obscured the test's purpose. The cleanup improves test maintainability, readability, and clearly communicates what aspect of conversation linking is being tested.

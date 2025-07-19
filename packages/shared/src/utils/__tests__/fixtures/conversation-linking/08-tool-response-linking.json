@@ -1,0 +1,126 @@
+{
+  "description": "Test conversation linking with TodoWrite tool response in parent - verifies that tool invocations in responses don't affect conversation continuity",
+  "type": "standard",
+  "expectedLink": true,
+  "parent": {
+    "request_id": "a3453feb-40ea-43a9-9fe8-ac4a3d2e7e51",
+    "domain": "claude-reviews.msldev.io",
+    "conversation_id": "ca241268-2b01-4038-bac8-7ede399866a7",
+    "branch_id": "main",
+    "current_message_hash": "7bbe0f1518ae013f67ce7291ccba2cc6ea855d4295b19202fa0e73fd7f07139c",
+    "parent_message_hash": null,
+    "system_hash": "efb758e3f81614d53358af547762691721e432b6d59b70cf1636a6215ac5a73b",
+    "body": {
+      "model": "claude-sonnet-4-20250514",
+      "stream": true,
+      "system": "You are Claude Code, Anthropic's official CLI for Claude. You help with software engineering tasks.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Upgrade the workspace crates to polkadot-stable2409"
+        }
+      ],
+      "metadata": {
+        "user_id": "claude-1"
+      },
+      "max_tokens": 32000,
+      "temperature": 1
+    },
+    "response_body": {
+      "id": "msg_011WngNn96vXSHiWH77VydVy",
+      "role": "assistant",
+      "type": "message",
+      "model": "claude-sonnet-4-20250514",
+      "usage": {
+        "input_tokens": 4,
+        "service_tier": "standard",
+        "output_tokens": 1786,
+        "cache_read_input_tokens": 9527,
+        "cache_creation_input_tokens": 1354
+      },
+      "content": [
+        {
+          "text": "I'll help you upgrade the workspace crates to Polkadot-SDK tag polkadot-stable2409. Let me start by understanding the current workspace structure and then proceed with the systematic upgrade process.",
+          "type": "text"
+        },
+        {
+          "id": "toolu_014aqAyxwhTav6MxuKf4VKpU",
+          "name": "TodoWrite",
+          "type": "tool_use",
+          "input": {
+            "todos": [
+              {
+                "id": "1",
+                "status": "pending",
+                "content": "Explore workspace structure and identify crate locations",
+                "priority": "high"
+              }
+            ]
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null
+    }
+  },
+  "child": {
+    "request_id": "5fc62005-1c46-455f-a72a-fe1636074833",
+    "domain": "claude-reviews.msldev.io",
+    "body": {
+      "model": "claude-sonnet-4-20250514",
+      "stream": true,
+      "system": "You are Claude Code, Anthropic's official CLI for Claude. You help with software engineering tasks.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Upgrade the workspace crates to polkadot-stable2409"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "text": "I'll help you upgrade the workspace crates to Polkadot-SDK tag polkadot-stable2409. Let me start by understanding the current workspace structure and then proceed with the systematic upgrade process.",
+              "type": "text"
+            },
+            {
+              "id": "toolu_014aqAyxwhTav6MxuKf4VKpU",
+              "name": "TodoWrite",
+              "type": "tool_use",
+              "input": {
+                "todos": [
+                  {
+                    "id": "1",
+                    "status": "pending",
+                    "content": "Explore workspace structure and identify crate locations",
+                    "priority": "high"
+                  }
+                ]
+              },
+              "cache_control": {
+                "type": "ephemeral"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable",
+              "tool_use_id": "toolu_014aqAyxwhTav6MxuKf4VKpU",
+              "cache_control": {
+                "type": "ephemeral"
+              }
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "user_id": "claude-1"
+      },
+      "max_tokens": 32000,
+      "temperature": 1
+    }
+  }
+}
