@@ -18,6 +18,11 @@ This package contains common code shared between services to ensure consistency 
 
 - `index.ts` - Centralized configuration management with validation
 
+### Utilities (`src/utils/`)
+
+- `validation.ts` - Comprehensive validation utilities with regex patterns, Zod schemas, and sanitization functions
+- See [utils/README.md](src/utils/README.md) for detailed validation utilities documentation
+
 ## Usage
 
 ```typescript
