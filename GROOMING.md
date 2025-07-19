@@ -1095,3 +1095,47 @@ Following the grooming guideline that "scripts generated to verify features shou
 - Gemini-2.5-pro: 9/10 confidence score, strongly recommended transformation over deletion
 - Emphasized that automated tests are crucial for maintaining architectural constraints
 - Test passes successfully with current database schema
+
+### 2025-07-19 - Migration 003 Assessment - Applying Migration Immutability Principle
+
+**Files Assessed:**
+
+- `scripts/db/migrations/003-add-subtask-tracking.ts` (NO CHANGES MADE)
+
+**Analysis Findings:**
+
+1. **Migration Purpose**: Adds subtask tracking columns and retroactively processes existing Task tool invocations
+2. **Code Quality Issues Identified**:
+   - Missing dotenv configuration loading (present in newer migrations)
+   - Basic error handling without specific error types
+   - No dry-run mode support
+   - Lacks rollback functionality
+   - TODO comment on line 207 about handling multiple subtasks per parent
+   - Complex nested queries that could be simplified
+
+3. **Migration Immutability Applied**:
+   - File is documented in migrations README.md as executed
+   - Following GROOMING.md guidelines: "DO NOT modify migration files that have been executed in production"
+   - Modifying would break database reproducibility across environments
+
+**Validation:**
+
+- Gemini-2.5-pro: 10/10 confidence - "Never modify executed migrations"
+- O3-mini: 10/10 confidence - "Preserve historical integrity"
+- Both models unanimously recommended Option C: Create new migrations for any fixes
+
+**Action Taken:**
+
+- **NO MODIFICATIONS** made to the migration file per immutability principle
+- Documented assessment in GROOMING.md for future reference
+- TODO on line 207 remains for potential future migration if functionality is needed
+
+**Rationale:**
+
+While the migration has code quality issues compared to newer standards, the principle of migration immutability takes precedence. Executed migrations form a historical record that ensures database state can be reliably reproduced. The industry consensus is that modifying executed migrations is a critical anti-pattern that introduces unacceptable risk of database inconsistencies.
+
+**Future Guidance:**
+
+- Apply improved standards (dotenv, rollback, dry-run) to NEW migrations only
+- If the TODO functionality is needed, create a new migration (e.g., 013-complete-subtask-linking.ts)
+- Consider creating a migration template with current best practices
