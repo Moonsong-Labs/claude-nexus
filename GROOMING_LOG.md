@@ -1,5 +1,62 @@
 # Grooming Log
 
+## 2025-01-19: Migration 002-optimize-conversation-indexes.ts Grooming
+
+### File: `scripts/db/migrations/002-optimize-conversation-indexes.ts`
+
+#### Changes Made:
+
+1. **Added missing import**: Added `getErrorMessage` from `@claude-nexus/shared` for consistent error handling across all migrations
+
+2. **Enhanced documentation**:
+   - Added comprehensive header comment explaining the migration's purpose
+   - Documented that the migration is idempotent (safe to run multiple times)
+   - Added reference to ADR-012 for database schema evolution strategy
+
+3. **Improved error handling**: Replaced inline error string conversion with `getErrorMessage` utility for consistency
+
+4. **Added index existence checking**: Migration now checks if indexes already exist before creating them and provides informative messages
+
+5. **Enhanced progress messages**:
+   - Added emoji indicators for better visual feedback
+   - Made console output more descriptive
+   - Shows exactly what's happening at each step
+
+6. **Improved statistics reporting**:
+   - Added index size information
+   - Shows table and total size (with indexes)
+   - Formats numbers with commas for readability
+   - Fixed column reference from `tablename` to `relname` for pg_stat_user_tables
+
+7. **Added timing information**: Tracks and reports total migration execution time
+
+#### Rationale:
+
+These changes align migration 002 with the established patterns in other migration files (001, 003, 004, etc.), improving:
+
+- **Consistency**: All migrations now follow the same structure and patterns
+- **Maintainability**: Clear documentation and consistent error handling
+- **Operational Excellence**: Better logging helps with deployment monitoring
+- **Safety**: Idempotency checks prevent issues from accidental re-runs
+
+#### Impact:
+
+- No functional changes to the database operations
+- Migration remains backward compatible
+- Improves developer experience during deployments
+- Reduces risk through better error handling and logging
+
+#### Validation:
+
+- Validated plan with Gemini-2.5-pro (9/10 confidence score recommending the changes)
+- Ran `bun run typecheck` - no type errors
+- Tested migration script execution - runs successfully with proper output
+
+#### Related:
+
+- ADR-012: Database Schema Evolution Strategy
+- Other migrations in scripts/db/migrations/ follow these same patterns
+
 ## 2025-01-19: Remove create-logging-pool.ts utility
 
 ### Summary
