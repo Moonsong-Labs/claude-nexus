@@ -43,7 +43,7 @@
     "test:unit": "bun test test/unit",
     "test:integration": "./scripts/test-integration.sh",
     "test:theme": "bun test services/dashboard/src/layout/__tests__",
-    "test:e2e": "bun test test/e2e",
+    "test:e2e": "bun test e2e",
     "test:playwright": "playwright test",
     "test:playwright:ui": "playwright test --ui",
     "test:css": "bun test test/unit/css-validation.test.ts",
