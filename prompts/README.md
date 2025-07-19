@@ -4,58 +4,40 @@ This directory contains prompt templates for the Model Context Protocol (MCP) se
 
 ## Prompt Format
 
-Prompts can be defined in YAML, JSON, or Markdown (with frontmatter) format.
+Prompts are defined in YAML files using Handlebars templating syntax.
 
 ### YAML Format
 
 ```yaml
-id: unique-prompt-id
-name: Human Readable Name
+name: Human Readable Name # Optional - ignored, filename is used as prompt name
 description: Brief description of what the prompt does
-arguments:
-  - name: arg1
-    type: string
-    required: true
-    description: Description of the argument
-content: |
-  The prompt template with {arg1} placeholders
+template: |
+  The prompt template with {{arg1}} placeholders.
+
+  {{#if conditionalArg}}
+  Conditional content here
+  {{else}}
+  Default content
+  {{/if}}
 ```
 
-### JSON Format
+### Example
 
-```json
-{
-  "id": "unique-prompt-id",
-  "name": "Human Readable Name",
-  "description": "Brief description",
-  "arguments": [
-    {
-      "name": "arg1",
-      "type": "string",
-      "required": true,
-      "description": "Description of the argument"
-    }
-  ],
-  "content": "The prompt template with {arg1} placeholders"
-}
+```yaml
+description: Generates comprehensive test cases for your code
+template: |
+  You are an expert test engineer. Generate comprehensive test cases using {{framework}} for the provided code.
+
+  Focus on {{#if coverage_type}}{{coverage_type}}{{else}}unit{{/if}} testing.
 ```
 
-### Markdown Format
+### Notes
 
-```markdown
----
-id: unique-prompt-id
-name: Human Readable Name
-description: Brief description
-arguments:
-  - name: arg1
-    type: string
-    required: true
-    description: Description of the argument
----
-
-The prompt template with {arg1} placeholders
-```
+- The prompt name is derived from the filename (e.g., `test-generator.yaml` becomes `/test-generator`)
+- Templates use Handlebars syntax with `{{variable}}` placeholders
+- Conditional logic is supported using Handlebars helpers like `{{#if}}`
+- Missing variables are allowed and will be rendered as empty strings
+- The `name` field is optional and ignored by the implementation
 
 ## Available Prompts
 

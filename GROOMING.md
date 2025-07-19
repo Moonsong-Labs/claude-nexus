@@ -582,3 +582,34 @@ Removing empty, unused directories is standard repository maintenance that impro
 
 **Rationale:**
 Lockfiles are critical infrastructure files that ensure consistent dependency installation across all environments. They should never be manually edited or "groomed" as this would break the project's dependency management. The only action needed was to document this in GROOMING.md to prevent future confusion.
+
+### 2025-07-19 - MCP Prompts Documentation Fix
+
+**Files Modified:**
+
+- `prompts/README.md` - Updated to reflect actual implementation
+
+**Changes Made:**
+
+1. **Fixed Documentation Mismatch**
+   - Removed incorrect format showing `id`, `arguments`, `content` fields
+   - Updated to show actual implementation: `name`, `description`, `template` fields
+   - Changed syntax examples from `{arg1}` to `{{arg1}}` Handlebars syntax
+   - Added Handlebars conditional examples to match test-generator.yaml usage
+
+2. **Clarified Implementation Details**
+   - Documented that `name` field is ignored (filename is used)
+   - Added notes about Handlebars templating features
+   - Provided example matching actual prompt files
+
+**Analysis Findings:**
+
+- Investigation revealed `test-generator.yaml` was already correct
+- The PromptRegistryService.ts uses Handlebars templating (not simple string replacement)
+- Implementation only supports `template` field, not the documented `content` field
+- No argument validation exists - the documented `arguments` array is not implemented
+- Both Gemini-2.5-pro and O3-mini confirmed fixing documentation was the right approach
+
+**Rationale:**
+
+Rather than break working functionality by changing the implementation or the working prompt files, updating the documentation to match reality was the most sensible approach. This maintains backward compatibility while eliminating confusion for future contributors. The test-generator.yaml file required no changes as it was already correctly formatted for the current implementation.
