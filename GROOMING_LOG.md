@@ -1,5 +1,52 @@
 # Grooming Log
 
+## 2025-01-19: packages/shared/README.md Grooming
+
+### File: `packages/shared/README.md`
+
+#### Changes Made:
+
+1. **Updated Overview Section**
+   - Enhanced description to clarify the package's purpose
+   - Mentioned the three well-defined entry points
+
+2. **Added Installation Section**
+   - Clarified that the package is automatically available in the monorepo workspace
+
+3. **Restructured Usage Section**
+   - Split into three subsections matching package.json exports: Main Export, Types Export, Config Export
+   - Provided comprehensive examples showing what's available from each entry point
+   - Aligned documentation with actual exports in package.json
+
+4. **Replaced Contents Section with Available Modules**
+   - Listed all modules accessible through the main export
+   - Removed directory-based documentation that was incomplete and misleading
+   - Focused on functionality rather than file structure
+
+5. **Updated Development Section**
+   - Kept existing commands
+   - Added typecheck command
+
+6. **Added Testing Section**
+   - Documented how to run tests from the monorepo root
+
+7. **Added TypeScript Configuration Section**
+   - Mentioned TypeScript Project References usage
+
+8. **Updated Build Output**
+   - Corrected to mention ESM only (as per package.json "type": "module")
+   - Removed incorrect mention of CommonJS
+
+#### Rationale:
+
+The previous README only documented 3 out of 7+ directories, leading to confusion. Import examples didn't match the actual package.json exports. The new structure follows best practices by documenting the public API (exports) rather than internal structure. This aligns with the principle that README should serve package consumers, not expose internals.
+
+#### Testing:
+
+- Verified `bun run build` succeeds
+- Verified `bun run typecheck` passes
+- No code changes were made, only documentation updates
+
 ## 2025-01-19: Truncation Test Refactoring
 
 ### File: `packages/shared/src/prompts/__tests__/truncation.test.ts`
