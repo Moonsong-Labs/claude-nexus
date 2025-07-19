@@ -2,7 +2,8 @@ import {
   buildAnalysisPrompt,
   parseAnalysisResponse,
   type GeminiContent,
-} from '@claude-nexus/shared/prompts/analysis/index.js'
+  getErrorMessage,
+} from '@claude-nexus/shared'
 import type { ConversationAnalysis } from '@claude-nexus/shared/types/ai-analysis'
 import { GEMINI_CONFIG, AI_WORKER_CONFIG, config } from '@claude-nexus/shared/config'
 import { logger } from '../../middleware/logger.js'
@@ -11,7 +12,6 @@ import {
   validateAnalysisOutput,
   enhancePromptForRetry,
 } from '../../middleware/sanitization.js'
-import { getErrorMessage } from '@claude-nexus/shared'
 
 export interface GeminiApiResponse {
   candidates: Array<{
