@@ -9,7 +9,6 @@
 
 import { Pool } from 'pg'
 import { config } from 'dotenv'
-import { createLoggingPool } from './utils/create-logging-pool.js'
 import { enableSqlLogging } from '../../services/proxy/src/utils/sql-logger.js'
 import { StorageAdapter } from '../../services/proxy/src/storage/StorageAdapter.js'
 import { generateConversationId } from '@claude-nexus/shared'
@@ -646,7 +645,20 @@ async function main(): Promise<void> {
   }
 
   // Create database pool
-  const pool = createLoggingPool(dbUrl, { max: 10 })
+  let pool = new Pool({
+    connectionString: dbUrl,
+    max: 10,
+  })
+
+  // Enable SQL logging if DEBUG_SQL is set
+  if (process.env.DEBUG_SQL === 'true') {
+    pool = enableSqlLogging(pool, {
+      logQueries: true,
+      logSlowQueries: true,
+      slowQueryThreshold: Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 5000,
+      logStackTrace: process.env.DEBUG === 'true',
+    })
+  }
 
   try {
     const config: ConversationRebuilderConfig = {

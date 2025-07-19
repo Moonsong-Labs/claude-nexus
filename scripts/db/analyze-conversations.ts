@@ -12,7 +12,8 @@
 
 import { Pool } from 'pg'
 import { config } from 'dotenv'
-import { createLoggingPool } from './utils/create-logging-pool.js'
+import { Pool } from 'pg'
+import { enableSqlLogging } from '../../services/proxy/src/utils/sql-logger.js'
 import { ConversationLinker } from '../../packages/shared/src/utils/conversation-linker.js'
 import type {
   LinkingRequest,
@@ -84,7 +85,20 @@ class ConversationAnalyzer {
       outputFormat?: 'console' | 'json'
     } = {}
   ) {
-    this.pool = createLoggingPool(databaseUrl)
+    this.pool = new Pool({
+      connectionString: databaseUrl,
+    })
+
+    // Enable SQL logging if DEBUG_SQL is set
+    if (process.env.DEBUG_SQL === 'true') {
+      this.pool = enableSqlLogging(this.pool, {
+        logQueries: true,
+        logSlowQueries: true,
+        slowQueryThreshold: Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 5000,
+        logStackTrace: process.env.DEBUG === 'true',
+      })
+    }
+
     this.batchSize = options.batchSize || DEFAULT_BATCH_SIZE
     this.showProgress = options.showProgress ?? true
     this.outputFormat = options.outputFormat || 'console'

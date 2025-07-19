@@ -1,5 +1,60 @@
 # Grooming Log
 
+## 2025-01-19: Remove create-logging-pool.ts utility
+
+### Summary
+
+Removed the underutilized `scripts/db/utils/create-logging-pool.ts` utility file and updated the 3 scripts that used it to create PostgreSQL pools directly, matching the pattern used by 20+ other database scripts in the codebase.
+
+### Rationale
+
+1. **Poor adoption**: Only 3 out of 23 database scripts used this utility
+2. **Consistency**: 20+ scripts already create pools directly - this is the de facto standard
+3. **Type safety issues**: The utility used `any` type for options parameter
+4. **Unnecessary abstraction**: The utility was a thin wrapper that added little value
+5. **Reduce confusion**: Having two patterns for the same task increases cognitive load
+
+### Changes Made
+
+1. Updated 3 scripts to create pools directly with inline SQL logging configuration:
+   - `scripts/db/rebuild-conversations.ts`
+   - `scripts/db/analyze-request-linking.ts`
+   - `scripts/db/analyze-conversations.ts`
+2. Removed `scripts/db/utils/create-logging-pool.ts`
+3. Removed empty `scripts/db/utils/` directory
+
+### Implementation Details
+
+Each script now follows the standard pattern:
+
+```typescript
+let pool = new Pool({
+  connectionString: DATABASE_URL,
+  // other options
+})
+
+// Enable SQL logging if DEBUG_SQL is set
+if (process.env.DEBUG_SQL === 'true') {
+  pool = enableSqlLogging(pool, {
+    logQueries: true,
+    logSlowQueries: true,
+    slowQueryThreshold: Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 5000,
+    logStackTrace: process.env.DEBUG === 'true',
+  })
+}
+```
+
+### Validation
+
+- Consulted with Gemini-2.5-pro and O3-mini AI models - both recommended removal
+- Ran `bun run typecheck` - no type errors
+- Tested all 3 modified scripts - they run without import errors
+- Verified SQL logging still works when DEBUG_SQL=true
+
+### Decision
+
+Following the "paving the cowpath" principle - formalized the dominant pattern that 87% of scripts were already using. This improves consistency and reduces maintenance burden without losing any functionality.
+
 ## 2025-01-19: Archive recalculate-message-counts.ts
 
 ### Summary

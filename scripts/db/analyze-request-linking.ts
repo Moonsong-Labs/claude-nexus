@@ -26,7 +26,8 @@ import { Pool } from 'pg'
 import { config } from 'dotenv'
 import { hashSystemPrompt } from '../../packages/shared/src/utils/conversation-hash.js'
 import { ConversationLinker } from '../../packages/shared/src/utils/conversation-linker.js'
-import { createLoggingPool } from './utils/create-logging-pool.js'
+import { Pool } from 'pg'
+import { enableSqlLogging } from '../../services/proxy/src/utils/sql-logger.js'
 
 config()
 
@@ -73,7 +74,19 @@ for (const id of requestIds) {
 }
 
 async function main() {
-  const pool = createLoggingPool(CONNECTION_STRING)
+  let pool = new Pool({
+    connectionString: CONNECTION_STRING,
+  })
+
+  // Enable SQL logging if DEBUG_SQL is set
+  if (process.env.DEBUG_SQL === 'true') {
+    pool = enableSqlLogging(pool, {
+      logQueries: true,
+      logSlowQueries: true,
+      slowQueryThreshold: Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 5000,
+      logStackTrace: process.env.DEBUG === 'true',
+    })
+  }
 
   try {
     console.log('==========================================')
