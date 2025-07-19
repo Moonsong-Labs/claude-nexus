@@ -683,3 +683,34 @@ Mock tests that don't test actual functionality are anti-patterns that provide f
 **Critical Follow-up Required:**
 
 The credentials module handles sensitive authentication functionality and currently has zero unit test coverage. Creating proper unit tests for `credentials.ts` must be prioritized as a high-priority technical debt item.
+
+### 2025-07-19 - Integration Test Anti-pattern Cleanup
+
+**Files Modified:**
+
+- Removed: `tests/integration/proxy-auth.test.ts`
+
+**Changes Made:**
+
+1. **Removed Test Anti-pattern File**
+   - Deleted integration test that created a mock proxy server duplicating real authentication logic
+   - The test was testing its own mock implementation instead of the actual proxy
+   - Comprehensive unit tests already exist at `services/proxy/tests/client-auth.test.ts`
+
+**Analysis Findings:**
+
+- The test created a complete mock proxy server with hardcoded authentication logic
+- This duplicated the real implementation, violating DRY principle
+- Changes to actual auth logic wouldn't be tested by this integration test
+- Unit tests for the actual middleware provide proper test coverage
+- File used `any` types reducing type safety
+
+**Validation:**
+
+- Gemini-2.5-pro: 9/10 confidence score for deletion
+- Confirmed as textbook testing anti-pattern
+- Recommendation to follow Testing Pyramid principle
+
+**Rationale:**
+
+Testing a mock that duplicates production logic provides negative value by creating false confidence and maintenance burden. The existing unit tests properly validate the authentication middleware logic in isolation. For true end-to-end testing, integration tests should use the real proxy server, not a mock. This deletion corrects a fundamental testing anti-pattern and improves the overall test architecture.
