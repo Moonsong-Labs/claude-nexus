@@ -1171,3 +1171,35 @@ While the migration has code quality issues compared to newer standards, the pri
 **Rationale:**
 
 Following GROOMING.md guidelines that "scripts generated to verify features should be removed or transformed to test if really needed", the script was deleted rather than transformed. The behavior is already well-tested at the unit level, and creating integration test infrastructure for this single edge case would add unnecessary complexity. This aligns with the project's grooming history where similar verification scripts were removed to reduce technical debt.
+
+### 2025-07-19 - Redundant Manual Subtask Test Script Cleanup
+
+**Files Deleted:**
+
+- `scripts/create-fresh-task-and-test.ts`
+
+**Changes Made:**
+
+1. **Removed Redundant Manual Test Script**
+   - Deleted script that manually tested subtask linking functionality
+   - Functionality already covered by existing unit tests (`subtask-database.test.ts`, `subtask-detection.test.ts`)
+   - Script created/deleted test data directly in database, posing risk if used on wrong environment
+   - Not referenced anywhere in codebase or integrated into test suite
+
+**Analysis Findings:**
+
+- Script tested parent-child linking between Task invocations and subtask requests
+- Created test data with hardcoded values and direct database manipulation
+- Existing test coverage includes 25 passing tests for subtask functionality
+- Script appeared to be a one-off debugging/verification tool
+
+**Validation:**
+
+- Gemini-2.5-flash: Encountered error but analysis proceeded
+- O3-mini: 9/10 confidence for deletion, citing redundancy and database manipulation risks
+- All subtask tests continue to pass after deletion
+- Type checking passes without issues
+
+**Rationale:**
+
+Manual test scripts that duplicate existing automated test coverage and directly manipulate database state are anti-patterns that increase maintenance burden and create potential risks. The comprehensive unit test suite already validates the subtask linking functionality in a safe, repeatable manner. Deletion aligns with modern testing best practices favoring automated tests over ad-hoc manual scripts.
