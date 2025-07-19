@@ -53,6 +53,14 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 - [ ] Check that migrations are idempotent (safe to run multiple times)
 - [ ] Update database documentation if schema changes
 
+**IMPORTANT: Migration Immutability**
+
+- **DO NOT** modify migration files that have been executed in production
+- Executed migrations form an immutable historical record of schema evolution
+- Modifying executed migrations can break database reproducibility for new environments
+- Apply coding standards and improvements only to NEW migrations
+- See [Migration Best Practices](#migration-best-practices) for details
+
 ### 4. Security & Privacy
 
 - [ ] Review code for exposed secrets or credentials
@@ -179,6 +187,45 @@ bun run scripts/check-ai-worker-config.ts
 # Inspect analysis content
 bun run scripts/check-analysis-content.ts <conversation-id>
 ```
+
+## Migration Best Practices
+
+### Migration Immutability Principle
+
+Once a migration has been executed in any shared environment (staging, production), it becomes part of the immutable database history and **MUST NOT** be modified. This principle ensures:
+
+1. **Reproducible Database State**: New developers and CI/CD systems can recreate the exact database state
+2. **Deployment Reliability**: Database setups won't fail due to modified migrations
+3. **Historical Accuracy**: The migration history accurately reflects how the schema evolved
+
+### What NOT to Do
+
+Even for code quality improvements, **DO NOT** modify executed migrations by:
+
+- Adding dotenv configuration loading
+- Improving error handling or logging
+- Adding type safety or interfaces
+- Changing console output formatting
+- Refactoring code structure
+- Adding dry-run modes or statistics
+
+### What TO Do Instead
+
+1. **Leave executed migrations untouched** - They are historical artifacts
+2. **Apply standards to NEW migrations** - Use improved patterns going forward
+3. **Document patterns in the migrations README** - Update `scripts/db/migrations/README.md`
+4. **Create migration templates** - Provide boilerplate for new migrations with best practices
+
+### Identifying Executed Migrations
+
+A migration is considered "executed" if:
+
+- It's documented in the migrations README
+- It's referenced in CLAUDE.md or other documentation
+- It has a creation date older than the last deployment
+- It exists in the main branch
+
+When in doubt, assume the migration has been executed and leave it unchanged.
 
 ## Common Issues & Fixes
 
@@ -578,6 +625,41 @@ These orphaned scripts represented technical debt that could cause confusion. Th
 
 **Rationale:**
 Removing orphaned configuration files eliminates developer confusion and reduces maintenance burden. This cleanup reinforces the project's clear configuration pattern of using a single root `.env` file for all environments. The deletion has negligible risk since the file was completely unused, while providing high value by simplifying the project structure for current and future developers.
+
+### 2025-07-19 - Migration 001 Assessment and Documentation Update
+
+**Files Modified:**
+
+- Updated: `GROOMING.md` - Added migration immutability guidelines
+
+**Changes Made:**
+
+1. **Assessed Migration 001 for Grooming**
+   - Identified inconsistencies with newer migrations (missing dotenv, error handling, formatting)
+   - Consulted AI models (Gemini-2.5-pro) about refactoring approach
+   - Received strong guidance about migration immutability principle
+
+2. **Updated GROOMING.md Documentation**
+   - Added warning in Database & Migrations checklist about not modifying executed migrations
+   - Created new "Migration Best Practices" section explaining immutability principle
+   - Documented what not to do and what to do instead for migration quality
+
+**Analysis Findings:**
+
+- Migration 001 has been executed in production (documented in multiple places)
+- Modifying executed migrations violates database migration best practices
+- Risk of breaking database reproducibility outweighs code quality benefits
+- Industry consensus strongly supports treating executed migrations as immutable
+
+**Validation:**
+
+- Gemini-2.5-pro: 9/10 confidence score against modifying executed migrations
+- Principle of migration immutability is a foundational best practice
+- Confirmed as correct approach for maintaining reliable database schema evolution
+
+**Rationale:**
+
+While the migration file could benefit from code quality improvements, the principle of migration immutability takes precedence. Executed migrations form a historical record that ensures database state can be reliably reproduced. The best action is to document this principle for future grooming efforts and apply quality standards only to new migrations going forward.
 
 ### 2025-07-19 - Empty .claude Directory Cleanup
 
