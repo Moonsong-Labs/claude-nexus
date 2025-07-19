@@ -1,7 +1,25 @@
 #!/usr/bin/env bun
 /**
- * Comprehensive analysis of request linking issues
- * Combines system prompt diff, message hash comparison, and hash filtering tests
+ * Analyze Request Linking - Diagnostic Tool for Conversation Linking Issues
+ *
+ * This script helps debug why two API requests may not be linking in the same conversation.
+ * It performs comprehensive analysis including:
+ * - System hash comparison (dual hash system)
+ * - Message hash validation
+ * - Content filtering analysis (system-reminder detection)
+ * - Parent-child relationship verification
+ *
+ * Usage:
+ *   bun run scripts/db/analyze-request-linking.ts <request_id_1> <request_id_2>
+ *
+ * Example:
+ *   bun run scripts/db/analyze-request-linking.ts b8dd8bee-76df-436c-be51-c32e92c70987 ee9ec976-5cf7-4795-9ab5-a82210bbd555
+ *
+ * Environment:
+ *   DEV_DATABASE_URL or DATABASE_URL must be set to connect to the database
+ *
+ * Output:
+ *   Detailed console output showing hash comparisons, linking analysis, and recommendations
  */
 
 import { Pool } from 'pg'
@@ -11,6 +29,12 @@ import { ConversationLinker } from '../../packages/shared/src/utils/conversation
 import { createLoggingPool } from './utils/create-logging-pool.js'
 
 config()
+
+// Constants for output formatting
+const HASH_PREVIEW_LENGTH = 16
+const HASH_DISPLAY_LENGTH = 32
+const TEXT_PREVIEW_LENGTH = 80
+const CONTENT_PREVIEW_LENGTH = 150
 
 // Use DEV_DATABASE_URL if available, otherwise fall back to DATABASE_URL
 const CONNECTION_STRING = process.env.DEV_DATABASE_URL || process.env.DATABASE_URL || ''
@@ -36,7 +60,17 @@ if (args.length !== 2) {
   process.exit(1)
 }
 
+// Validate request IDs are valid UUIDs
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const requestIds = args
+
+for (const id of requestIds) {
+  if (!UUID_REGEX.test(id)) {
+    console.error(`Error: Invalid UUID format: ${id}`)
+    console.error('Request IDs must be valid UUIDs (e.g., 123e4567-e89b-12d3-a456-426614174000)')
+    process.exit(1)
+  }
+}
 
 async function main() {
   const pool = createLoggingPool(CONNECTION_STRING)
@@ -190,8 +224,7 @@ async function main() {
     const messages2 = req2.body.messages
 
     // Create a ConversationLinker instance to use hash computation
-    // Create a no-op logger for the script
-    const mockLogger = {
+    const logger = {
       debug: () => {},
       info: () => {},
       warn: () => {},
@@ -200,7 +233,7 @@ async function main() {
 
     const linker = new ConversationLinker(
       () => Promise.resolve([]),
-      mockLogger,
+      logger,
       undefined, // compactSearchExecutor
       undefined, // requestByIdExecutor
       undefined, // subtaskQueryExecutor
@@ -243,7 +276,7 @@ async function main() {
       if (hash1 && hash2) {
         const match = hash1 === hash2
         console.log(
-          `Message ${msgNum.toString().padStart(3)}: ${hash1.substring(0, 16)}... vs ${hash2.substring(0, 16)}... ${match ? '✅ MATCH' : '❌ DIFFER'}`
+          `Message ${msgNum.toString().padStart(3)}: ${hash1.substring(0, HASH_PREVIEW_LENGTH)}... vs ${hash2.substring(0, HASH_PREVIEW_LENGTH)}... ${match ? '✅ MATCH' : '❌ DIFFER'}`
         )
 
         if (match) {
@@ -282,11 +315,11 @@ async function main() {
         }
       } else if (hash1 && !hash2) {
         console.log(
-          `Message ${msgNum.toString().padStart(3)}: ${hash1.substring(0, 16)}... vs (no message)`
+          `Message ${msgNum.toString().padStart(3)}: ${hash1.substring(0, HASH_PREVIEW_LENGTH)}... vs (no message)`
         )
       } else if (!hash1 && hash2) {
         console.log(
-          `Message ${msgNum.toString().padStart(3)}: (no message)     vs ${hash2.substring(0, 16)}...`
+          `Message ${msgNum.toString().padStart(3)}: (no message)     vs ${hash2.substring(0, HASH_PREVIEW_LENGTH)}...`
         )
       }
     }
@@ -336,7 +369,9 @@ async function main() {
             `  [${idx}] type: text, starts with <system-reminder>: ${hasSystemReminder ? 'YES (filtered out)' : 'NO'}`
           )
           if (hasSystemReminder) {
-            console.log(`       Preview: "${item.text.substring(0, 80).replace(/\n/g, ' ')}..."`)
+            console.log(
+              `       Preview: "${item.text.substring(0, TEXT_PREVIEW_LENGTH).replace(/\n/g, ' ')}..."`
+            )
           }
         } else {
           console.log(`  [${idx}] type: ${item.type}`)
@@ -353,7 +388,9 @@ async function main() {
             `  [${idx}] type: text, starts with <system-reminder>: ${hasSystemReminder ? 'YES (filtered out)' : 'NO'}`
           )
           if (hasSystemReminder) {
-            console.log(`       Preview: "${item.text.substring(0, 80).replace(/\n/g, ' ')}..."`)
+            console.log(
+              `       Preview: "${item.text.substring(0, TEXT_PREVIEW_LENGTH).replace(/\n/g, ' ')}..."`
+            )
           }
         } else {
           console.log(`  [${idx}] type: ${item.type}`)
@@ -379,8 +416,14 @@ async function main() {
       for (let i = 0; i < Math.min(filtered1.length, filtered2.length); i++) {
         if (JSON.stringify(filtered1[i]) !== JSON.stringify(filtered2[i])) {
           console.log(`\nFirst difference at filtered item ${i}:`)
-          console.log('Item 1:', JSON.stringify(filtered1[i]).substring(0, 150) + '...')
-          console.log('Item 2:', JSON.stringify(filtered2[i]).substring(0, 150) + '...')
+          console.log(
+            'Item 1:',
+            JSON.stringify(filtered1[i]).substring(0, CONTENT_PREVIEW_LENGTH) + '...'
+          )
+          console.log(
+            'Item 2:',
+            JSON.stringify(filtered2[i]).substring(0, CONTENT_PREVIEW_LENGTH) + '...'
+          )
           break
         }
       }
@@ -423,7 +466,9 @@ async function main() {
     if (lastMatchingIndex >= 0) {
       console.log(`   ✅ Messages 1-${lastMatchingIndex + 1} have matching hashes`)
       console.log(`   ❌ Messages start to differ at message ${lastMatchingIndex + 2}`)
-      console.log(`   Last matching message hash: ${lastMatchingHash?.substring(0, 32)}...`)
+      console.log(
+        `   Last matching message hash: ${lastMatchingHash?.substring(0, HASH_DISPLAY_LENGTH)}...`
+      )
 
       // Check if this matches the parent hash
       const expectedMessages = req1.message_count - 2 // Parent hash excludes last 2 messages
