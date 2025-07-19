@@ -79,6 +79,8 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 7. Dependencies
 
+**Note**: Do not manually edit lockfiles (bun.lock, package-lock.json, yarn.lock, etc.). These are auto-generated files that ensure reproducible builds.
+
 - [ ] Review and update outdated dependencies
 - [ ] Check for security vulnerabilities with `bun audit`
 - [ ] Remove unused dependencies
@@ -552,3 +554,31 @@ Removing orphaned configuration files eliminates developer confusion and reduces
 
 **Rationale:**
 Removing empty, unused directories is standard repository maintenance that improves code clarity and prevents developer confusion. The directory served no documented purpose and its removal has zero functional impact while eliminating potential confusion with the Docker container's Claude configuration directory.
+
+### 2025-07-19 - bun.lock File Assessment
+
+**Files Modified:**
+
+- Updated: `GROOMING.md` to add lockfile guidance
+
+**Changes Made:**
+
+1. **Added Lockfile Documentation**
+   - Added note in Dependencies section clarifying that lockfiles should not be manually edited
+   - Ensures future grooming efforts don't attempt to modify auto-generated files
+
+**Analysis Findings:**
+
+- `bun.lock` is a 104KB text-based lockfile (not the older binary bun.lockb format)
+- Contains exact dependency versions for reproducible builds
+- Already follows all best practices: tracked in git, proper format, correct location
+- No grooming actions needed for lockfiles as they are auto-generated
+
+**Validation:**
+
+- Perplexity research confirmed lockfile best practices
+- Model consensus attempted but encountered technical issues
+- Decision based on established lockfile management standards
+
+**Rationale:**
+Lockfiles are critical infrastructure files that ensure consistent dependency installation across all environments. They should never be manually edited or "groomed" as this would break the project's dependency management. The only action needed was to document this in GROOMING.md to prevent future confusion.
