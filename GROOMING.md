@@ -1566,3 +1566,47 @@ This script was refactored as part of the file grooming sprint to improve code q
 **Validation:**
 
 The refactoring plan was validated with Gemini 2.5 Pro, which gave it a 10/10 confidence score, calling it "a textbook example of valuable refactoring effort."
+
+### 2025-01-19 - Playwright Configuration TypeScript Improvements
+
+**Files Modified:**
+
+- `playwright.config.ts`
+
+**Changes Made:**
+
+1. **Added Type Safety**
+   - Added explicit `PlaywrightTestConfig` type import and annotation
+   - Ensures configuration follows Playwright's type contract
+
+2. **Extracted Magic Numbers**
+   - Created named constants: `DASHBOARD_PORT`, `DEFAULT_DASHBOARD_URL`, `DEV_SERVER_TIMEOUT_MS`
+   - Improved readability and maintainability
+
+3. **Added Environment Variable Support**
+   - Added `PLAYWRIGHT_BASE_URL` environment variable support for flexible test targeting
+   - Maintains default to localhost:3001 for backward compatibility
+
+4. **Removed Unused Mobile Configurations**
+   - Deleted Mobile Chrome and Mobile Safari projects
+   - E2E tests only test desktop functionality, reducing unnecessary test matrix
+
+5. **Improved Documentation**
+   - Enhanced comments explaining environment variables and their effects
+   - Better section organization with clear headers
+   - Added runtime validation message for CI environments
+
+6. **Fixed Playwright Configuration**
+   - Removed conflicting `url` property in webServer (kept only `port` as required)
+   - Ensures compatibility with Playwright's webServer requirements
+
+**Rationale:**
+
+The refactoring improves the configuration's robustness, flexibility, and maintainability while removing unused complexity. Environment variable support enables running tests against different environments without code changes, which is essential for CI/CD pipelines.
+
+**Validation:**
+
+- Gemini-2.5-pro: 10/10 confidence score, strongly endorsed all improvements
+- Suggested using dotenv for local environment management (future consideration)
+- TypeScript compilation passes without errors
+- Configuration follows Playwright best practices
