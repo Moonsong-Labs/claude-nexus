@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { z, ZodError } from 'zod'
+import { z } from 'zod'
 import { Pool } from 'pg'
 import { logger } from '../middleware/logger.js'
 import {
@@ -8,61 +8,45 @@ import {
 } from '../middleware/analysis-rate-limit.js'
 import { ConversationAnalysisStatus } from '@claude-nexus/shared/types'
 import { uuidSchema, conversationBranchParamsSchema } from '@claude-nexus/shared/utils/validation'
+import { HTTP_STATUS } from '../constants.js'
+import { createErrorResponse } from '../utils/error-response.js'
+import { handleZodError } from '../utils/zod-error-handler.js'
+import { auditLog } from '../utils/audit-log.js'
+import type {
+  AnalysisCreatedResponse,
+  AnalysisResponse,
+  AnalysisErrorResponse
+} from '../types/analysis-responses.js'
 
-// Request/Response schemas
+// Request schemas
 const createAnalysisSchema = z.object({
   conversationId: uuidSchema,
-  branchId: z.string(),
+  branchId: z.string().min(1, 'Branch ID is required'),
   customPrompt: z.string().optional(),
 })
 
+const regenerateAnalysisBodySchema = z.object({
+  customPrompt: z.string().optional(),
+}).optional()
+
 const getAnalysisParamsSchema = conversationBranchParamsSchema
 
-// Audit logging helper
-async function auditLog(
-  pool: Pool,
-  data: {
-    event_type: string
-    outcome: string
-    conversation_id: string
-    branch_id: string
-    domain: string
-    request_id: string
-    user_context?: Record<string, unknown>
-    metadata?: Record<string, unknown>
-  }
-) {
-  try {
-    await pool.query(
-      `INSERT INTO analysis_audit_log 
-       (event_type, outcome, conversation_id, branch_id, domain, request_id, user_context, metadata, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-      [
-        data.event_type,
-        data.outcome,
-        data.conversation_id,
-        data.branch_id,
-        data.domain,
-        data.request_id,
-        JSON.stringify(data.user_context || {}),
-        JSON.stringify(data.metadata || {}),
-      ]
-    )
-  } catch (error) {
-    logger.error('Failed to write audit log', { error, data })
-  }
-}
-
-export const analysisRoutes = new Hono<{
+// Route handler type definitions
+type AnalysisRouteHandler = Hono<{
   Variables: {
     pool?: Pool
     domain?: string
     requestId?: string
   }
-}>()
+}>
+
+export const analysisRoutes: AnalysisRouteHandler = new Hono()
 
 /**
  * POST /api/analyses - Create a new analysis request
+ * 
+ * @body {conversationId: string, branchId: string, customPrompt?: string}
+ * @returns {AnalysisCreatedResponse} Analysis creation status
  */
 analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
   const pool = c.get('pool')
@@ -70,7 +54,7 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
   const requestId = c.get('requestId') || 'unknown'
 
   if (!pool) {
-    return c.json({ error: 'Database not configured' }, 503)
+    return createErrorResponse(c, 'Database not configured', HTTP_STATUS.SERVICE_UNAVAILABLE)
   }
 
   try {
@@ -100,11 +84,12 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
 
       // If it's already completed, return it
       if (existing.status === ConversationAnalysisStatus.COMPLETED) {
-        return c.json({
+        const response: AnalysisCreatedResponse = {
           message: 'Analysis already completed',
           analysisId: existing.id,
           status: existing.status,
-        })
+        }
+        return c.json(response, HTTP_STATUS.OK)
       }
 
       // If it's pending or processing, return the status
@@ -112,11 +97,12 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
         existing.status === ConversationAnalysisStatus.PENDING ||
         existing.status === ConversationAnalysisStatus.PROCESSING
       ) {
-        return c.json({
+        const response: AnalysisCreatedResponse = {
           message: 'Analysis already in progress',
           analysisId: existing.id,
           status: existing.status,
-        })
+        }
+        return c.json(response, HTTP_STATUS.OK)
       }
     }
 
@@ -141,42 +127,33 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
       metadata: { analysis_id: analysisId },
     })
 
-    return c.json(
-      {
-        message: 'Analysis request created',
-        analysisId,
-        status: ConversationAnalysisStatus.PENDING,
-      },
-      201
-    )
+    const response: AnalysisCreatedResponse = {
+      message: 'Analysis request created',
+      analysisId,
+      status: ConversationAnalysisStatus.PENDING,
+    }
+    return c.json(response, HTTP_STATUS.CREATED)
   } catch (error) {
     logger.error('Failed to create analysis request', { error, requestId })
 
-    // Check for ZodError by name due to potential instanceof issues with bundlers
-    if (
-      error instanceof ZodError ||
-      (error as Error & { constructor?: { name?: string } })?.constructor?.name === 'ZodError'
-    ) {
-      return c.json(
-        {
-          error: 'Invalid request',
-          details: (error as ZodError).errors,
-        },
-        400
-      )
-    }
+    // Handle Zod validation errors
+    const zodResponse = handleZodError(error, c)
+    if (zodResponse) return zodResponse
 
-    return c.json(
-      {
-        error: 'Failed to create analysis request',
-      },
-      500
+    return createErrorResponse(
+      c,
+      'Failed to create analysis request',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
     )
   }
 })
 
 /**
  * GET /api/analyses/:conversationId/:branchId - Get analysis status/result
+ * 
+ * @param {string} conversationId - UUID of the conversation
+ * @param {string} branchId - Branch identifier
+ * @returns {AnalysisResponse} Analysis data and status
  */
 analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), async c => {
   const pool = c.get('pool')
@@ -184,7 +161,7 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
   const requestId = c.get('requestId') || 'unknown'
 
   if (!pool) {
-    return c.json({ error: 'Database not configured' }, 503)
+    return createErrorResponse(c, 'Database not configured', HTTP_STATUS.SERVICE_UNAVAILABLE)
   }
 
   try {
@@ -211,12 +188,7 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
     )
 
     if (result.rows.length === 0) {
-      return c.json(
-        {
-          error: 'Analysis not found',
-        },
-        404
-      )
+      return createErrorResponse(c, 'Analysis not found', HTTP_STATUS.NOT_FOUND)
     }
 
     const analysis = result.rows[0]
@@ -234,7 +206,7 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
       },
     })
 
-    return c.json({
+    const response: AnalysisResponse = {
       id: analysis.id,
       conversationId,
       branchId,
@@ -250,38 +222,33 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
         completion: analysis.completion_tokens,
         total: (analysis.prompt_tokens || 0) + (analysis.completion_tokens || 0),
       },
-    })
+    }
+    return c.json(response, HTTP_STATUS.OK)
   } catch (error) {
     logger.error('Failed to get analysis', {
       error: error instanceof Error ? error.message : String(error),
       requestId,
     })
 
-    // Check for ZodError by name due to potential instanceof issues with bundlers
-    if (
-      error instanceof ZodError ||
-      (error as Error & { constructor?: { name?: string } })?.constructor?.name === 'ZodError'
-    ) {
-      return c.json(
-        {
-          error: 'Invalid request',
-          details: (error as ZodError).errors,
-        },
-        400
-      )
-    }
+    // Handle Zod validation errors
+    const zodResponse = handleZodError(error, c)
+    if (zodResponse) return zodResponse
 
-    return c.json(
-      {
-        error: 'Failed to retrieve analysis',
-      },
-      500
+    return createErrorResponse(
+      c,
+      'Failed to retrieve analysis',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
     )
   }
 })
 
 /**
  * POST /api/analyses/:conversationId/:branchId/regenerate - Force regeneration
+ * 
+ * @param {string} conversationId - UUID of the conversation
+ * @param {string} branchId - Branch identifier
+ * @body {customPrompt?: string} Optional custom prompt for analysis
+ * @returns {AnalysisCreatedResponse} Analysis regeneration status
  */
 analysisRoutes.post(
   '/:conversationId/:branchId/regenerate',
@@ -304,9 +271,11 @@ analysisRoutes.post(
       let customPrompt: string | undefined
       try {
         const body = await c.req.json()
-        customPrompt = body.customPrompt
-      } catch {
-        // No body or invalid JSON, that's ok
+        const parsed = regenerateAnalysisBodySchema.parse(body)
+        customPrompt = parsed?.customPrompt
+      } catch (error) {
+        // No body or invalid JSON is acceptable for this endpoint
+        logger.debug('No body provided for regenerate request', { requestId })
       }
       // Log the regeneration request
       await auditLog(pool, {
@@ -358,33 +327,23 @@ analysisRoutes.post(
         metadata: { analysis_id: analysisId },
       })
 
-      return c.json({
+      const response: AnalysisCreatedResponse = {
         message: 'Analysis regeneration requested',
         analysisId,
         status: ConversationAnalysisStatus.PENDING,
-      })
+      }
+      return c.json(response, HTTP_STATUS.OK)
     } catch (error) {
       logger.error('Failed to regenerate analysis', { error, requestId })
 
-      // Check for ZodError by name due to potential instanceof issues with bundlers
-      if (
-        error instanceof ZodError ||
-        (error as Error & { constructor?: { name?: string } })?.constructor?.name === 'ZodError'
-      ) {
-        return c.json(
-          {
-            error: 'Invalid request',
-            details: (error as ZodError).errors,
-          },
-          400
-        )
-      }
+      // Handle Zod validation errors
+      const zodResponse = handleZodError(error, c)
+      if (zodResponse) return zodResponse
 
-      return c.json(
-        {
-          error: 'Failed to regenerate analysis',
-        },
-        500
+      return createErrorResponse(
+        c,
+        'Failed to regenerate analysis',
+        HTTP_STATUS.INTERNAL_SERVER_ERROR
       )
     }
   }

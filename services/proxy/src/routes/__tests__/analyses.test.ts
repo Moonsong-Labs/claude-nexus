@@ -203,8 +203,8 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(503)
-      const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Database not configured')
+      const data = (await response.json()) as { error: { message: string; type: string } }
+      expect(data.error.message).toBe('Database not configured')
     })
 
     it('should handle database errors', async () => {
@@ -220,8 +220,8 @@ describe('Proxy Analysis Routes', () => {
       })
 
       expect(response.status).toBe(500)
-      const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Failed to create analysis request')
+      const data = (await response.json()) as { error: { message: string; type: string } }
+      expect(data.error.message).toBe('Failed to create analysis request')
     })
 
     it('should log audit events', async () => {
@@ -336,8 +336,8 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(404)
-      const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Analysis not found')
+      const data = (await response.json()) as { error: { message: string; type: string } }
+      expect(data.error.message).toBe('Analysis not found')
     })
 
     it('should handle validation errors', async () => {
@@ -401,8 +401,8 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(500)
-      const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Failed to retrieve analysis')
+      const data = (await response.json()) as { error: { message: string; type: string } }
+      expect(data.error.message).toBe('Failed to retrieve analysis')
     })
   })
 
@@ -540,8 +540,8 @@ describe('Proxy Analysis Routes', () => {
       )
 
       expect(response.status).toBe(500)
-      const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Failed to regenerate analysis')
+      const data = (await response.json()) as { error: { message: string; type: string } }
+      expect(data.error.message).toBe('Failed to regenerate analysis')
     })
   })
 
