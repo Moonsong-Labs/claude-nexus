@@ -4,19 +4,22 @@
 
 export class BaseError extends Error {
   public readonly timestamp: Date
-  public readonly context?: Record<string, any>
+  public readonly context?: Record<string, unknown>
 
   constructor(
     public readonly code: string,
     message: string,
     public readonly statusCode: number = 500,
-    context?: Record<string, any>
+    context?: Record<string, unknown>
   ) {
     super(message)
     this.name = this.constructor.name
     this.timestamp = new Date()
     this.context = context
-    Error.captureStackTrace(this, this.constructor)
+    // Environment-safe stack trace capture
+    if (typeof Error.captureStackTrace === 'function') {
+      Error.captureStackTrace(this, this.constructor)
+    }
   }
 
   toJSON() {
@@ -33,25 +36,25 @@ export class BaseError extends Error {
 }
 
 export class ValidationError extends BaseError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super('VALIDATION_ERROR', message, 400, context)
   }
 }
 
 export class AuthenticationError extends BaseError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super('AUTHENTICATION_ERROR', message, 401, context)
   }
 }
 
 export class AuthorizationError extends BaseError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super('AUTHORIZATION_ERROR', message, 403, context)
   }
 }
 
 export class NotFoundError extends BaseError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super('NOT_FOUND', message, 404, context)
   }
 }
@@ -59,36 +62,40 @@ export class NotFoundError extends BaseError {
 export class RateLimitError extends BaseError {
   public readonly retryAfter?: number
 
-  constructor(message: string, retryAfter?: number, context?: Record<string, any>) {
+  constructor(message: string, retryAfter?: number, context?: Record<string, unknown>) {
     super('RATE_LIMIT_ERROR', message, 429, context)
     this.retryAfter = retryAfter
   }
 }
 
 export class UpstreamError extends BaseError {
+  public readonly upstreamResponse?: unknown
+
   constructor(
     message: string,
     public readonly upstreamStatus?: number,
-    context?: Record<string, any>
+    context?: Record<string, unknown>,
+    upstreamResponse?: unknown
   ) {
-    super('UPSTREAM_ERROR', message, 502, context)
+    super('UPSTREAM_ERROR', message, upstreamStatus || 502, context)
+    this.upstreamResponse = upstreamResponse
   }
 }
 
 export class TimeoutError extends BaseError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super('TIMEOUT_ERROR', message, 504, context)
   }
 }
 
 export class ConfigurationError extends BaseError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super('CONFIGURATION_ERROR', message, 500, context)
   }
 }
 
 export class StorageError extends BaseError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super('STORAGE_ERROR', message, 500, context)
   }
 }
@@ -118,7 +125,7 @@ export function serializeError(error: Error): {
         message: error.message,
         statusCode: error.statusCode,
         timestamp: error.timestamp,
-        requestId: error.context?.requestId,
+        requestId: error.context?.requestId as string | undefined,
       },
     }
   }

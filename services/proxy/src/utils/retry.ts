@@ -1,5 +1,5 @@
 import { logger } from '../middleware/logger'
-import { TimeoutError, UpstreamError } from '../types/errors'
+import { TimeoutError, UpstreamError } from '@claude-nexus/shared'
 
 // Retry configuration
 export interface RetryConfig {
