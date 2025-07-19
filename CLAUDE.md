@@ -505,12 +505,6 @@ The project includes comprehensive tests for conversation and subtask linking:
   - Tests conversation inheritance and branch naming
   - Covers edge cases like multi-message conversations
 
-- **Subtask Linking Simulation**: `packages/shared/src/utils/__tests__/subtask-linker.test.ts`
-  - Simulates the old two-phase subtask detection (for reference)
-  - Tests Task tool invocation matching
-  - Validates time window enforcement
-  - Includes JSON fixtures for various subtask scenarios
-
 Run tests with:
 
 ```bash
