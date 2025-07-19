@@ -1,10 +1,16 @@
 {
-  "description": "Test successful sub-task linking when Task invocation matches",
+  "description": "Basic happy path test for successful sub-task linking when Task tool invocation prompt exactly matches user message",
   "type": "subtask",
   "expectedIsSubtask": true,
   "expectedParentTaskRequestId": "parent-request-123",
+  "expectedBranchId": "subtask_1",
   "parent": {
     "request_id": "parent-request-123",
+    "domain": "test.com",
+    "conversation_id": "conv-123-456-789",
+    "branch_id": "main",
+    "current_message_hash": "abc123def456",
+    "parent_message_hash": null,
     "timestamp": "2024-01-01T10:00:00Z",
     "task_invocations": [
       {
