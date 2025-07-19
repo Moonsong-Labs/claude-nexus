@@ -3,6 +3,17 @@
  */
 
 /**
+ * Regular expression to match system-reminder blocks with optional surrounding whitespace.
+ * Pattern matches:
+ * - \s* - any preceding whitespace (spaces, tabs, newlines)
+ * - <system-reminder> - opening tag (case-insensitive)
+ * - [\s\S]*? - any content including newlines (non-greedy)
+ * - </system-reminder> - closing tag (case-insensitive)
+ * Flags: g (global - match all occurrences), i (case-insensitive)
+ */
+const SYSTEM_REMINDER_REGEX = /\s*<system-reminder>[\s\S]*?<\/system-reminder>/gi
+
+/**
  * Removes all system-reminder blocks from text content.
  * Handles various formats including those with preceding whitespace.
  *
@@ -17,13 +28,12 @@
  * // Returns: "Text with  inline"
  */
 export function stripSystemReminder(text: string): string {
-  // Pattern matches:
-  // - \s* - any preceding whitespace (spaces, tabs, newlines)
-  // - <system-reminder> - opening tag
-  // - [\s\S]*? - any content including newlines (non-greedy)
-  // - </system-reminder> - closing tag
-  // Flags: g (global), i (case-insensitive)
-  return text.replace(/\s*<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+  // Handle null/undefined inputs gracefully
+  if (typeof text !== 'string') {
+    return ''
+  }
+
+  return text.replace(SYSTEM_REMINDER_REGEX, '')
 }
 
 /**
@@ -33,5 +43,12 @@ export function stripSystemReminder(text: string): string {
  * @returns True if text contains system-reminder blocks
  */
 export function containsSystemReminder(text: string): boolean {
-  return /<system-reminder>[\s\S]*?<\/system-reminder>/i.test(text)
+  // Handle null/undefined inputs gracefully
+  if (typeof text !== 'string') {
+    return false
+  }
+
+  // Create a new RegExp instance to avoid stateful global flag issues with test()
+  // The 'g' flag is removed here since we only need to check for existence
+  return /\s*<system-reminder>[\s\S]*?<\/system-reminder>/i.test(text)
 }

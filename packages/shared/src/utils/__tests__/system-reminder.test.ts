@@ -123,4 +123,36 @@ describe('containsSystemReminder', () => {
   test('returns false for incomplete tags', () => {
     expect(containsSystemReminder('Text with <system-reminder> but no closing tag')).toBe(false)
   })
+
+  test('handles null input', () => {
+    // @ts-expect-error Testing runtime behavior with invalid input
+    expect(containsSystemReminder(null)).toBe(false)
+  })
+
+  test('handles undefined input', () => {
+    // @ts-expect-error Testing runtime behavior with invalid input
+    expect(containsSystemReminder(undefined)).toBe(false)
+  })
+
+  test('handles non-string input', () => {
+    // @ts-expect-error Testing runtime behavior with invalid input
+    expect(containsSystemReminder(123)).toBe(false)
+  })
+})
+
+describe('stripSystemReminder edge cases', () => {
+  test('handles null input', () => {
+    // @ts-expect-error Testing runtime behavior with invalid input
+    expect(stripSystemReminder(null)).toBe('')
+  })
+
+  test('handles undefined input', () => {
+    // @ts-expect-error Testing runtime behavior with invalid input
+    expect(stripSystemReminder(undefined)).toBe('')
+  })
+
+  test('handles non-string input', () => {
+    // @ts-expect-error Testing runtime behavior with invalid input
+    expect(stripSystemReminder(123)).toBe('')
+  })
 })
