@@ -12,8 +12,8 @@
     "services/*"
   ],
   "scripts": {
-    "dev:proxy": "./scripts/dev/dev-proxy.sh",
-    "dev:dashboard": "./scripts/dev/dev-dashboard.sh",
+    "dev:proxy": "cd services/proxy && bun run dev",
+    "dev:dashboard": "cd services/dashboard && bun run dev",
     "dev": "echo 'Starting both services...' && concurrently -n proxy,dashboard -c blue,green \"bun run dev:proxy\" \"bun run dev:dashboard\"",
     "build:shared": "cd packages/shared && bun run build",
     "build:proxy": "cd services/proxy && bun run build",

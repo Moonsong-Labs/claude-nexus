@@ -120,22 +120,6 @@ bun run scripts/auth/check-oauth-status.ts
 
 ## Development Scripts (`dev/`)
 
-### dev-proxy.sh
-
-Starts the proxy service in development mode.
-
-```bash
-./scripts/dev/dev-proxy.sh
-```
-
-### dev-dashboard.sh
-
-Starts the dashboard service in development mode.
-
-```bash
-./scripts/dev/dev-dashboard.sh
-```
-
 ### test-client-setup.sh
 
 Sets up test client configuration.
