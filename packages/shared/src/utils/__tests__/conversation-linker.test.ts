@@ -4,7 +4,6 @@ import {
   type QueryExecutor,
   type CompactSearchExecutor,
   type LinkingRequest,
-  type ParentQueryCriteria,
   type RequestByIdExecutor,
   type SubtaskQueryExecutor,
   type SubtaskSequenceQueryExecutor,
@@ -14,53 +13,80 @@ import type { ClaudeMessage } from '../../types/index.js'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 
+// Test constants
+const SHA256_HASH_LENGTH = 64
+const TEST_TIMESTAMP = new Date('2025-01-01T12:00:00Z')
+const SUBTASK_TIMESTAMP = new Date('2025-01-01T11:59:55Z') // 5 seconds before test
+
+// Factory functions for test utilities
+const createMockLogger = () => ({
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+})
+
+const createMockQueryExecutor = (): QueryExecutor => async () => []
+
+const createMockCompactSearchExecutor = (): CompactSearchExecutor => async () => null
+
+// Helper function to create a linking request
+const createLinkingRequest = (overrides: Partial<LinkingRequest> = {}): LinkingRequest => {
+  const messages = overrides.messages || [{ role: 'user', content: 'Hello' }]
+  return {
+    domain: 'test.com',
+    messages,
+    systemPrompt: 'You are a helpful assistant',
+    requestId: 'test-request',
+    messageCount: messages.length,
+    ...overrides,
+  }
+}
+
+// Helper to create a ConversationLinker with custom executors
+const createLinker = (
+  queryExecutor?: QueryExecutor,
+  compactSearchExecutor?: CompactSearchExecutor,
+  requestByIdExecutor?: RequestByIdExecutor,
+  subtaskQueryExecutor?: SubtaskQueryExecutor,
+  subtaskSequenceQueryExecutor?: SubtaskSequenceQueryExecutor
+) => {
+  return new ConversationLinker(
+    queryExecutor || createMockQueryExecutor(),
+    createMockLogger(),
+    compactSearchExecutor || createMockCompactSearchExecutor(),
+    requestByIdExecutor,
+    subtaskQueryExecutor,
+    subtaskSequenceQueryExecutor
+  )
+}
+
 describe('ConversationLinker', () => {
   let linker: ConversationLinker
   let mockQueryExecutor: QueryExecutor
   let mockCompactSearchExecutor: CompactSearchExecutor
-  let mockLogger: any
+  let mockLogger: ReturnType<typeof createMockLogger>
 
   beforeEach(() => {
-    mockQueryExecutor = async (_criteria: ParentQueryCriteria) => {
-      return []
-    }
+    mockQueryExecutor = createMockQueryExecutor()
+    mockCompactSearchExecutor = createMockCompactSearchExecutor()
+    mockLogger = createMockLogger()
 
-    mockCompactSearchExecutor = async (_domain, _summaryContent, _beforeTimestamp) => {
-      return null
-    }
-
-    // Create a no-op logger for tests
-    mockLogger = {
-      debug: () => {},
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-    }
-
-    linker = new ConversationLinker(
-      mockQueryExecutor,
-      mockLogger,
-      mockCompactSearchExecutor,
-      undefined,
-      undefined,
-      undefined
-    )
+    linker = createLinker(mockQueryExecutor, mockCompactSearchExecutor)
   })
 
+  // Core linkConversation functionality tests
   describe('linkConversation', () => {
     test('should handle single message without compact conversation', async () => {
-      const request: LinkingRequest = {
-        domain: 'test.com',
+      const request = createLinkingRequest({
         messages: [
           {
             role: 'user',
             content: 'Hello, how are you?',
           },
         ],
-        systemPrompt: 'You are a helpful assistant',
         requestId: 'test-request-1',
-        messageCount: 1,
-      }
+      })
 
       const result = await linker.linkConversation(request)
 
@@ -74,18 +100,15 @@ describe('ConversationLinker', () => {
     })
 
     test('should handle single user message (potential sub-task)', async () => {
-      const request: LinkingRequest = {
-        domain: 'test.com',
+      const request = createLinkingRequest({
         messages: [
           {
             role: 'user',
             content: 'Analyze the security vulnerabilities in the authentication module',
           },
         ],
-        systemPrompt: 'You are a helpful assistant',
         requestId: 'test-request-subtask',
-        messageCount: 1,
-      }
+      })
 
       const result = await linker.linkConversation(request)
 
@@ -98,18 +121,15 @@ describe('ConversationLinker', () => {
     })
 
     test('should handle single assistant message', async () => {
-      const request: LinkingRequest = {
-        domain: 'test.com',
+      const request = createLinkingRequest({
         messages: [
           {
             role: 'assistant',
             content: 'I can help with that analysis',
           },
         ],
-        systemPrompt: 'You are a helpful assistant',
         requestId: 'test-assistant-message',
-        messageCount: 1,
-      }
+      })
 
       const result = await linker.linkConversation(request)
 
@@ -119,18 +139,15 @@ describe('ConversationLinker', () => {
     })
 
     test('should handle empty user message', async () => {
-      const request: LinkingRequest = {
-        domain: 'test.com',
+      const request = createLinkingRequest({
         messages: [
           {
             role: 'user',
             content: '   \n \t ',
           },
         ],
-        systemPrompt: 'You are a helpful assistant',
         requestId: 'test-empty-message',
-        messageCount: 1,
-      }
+      })
 
       const result = await linker.linkConversation(request)
 
@@ -190,8 +207,7 @@ describe('ConversationLinker', () => {
     })
 
     test('should detect compact conversation in single message', async () => {
-      const request: LinkingRequest = {
-        domain: 'test.com',
+      const request = createLinkingRequest({
         messages: [
           {
             role: 'user',
@@ -199,10 +215,8 @@ describe('ConversationLinker', () => {
               'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\n\nUser asked about weather.\n\nPlease continue the conversation from where we left off.',
           },
         ],
-        systemPrompt: 'You are a helpful assistant',
         requestId: 'test-request-2',
-        messageCount: 1,
-      }
+      })
 
       // Mock finding a parent for compact conversation
       mockCompactSearchExecutor = async (_domain, summaryContent, _beforeTimestamp) => {
@@ -235,8 +249,7 @@ describe('ConversationLinker', () => {
     })
 
     test('should compute parent hash for multiple messages', async () => {
-      const request: LinkingRequest = {
-        domain: 'test.com',
+      const request = createLinkingRequest({
         messages: [
           { role: 'user', content: 'What is the weather?' },
           { role: 'assistant', content: 'I can help with weather information.' },
@@ -244,8 +257,7 @@ describe('ConversationLinker', () => {
         ],
         systemPrompt: 'You are a weather assistant',
         requestId: 'test-request-3',
-        messageCount: 3,
-      }
+      })
 
       const result = await linker.linkConversation(request)
 
@@ -271,7 +283,7 @@ describe('ConversationLinker', () => {
       expect(result.systemHash).toBeTruthy()
     })
 
-    test('should not allow empty messages', async () => {
+    test('should throw error for empty messages', async () => {
       const request: LinkingRequest = {
         domain: 'test.com',
         messages: [], // Empty messages should trigger error handling
@@ -286,6 +298,7 @@ describe('ConversationLinker', () => {
     })
   })
 
+  // Message normalization and filtering tests
   describe('Message content normalization', () => {
     test('should normalize string content', async () => {
       const request: LinkingRequest = {
@@ -345,6 +358,7 @@ describe('ConversationLinker', () => {
     })
   })
 
+  // Parent matching logic tests
   describe('Priority-based parent matching', () => {
     test('should prioritize exact match with system hash', async () => {
       const messages = [
@@ -438,6 +452,7 @@ describe('ConversationLinker', () => {
     })
   })
 
+  // Branch detection and creation tests
   describe('Branch detection', () => {
     test('should create new branch when parent has existing children', async () => {
       const messages = [
@@ -500,6 +515,7 @@ describe('ConversationLinker', () => {
   })
 })
 
+// Integration tests using JSON fixtures
 describe('ConversationLinker - JSON File Tests', () => {
   const fixturesDir = join(__dirname, 'fixtures', 'conversation-linking')
 
@@ -519,7 +535,6 @@ describe('ConversationLinker - JSON File Tests', () => {
       const filePath = join(fixturesDir, file)
       const content = await readFile(filePath, 'utf-8')
       const testCase = JSON.parse(content)
-      // Running test case from file
 
       // Compute the actual parent hash from parent messages before creating mocks
       let computedParentHash: string | null = null
@@ -531,6 +546,7 @@ describe('ConversationLinker - JSON File Tests', () => {
         // Create a temporary linker just to compute the hash
         const tempLinker = new ConversationLinker(
           async () => [],
+          createMockLogger(),
           async () => null,
           undefined,
           undefined,
@@ -540,7 +556,7 @@ describe('ConversationLinker - JSON File Tests', () => {
 
         // Check if computed hash matches stored hash
         if (computedParentHash !== testCase.parent.current_message_hash) {
-          // Hash mismatch in fixture - using computed hash for test
+          // Hash mismatch in fixture - will use computed hash for test
         }
       }
 
@@ -669,7 +685,7 @@ describe('ConversationLinker - JSON File Tests', () => {
                     requestId: testCase.expectedParentTaskRequestId,
                     toolUseId: 'test-tool-id',
                     prompt: promptText,
-                    timestamp: new Date('2025-01-01T11:59:55Z'), // 5 seconds before the test timestamp
+                    timestamp: SUBTASK_TIMESTAMP, // 5 seconds before the test timestamp
                   },
                 ]
               }
@@ -682,13 +698,7 @@ describe('ConversationLinker - JSON File Tests', () => {
           ? async () => 0 // Return 0 for base sequence
           : undefined
 
-      // Create a no-op logger for this test
-      const testLogger = {
-        debug: () => {},
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-      }
+      const testLogger = createMockLogger()
 
       const linker = new ConversationLinker(
         mockQueryExecutor,
@@ -704,12 +714,7 @@ describe('ConversationLinker - JSON File Tests', () => {
       const childSystemPrompt = testCase.child.body.system
 
       // Use a fixed timestamp for the test to ensure consistency
-      const testTimestamp = new Date('2025-01-01T12:00:00Z')
-
-      // Verify subtask has single message
-      if (testCase.expectedParentTaskRequestId && childMessages.length > 1) {
-        // Subtask test has multiple messages, expected 1
-      }
+      const testTimestamp = TEST_TIMESTAMP
 
       const request: LinkingRequest = {
         domain: testCase.child.domain,
@@ -724,9 +729,6 @@ describe('ConversationLinker - JSON File Tests', () => {
 
       if (testCase.expectedParentTaskRequestId !== undefined) {
         // Check if parentTaskRequestId matches expected
-        if (result.parentTaskRequestId !== testCase.expectedParentTaskRequestId) {
-          // Test failure - parentTaskRequestId mismatch
-        }
         expect(result.parentTaskRequestId).toBe(testCase.expectedParentTaskRequestId)
       }
 
@@ -754,6 +756,7 @@ describe('ConversationLinker - JSON File Tests', () => {
   })
 })
 
+// Hash system tests
 describe('Dual Hash System - Message and System Hashing', () => {
   describe('hashMessagesOnly', () => {
     test('should hash single message correctly', () => {
@@ -761,7 +764,7 @@ describe('Dual Hash System - Message and System Hashing', () => {
 
       const hash = hashMessagesOnly(messages)
       expect(hash).toBeTruthy()
-      expect(hash.length).toBe(64) // SHA-256 produces 64 hex characters
+      expect(hash.length).toBe(SHA256_HASH_LENGTH)
     })
 
     test('should produce consistent hash for same messages', () => {
@@ -857,7 +860,7 @@ describe('Dual Hash System - Message and System Hashing', () => {
 
       expect(hash).toBeTruthy()
       expect(hash).not.toBeNull()
-      expect(hash?.length).toBe(64)
+      expect(hash?.length).toBe(SHA256_HASH_LENGTH)
     })
 
     test('should hash array system prompt', () => {
@@ -868,7 +871,7 @@ describe('Dual Hash System - Message and System Hashing', () => {
       const hash = hashSystemPrompt(system)
 
       expect(hash).toBeTruthy()
-      expect(hash?.length).toBe(64)
+      expect(hash?.length).toBe(SHA256_HASH_LENGTH)
     })
 
     test('should return null for undefined system', () => {
@@ -941,13 +944,7 @@ describe('Dual Hash System - Message and System Hashing', () => {
 
   describe('Integration with ConversationLinker', () => {
     test('should properly separate system and message hashes in linking result', async () => {
-      // Create a no-op logger for this test
-      const testLogger = {
-        debug: () => {},
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-      }
+      const testLogger = createMockLogger()
 
       const linker = new ConversationLinker(
         async () => [], // mockQueryExecutor
@@ -984,13 +981,7 @@ describe('Dual Hash System - Message and System Hashing', () => {
     test('should maintain conversation link when system prompt changes', async () => {
       let queryResults: ParentRequest[] = []
 
-      // Create a no-op logger for this test
-      const testLogger = {
-        debug: () => {},
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-      }
+      const testLogger = createMockLogger()
 
       const linker = new ConversationLinker(
         async criteria => {
