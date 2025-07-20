@@ -13,20 +13,95 @@ import { csrfProtection } from '../../middleware/csrf.js'
 
 import { ProxyApiClient } from '../../services/api-client.js'
 
-// SVG Icons for analysis sections
-const ICONS = {
-  summary: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" /></svg>`,
-  keyTopics: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>`,
-  sentiment: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
-  actionItems: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>`,
-  outcomes: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>`,
-  userIntent: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>`,
-  technicalDetails: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`,
-  conversationQuality: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>`,
-  promptingTips: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
-  interactionPatterns: `<svg xmlns="http://www.w3.org/2000/svg" style="width: 1.25rem; height: 1.25rem; color: #6b7280;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`,
+// Constants
+const POLL_INTERVALS = [2, 3, 5, 10, 10] // Progressive backoff in seconds
+const DEFAULT_POLL_COUNT = 0
+
+// Type definitions for analysis data structure
+interface AnalysisActionItem {
+  type: 'task' | 'prompt_improvement' | 'follow_up'
+  priority?: 'high' | 'medium' | 'low'
+  description: string
 }
 
+interface AnalysisPromptingTip {
+  category: string
+  issue: string
+  suggestion: string
+  example?: string
+}
+
+interface AnalysisInteractionPatterns {
+  promptClarity: number
+  contextCompleteness: number
+  followUpEffectiveness: string
+  commonIssues?: string[]
+  strengths?: string[]
+}
+
+interface AnalysisTechnicalDetails {
+  frameworks: string[]
+  issues: string[]
+  solutions: string[]
+  toolUsageEfficiency?: string
+  contextWindowManagement?: string
+}
+
+interface AnalysisConversationQuality {
+  clarity: string
+  clarityImprovement?: string
+  completeness: string
+  completenessImprovement?: string
+  effectiveness: string
+  effectivenessImprovement?: string
+}
+
+interface AnalysisData {
+  summary?: string
+  keyTopics?: string[]
+  sentiment?: string
+  actionItems?: AnalysisActionItem[]
+  outcomes?: string[]
+  userIntent?: string
+  promptingTips?: AnalysisPromptingTip[]
+  interactionPatterns?: AnalysisInteractionPatterns
+  technicalDetails?: AnalysisTechnicalDetails
+  conversationQuality?: AnalysisConversationQuality
+}
+
+// SVG icon paths (more compact format)
+const ICON_PATHS = {
+  summary: 'M4 6h16M4 12h16M4 18h7',
+  keyTopics: 'M7 20l4-16m2 16l4-16M6 9h14M4 15h14',
+  sentiment: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  actionItems: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  outcomes: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z',
+  userIntent: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  technicalDetails: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  conversationQuality: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  promptingTips: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  interactionPatterns: 'M7 12l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  analysis: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z',
+  error: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  warning: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+  refresh: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+  customize: 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4',
+  lightning: 'M13 10V3L4 14h7v7l9-11h-7z',
+  clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+  empty: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
+  alertTriangle: 'M12 8v4m0 4h.01M12 3l9.66 16.5a1 1 0 01-.86 1.5H3.2a1 1 0 01-.86-1.5L12 3z',
+} as const
+
+// Helper function to create SVG icons
+function createIcon(path: string, className?: string): string {
+  const defaultClass = 'width: 1.25rem; height: 1.25rem; color: #6b7280;'
+  return `<svg xmlns="http://www.w3.org/2000/svg" style="${className || defaultClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${path}" /></svg>`
+}
+
+/**
+ * Routes for AI analysis panel partials in the dashboard.
+ * Handles the display and management of AI-powered conversation analysis.
+ */
 export const analysisPartialsRoutes = new Hono<{
   Variables: {
     apiClient?: ProxyApiClient
@@ -39,6 +114,7 @@ analysisPartialsRoutes.use('*', csrfProtection())
 
 /**
  * Get the current status of an analysis and render the appropriate partial
+ * @route GET /partials/analysis/status/:conversationId/:branchId
  */
 analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
   const { conversationId, branchId } = c.req.param()
@@ -77,7 +153,7 @@ analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
       default:
         return c.html(renderIdlePanel(conversationId, branchId))
     }
-  } catch (error: any) {
+  } catch (error) {
     // If it's a 404, the analysis doesn't exist yet - show idle panel
     if (error?.status === 404) {
       return c.html(renderIdlePanel(conversationId, branchId))
@@ -96,6 +172,7 @@ analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
 
 /**
  * Handle analysis generation request
+ * @route POST /partials/analysis/generate/:conversationId/:branchId
  */
 analysisPartialsRoutes.post('/generate/:conversationId/:branchId', async c => {
   const { conversationId, branchId } = c.req.param()
@@ -117,13 +194,14 @@ analysisPartialsRoutes.post('/generate/:conversationId/:branchId', async c => {
       await apiClient.post('/api/analyses', requestData)
       // Analysis created successfully - show processing state
       return c.html(renderProcessingPanel(conversationId, branchId, 0))
-    } catch (postError: any) {
+    } catch (postError) {
       // Check if it's a 409 conflict
       if (postError?.status === 409 && postError?.data) {
         interface ConflictErrorData {
           analysis: GetAnalysisResponse
         }
-        const conflictData = postError.data as ConflictErrorData
+        const errorWithData = postError as { status?: number; data?: unknown }
+        const conflictData = errorWithData.data as ConflictErrorData
         const analysis = conflictData.analysis
 
         if (analysis.status === 'pending' || analysis.status === 'processing') {
@@ -147,7 +225,8 @@ analysisPartialsRoutes.post('/generate/:conversationId/:branchId', async c => {
 })
 
 /**
- * Handle analysis regeneration request
+ * Handle analysis regeneration request  
+ * @route POST /partials/analysis/regenerate/:conversationId/:branchId
  */
 analysisPartialsRoutes.post('/regenerate/:conversationId/:branchId', async c => {
   const { conversationId, branchId } = c.req.param()
@@ -180,6 +259,9 @@ analysisPartialsRoutes.post('/regenerate/:conversationId/:branchId', async c => 
 
 // Render functions for different states
 
+/**
+ * Renders the idle state panel (no analysis yet)
+ */
 function renderIdlePanel(conversationId: string, branchId: string) {
   const defaultPrompt = getAnalysisPromptTemplate()
   const promptId = `prompt-${conversationId}-${branchId}`.replace(/[^a-zA-Z0-9-]/g, '-')
@@ -187,20 +269,7 @@ function renderIdlePanel(conversationId: string, branchId: string) {
   return html`
     <div id="analysis-panel" class="section">
       <div class="section-header" style="display: flex; align-items: center; gap: 0.75rem;">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          style="width: 1.25rem; height: 1.25rem; color: #6b7280;"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-          />
-        </svg>
+        ${createIcon(ICON_PATHS.analysis)}
         <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1f2937;">
           AI Analysis
         </h3>
@@ -217,20 +286,7 @@ function renderIdlePanel(conversationId: string, branchId: string) {
             style="cursor: pointer; color: #4b5563; font-size: 0.875rem; margin-bottom: 0.75rem;"
           >
             <span style="display: inline-flex; align-items: center; gap: 0.25rem;">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                style="width: 1rem; height: 1rem;"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                />
-              </svg>
+              ${createIcon(ICON_PATHS.customize, 'width: 1rem; height: 1rem;')}
               Customize Analysis Prompt
             </span>
           </summary>
@@ -265,20 +321,7 @@ ${defaultPrompt}</textarea
           class="btn"
           style="display: inline-flex; align-items: center; gap: 0.5rem;"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            style="width: 1rem; height: 1rem;"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M13 10V3L4 14h7v7l9-11h-7z"
-            />
-          </svg>
+          ${createIcon(ICON_PATHS.lightning, 'width: 1rem; height: 1rem;')}
           Generate AI Analysis
         </button>
       </div>
@@ -300,20 +343,7 @@ function renderProcessingPanel(conversationId: string, branchId: string, pollCou
       hx-swap="outerHTML"
     >
       <div class="section-header" style="display: flex; align-items: center; gap: 0.75rem;">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          style="width: 1.25rem; height: 1.25rem; color: #6b7280;"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-          />
-        </svg>
+        ${createIcon(ICON_PATHS.analysis)}
         <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1f2937;">
           AI Analysis
         </h3>
@@ -334,7 +364,13 @@ function renderProcessingPanel(conversationId: string, branchId: string, pollCou
   `
 }
 
-// Helper function to render a section with consistent styling
+/**
+ * Helper function to render a section with consistent styling
+ * @param icon - SVG icon string
+ * @param title - Section title
+ * @param content - HTML content to display
+ * @returns HTML string for the section
+ */
 function renderAnalysisSection(icon: string, title: string, content: any): string {
   if (!content) {
     return ''
@@ -353,6 +389,68 @@ function renderAnalysisSection(icon: string, title: string, content: any): strin
       </div>
     </div>
   `
+}
+
+/**
+ * Formats a date to a human-readable string
+ * @param date - Date to format
+ * @returns Formatted date string
+ */
+function formatDate(date: string | Date): string {
+  const d = new Date(date)
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/**
+ * Gets the polling interval based on the poll count
+ * @param pollCount - Current poll count
+ * @returns Interval in seconds
+ */
+function getPollInterval(pollCount: number): number {
+  return POLL_INTERVALS[Math.min(pollCount, POLL_INTERVALS.length - 1)]
+}
+
+/**
+ * Gets the color for an action item type
+ * @param type - Action item type
+ * @returns Color hex code
+ */
+function getActionItemTypeColor(type?: string): string {
+  const typeColors: Record<string, string> = {
+    task: '#3b82f6',
+    prompt_improvement: '#8b5cf6',
+    follow_up: '#f59e0b',
+  }
+  return typeColors[type || ''] || '#6b7280'
+}
+
+/**
+ * Gets the priority icon
+ * @param priority - Priority level
+ * @returns Emoji icon
+ */
+function getPriorityIcon(priority?: string): string {
+  const priorityIcons: Record<string, string> = {
+    high: '🔴',
+    medium: '🟡',
+    low: '🟢',
+  }
+  return priorityIcons[priority || ''] || ''
+}
+
+/**
+ * Formats action item type for display
+ * @param type - Action item type
+ * @returns Formatted string
+ */
+function formatActionItemType(type?: string): string {
+  return type?.replace('_', ' ') || ''
 }
 
 function renderCompletedPanel(
@@ -487,7 +585,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.summary
           ? raw(
               renderAnalysisSection(
-                ICONS.summary,
+                createIcon(ICON_PATHS.summary),
                 'Summary',
                 html`<p style="margin: 0;">${escapeHtml(analysisData.summary)}</p>`
               )
@@ -496,7 +594,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.keyTopics && analysisData.keyTopics.length > 0
           ? raw(
               renderAnalysisSection(
-                ICONS.keyTopics,
+                createIcon(ICON_PATHS.keyTopics),
                 'Key Topics',
                 html`
                   <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
@@ -517,7 +615,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.sentiment
           ? raw(
               renderAnalysisSection(
-                ICONS.sentiment,
+                createIcon(ICON_PATHS.sentiment),
                 'Sentiment',
                 html`<p style="margin: 0;">${escapeHtml(analysisData.sentiment)}</p>`
               )
@@ -526,33 +624,24 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.actionItems && analysisData.actionItems.length > 0
           ? raw(
               renderAnalysisSection(
-                ICONS.actionItems,
+                createIcon(ICON_PATHS.actionItems),
                 'Action Items',
                 html`
                   <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     ${analysisData.actionItems.map((item: any) => {
-                      const typeColors: Record<string, string> = {
-                        task: '#3b82f6',
-                        prompt_improvement: '#8b5cf6',
-                        follow_up: '#f59e0b',
-                      }
-                      const priorityIcons: Record<string, string> = {
-                        high: '🔴',
-                        medium: '🟡',
-                        low: '🟢',
-                      }
+                      const typeColor = getActionItemTypeColor(item.type)
+                      const priorityIcon = getPriorityIcon(item.priority)
                       return html`
                         <div
                           style="display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; background: white; border-radius: 0.375rem; border: 1px solid #e5e7eb;"
                         >
                           <span
-                            style="color: ${typeColors[item.type] ||
-                            '#6b7280'}; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;"
-                            >${item.type?.replace('_', ' ')}</span
+                            style="color: ${typeColor}; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;"
+                            >${formatActionItemType(item.type)}</span
                           >
                           ${item.priority
                             ? html`<span title="${item.priority} priority"
-                                >${priorityIcons[item.priority]}</span
+                                >${priorityIcon}</span
                               >`
                             : ''}
                           <span style="flex: 1; font-size: 0.875rem;"
@@ -569,7 +658,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.outcomes && analysisData.outcomes.length > 0
           ? raw(
               renderAnalysisSection(
-                ICONS.outcomes,
+                createIcon(ICON_PATHS.outcomes),
                 'Outcomes',
                 html`
                   <ul style="margin: 0; padding-left: 1.25rem; list-style-type: disc;">
@@ -585,7 +674,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.userIntent
           ? raw(
               renderAnalysisSection(
-                ICONS.userIntent,
+                createIcon(ICON_PATHS.userIntent),
                 'User Intent',
                 html`<p style="margin: 0;">${escapeHtml(analysisData.userIntent)}</p>`
               )
@@ -594,7 +683,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.promptingTips && analysisData.promptingTips.length > 0
           ? raw(
               renderAnalysisSection(
-                ICONS.promptingTips,
+                createIcon(ICON_PATHS.promptingTips),
                 'Prompting Tips',
                 html`
                   <div style="display: flex; flex-direction: column; gap: 1rem;">
@@ -645,7 +734,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.interactionPatterns
           ? raw(
               renderAnalysisSection(
-                ICONS.interactionPatterns,
+                createIcon(ICON_PATHS.interactionPatterns),
                 'Interaction Patterns',
                 html`
                   <div>
@@ -758,7 +847,7 @@ ${getAnalysisPromptTemplate()}</textarea
           analysisData.technicalDetails.solutions.length > 0)
           ? raw(
               renderAnalysisSection(
-                ICONS.technicalDetails,
+                createIcon(ICON_PATHS.technicalDetails),
                 'Technical Details',
                 html`
                   ${analysisData.technicalDetails.frameworks.length > 0
@@ -869,7 +958,7 @@ ${getAnalysisPromptTemplate()}</textarea
         ${analysisData?.conversationQuality
           ? raw(
               renderAnalysisSection(
-                ICONS.conversationQuality,
+                createIcon(ICON_PATHS.conversationQuality),
                 'Conversation Quality',
                 html`
                   <div
@@ -1010,24 +1099,14 @@ ${getAnalysisPromptTemplate()}</textarea
   `
 }
 
+/**
+ * Renders the failed analysis panel
+ */
 function renderFailedPanel(conversationId: string, branchId: string, errorMessage?: string | null) {
   return html`
     <div id="analysis-panel" class="section">
       <div class="section-header" style="display: flex; align-items: center; gap: 0.75rem;">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          style="width: 1.25rem; height: 1.25rem; color: #ef4444;"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
+        ${createIcon(ICON_PATHS.error, 'width: 1.25rem; height: 1.25rem; color: #ef4444;')}
         <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1f2937;">
           AI Analysis Failed
         </h3>
@@ -1091,24 +1170,14 @@ function renderFailedPanel(conversationId: string, branchId: string, errorMessag
   `
 }
 
+/**
+ * Renders a generic error panel
+ */
 function renderErrorPanel(message: string) {
   return html`
     <div id="analysis-panel" class="section">
       <div class="section-header" style="display: flex; align-items: center; gap: 0.75rem;">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          style="width: 1.25rem; height: 1.25rem; color: #ef4444;"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
+        ${createIcon(ICON_PATHS.error, 'width: 1.25rem; height: 1.25rem; color: #ef4444;')}
         <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1f2937;">Error</h3>
       </div>
       <div class="section-content">
