@@ -11,27 +11,54 @@ import {
   type SubtaskQueryExecutor,
   type SubtaskSequenceQueryExecutor,
   type ClaudeMessage,
+  type ClaudeMessagesResponse,
   type ParentQueryCriteria,
   type TaskInvocation,
 } from '@claude-nexus/shared'
-// import { TaskInvocationCache } from './TaskInvocationCache.js' // Removed - using SQL query instead
+import {
+  STORAGE_TIME_WINDOWS,
+  STORAGE_QUERY_LIMITS,
+  REQUEST_ID_CLEANUP,
+  STORAGE_ENV_VARS,
+  UUID_REGEX,
+} from './constants.js'
+import type {
+  IStorageAdapter,
+  StorageRequestData,
+  StorageResponseData,
+  ConversationLinkResult,
+} from '../types/IStorageAdapter.js'
 
 /**
- * Storage adapter that provides a simplified interface for MetricsService
- * Wraps the StorageWriter to handle request/response storage
+ * Storage adapter that provides a unified interface for persisting API requests and responses.
+ *
+ * This adapter serves as the primary abstraction layer between the proxy service and the storage system,
+ * handling:
+ * - Request/response data persistence via StorageWriter
+ * - Request ID mapping (nanoid to UUID conversion) with automatic cleanup
+ * - Conversation tracking and linking via ConversationLinker
+ * - Task tool invocation detection for sub-task relationships
+ *
+ * The adapter implements a cleanup mechanism to prevent memory leaks from the request ID mapping cache.
+ *
+ * @example
+ * ```typescript
+ * const adapter = new StorageAdapter(pgPool);
+ * await adapter.storeRequest(requestData);
+ * await adapter.storeResponse(responseData);
+ * await adapter.close(); // Always close when done
+ * ```
  */
-export class StorageAdapter {
+export class StorageAdapter implements IStorageAdapter {
   private writer: StorageWriter
   private conversationLinker: ConversationLinker
   private requestIdMap: Map<string, { uuid: string; timestamp: number }> = new Map() // Map nanoid to UUID with timestamp
   private cleanupTimer: NodeJS.Timeout | null = null
   private isClosed: boolean = false
-  private readonly CLEANUP_INTERVAL_MS =
-    Number(process.env.STORAGE_ADAPTER_CLEANUP_MS) || 5 * 60 * 1000 // 5 minutes
-  private readonly RETENTION_TIME_MS =
-    Number(process.env.STORAGE_ADAPTER_RETENTION_MS) || 60 * 60 * 1000 // 1 hour
-  private readonly QUERY_WINDOW_HOURS = 24
-  private readonly MATCH_WINDOW_HOURS = 24
+  private readonly cleanupIntervalMs =
+    Number(process.env[STORAGE_ENV_VARS.CLEANUP_INTERVAL]) || REQUEST_ID_CLEANUP.DEFAULT_INTERVAL_MS
+  private readonly retentionTimeMs =
+    Number(process.env[STORAGE_ENV_VARS.RETENTION_TIME]) || REQUEST_ID_CLEANUP.DEFAULT_RETENTION_MS
 
   constructor(private pool: Pool) {
     // Enable SQL logging on the pool if DEBUG or DEBUG_SQL is set
@@ -127,39 +154,21 @@ export class StorageAdapter {
   }
 
   /**
-   * Store request data
+   * Stores API request data in the database.
+   *
+   * This method generates a UUID for the request, maintains the nanoid-to-UUID mapping,
+   * and delegates to StorageWriter for persistence. It handles conversation metadata
+   * including message hashes, conversation IDs, and sub-task relationships.
+   *
+   * @param data - The request data to store
+   * @param data.id - The original request ID (typically a nanoid)
+   * @param data.domain - The domain making the request
+   * @param data.accountId - Optional account identifier from credentials
+   * @param data.conversationId - Optional conversation ID for linking related requests
+   * @param data.isSubtask - Whether this request is a sub-task spawned by Task tool
+   * @throws {Error} If storage operation fails
    */
-  async storeRequest(data: {
-    id: string
-    domain: string
-    accountId?: string
-    timestamp: Date
-    method: string
-    path: string
-    headers: Record<string, string>
-    body: any
-    request_type: string
-    model: string
-    input_tokens?: number
-    output_tokens?: number
-    total_tokens?: number
-    cache_creation_input_tokens?: number
-    cache_read_input_tokens?: number
-    usage_data?: any
-    tool_call_count?: number
-    processing_time?: number
-    status_code?: number
-    currentMessageHash?: string
-    parentMessageHash?: string | null
-    conversationId?: string
-    branchId?: string
-    systemHash?: string | null
-    messageCount?: number
-    parentTaskRequestId?: string
-    isSubtask?: boolean
-    taskToolInvocation?: any
-    parentRequestId?: string
-  }): Promise<void> {
+  async storeRequest(data: StorageRequestData): Promise<void> {
     try {
       // Generate a UUID for this request and store the mapping with timestamp
       const uuid = randomUUID()
@@ -208,23 +217,20 @@ export class StorageAdapter {
   }
 
   /**
-   * Store response data
+   * Stores API response data in the database.
+   *
+   * This method looks up the UUID for the request ID and updates the existing request record
+   * with response data including status, headers, body, and token usage metrics.
+   *
+   * @param data - The response data to store
+   * @param data.request_id - The original request ID to match with stored request
+   * @param data.status_code - HTTP status code of the response
+   * @param data.body - The response body (full response including metadata)
+   * @param data.input_tokens - Number of input tokens consumed
+   * @param data.output_tokens - Number of output tokens generated
+   * @throws {Error} If storage operation fails
    */
-  async storeResponse(data: {
-    request_id: string
-    status_code: number
-    headers: Record<string, string>
-    body: any
-    timestamp: Date
-    input_tokens?: number
-    output_tokens?: number
-    total_tokens?: number
-    cache_creation_input_tokens?: number
-    cache_read_input_tokens?: number
-    usage_data?: any
-    tool_call_count?: number
-    processing_time?: number
-  }): Promise<void> {
+  async storeResponse(data: StorageResponseData): Promise<void> {
     try {
       // Get the UUID for this request ID
       const mapping = this.requestIdMap.get(data.request_id)
@@ -275,9 +281,16 @@ export class StorageAdapter {
   }
 
   /**
-   * Store streaming chunk
+   * Stores a streaming response chunk for later reconstruction.
+   *
+   * Used for streaming responses to capture individual chunks as they arrive.
+   * Chunks are stored with their index to maintain proper ordering.
+   *
+   * @param requestId - The original request ID
+   * @param chunkIndex - Sequential index of this chunk in the stream
+   * @param data - The chunk data to store
    */
-  async storeStreamingChunk(requestId: string, chunkIndex: number, data: any): Promise<void> {
+  async storeStreamingChunk(requestId: string, chunkIndex: number, data: unknown): Promise<void> {
     try {
       // Get the UUID for this request ID
       const mapping = this.requestIdMap.get(requestId)
@@ -316,9 +329,14 @@ export class StorageAdapter {
   }
 
   /**
-   * Find conversation ID by parent message hash
+   * Finds a conversation ID by searching for a parent message hash.
+   *
+   * Used for conversation linking when determining if a new request continues
+   * an existing conversation thread.
+   *
    * @param parentHash - The parent message hash to search for
-   * @param beforeTimestamp - Timestamp to only consider conversations before this time
+   * @param beforeTimestamp - Only consider conversations before this timestamp
+   * @returns The conversation ID if found, null otherwise
    */
   async findConversationByParentHash(
     parentHash: string,
@@ -328,12 +346,18 @@ export class StorageAdapter {
   }
 
   /**
-   * Link a conversation using the new ConversationLinker
+   * Links a request to its conversation thread using message content hashing.
+   *
+   * This method uses the ConversationLinker to determine conversation relationships,
+   * detect branches, and identify sub-tasks spawned by the Task tool. It handles
+   * nanoid-to-UUID conversion and passes the request to ConversationLinker for analysis.
+   *
    * @param domain - The domain for the request
-   * @param messages - The conversation messages
-   * @param systemPrompt - The system prompt (string or array format)
-   * @param requestId - The request ID
+   * @param messages - The conversation messages to analyze
+   * @param systemPrompt - The system prompt (string or structured format)
+   * @param requestId - The request ID (nanoid or UUID)
    * @param referenceTime - The timestamp of the request being processed
+   * @returns Conversation linking results including IDs, hashes, and sub-task info
    */
   async linkConversation(
     domain: string,
@@ -344,7 +368,7 @@ export class StorageAdapter {
       | undefined,
     requestId: string,
     referenceTime: Date
-  ) {
+  ): Promise<ConversationLinkResult> {
     const messageCount = messages?.length || 0
 
     // Convert nanoid to UUID before passing to ConversationLinker
@@ -395,11 +419,19 @@ export class StorageAdapter {
   }
 
   /**
-   * Process Task tool invocations in a response
+   * Processes and stores Task tool invocations found in a response.
+   *
+   * This method scans the response body for Task tool usage, extracts the invocations,
+   * and marks the request as having task invocations in the database. This data is later
+   * used for sub-task detection and linking.
+   *
+   * @param requestId - The request ID containing the Task invocations
+   * @param responseBody - The response body to scan for Task tool usage
+   * @param _domain - The domain (currently unused but kept for API compatibility)
    */
   async processTaskToolInvocations(
     requestId: string,
-    responseBody: any,
+    responseBody: ClaudeMessagesResponse | Record<string, unknown>,
     _domain: string
   ): Promise<void> {
     const taskInvocations = this.writer.findTaskToolInvocations(responseBody)
@@ -442,15 +474,22 @@ export class StorageAdapter {
   }
 
   /**
-   * Check if a string is a valid UUID
+   * Validates whether a string is a properly formatted UUID v4.
+   *
+   * @param str - The string to validate
+   * @returns true if the string is a valid UUID, false otherwise
    */
   private isValidUUID(str: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(str)
+    return UUID_REGEX.test(str)
   }
 
   /**
-   * Schedule the next cleanup using recursive setTimeout
+   * Schedules the next cleanup cycle for the request ID map.
+   *
+   * Uses recursive setTimeout to avoid issues with long-running timers.
+   * Cleanup runs at intervals defined by STORAGE_ADAPTER_CLEANUP_MS environment variable.
+   *
+   * @private
    */
   private scheduleNextCleanup(): void {
     // Don't schedule if we're closed
@@ -471,11 +510,17 @@ export class StorageAdapter {
         // Continue scheduling despite errors to prevent the cleanup from stopping
       }
       this.scheduleNextCleanup()
-    }, this.CLEANUP_INTERVAL_MS)
+    }, this.cleanupIntervalMs)
   }
 
   /**
-   * Clean up orphaned entries older than retention time
+   * Removes expired entries from the request ID mapping cache.
+   *
+   * Entries older than the retention time (default 1 hour) are removed to prevent
+   * unbounded memory growth. Logs performance metrics and warnings if cleanup
+   * takes longer than expected.
+   *
+   * @private
    */
   private cleanupOrphanedEntries(): void {
     const startTime = Date.now()
@@ -485,7 +530,7 @@ export class StorageAdapter {
 
     try {
       for (const [requestId, mapping] of this.requestIdMap.entries()) {
-        if (now - mapping.timestamp > this.RETENTION_TIME_MS) {
+        if (now - mapping.timestamp > this.retentionTimeMs) {
           this.requestIdMap.delete(requestId)
           cleanedCount++
         }
@@ -500,13 +545,13 @@ export class StorageAdapter {
           initialSize,
           currentSize: this.requestIdMap.size,
           durationMs,
-          retentionTimeMs: this.RETENTION_TIME_MS,
-          cleanupIntervalMs: this.CLEANUP_INTERVAL_MS,
+          retentionTimeMs: this.retentionTimeMs,
+          cleanupIntervalMs: this.cleanupIntervalMs,
         },
       })
 
       // Warn if cleanup is taking too long
-      if (durationMs > 100) {
+      if (durationMs > REQUEST_ID_CLEANUP.PERFORMANCE_WARNING_THRESHOLD_MS) {
         logger.warn('Storage adapter cleanup took longer than expected', {
           metadata: {
             durationMs,
@@ -530,12 +575,18 @@ export class StorageAdapter {
   }
 
   /**
-   * Load recent Task tool invocations for subtask detection.
-   * This method is called by ConversationLinker via the subtaskQueryExecutor.
+   * Loads recent Task tool invocations from the database for sub-task detection.
+   *
+   * This method is called by ConversationLinker via the subtaskQueryExecutor to find
+   * Task invocations that might have spawned the current request as a sub-task.
+   * Uses optimized queries when a specific prompt is provided.
+   *
    * @param domain - The domain to search in
    * @param timestamp - The reference timestamp for the search window
    * @param debugMode - Whether to log debug information
-   * @param subtaskPrompt - Optional prompt to filter by (for optimization)
+   * @param subtaskPrompt - Optional prompt to filter by (enables optimized query)
+   * @returns Array of task invocations or undefined if none found
+   * @private
    */
   private async loadTaskInvocations(
     domain: string,
@@ -544,11 +595,13 @@ export class StorageAdapter {
     subtaskPrompt?: string
   ): Promise<TaskInvocation[] | undefined> {
     // Query for Task tool invocations within the query window before this timestamp
-    const timeWindowStart = new Date(timestamp.getTime() - this.QUERY_WINDOW_HOURS * 60 * 60 * 1000)
+    const timeWindowStart = new Date(
+      timestamp.getTime() - STORAGE_TIME_WINDOWS.QUERY_WINDOW_HOURS * 60 * 60 * 1000
+    )
 
     // Use optimized query with @> operator when prompt is provided
     let query: string
-    let params: any[]
+    let params: (string | Date)[]
 
     if (subtaskPrompt) {
       // Optimized query using @> containment operator for exact prompt matching
@@ -570,7 +623,7 @@ export class StorageAdapter {
             )
           )
         ORDER BY r.timestamp DESC
-        LIMIT 10
+        LIMIT ${STORAGE_QUERY_LIMITS.TASK_INVOCATIONS_WITH_PROMPT}
       `
       params = [domain, timeWindowStart, timestamp, subtaskPrompt.replace(/\\n/g, '\n')]
 
@@ -593,7 +646,7 @@ export class StorageAdapter {
           AND r.response_body IS NOT NULL
           AND jsonb_path_exists(r.response_body, '$.content[*] ? (@.type == "tool_use" && @.name == "Task")')
         ORDER BY r.timestamp DESC
-        LIMIT 100
+        LIMIT ${STORAGE_QUERY_LIMITS.TASK_INVOCATIONS_WITHOUT_PROMPT}
       `
       params = [domain, timeWindowStart, timestamp]
     }
@@ -604,7 +657,7 @@ export class StorageAdapter {
 
       if (debugMode && result.rows.length > 0) {
         logger.debug(
-          `Found ${result.rows.length} requests with Task invocations in ${this.QUERY_WINDOW_HOURS}-hour window`
+          `Found ${result.rows.length} requests with Task invocations in ${STORAGE_TIME_WINDOWS.QUERY_WINDOW_HOURS}-hour window`
         )
       }
 
@@ -627,14 +680,16 @@ export class StorageAdapter {
       }
 
       // Filter to only recent invocations within the match window
-      const recentCutoff = new Date(timestamp.getTime() - this.MATCH_WINDOW_HOURS * 60 * 60 * 1000)
+      const recentCutoff = new Date(
+        timestamp.getTime() - STORAGE_TIME_WINDOWS.MATCH_WINDOW_HOURS * 60 * 60 * 1000
+      )
       const filteredInvocations = recentInvocations.filter(
         inv => inv.timestamp >= recentCutoff && inv.timestamp <= timestamp
       )
 
       if (debugMode && filteredInvocations.length > 0) {
         logger.debug(
-          `Found ${filteredInvocations.length} Task invocations within ${this.MATCH_WINDOW_HOURS}h window`
+          `Found ${filteredInvocations.length} Task invocations within ${STORAGE_TIME_WINDOWS.MATCH_WINDOW_HOURS}h window`
         )
       }
 
@@ -650,7 +705,17 @@ export class StorageAdapter {
   }
 
   /**
-   * Close the storage adapter
+   * Gracefully closes the storage adapter and releases resources.
+   *
+   * This method stops the cleanup timer, clears the request ID map,
+   * and closes the underlying writer connection. Always call this method
+   * when shutting down to prevent resource leaks.
+   *
+   * @example
+   * ```typescript
+   * // In shutdown handler
+   * await storageAdapter.close();
+   * ```
    */
   async close(): Promise<void> {
     // Mark as closed to prevent new cleanups from being scheduled
