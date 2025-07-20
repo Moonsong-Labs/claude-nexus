@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../services/api-client.js'
-import { getErrorMessage, getModelContextLimit, getBatteryColor } from '@claude-nexus/shared'
+import { getErrorMessage } from '@claude-nexus/shared'
 import {
   formatNumber,
   formatDuration,
@@ -9,6 +9,29 @@ import {
   formatRelativeTime,
 } from '../utils/formatters.js'
 import { layout } from '../layout/index.js'
+import type { ConversationBranch } from '../types/conversation.js'
+import {
+  getBranchDisplayInfo,
+  renderBatteryIndicator,
+  generatePageNumbers,
+} from '../utils/conversation-display.js'
+import {
+  calculateConversationStats,
+  filterConversations,
+  sortConversationsByRecent,
+  paginateConversations,
+} from '../utils/overview-data.js'
+import {
+  DEFAULT_PAGE,
+  DEFAULT_ITEMS_PER_PAGE,
+  MIN_ITEMS_PER_PAGE,
+  MAX_ITEMS_PER_PAGE,
+  MAX_CONVERSATIONS_FETCH,
+  CONVERSATION_ID_DISPLAY_LENGTH,
+  ACCOUNT_ID_MAX_DISPLAY_LENGTH,
+  MAX_VISIBLE_PAGE_BUTTONS,
+  PAGINATION_OPTIONS,
+} from '../constants/overview.js'
 
 export const overviewRoutes = new Hono<{
   Variables: {
@@ -22,13 +45,13 @@ export const overviewRoutes = new Hono<{
  */
 overviewRoutes.get('/', async c => {
   const domain = c.req.query('domain')
-  const page = parseInt(c.req.query('page') || '1')
-  const perPage = parseInt(c.req.query('per_page') || '50')
+  const page = parseInt(c.req.query('page') || String(DEFAULT_PAGE))
+  const perPage = parseInt(c.req.query('per_page') || String(DEFAULT_ITEMS_PER_PAGE))
   const searchQuery = c.req.query('search')?.toLowerCase()
 
   // Validate pagination params
   const currentPage = Math.max(1, page)
-  const itemsPerPage = Math.min(Math.max(10, perPage), 100) // Between 10 and 100
+  const itemsPerPage = Math.min(Math.max(MIN_ITEMS_PER_PAGE, perPage), MAX_ITEMS_PER_PAGE)
 
   // Get API client from context
   const apiClient = c.get('apiClient')
@@ -48,31 +71,14 @@ overviewRoutes.get('/', async c => {
 
   try {
     // Fetch conversations with account information from the API
-    const conversationsResult = await apiClient.getConversations({ domain, limit: 10000 })
+    const conversationsResult = await apiClient.getConversations({
+      domain,
+      limit: MAX_CONVERSATIONS_FETCH,
+    })
     const apiConversations = conversationsResult.conversations
 
-    // Create flat list of conversations (simplified for now)
-    const conversationBranches: Array<{
-      conversationId: string
-      accountId?: string
-      branch: string
-      branchCount: number
-      subtaskBranchCount: number
-      compactBranchCount: number
-      userBranchCount: number
-      messageCount: number
-      tokens: number
-      firstMessage: Date
-      lastMessage: Date
-      domain: string
-      latestRequestId?: string
-      latestModel?: string
-      latestContextTokens?: number
-      isSubtask?: boolean
-      parentTaskRequestId?: string
-      parentConversationId?: string
-      subtaskMessageCount?: number
-    }> = []
+    // Create flat list of conversations
+    const conversationBranches: ConversationBranch[] = []
 
     // Process API conversations
     apiConversations.forEach(conv => {
@@ -99,38 +105,19 @@ overviewRoutes.get('/', async c => {
       })
     })
 
-    // Apply search filter if provided
-    let filteredBranches = conversationBranches
-    if (searchQuery) {
-      filteredBranches = conversationBranches.filter(branch => {
-        return (
-          branch.conversationId.toLowerCase().includes(searchQuery) ||
-          branch.branch.toLowerCase().includes(searchQuery) ||
-          branch.domain.toLowerCase().includes(searchQuery)
-        )
-      })
-    }
+    // Apply search filter and sorting
+    const filteredBranches = filterConversations(conversationBranches, searchQuery)
+    const sortedBranches = sortConversationsByRecent(filteredBranches)
 
-    // Sort by last message time
-    filteredBranches.sort((a, b) => b.lastMessage.getTime() - a.lastMessage.getTime())
+    // Calculate statistics
+    const stats = calculateConversationStats(conversationBranches)
 
-    // No longer filter subtasks - display all conversations at the same level
-    const groupedConversations = filteredBranches
-
-    // Get unique domains for the dropdown
-    const uniqueDomains = [...new Set(conversationBranches.map(branch => branch.domain))].sort()
-
-    // Calculate totals from conversation branches
-    const totalRequests = conversationBranches.reduce((sum, branch) => sum + branch.messageCount, 0)
-    const totalTokens = conversationBranches.reduce((sum, branch) => sum + branch.tokens, 0)
-    const uniqueAccounts = [...new Set(conversationBranches.map(b => b.accountId).filter(Boolean))]
-
-    // Calculate pagination
-    const totalItems = groupedConversations.length
-    const totalPages = Math.ceil(totalItems / itemsPerPage)
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    const paginatedBranches = groupedConversations.slice(startIndex, endIndex)
+    // Apply pagination
+    const { paginatedBranches, totalItems, totalPages } = paginateConversations(
+      sortedBranches,
+      currentPage,
+      itemsPerPage
+    )
 
     const content = html`
       <div
@@ -185,7 +172,7 @@ overviewRoutes.get('/', async c => {
         >
           <option value="">All Domains</option>
           ${raw(
-            uniqueDomains
+            stats.uniqueDomains
               .map(
                 d =>
                   `<option value="${escapeHtml(d)}" ${domain === d ? 'selected' : ''}>${escapeHtml(d)}</option>`
@@ -204,17 +191,17 @@ overviewRoutes.get('/', async c => {
         </div>
         <div class="stat-card">
           <div class="stat-label">Active Accounts</div>
-          <div class="stat-value">${uniqueAccounts.length}</div>
+          <div class="stat-value">${stats.uniqueAccounts.length}</div>
           <div class="stat-meta">Unique account IDs</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Total Requests</div>
-          <div class="stat-value">${totalRequests}</div>
+          <div class="stat-value">${stats.totalRequests}</div>
           <div class="stat-meta">Across all conversations</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Total Tokens</div>
-          <div class="stat-value">${formatNumber(totalTokens)}</div>
+          <div class="stat-value">${formatNumber(stats.totalTokens)}</div>
           <div class="stat-meta">Combined usage</div>
         </div>
       </div>
@@ -260,50 +247,14 @@ overviewRoutes.get('/', async c => {
                                 <a href="/dashboard/conversation/${branch.conversationId}${branch.branch !== 'main' ? `?branch=${branch.branch}` : ''}" 
                                    class="text-blue-600" 
                                    style="font-family: monospace; font-size: 0.75rem;">
-                                  ${branch.conversationId.substring(0, 8)}...
+                                  ${branch.conversationId.substring(0, CONVERSATION_ID_DISPLAY_LENGTH)}...
                                 </a>
                               </td>
                               <td class="text-sm">
                                 ${(() => {
-                                  const parts = []
-                                  if (branch.subtaskBranchCount > 0) {
-                                    parts.push(`${branch.subtaskBranchCount}💻`)
-                                  }
-                                  if (branch.compactBranchCount > 0) {
-                                    parts.push(`${branch.compactBranchCount}📦`)
-                                  }
-                                  if (branch.userBranchCount > 0) {
-                                    parts.push(`${branch.userBranchCount}🌿`)
-                                  }
-
-                                  // If no special branches, just show the total branch count
-                                  let displayText
-                                  const hasMultipleBranches = branch.branchCount > 1
-
-                                  if (parts.length > 0) {
-                                    displayText = parts.join(', ')
-                                  } else {
-                                    // Only show branch count if more than 1
-                                    displayText =
-                                      branch.branchCount > 1 ? branch.branchCount.toString() : ''
-                                  }
-                                  // Truncate if too many branches to prevent UI overflow
-                                  const totalBranches =
-                                    branch.subtaskBranchCount +
-                                    branch.compactBranchCount +
-                                    branch.userBranchCount
-                                  if (totalBranches > 99) {
-                                    displayText = '99+...'
-                                  }
-
-                                  // Add hover tooltip with full details if truncated or has branches
-                                  const titleText =
-                                    totalBranches > 0 || hasMultipleBranches
-                                      ? `Total branches: ${branch.branchCount} (${branch.subtaskBranchCount} subtasks, ${branch.compactBranchCount} compacted, ${branch.userBranchCount} user branches)`
-                                      : '' // No tooltip for single branch with no special types
-
-                                  return `<span style="color: ${hasMultipleBranches ? '#2563eb' : '#6b7280'}; font-weight: ${hasMultipleBranches ? '600' : 'normal'};" ${titleText ? `title="${titleText}"` : ''}>
-                                    ${displayText}
+                                  const branchInfo = getBranchDisplayInfo(branch)
+                                  return `<span style="color: ${branchInfo.color}; font-weight: ${branchInfo.fontWeight};" ${branchInfo.titleText ? `title="${branchInfo.titleText}"` : ''}>
+                                    ${branchInfo.displayText}
                                   </span>`
                                 })()}
                               </td>
@@ -315,8 +266,13 @@ overviewRoutes.get('/', async c => {
                                          style="font-family: monospace; font-size: 0.75rem;"
                                          title="View token usage for ${escapeHtml(branch.accountId)}">
                                         ${
-                                          branch.accountId.length > 20
-                                            ? escapeHtml(branch.accountId.substring(0, 17)) + '...'
+                                          branch.accountId.length > ACCOUNT_ID_MAX_DISPLAY_LENGTH
+                                            ? escapeHtml(
+                                                branch.accountId.substring(
+                                                  0,
+                                                  ACCOUNT_ID_MAX_DISPLAY_LENGTH - 3
+                                                )
+                                              ) + '...'
                                             : escapeHtml(branch.accountId)
                                         }
                                       </a>`
@@ -328,30 +284,10 @@ overviewRoutes.get('/', async c => {
                               <td class="text-sm">${formatNumber(branch.tokens)}</td>
                               <td class="text-sm">${
                                 branch.latestContextTokens && branch.latestModel
-                                  ? (() => {
-                                      const { limit: maxTokens, isEstimate } = getModelContextLimit(
-                                        branch.latestModel
-                                      )
-                                      const percentage = branch.latestContextTokens / maxTokens
-                                      const batteryColor = getBatteryColor(percentage)
-                                      const isOverflow = percentage > 1
-                                      const percentageText = (percentage * 100).toFixed(1)
-
-                                      return `
-                                  <div style="display: inline-flex; align-items: center; gap: 4px;">
-                                    <svg width="16" height="30" viewBox="0 0 16 30" xmlns="http://www.w3.org/2000/svg">
-                                      <!-- Battery nub (positive terminal) -->
-                                      <rect x="6" y="1" width="4" height="3" rx="1" ry="1" style="fill: #888;" />
-                                      <!-- Battery casing -->
-                                      <rect x="3" y="4" width="10" height="24" rx="2" ry="2" style="fill: #f0f0f0; stroke: #888; stroke-width: 1;" />
-                                      <!-- Battery level fill (from bottom to top) -->
-                                      <rect x="4" y="${5 + (1 - Math.min(percentage, 1)) * 22}" width="8" height="${Math.min(percentage, 1) * 22}" rx="1" ry="1" style="fill: ${batteryColor};" />
-                                      ${isOverflow ? '<text x="8" y="18" text-anchor="middle" style="font-size: 8px; font-weight: bold; fill: white;">!</text>' : ''}
-                                    </svg>
-                                    <span style="font-size: 11px; color: #6b7280;" title="${branch.latestContextTokens.toLocaleString()} / ${maxTokens.toLocaleString()} tokens${isEstimate ? ' (estimated)' : ''}">${percentageText}%</span>
-                                  </div>
-                                `
-                                    })()
+                                  ? renderBatteryIndicator(
+                                      branch.latestContextTokens,
+                                      branch.latestModel
+                                    )
                                   : '<span class="text-gray-400">-</span>'
                               }</td>
                               <td class="text-sm">${formatDuration(duration)}</td>
@@ -399,7 +335,11 @@ overviewRoutes.get('/', async c => {
                           : html` <span class="pagination-disabled">← Previous</span> `}
 
                         <div style="display: flex; gap: 0.5rem;">
-                          ${generatePageNumbers(currentPage, totalPages).map(pageNum =>
+                          ${generatePageNumbers(
+                            currentPage,
+                            totalPages,
+                            MAX_VISIBLE_PAGE_BUTTONS
+                          ).map(pageNum =>
                             pageNum === '...'
                               ? html`<span style="padding: 0.5rem;">...</span>`
                               : pageNum === currentPage
@@ -444,12 +384,16 @@ overviewRoutes.get('/', async c => {
                               : ''}'"
                             style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;"
                           >
-                            <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
-                            <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
-                            <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
-                            <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>
-                              100
-                            </option>
+                            ${PAGINATION_OPTIONS.map(
+                              option => html`
+                                <option
+                                  value="${option}"
+                                  ${itemsPerPage === option ? 'selected' : ''}
+                                >
+                                  ${option}
+                                </option>
+                              `
+                            )}
                           </select>
                         </div>
                       </div>
@@ -474,41 +418,3 @@ overviewRoutes.get('/', async c => {
     )
   }
 })
-
-function generatePageNumbers(current: number, total: number): (number | string)[] {
-  const pages: (number | string)[] = []
-  const maxVisible = 7 // Maximum number of page buttons to show
-
-  if (total <= maxVisible) {
-    // Show all pages if total is small
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
-  } else {
-    // Always show first page
-    pages.push(1)
-
-    if (current > 3) {
-      pages.push('...')
-    }
-
-    // Show pages around current
-    const start = Math.max(2, current - 1)
-    const end = Math.min(total - 1, current + 1)
-
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-
-    if (current < total - 2) {
-      pages.push('...')
-    }
-
-    // Always show last page
-    if (total > 1) {
-      pages.push(total)
-    }
-  }
-
-  return pages
-}

@@ -53,3 +53,33 @@ export interface ApiRequest extends ConversationRequest {
   tool_call_count?: number
   conversation_id?: string
 }
+
+export interface ConversationBranch {
+  conversationId: string
+  accountId?: string
+  branch: string
+  branchCount: number
+  subtaskBranchCount: number
+  compactBranchCount: number
+  userBranchCount: number
+  messageCount: number
+  tokens: number
+  firstMessage: Date
+  lastMessage: Date
+  domain: string
+  latestRequestId?: string
+  latestModel?: string
+  latestContextTokens?: number
+  isSubtask?: boolean
+  parentTaskRequestId?: string
+  parentConversationId?: string
+  subtaskMessageCount?: number
+}
+
+export interface BranchDisplayInfo {
+  displayText: string
+  titleText: string
+  hasMultipleBranches: boolean
+  color: string
+  fontWeight: string
+}
