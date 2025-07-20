@@ -1,18 +1,17 @@
 import { Context, Next } from 'hono'
-import { RateLimiterMemory, RateLimiterRedis } from 'rate-limiter-flexible'
+import { RateLimiterMemory, RateLimiterRedis, RateLimiterRes } from 'rate-limiter-flexible'
 import { logger } from './logger.js'
-// import { container } from '../container.js'
 import { config } from '@claude-nexus/shared/config'
 
 // Different rate limiters for different operations
 let analysisCreationLimiter: RateLimiterMemory | RateLimiterRedis
 let analysisRetrievalLimiter: RateLimiterMemory | RateLimiterRedis
 
-// Initialize rate limiters
+/**
+ * Initialize rate limiters for AI analysis endpoints.
+ * Must be called once during application startup.
+ */
 export function initializeAnalysisRateLimiters() {
-  // For now, use in-memory rate limiting
-  // TODO: Switch to Redis when available for distributed rate limiting
-
   // Analysis creation - expensive operation (15 per minute per user)
   analysisCreationLimiter = new RateLimiterMemory({
     keyPrefix: 'rate_limit_analysis_create',
@@ -37,14 +36,38 @@ export function initializeAnalysisRateLimiters() {
   })
 }
 
-// Middleware for rate limiting analysis creation
-export function rateLimitAnalysisCreation() {
+/**
+ * Factory function to create rate limiting middleware.
+ * Reduces code duplication between creation and retrieval rate limiters.
+ * 
+ * @param limiter - The rate limiter instance to use
+ * @param operation - The operation name for logging
+ * @param errorMessage - The error message to return when rate limit is exceeded
+ * @returns Hono middleware function
+ */
+function createRateLimitMiddleware(
+  limiter: RateLimiterMemory | RateLimiterRedis,
+  operation: string,
+  errorMessage: string
+) {
   return async (c: Context, next: Next) => {
     const requestId = c.get('requestId')
     const domain = c.get('domain')
 
-    if (!analysisCreationLimiter) {
-      initializeAnalysisRateLimiters()
+    if (!limiter) {
+      logger.error(`Rate limiter for ${operation} not initialized`, {
+        requestId,
+        domain,
+      })
+      return c.json(
+        {
+          error: {
+            type: 'internal_error',
+            message: 'Rate limiter not configured',
+          },
+        },
+        500
+      )
     }
 
     try {
@@ -52,9 +75,9 @@ export function rateLimitAnalysisCreation() {
       // This ensures rate limits are per-domain (tenant)
       const key = domain || 'unknown'
 
-      await analysisCreationLimiter.consume(key)
+      await limiter.consume(key)
 
-      logger.debug('Analysis creation rate limit check passed', {
+      logger.debug(`${operation} rate limit check passed`, {
         requestId,
         domain,
       })
@@ -62,39 +85,34 @@ export function rateLimitAnalysisCreation() {
       await next()
     } catch (rejRes) {
       // Rate limit exceeded
-      logger.warn('Analysis creation rate limit exceeded', {
+      const rateLimiterRes = rejRes as RateLimiterRes
+      
+      logger.warn(`${operation} rate limit exceeded`, {
         requestId,
         domain,
         metadata: {
-          remainingPoints:
-            (rejRes as { remainingPoints?: number; msBeforeNext?: number }).remainingPoints || 0,
-          msBeforeNext:
-            (rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext || 0,
+          remainingPoints: rateLimiterRes.remainingPoints || 0,
+          msBeforeNext: rateLimiterRes.msBeforeNext || 0,
         },
       })
 
-      const retryAfter = Math.round(
-        ((rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext || 60000) /
-          1000
-      )
+      const retryAfter = Math.round((rateLimiterRes.msBeforeNext || 60000) / 1000)
 
       return c.json(
         {
           error: {
             type: 'rate_limit_error',
-            message: 'Too many analysis requests. Please try again later.',
+            message: errorMessage,
             retry_after: retryAfter,
           },
         },
         429,
         {
           'Retry-After': retryAfter.toString(),
-          'X-RateLimit-Limit': analysisCreationLimiter.points.toString(),
+          'X-RateLimit-Limit': limiter.points.toString(),
           'X-RateLimit-Remaining': '0',
           'X-RateLimit-Reset': new Date(
-            Date.now() +
-              ((rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext ||
-                60000)
+            Date.now() + (rateLimiterRes.msBeforeNext || 60000)
           ).toISOString(),
         }
       )
@@ -102,71 +120,41 @@ export function rateLimitAnalysisCreation() {
   }
 }
 
-// Middleware for rate limiting analysis retrieval
+/**
+ * Middleware for rate limiting analysis creation.
+ * Limits to 15 requests per minute per domain (configurable).
+ * 
+ * @returns Hono middleware function
+ */
+export function rateLimitAnalysisCreation() {
+  return createRateLimitMiddleware(
+    analysisCreationLimiter,
+    'Analysis creation',
+    'Too many analysis creation requests. Please try again later.'
+  )
+}
+
+/**
+ * Middleware for rate limiting analysis retrieval.
+ * Limits to 100 requests per minute per domain (configurable).
+ * 
+ * @returns Hono middleware function
+ */
 export function rateLimitAnalysisRetrieval() {
-  return async (c: Context, next: Next) => {
-    const requestId = c.get('requestId')
-    const domain = c.get('domain')
-
-    if (!analysisRetrievalLimiter) {
-      initializeAnalysisRateLimiters()
-    }
-
-    try {
-      // Use domain as the key for rate limiting
-      const key = domain || 'unknown'
-
-      await analysisRetrievalLimiter.consume(key)
-
-      logger.debug('Analysis retrieval rate limit check passed', {
-        requestId,
-        domain,
-      })
-
-      await next()
-    } catch (rejRes) {
-      // Rate limit exceeded
-      logger.warn('Analysis retrieval rate limit exceeded', {
-        requestId,
-        domain,
-        metadata: {
-          remainingPoints:
-            (rejRes as { remainingPoints?: number; msBeforeNext?: number }).remainingPoints || 0,
-          msBeforeNext:
-            (rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext || 0,
-        },
-      })
-
-      const retryAfter = Math.round(
-        ((rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext || 60000) /
-          1000
-      )
-
-      return c.json(
-        {
-          error: {
-            type: 'rate_limit_error',
-            message: 'Too many requests. Please try again later.',
-            retry_after: retryAfter,
-          },
-        },
-        429,
-        {
-          'Retry-After': retryAfter.toString(),
-          'X-RateLimit-Limit': analysisRetrievalLimiter.points.toString(),
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': new Date(
-            Date.now() +
-              ((rejRes as { remainingPoints?: number; msBeforeNext?: number }).msBeforeNext ||
-                60000)
-          ).toISOString(),
-        }
-      )
-    }
-  }
+  return createRateLimitMiddleware(
+    analysisRetrievalLimiter,
+    'Analysis retrieval',
+    'Too many analysis retrieval requests. Please try again later.'
+  )
 }
 
-// Helper to get current rate limit status
+/**
+ * Get current rate limit status for a domain.
+ * 
+ * @param domain - The domain to check
+ * @param limiterType - The type of limiter to check ('creation' or 'retrieval')
+ * @returns Current rate limit status or null if limiter not initialized
+ */
 export async function getRateLimitStatus(domain: string, limiterType: 'creation' | 'retrieval') {
   const limiter = limiterType === 'creation' ? analysisCreationLimiter : analysisRetrievalLimiter
 
