@@ -24,7 +24,7 @@ export interface JsonRpcRequest<T = unknown> {
  */
 export interface JsonRpcResponse<TResult = unknown, TError = unknown> {
   jsonrpc: '2.0'
-  id: string | number
+  id: string | number | null
   result?: TResult
   error?: JsonRpcError<TError>
 }
