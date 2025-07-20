@@ -1,19 +1,12 @@
 /**
- * Proxy Service - Composition Root
- * This is where all dependencies are wired together
+ * Proxy Service - Server Entry Point
+ * Handles HTTP server startup and graceful shutdown
  */
 
 import { serve } from '@hono/node-server'
-import { Pool } from 'pg'
 import { config, createLogger } from '@claude-nexus/shared'
 import { createProxyApp } from './app.js'
-import { ProxyService } from './services/ProxyService.js'
-import { AuthenticationService } from './services/AuthenticationService.js'
-import { ClaudeApiClient } from './services/ClaudeApiClient.js'
-import { MetricsService } from './services/MetricsService.js'
-import { NotificationService } from './services/NotificationService.js'
-import { StorageAdapter } from './storage/StorageAdapter.js'
-import { MessageController } from './controllers/MessageController.js'
+import { container } from './container.js'
 import { tokenTracker } from './services/tokenTracker.js'
 import { startAnalysisWorker } from './workers/ai-analysis/index.js'
 
@@ -21,129 +14,87 @@ import { startAnalysisWorker } from './workers/ai-analysis/index.js'
 const logger = createLogger({ service: 'proxy' })
 
 async function startServer() {
-  logger.info('Starting proxy service', {
-    metadata: {
-      version: process.env.npm_package_version || '2.0.0',
-      environment: config.server.env,
-      features: {
-        storage: config.storage.enabled ? 'enabled' : 'disabled',
-        telemetry: config.telemetry.enabled ? 'enabled' : 'disabled',
-        sparkApi: config.spark.enabled ? 'enabled' : 'disabled',
+  try {
+    logger.info('Starting proxy service', {
+      metadata: {
+        version: process.env.npm_package_version || '2.0.0',
+        environment: config.server.env,
+        features: {
+          storage: config.storage.enabled ? 'enabled' : 'disabled',
+          telemetry: config.telemetry.enabled ? 'enabled' : 'disabled',
+          sparkApi: config.spark.enabled ? 'enabled' : 'disabled',
+        },
       },
-    },
-  })
+    })
 
-  // === COMPOSITION ROOT START ===
+    // Create the Hono app (dependencies are managed by container)
+    const app = await createProxyApp()
 
-  // 1. Create foundational dependencies (no dependencies)
-  const dbPool = config.database.url
-    ? new Pool({
-        connectionString: config.database.url,
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
-      })
-    : undefined
+    // Start token tracking
+    tokenTracker.startReporting()
 
-  // 2. Create services with their dependencies
-  const authService = new AuthenticationService(undefined, config.auth.credentialsDir)
+    // Start AI Analysis Worker
+    const analysisWorker = startAnalysisWorker()
 
-  const apiClient = new ClaudeApiClient({
-    baseUrl: config.api.claudeBaseUrl,
-    timeout: config.api.claudeTimeout,
-  })
-  const notificationService = new NotificationService()
-
-  // Wire up auth service to notification service
-  notificationService.setAuthService(authService)
-
-  // Create storage service if database is configured
-  const storageService = dbPool && config.storage.enabled ? new StorageAdapter(dbPool) : undefined
-
-  // Create metrics service with its dependencies
-  const metricsService = new MetricsService(
-    {
-      enableTokenTracking: true,
-      enableStorage: config.storage.enabled,
-      enableTelemetry: config.telemetry.enabled,
-    },
-    storageService,
-    config.telemetry.endpoint
-  )
-
-  // 3. Create the main proxy service with all its dependencies
-  const proxyService = new ProxyService(authService, apiClient, notificationService, metricsService)
-
-  // 4. Create the controller (created but not used here - app.ts will use it)
-  new MessageController(proxyService)
-
-  // === COMPOSITION ROOT END ===
-
-  // Create the Hono app with all dependencies
-  const app = await createProxyApp()
-
-  // Start token tracking
-  tokenTracker.startReporting()
-
-  // Start AI Analysis Worker
-  const analysisWorker = startAnalysisWorker()
-
-  // Start the server
-  const server = serve({
-    fetch: app.fetch,
-    port: config.server.port,
-    hostname: config.server.host,
-  })
-
-  logger.info('Proxy service started', {
-    metadata: {
+    // Start the server
+    const server = serve({
+      fetch: app.fetch,
       port: config.server.port,
-      host: config.server.host,
-      sparkApi: config.spark.enabled
-        ? {
-            enabled: true,
-            url: config.spark.apiUrl,
-            hasApiKey: !!config.spark.apiKey,
-          }
-        : {
-            enabled: false,
-            reason: !config.spark.apiKey ? 'SPARK_API_KEY not set' : 'SPARK_ENABLED is false',
-          },
-    },
-  })
+      hostname: config.server.host,
+    })
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    logger.info('Shutting down proxy service...')
+    logger.info('Proxy service started', {
+      metadata: {
+        port: config.server.port,
+        host: config.server.host,
+        sparkApi: config.spark.enabled
+          ? {
+              enabled: true,
+              url: config.spark.apiUrl,
+              hasApiKey: !!config.spark.apiKey,
+            }
+          : {
+              enabled: false,
+              reason: !config.spark.apiKey ? 'SPARK_API_KEY not set' : 'SPARK_ENABLED is false',
+            },
+      },
+    })
 
-    // Print final token stats
-    tokenTracker.printStats()
-    tokenTracker.stopReporting()
+    // Graceful shutdown
+    const shutdown = async () => {
+      logger.info('Shutting down proxy service...')
 
-    // Stop analysis worker
-    if (analysisWorker) {
-      await analysisWorker.stop()
+      // Print final token stats
+      tokenTracker.printStats()
+      tokenTracker.stopReporting()
+
+      // Stop analysis worker
+      if (analysisWorker) {
+        await analysisWorker.stop()
+      }
+
+      // Cleanup container resources (database pool, storage, etc.)
+      await container.cleanup()
+
+      // Close server
+      server.close()
+
+      logger.info('Proxy service shut down successfully')
+      process.exit(0)
     }
 
-    // Close storage service
-    // Note: StorageAdapter doesn't have a close method,
-    // the pool will be closed separately
-
-    // Close database pool
-    if (dbPool) {
-      await dbPool.end()
-    }
-
-    // Close server
-    server.close()
-
-    logger.info('Proxy service shut down successfully')
-    process.exit(0)
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
+    process.on('SIGQUIT', shutdown)
+  } catch (error) {
+    logger.error('Failed to start server', {
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+    })
+    process.exit(1)
   }
-
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
-  process.on('SIGQUIT', shutdown)
 }
 
 // Error handling for uncaught errors
