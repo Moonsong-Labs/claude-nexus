@@ -32,6 +32,14 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Deleted services/dashboard/src/layout/**tests**/theme-test-utils.ts**: Removed unused test utility file
+  - File was not imported anywhere in the codebase
+  - Both test files using theme functionality have their own inline implementations
+  - Functions like mockLocalStorage, extractCSSVariables, createMockElement were never used
+  - Validated deletion with Gemini-2.5-pro (10/10) and O3-mini (10/10) who both strongly endorsed removal
+  - Tests continue to pass after deletion
+  - Rationale: Dead code elimination is a fundamental clean code practice. The file added no value and could cause confusion
+
 - **Refactored services/dashboard/src/layout/index.ts**: Improved code organization and maintainability
   - Extracted theme toggle JavaScript to new file `layout/theme-toggle.ts` for better separation of concerns
   - Moved 140+ lines of inline CSS styles to `layout/styles.ts` as `jsonViewerStyles` section
