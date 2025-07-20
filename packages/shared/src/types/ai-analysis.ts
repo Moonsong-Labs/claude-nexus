@@ -162,6 +162,15 @@ export const GetAnalysisResponseSchema = z.object({
 
 export type GetAnalysisResponse = z.infer<typeof GetAnalysisResponseSchema>
 
+// POST /api/analyses/:conversationId/:branchId/regenerate request body schema
+export const RegenerateAnalysisBodySchema = z
+  .object({
+    customPrompt: z.string().optional(),
+  })
+  .optional()
+
+export type RegenerateAnalysisBody = z.infer<typeof RegenerateAnalysisBodySchema>
+
 // POST /api/analyses/:conversationId/:branchId/regenerate response schema
 export const RegenerateAnalysisResponseSchema = z.object({
   id: z.number(),

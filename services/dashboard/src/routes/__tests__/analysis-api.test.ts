@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, mock } from 'bun:test'
 import { Hono } from 'hono'
-import { z } from 'zod'
 import { analysisRoutes } from '../analysis-api.js'
 import { ProxyApiClient } from '../../services/api-client.js'
-import { ConversationAnalysisStatus } from '@claude-nexus/shared'
 import type {
   CreateAnalysisResponse,
   GetAnalysisResponse,
@@ -23,10 +21,10 @@ describe('Analysis API Routes', () => {
     // Create a new Hono app and mount the routes
     app = new Hono()
 
-    // Create mock API client - use 'as any' to bypass strict typing for tests
+    // Create mock API client
     mockApiClient = {
-      post: mock(() => Promise.resolve({})) as any,
-      get: mock(() => Promise.resolve({})) as any,
+      post: mock(() => Promise.resolve({})),
+      get: mock(() => Promise.resolve({})),
     }
 
     // Add middleware to inject the API client
@@ -49,7 +47,7 @@ describe('Analysis API Routes', () => {
         createdAt: '2024-01-01T00:00:00Z',
       }
 
-      mockApiClient.post = mock(() => Promise.resolve(mockResponse)) as any
+      mockApiClient.post = mock(() => Promise.resolve(mockResponse))
 
       const response = await app.request('/api/analyses', {
         method: 'POST',
@@ -83,7 +81,8 @@ describe('Analysis API Routes', () => {
       const data = (await response.json()) as { error: string; details?: Array<{ path: string[] }> }
       expect(data.error).toBe('Invalid request data')
       expect(data.details).toBeDefined()
-      expect(data.details![0].path).toContain('conversationId')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((data.details as any)[0].path).toContain('conversationId')
     })
 
     it('should return 409 when analysis already exists', async () => {
@@ -91,7 +90,7 @@ describe('Analysis API Routes', () => {
         error: 'Analysis already exists',
       })
 
-      mockApiClient.post = mock(() => Promise.reject(conflictError)) as any
+      mockApiClient.post = mock(() => Promise.reject(conflictError))
 
       const response = await app.request('/api/analyses', {
         method: 'POST',
@@ -126,7 +125,7 @@ describe('Analysis API Routes', () => {
     })
 
     it('should handle API client failures', async () => {
-      mockApiClient.post = mock(() => Promise.reject(new Error('Network error'))) as any
+      mockApiClient.post = mock(() => Promise.reject(new Error('Network error')))
 
       const response = await app.request('/api/analyses', {
         method: 'POST',
@@ -138,7 +137,7 @@ describe('Analysis API Routes', () => {
 
       expect(response.status).toBe(500)
       const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Failed to create analysis')
+      expect(data.error).toBe('An internal server error occurred')
     })
 
     it('should handle missing request body', async () => {
@@ -163,7 +162,7 @@ describe('Analysis API Routes', () => {
         createdAt: '2024-01-01T00:00:00Z',
       }
 
-      mockApiClient.post = mock(() => Promise.resolve(mockResponse)) as any
+      mockApiClient.post = mock(() => Promise.resolve(mockResponse))
 
       const response = await app.request('/api/analyses', {
         method: 'POST',
@@ -225,7 +224,7 @@ describe('Analysis API Routes', () => {
         },
       }
 
-      mockApiClient.get = mock(() => Promise.resolve(mockResponse)) as any
+      mockApiClient.get = mock(() => Promise.resolve(mockResponse))
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
@@ -248,13 +247,14 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(400)
-      const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Invalid conversation ID format')
+      const data = (await response.json()) as { error: string; details?: unknown }
+      expect(data.error).toBe('Invalid request data')
+      expect(data.details).toBeDefined()
     })
 
     it('should return 404 when analysis not found', async () => {
       const notFoundError = new HttpError('Analysis not found', 404)
-      mockApiClient.get = mock(() => Promise.reject(notFoundError)) as any
+      mockApiClient.get = mock(() => Promise.reject(notFoundError))
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
@@ -285,7 +285,7 @@ describe('Analysis API Routes', () => {
     })
 
     it('should handle API client failures', async () => {
-      mockApiClient.get = mock(() => Promise.reject(new Error('Network error'))) as any
+      mockApiClient.get = mock(() => Promise.reject(new Error('Network error')))
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main',
@@ -296,7 +296,7 @@ describe('Analysis API Routes', () => {
 
       expect(response.status).toBe(500)
       const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Failed to retrieve analysis')
+      expect(data.error).toBe('An internal server error occurred')
     })
 
     it('should handle special branch IDs', async () => {
@@ -309,7 +309,7 @@ describe('Analysis API Routes', () => {
         updatedAt: '2024-01-01T00:00:00Z',
       }
 
-      mockApiClient.get = mock(() => Promise.resolve(mockResponse)) as any
+      mockApiClient.get = mock(() => Promise.resolve(mockResponse))
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/feature%2Fnew-feature',
@@ -333,7 +333,7 @@ describe('Analysis API Routes', () => {
         message: 'Analysis regeneration requested',
       }
 
-      mockApiClient.post = mock(() => Promise.resolve(mockResponse)) as any
+      mockApiClient.post = mock(() => Promise.resolve(mockResponse))
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
@@ -346,7 +346,8 @@ describe('Analysis API Routes', () => {
       const data = await response.json()
       expect(data).toEqual(mockResponse)
       expect(mockApiClient.post).toHaveBeenCalledWith(
-        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate'
+        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
+        undefined
       )
     })
 
@@ -356,13 +357,14 @@ describe('Analysis API Routes', () => {
       })
 
       expect(response.status).toBe(400)
-      const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Invalid conversation ID format')
+      const data = (await response.json()) as { error: string; details?: unknown }
+      expect(data.error).toBe('Invalid request data')
+      expect(data.details).toBeDefined()
     })
 
     it('should return 404 when conversation not found', async () => {
       const notFoundError = new HttpError('Conversation not found', 404)
-      mockApiClient.post = mock(() => Promise.reject(notFoundError)) as any
+      mockApiClient.post = mock(() => Promise.reject(notFoundError))
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
@@ -393,7 +395,7 @@ describe('Analysis API Routes', () => {
     })
 
     it('should handle API client failures', async () => {
-      mockApiClient.post = mock(() => Promise.reject(new Error('Network error'))) as any
+      mockApiClient.post = mock(() => Promise.reject(new Error('Network error')))
 
       const response = await app.request(
         '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
@@ -404,7 +406,35 @@ describe('Analysis API Routes', () => {
 
       expect(response.status).toBe(500)
       const data = (await response.json()) as { error: string }
-      expect(data.error).toBe('Failed to regenerate analysis')
+      expect(data.error).toBe('An internal server error occurred')
+    })
+
+    it('should regenerate analysis with custom prompt', async () => {
+      const mockResponse: RegenerateAnalysisResponse = {
+        id: 124,
+        status: 'pending',
+        message: 'Analysis regeneration with custom prompt requested',
+      }
+
+      mockApiClient.post = mock(() => Promise.resolve(mockResponse))
+
+      const customPrompt = 'Focus on performance bottlenecks'
+      const response = await app.request(
+        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customPrompt }),
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data).toEqual(mockResponse)
+      expect(mockApiClient.post).toHaveBeenCalledWith(
+        '/api/analyses/550e8400-e29b-41d4-a716-446655440000/main/regenerate',
+        { customPrompt }
+      )
     })
   })
 })
