@@ -8,14 +8,11 @@ import {
 } from '@claude-nexus/shared'
 import { container } from '../../container.js'
 import { logger } from '../../middleware/logger.js'
-import { escapeHtml, escapeHtmlArray } from '../../utils/html.js'
+import { escapeHtml, escapeHtmlArray } from '../../utils/formatters.js'
 import { csrfProtection } from '../../middleware/csrf.js'
 
 import { ProxyApiClient } from '../../services/api-client.js'
 
-// Constants
-const POLL_INTERVALS = [2, 3, 5, 10, 10] // Progressive backoff in seconds
-const DEFAULT_POLL_COUNT = 0
 
 // Type definitions for analysis data structure
 interface AnalysisActionItem {
@@ -54,19 +51,6 @@ interface AnalysisConversationQuality {
   completenessImprovement?: string
   effectiveness: string
   effectivenessImprovement?: string
-}
-
-interface AnalysisData {
-  summary?: string
-  keyTopics?: string[]
-  sentiment?: string
-  actionItems?: AnalysisActionItem[]
-  outcomes?: string[]
-  userIntent?: string
-  promptingTips?: AnalysisPromptingTip[]
-  interactionPatterns?: AnalysisInteractionPatterns
-  technicalDetails?: AnalysisTechnicalDetails
-  conversationQuality?: AnalysisConversationQuality
 }
 
 // SVG icon paths (more compact format)
@@ -371,7 +355,7 @@ function renderProcessingPanel(conversationId: string, branchId: string, pollCou
  * @param content - HTML content to display
  * @returns HTML string for the section
  */
-function renderAnalysisSection(icon: string, title: string, content: any): string {
+function renderAnalysisSection(icon: string, title: string, content: string | undefined): string {
   if (!content) {
     return ''
   }
@@ -391,30 +375,6 @@ function renderAnalysisSection(icon: string, title: string, content: any): strin
   `
 }
 
-/**
- * Formats a date to a human-readable string
- * @param date - Date to format
- * @returns Formatted date string
- */
-function formatDate(date: string | Date): string {
-  const d = new Date(date)
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-/**
- * Gets the polling interval based on the poll count
- * @param pollCount - Current poll count
- * @returns Interval in seconds
- */
-function getPollInterval(pollCount: number): number {
-  return POLL_INTERVALS[Math.min(pollCount, POLL_INTERVALS.length - 1)]
-}
 
 /**
  * Gets the color for an action item type
@@ -628,7 +588,7 @@ ${getAnalysisPromptTemplate()}</textarea
                 'Action Items',
                 html`
                   <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    ${analysisData.actionItems.map((item: any) => {
+                    ${analysisData.actionItems.map((item: AnalysisActionItem) => {
                       const typeColor = getActionItemTypeColor(item.type)
                       const priorityIcon = getPriorityIcon(item.priority)
                       return html`
@@ -688,7 +648,7 @@ ${getAnalysisPromptTemplate()}</textarea
                 html`
                   <div style="display: flex; flex-direction: column; gap: 1rem;">
                     ${analysisData.promptingTips.map(
-                      (tip: any) => html`
+                      (tip: AnalysisPromptingTip) => html`
                         <div
                           style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 0.5rem; padding: 1rem;"
                         >

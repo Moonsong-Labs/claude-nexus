@@ -84,15 +84,22 @@ export function formatRelativeTime(timestamp: string | Date): string {
 /**
  * Escape HTML to prevent XSS
  */
-export function escapeHtml(text: string): string {
+export function escapeHtml(text: string | null | undefined): string {
   if (!text) {
     return ''
   }
 
-  return text
+  return String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+/**
+ * Escape an array of strings for safe HTML rendering
+ */
+export function escapeHtmlArray(items: readonly string[]): string[] {
+  return items.map(item => escapeHtml(item))
 }

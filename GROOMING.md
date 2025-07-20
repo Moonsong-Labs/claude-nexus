@@ -32,6 +32,16 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Deleted services/dashboard/src/utils/html.ts**: Removed duplicate HTML escaping utilities
+  - File contained `escapeHtml`, `escapeHtmlArray`, and `safeHtml` functions
+  - `escapeHtml` was duplicated in `formatters.ts` with slightly different implementation
+  - Most imports (5 files) already used `formatters.ts`, only 2 files imported from `html.ts`
+  - `safeHtml` function was not used anywhere in the codebase
+  - Added `escapeHtmlArray` to `formatters.ts` before deletion as it was used by `analysis.ts`
+  - Updated imports in `analysis.ts` and `prompts.ts` to use `formatters.ts`
+  - Validated with Gemini-2.5-pro (9/10 confidence) who strongly endorsed the consolidation
+  - Rationale: Eliminates code duplication, centralizes HTML escaping in one place, removes dead code
+
 - **Deleted services/dashboard/src/errors/index.ts**: Removed unused barrel export file
   - File contained only `export * from './HttpError.js'` but was never imported
   - All 8 files needing HttpError import it directly from './HttpError.js'

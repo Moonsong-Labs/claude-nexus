@@ -7,7 +7,7 @@ import { html } from 'hono/html'
 import { layout } from '../layout/index.js'
 import { ProxyApiClient } from '../services/api-client.js'
 import { csrfProtection } from '../middleware/csrf.js'
-import { escapeHtml } from '../utils/html.js'
+import { escapeHtml } from '../utils/formatters.js'
 import { promptsStyles } from '../styles/prompts.js'
 import { promptsSyncScript } from '../scripts/prompts-sync.js'
 import type {
