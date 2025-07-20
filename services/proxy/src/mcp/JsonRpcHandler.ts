@@ -10,6 +10,8 @@ import {
   type JsonRpcResponse,
   type JsonRpcError,
 } from './types/protocol.js'
+import { McpError } from './errors.js'
+import { logger } from '../middleware/logger.js'
 
 export class JsonRpcHandler {
   constructor(private mcpServer: McpServer) {}
@@ -28,7 +30,7 @@ export class JsonRpcHandler {
       if (!this.isValidJsonRpcRequest(request)) {
         return c.json(
           this.createErrorResponse(
-            (request as any)?.id || null,
+            ((request as Record<string, unknown>)?.id as string | number | null) || null,
             MCP_ERRORS.INVALID_REQUEST,
             'Invalid Request'
           )
@@ -39,7 +41,22 @@ export class JsonRpcHandler {
         const result = await this.mcpServer.handleRequest(request)
         return c.json(result)
       } catch (error) {
-        console.error('MCP request handling error:', error)
+        logger.error('MCP request handling error', {
+          metadata: {
+            method: request.method,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+        })
+
+        // If error is an McpError, convert to JSON-RPC format
+        if (error instanceof McpError) {
+          return c.json({
+            jsonrpc: '2.0',
+            id: request.id,
+            error: error.toJsonRpcError(),
+          })
+        }
 
         // If error is already a JsonRpcError, use it
         if (this.isJsonRpcError(error)) {
@@ -60,26 +77,36 @@ export class JsonRpcHandler {
         )
       }
     } catch (error) {
-      console.error('JSON-RPC handler error:', error)
+      logger.error('JSON-RPC handler error', {
+        metadata: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+      })
       return c.json(this.createErrorResponse(null, MCP_ERRORS.INTERNAL_ERROR, 'Internal error'))
     }
   }
 
-  private isValidJsonRpcRequest(request: any): request is JsonRpcRequest {
+  private isValidJsonRpcRequest(request: unknown): request is JsonRpcRequest {
     return (
-      request &&
+      request !== null &&
       typeof request === 'object' &&
+      'jsonrpc' in request &&
       request.jsonrpc === '2.0' &&
+      'id' in request &&
       (typeof request.id === 'string' || typeof request.id === 'number') &&
+      'method' in request &&
       typeof request.method === 'string'
     )
   }
 
-  private isJsonRpcError(error: any): error is JsonRpcError {
+  private isJsonRpcError(error: unknown): error is JsonRpcError {
     return (
-      error &&
+      error !== null &&
       typeof error === 'object' &&
+      'code' in error &&
       typeof error.code === 'number' &&
+      'message' in error &&
       typeof error.message === 'string'
     )
   }
@@ -88,7 +115,7 @@ export class JsonRpcHandler {
     id: string | number | null,
     code: number,
     message: string,
-    data?: any
+    data?: unknown
   ): JsonRpcResponse {
     return {
       jsonrpc: '2.0',

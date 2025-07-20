@@ -32,6 +32,19 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-01-20
 
+- **services/proxy/src/mcp/McpServer.ts**: Refactored MCP server implementation for production readiness
+  - Removed unused variables (\_params) that were assigned but never used
+  - Improved type safety by replacing `any` types with proper zod validation schemas
+  - Replaced console.error with structured logging using the middleware logger
+  - Created dedicated McpError class for consistent error handling instead of throwing raw objects
+  - Added RPC method name constants to prevent typos and centralize API definition
+  - Implemented proper parameter validation with zod schemas that handle backward compatibility
+  - Documented the multi-parameter support (promptId/id/name) for Claude Code compatibility
+  - Updated JsonRpcHandler to properly handle McpError instances
+  - All changes maintain backward compatibility and existing MCP functionality
+  - Created new errors.ts file with McpError class following error handling best practices
+  - Rationale: The MCP server is a production component that needed better error handling, type safety, and observability for debugging and maintenance
+
 - **services/proxy/src/services/slack.ts**: Refactored Slack notification service to eliminate global state and improve code quality
   - Removed duplicate SlackConfig interface (now imported from credentials.ts) following DRY principle
   - Converted from module-level global variables to a class-based SlackService for better testability and encapsulation

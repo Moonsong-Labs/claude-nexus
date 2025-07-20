@@ -2,17 +2,51 @@
  * MCP (Model Context Protocol) Server implementation
  */
 
+import { z } from 'zod'
 import {
-  MCP_ERRORS,
   type JsonRpcRequest,
   type JsonRpcResponse,
-  type InitializeParams,
   type InitializeResult,
-  type ListPromptsParams,
   type ListPromptsResult,
   type GetPromptResult,
 } from './types/protocol.js'
 import type { PromptRegistryService } from './PromptRegistryService.js'
+import { McpError } from './errors.js'
+import { logger } from '../middleware/logger.js'
+
+// Method name constants
+const RPC_METHODS = {
+  INITIALIZE: 'initialize',
+  LIST_PROMPTS: 'prompts/list',
+  GET_PROMPT: 'prompts/get',
+} as const
+
+// Validation schemas
+const GetPromptParamsSchema = z
+  .object({
+    // Support multiple parameter names for backward compatibility
+    // Claude Code sends different parameter names depending on context
+    promptId: z.string().optional(),
+    id: z.string().optional(),
+    name: z.string().optional(),
+    arguments: z.record(z.unknown()).optional(),
+  })
+  .transform(data => {
+    // Normalize to use 'promptId' internally
+    const promptId = data.promptId || data.id || data.name
+    return {
+      promptId,
+      arguments: data.arguments || {},
+    }
+  })
+  .pipe(
+    z.object({
+      promptId: z.string({
+        required_error: "Missing required parameter: promptId (or 'id' or 'name')",
+      }),
+      arguments: z.record(z.unknown()),
+    })
+  )
 
 export class McpServer {
   private readonly serverInfo = {
@@ -26,25 +60,23 @@ export class McpServer {
 
   async handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
     switch (request.method) {
-      case 'initialize':
+      case RPC_METHODS.INITIALIZE:
         return this.handleInitialize(request)
 
-      case 'prompts/list':
+      case RPC_METHODS.LIST_PROMPTS:
         return this.handleListPrompts(request)
 
-      case 'prompts/get':
+      case RPC_METHODS.GET_PROMPT:
         return this.handleGetPrompt(request)
 
       default:
-        throw {
-          code: MCP_ERRORS.METHOD_NOT_FOUND,
-          message: `Method not found: ${request.method}`,
-        }
+        throw McpError.methodNotFound(request.method)
     }
   }
 
   private async handleInitialize(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    const _params = request.params as InitializeParams | undefined
+    // InitializeParams are optional and currently not used
+    // Future implementations may use client capabilities from params
 
     const result: InitializeResult = {
       protocolVersion: this.protocolVersion,
@@ -65,7 +97,8 @@ export class McpServer {
   }
 
   private async handleListPrompts(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    const _params = request.params as ListPromptsParams | undefined
+    // ListPromptsParams supports cursor for pagination, but not implemented yet
+    // TODO: Implement pagination when prompt count grows
 
     try {
       const prompts = this.promptRegistry.listPrompts()
@@ -85,41 +118,45 @@ export class McpServer {
         result,
       }
     } catch (error) {
-      console.error('Error listing prompts:', error)
-      throw {
-        code: MCP_ERRORS.INTERNAL_ERROR,
-        message: 'Failed to list prompts',
-      }
+      logger.error('Error listing prompts', {
+        metadata: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+      })
+      throw McpError.internalError('Failed to list prompts')
     }
   }
 
   private async handleGetPrompt(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    const params = request.params as Record<string, unknown>
+    // Validate and normalize parameters
+    const parseResult = GetPromptParamsSchema.safeParse(request.params)
 
-    // Debug logging to understand what Claude Code is sending
-    if (process.env.DEBUG) {
-      console.error('[MCP] handleGetPrompt request:', JSON.stringify(request, null, 2))
+    if (!parseResult.success) {
+      logger.warn('Invalid parameters for prompts/get', {
+        metadata: {
+          params: request.params,
+          errors: parseResult.error.flatten(),
+        },
+      })
+      throw McpError.invalidParams(
+        'Invalid parameters for prompts/get',
+        parseResult.error.flatten()
+      )
     }
 
-    // Handle both 'promptId' and 'id' parameter names for compatibility
-    const promptId = (params?.promptId || params?.id || params?.name) as string | undefined
+    const { promptId, arguments: promptArgs } = parseResult.data
 
-    if (!promptId) {
-      throw {
-        code: MCP_ERRORS.INVALID_PARAMS,
-        message: 'Missing required parameter: promptId',
-      }
-    }
+    logger.debug('Handling get prompt request', {
+      metadata: { promptId, hasArguments: Object.keys(promptArgs).length > 0 },
+    })
 
     try {
       // Render the prompt with Handlebars
-      const content = this.promptRegistry.renderPrompt(promptId, params?.arguments || {})
+      const content = this.promptRegistry.renderPrompt(promptId, promptArgs)
 
       if (!content) {
-        throw {
-          code: MCP_ERRORS.PROMPT_NOT_FOUND,
-          message: `Prompt not found: ${promptId}`,
-        }
+        throw McpError.promptNotFound(promptId)
       }
 
       // Get the prompt info for description
@@ -144,16 +181,19 @@ export class McpServer {
         result,
       }
     } catch (error) {
-      // Re-throw if it's already a JSON-RPC error
-      if (error && typeof error === 'object' && 'code' in error) {
+      // Re-throw if it's already an McpError
+      if (error instanceof McpError) {
         throw error
       }
 
-      console.error('Error getting prompt:', error)
-      throw {
-        code: MCP_ERRORS.INTERNAL_ERROR,
-        message: 'Failed to get prompt',
-      }
+      logger.error('Error getting prompt', {
+        metadata: {
+          promptId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+      })
+      throw McpError.internalError('Failed to get prompt')
     }
   }
 }
