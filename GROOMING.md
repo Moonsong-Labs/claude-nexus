@@ -32,6 +32,13 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **services/dashboard/src/components/spark-feedback.ts**: Removed unused duplicate Spark feedback component
+  - File exported `renderSparkRecommendation()` but was never imported anywhere
+  - Duplicate of actively used `spark-recommendation-inline.ts` component
+  - Contained security concerns (hardcoded port 3000) and anti-patterns (370+ lines of inline CSS/JS)
+  - Validated with Gemini-2.5-flash (9/10 confidence) and O3-mini (9/10 confidence)
+  - Rationale: Removing unused duplicate code improves maintainability and eliminates security risks
+
 - **services/dashboard/public/message-selection.js**: Removed unused JavaScript file
   - File was not referenced anywhere in the codebase
   - Message selection functionality already implemented inline in request-details.ts
