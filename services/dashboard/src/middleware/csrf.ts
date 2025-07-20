@@ -1,34 +1,52 @@
 import { Context, Next } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { randomBytes } from 'crypto'
+import { IS_PRODUCTION } from '../constants/auth.js'
 
+// Cookie name for storing CSRF tokens
 const CSRF_TOKEN_COOKIE = 'csrf_token'
+
+// Header name for CSRF token validation
 const CSRF_HEADER = 'X-CSRF-Token'
+
+// Token length in bytes (generates 64 character hex string)
 const TOKEN_LENGTH = 32
 
 /**
- * Generate a CSRF token
+ * Branded type for CSRF tokens to ensure type safety
  */
-function generateToken(): string {
-  return randomBytes(TOKEN_LENGTH).toString('hex')
+type CsrfToken = string & { readonly brand: unique symbol }
+
+/**
+ * Generate a cryptographically secure CSRF token
+ * @returns A hex-encoded CSRF token
+ */
+function generateToken(): CsrfToken {
+  return randomBytes(TOKEN_LENGTH).toString('hex') as CsrfToken
 }
 
 /**
- * CSRF protection middleware
- * Validates CSRF tokens on state-changing requests (POST, PUT, DELETE, PATCH)
+ * CSRF protection middleware for the dashboard service
+ *
+ * Implements Double Submit Cookie pattern:
+ * - Generates a cryptographically secure token stored in an httpOnly cookie
+ * - Validates the token on state-changing requests (POST, PUT, DELETE, PATCH)
+ * - Requires the token to be included in the X-CSRF-Token header
+ *
+ * @returns Hono middleware function
  */
 export function csrfProtection() {
   return async (c: Context, next: Next) => {
     const method = c.req.method.toUpperCase()
 
     // Get or generate CSRF token
-    let csrfToken = getCookie(c, CSRF_TOKEN_COOKIE)
+    let csrfToken = getCookie(c, CSRF_TOKEN_COOKIE) as CsrfToken | undefined
     if (!csrfToken) {
       csrfToken = generateToken()
       setCookie(c, CSRF_TOKEN_COOKIE, csrfToken, {
         httpOnly: true,
         sameSite: 'Strict',
-        secure: process.env.NODE_ENV === 'production',
+        secure: IS_PRODUCTION,
         path: '/',
       })
     }
@@ -57,26 +75,4 @@ export function csrfProtection() {
     c.set('csrfToken', csrfToken)
     return next()
   }
-}
-
-/**
- * Helper to inject CSRF token into HTML forms and AJAX requests
- * This should be added to templates that make state-changing requests
- */
-export function injectCsrfToken(c: Context): string {
-  const token = c.get('csrfToken') || ''
-  return `
-    <meta name="csrf-token" content="${token}">
-    <script>
-      // Add CSRF token to all HTMX requests
-      document.addEventListener('DOMContentLoaded', function() {
-        document.body.addEventListener('htmx:configRequest', function(evt) {
-          const token = document.querySelector('meta[name="csrf-token"]')?.content;
-          if (token) {
-            evt.detail.headers['X-CSRF-Token'] = token;
-          }
-        });
-      });
-    </script>
-  `
 }

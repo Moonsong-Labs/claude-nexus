@@ -1,5 +1,44 @@
 # Grooming Log
 
+## 2025-01-20: CSRF Middleware Refactoring
+
+### File: `services/dashboard/src/middleware/csrf.ts`
+
+#### Action: REFACTORED
+
+#### Changes Made:
+
+1. **Removed dead code**:
+   - Deleted unused `injectCsrfToken()` function that was never called in the codebase
+   - HTMX CSRF configuration already exists in the main layout file
+
+2. **Improved environment consistency**:
+   - Replaced direct `NODE_ENV` check with project's `IS_PRODUCTION` constant
+   - Now supports both NODE_ENV and BUN_ENV for better runtime compatibility
+
+3. **Enhanced type safety**:
+   - Added branded type `CsrfToken` for better type safety
+   - Prevents accidental string/token mixups in code
+
+4. **Improved documentation**:
+   - Added detailed JSDoc comments explaining the middleware's purpose
+   - Documented the Double Submit Cookie pattern implementation
+   - Added inline comments for better code clarity
+
+#### Rationale:
+
+1. **Dead code removal**: Unused functions create confusion and maintenance burden
+2. **Consistency**: Using project standards (IS_PRODUCTION) improves codebase cohesion
+3. **Type safety**: Branded types prevent security-sensitive value misuse
+4. **Maintainability**: Better documentation helps future developers understand security decisions
+
+#### Impact:
+
+- **Security**: No functional changes to CSRF protection, only code quality improvements
+- **Code quality**: Cleaner, more focused middleware implementation
+- **Developer experience**: Better type safety and clearer documentation
+- **Bundle size**: Slightly reduced by removing dead code
+
 ## 2025-01-20: HttpError Class Refactoring
 
 ### File: `services/dashboard/src/errors/HttpError.ts`
