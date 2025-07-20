@@ -58,7 +58,9 @@ export class McpServer {
 
   constructor(private promptRegistry: PromptRegistryService) {}
 
-  async handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
+  async handleRequest(
+    request: JsonRpcRequest<unknown>
+  ): Promise<JsonRpcResponse<unknown, unknown>> {
     switch (request.method) {
       case RPC_METHODS.INITIALIZE:
         return this.handleInitialize(request)
@@ -74,7 +76,9 @@ export class McpServer {
     }
   }
 
-  private async handleInitialize(request: JsonRpcRequest): Promise<JsonRpcResponse> {
+  private async handleInitialize(
+    request: JsonRpcRequest<InitializeParams>
+  ): Promise<JsonRpcResponse<InitializeResult, unknown>> {
     // InitializeParams are optional and currently not used
     // Future implementations may use client capabilities from params
 
@@ -96,7 +100,9 @@ export class McpServer {
     }
   }
 
-  private async handleListPrompts(request: JsonRpcRequest): Promise<JsonRpcResponse> {
+  private async handleListPrompts(
+    request: JsonRpcRequest<ListPromptsParams>
+  ): Promise<JsonRpcResponse<ListPromptsResult, unknown>> {
     // ListPromptsParams supports cursor for pagination, but not implemented yet
     // TODO: Implement pagination when prompt count grows
 
@@ -128,7 +134,9 @@ export class McpServer {
     }
   }
 
-  private async handleGetPrompt(request: JsonRpcRequest): Promise<JsonRpcResponse> {
+  private async handleGetPrompt(
+    request: JsonRpcRequest<GetPromptParams>
+  ): Promise<JsonRpcResponse<GetPromptResult, unknown>> {
     // Validate and normalize parameters
     const parseResult = GetPromptParamsSchema.safeParse(request.params)
 

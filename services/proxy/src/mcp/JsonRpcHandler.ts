@@ -116,14 +116,14 @@ export class JsonRpcHandler {
     code: number,
     message: string,
     data?: unknown
-  ): JsonRpcResponse {
+  ): JsonRpcResponse<never, unknown> {
     return {
       jsonrpc: '2.0',
       id: id || 0,
       error: {
         code,
         message,
-        ...(data && { data }),
+        ...(data !== undefined && { data }),
       },
     }
   }
