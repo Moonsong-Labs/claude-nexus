@@ -35,6 +35,18 @@ export interface ClaudeTool {
   [key: string]: any // Allow any additional fields at tool level
 }
 
+// Conversation tracking types
+export interface ConversationData {
+  currentMessageHash: string
+  parentMessageHash: string | null
+  conversationId: string
+  systemHash: string | null
+  branchId?: string
+  parentRequestId?: string
+  parentTaskRequestId?: string
+  isSubtask?: boolean
+}
+
 export interface ClaudeMessagesRequest {
   model: string
   messages: ClaudeMessage[]

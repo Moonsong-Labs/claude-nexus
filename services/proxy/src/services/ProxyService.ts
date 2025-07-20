@@ -2,15 +2,18 @@ import { Context } from 'hono'
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
-import { AuthenticationService } from './AuthenticationService'
+import { AuthenticationService, AuthResult } from './AuthenticationService'
 import { ClaudeApiClient } from './ClaudeApiClient'
 import { NotificationService } from './NotificationService'
 import { MetricsService } from './MetricsService'
-import { ClaudeMessagesRequest } from '../types/claude'
+import { ClaudeMessagesRequest, ConversationData } from '../types/claude'
 import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
 import { generateConversationId } from '@claude-nexus/shared'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
+
+// Constants
+const DEFAULT_ERROR_STATUS = 500
 
 /**
  * Main proxy service that orchestrates the request flow
@@ -26,14 +29,10 @@ export class ProxyService {
   ) {}
 
   /**
-   * Handle a proxy request
+   * Create a scoped logger for a specific request context
    */
-  async handleRequest(
-    rawRequest: ClaudeMessagesRequest,
-    context: RequestContext,
-    honoContext?: Context
-  ): Promise<Response> {
-    const log = {
+  private createLogger(context: RequestContext) {
+    return {
       debug: (message: string, metadata?: Record<string, any>) => {
         logger.debug(message, { requestId: context.requestId, domain: context.host, metadata })
       },
@@ -47,17 +46,51 @@ export class ProxyService {
         logger.error(message, {
           requestId: context.requestId,
           domain: context.host,
-          error: error
-            ? {
-                message: error.message,
-                stack: error.stack,
-                code: (error as any).code,
-              }
-            : undefined,
+          error: error ? this.formatError(error) : undefined,
           metadata,
         })
       },
     }
+  }
+
+  /**
+   * Format error objects for logging
+   */
+  private formatError(error: Error | unknown): { message: string; stack?: string; code?: string } {
+    if (error instanceof Error) {
+      return {
+        message: error.message,
+        stack: error.stack,
+        code: (error as any).code,
+      }
+    }
+    return {
+      message: String(error),
+    }
+  }
+
+  /**
+   * Get the status code from an error
+   */
+  private getErrorStatusCode(error: unknown): number {
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      const statusCode = (error as any).statusCode
+      if (typeof statusCode === 'number') {
+        return statusCode
+      }
+    }
+    return DEFAULT_ERROR_STATUS
+  }
+
+  /**
+   * Handle a proxy request
+   */
+  async handleRequest(
+    rawRequest: ClaudeMessagesRequest,
+    context: RequestContext,
+    honoContext?: Context
+  ): Promise<Response> {
+    const log = this.createLogger(context)
 
     // Create domain entities
     const request = new ProxyRequest(rawRequest, context.host, context.requestId, context.apiKey)
@@ -75,25 +108,15 @@ export class ProxyService {
     }
 
     // Extract conversation data if storage is enabled
-    let conversationData:
-      | {
-          currentMessageHash: string
-          parentMessageHash: string | null
-          conversationId: string
-          systemHash: string | null
-          branchId?: string
-          parentRequestId?: string
-          parentTaskRequestId?: string
-          isSubtask?: boolean
-        }
-      | undefined
+    let conversationData: ConversationData | undefined
 
     if (this.storageAdapter && rawRequest.messages && rawRequest.messages.length > 0) {
       try {
         // Use the new ConversationLinker through StorageAdapter
+        // Type assertion needed due to slight differences between proxy and shared types
         const linkingResult = await this.storageAdapter.linkConversation(
           context.host,
-          rawRequest.messages as any, // Cast to any due to type mismatch between proxy and shared types
+          rawRequest.messages as any,
           rawRequest.system,
           context.requestId,
           new Date(context.startTime) // Pass the request timestamp
@@ -176,7 +199,7 @@ export class ProxyService {
         request,
         error instanceof Error ? error : new Error(String(error)),
         context,
-        (error as any).statusCode || 500
+        this.getErrorStatusCode(error)
       )
 
       // Notify about error
@@ -197,44 +220,11 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    auth: any,
-    conversationData?: {
-      currentMessageHash: string
-      parentMessageHash: string | null
-      conversationId: string
-      systemHash: string | null
-      branchId?: string
-      parentRequestId?: string
-      parentTaskRequestId?: string
-      isSubtask?: boolean
-    },
+    auth: AuthResult,
+    conversationData?: ConversationData,
     sampleId?: string
   ): Promise<Response> {
-    const log = {
-      debug: (message: string, metadata?: Record<string, any>) => {
-        logger.debug(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      info: (message: string, metadata?: Record<string, any>) => {
-        logger.info(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      warn: (message: string, metadata?: Record<string, any>) => {
-        logger.warn(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      error: (message: string, error?: Error, metadata?: Record<string, any>) => {
-        logger.error(message, {
-          requestId: context.requestId,
-          domain: context.host,
-          error: error
-            ? {
-                message: error.message,
-                stack: error.stack,
-                code: (error as any).code,
-              }
-            : undefined,
-          metadata,
-        })
-      },
-    }
+    const log = this.createLogger(context)
 
     // Process the response
     const jsonResponse = await this.apiClient.processResponse(claudeResponse, response)
@@ -287,44 +277,11 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    auth: any,
-    conversationData?: {
-      currentMessageHash: string
-      parentMessageHash: string | null
-      conversationId: string
-      systemHash: string | null
-      branchId?: string
-      parentRequestId?: string
-      parentTaskRequestId?: string
-      isSubtask?: boolean
-    },
+    auth: AuthResult,
+    conversationData?: ConversationData,
     sampleId?: string
   ): Promise<Response> {
-    const log = {
-      debug: (message: string, metadata?: Record<string, any>) => {
-        logger.debug(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      info: (message: string, metadata?: Record<string, any>) => {
-        logger.info(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      warn: (message: string, metadata?: Record<string, any>) => {
-        logger.warn(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      error: (message: string, error?: Error, metadata?: Record<string, any>) => {
-        logger.error(message, {
-          requestId: context.requestId,
-          domain: context.host,
-          error: error
-            ? {
-                message: error.message,
-                stack: error.stack,
-                code: (error as any).code,
-              }
-            : undefined,
-          metadata,
-        })
-      },
-    }
+    const log = this.createLogger(context)
 
     // Create a transform stream to process events
     const { readable, writable } = new TransformStream()
@@ -386,44 +343,11 @@ export class ProxyService {
     writer: WritableStreamDefaultWriter,
     context: RequestContext,
     request: ProxyRequest,
-    auth: any,
-    conversationData?: {
-      currentMessageHash: string
-      parentMessageHash: string | null
-      conversationId: string
-      systemHash: string | null
-      branchId?: string
-      parentRequestId?: string
-      parentTaskRequestId?: string
-      isSubtask?: boolean
-    },
+    auth: AuthResult,
+    conversationData?: ConversationData,
     sampleId?: string
   ): Promise<void> {
-    const log = {
-      debug: (message: string, metadata?: Record<string, any>) => {
-        logger.debug(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      info: (message: string, metadata?: Record<string, any>) => {
-        logger.info(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      warn: (message: string, metadata?: Record<string, any>) => {
-        logger.warn(message, { requestId: context.requestId, domain: context.host, metadata })
-      },
-      error: (message: string, error?: Error, metadata?: Record<string, any>) => {
-        logger.error(message, {
-          requestId: context.requestId,
-          domain: context.host,
-          error: error
-            ? {
-                message: error.message,
-                stack: error.stack,
-                code: (error as any).code,
-              }
-            : undefined,
-          metadata,
-        })
-      },
-    }
+    const log = this.createLogger(context)
 
     try {
       const encoder = new TextEncoder()
@@ -493,7 +417,7 @@ export class ProxyService {
         request,
         error instanceof Error ? error : new Error(String(error)),
         context,
-        (error as any).statusCode || 500
+        this.getErrorStatusCode(error)
       )
 
       // Notify about error
@@ -580,12 +504,12 @@ export class ProxyService {
           currentTextContent = ''
         } else if (currentToolUse) {
           // Try to parse the accumulated JSON
-          try {
-            if (currentToolUse.input._raw) {
+          if (currentToolUse.input._raw) {
+            try {
               currentToolUse.input = JSON.parse(currentToolUse.input._raw)
+            } catch {
+              // Keep the raw input if parsing fails
             }
-          } catch {
-            // Keep the raw input if parsing fails
           }
           response.content.push(currentToolUse)
           currentToolUse = null
