@@ -32,6 +32,14 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Deleted services/dashboard/src/errors/index.ts**: Removed unused barrel export file
+  - File contained only `export * from './HttpError.js'` but was never imported
+  - All 8 files needing HttpError import it directly from './HttpError.js'
+  - Also removed empty `__tests__` directory in the same folder
+  - Validated deletion with Gemini-2.5-pro who confirmed barrel files can cause circular dependencies and harm tree-shaking
+  - Build and existing type checks continue to pass after deletion
+  - Rationale: Dead code elimination and alignment with project's direct import pattern
+
 - **Deleted services/dashboard/src/layout/**tests**/theme-test-utils.ts**: Removed unused test utility file
   - File was not imported anywhere in the codebase
   - Both test files using theme functionality have their own inline implementations
