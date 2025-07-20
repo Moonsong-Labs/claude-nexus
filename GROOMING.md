@@ -48,6 +48,14 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
   - Marked as "deprecated fallback implementation" in recent commit
   - Duplicated functionality already present in sse.ts
   - Validated deletion with Gemini-2.5-flash who agreed it adds confusion and maintenance burden
+
+- **Deleted services/dashboard/src/routes/dashboard.ts**: Removed obsolete monolithic dashboard implementation
+  - File was not imported or used anywhere in the codebase
+  - Represented an older monolithic version (530 lines) replaced by modular architecture
+  - Dashboard functionality has been properly split into focused modules (auth.ts, overview.ts, requests.ts, etc.)
+  - Contained anti-patterns: ~200 lines of inline CSS, hardcoded HTML templates, mixed concerns
+  - Validated deletion with Gemini-2.5-pro (10/10 confidence) who confirmed it aligns with best practices (YAGNI, Boy Scout Rule)
+  - Rationale: Keeping dead code only adds technical debt and confusion. The modular architecture is superior and already fully implemented
   - Updated technical debt documentation to reflect removal
 
 - **services/dashboard/src/components/spark-feedback.ts**: Removed unused duplicate Spark feedback component
