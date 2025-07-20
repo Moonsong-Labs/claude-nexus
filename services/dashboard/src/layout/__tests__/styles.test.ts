@@ -1,142 +1,206 @@
 import { describe, it, expect } from 'bun:test'
 import { dashboardStyles } from '../styles.js'
 
-describe('Dark Mode CSS Variables', () => {
+/**
+ * Tests for the dashboard theme system CSS variables.
+ * Validates that all required CSS variables are defined and have correct values
+ * for both light and dark themes.
+ */
+describe('Dashboard Theme CSS Variables', () => {
+  /**
+   * Extracts CSS variables from a style string for a given selector.
+   * Handles complex CSS values including rgba(), calc(), and nested parentheses.
+   */
   const extractCSSVariables = (styles: string, selector: string): Record<string, string> => {
-    const selectorRegex = new RegExp(`${selector}\\s*{([^}]+)}`, 's')
+    // Escape special regex characters in selector
+    const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const selectorRegex = new RegExp(`${escapedSelector}\\s*{([^}]+)}`, 's')
     const match = styles.match(selectorRegex)
     if (!match) {
       return {}
     }
 
-    const varRegex = /--[\w-]+:\s*[^;]+/g
-    const matches = match[1].match(varRegex) || []
-    return matches.reduce(
-      (acc, match) => {
-        const [key, value] = match.split(':').map(s => s.trim())
-        acc[key] = value
-        return acc
-      },
-      {} as Record<string, string>
-    )
+    // Parse CSS variables line by line for better accuracy
+    const content = match[1]
+    const variables: Record<string, string> = {}
+
+    // Split into lines and process each line
+    const lines = content.split('\n')
+    let currentVar = ''
+    let currentValue = ''
+    let inValue = false
+
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+
+      // Check if this line starts a new CSS variable
+      if (trimmedLine.startsWith('--')) {
+        // Save previous variable if exists
+        if (currentVar && currentValue) {
+          variables[currentVar] = currentValue.trim().replace(/;$/, '')
+        }
+
+        // Parse new variable
+        const colonIndex = trimmedLine.indexOf(':')
+        if (colonIndex > -1) {
+          currentVar = trimmedLine.substring(0, colonIndex).trim()
+          currentValue = trimmedLine.substring(colonIndex + 1).trim()
+          inValue = true
+        }
+      } else if (inValue && trimmedLine) {
+        // Continue collecting multi-line values
+        currentValue += ' ' + trimmedLine
+      }
+
+      // Check if value is complete (ends with semicolon not inside parentheses)
+      if (currentValue && currentValue.match(/;\s*$/)) {
+        const openParens = (currentValue.match(/\(/g) || []).length
+        const closeParens = (currentValue.match(/\)/g) || []).length
+        if (openParens === closeParens) {
+          variables[currentVar] = currentValue.trim().replace(/;$/, '')
+          currentVar = ''
+          currentValue = ''
+          inValue = false
+        }
+      }
+    }
+
+    // Save last variable if exists
+    if (currentVar && currentValue) {
+      variables[currentVar] = currentValue.trim().replace(/;$/, '')
+    }
+
+    return variables
   }
 
-  it('should define all required CSS variables for light theme', () => {
-    const lightVars = extractCSSVariables(dashboardStyles, ':root')
+  // Define expected CSS variables structure
+  const EXPECTED_CSS_VARIABLES = {
+    backgrounds: ['--bg-primary', '--bg-secondary', '--bg-tertiary', '--bg-dark-section'],
+    text: [
+      '--text-primary',
+      '--text-secondary',
+      '--text-tertiary',
+      '--text-link',
+      '--text-link-hover',
+    ],
+    borders: ['--border-color', '--border-color-light'],
+    buttons: [
+      '--btn-primary-bg',
+      '--btn-primary-hover',
+      '--btn-secondary-bg',
+      '--btn-secondary-hover',
+    ],
+    status: ['--color-success', '--color-error', '--color-warning', '--color-info'],
+    messages: ['--msg-user-bg', '--msg-assistant-bg', '--msg-tool-use-bg', '--msg-tool-result-bg'],
+  }
 
-    // Background colors
-    expect(lightVars['--bg-primary']).toBeDefined()
-    expect(lightVars['--bg-secondary']).toBeDefined()
-    expect(lightVars['--bg-tertiary']).toBeDefined()
-    expect(lightVars['--bg-dark-section']).toBeDefined()
+  // Define expected color values for themes
+  const THEME_COLORS = {
+    light: {
+      '--bg-primary': '#f9fafb',
+      '--bg-secondary': '#ffffff',
+      '--text-primary': '#1f2937',
+      '--text-secondary': '#6b7280',
+      '--border-color': '#e5e7eb',
+      '--btn-primary-bg': '#3b82f6',
+      '--msg-user-bg': '#eff6ff',
+      '--msg-assistant-bg': '#ffffff',
+      '--msg-tool-use-bg': '#fef3c7',
+      '--msg-tool-result-bg': '#dcfce7',
+    },
+    dark: {
+      '--bg-primary': '#0f172a',
+      '--bg-secondary': '#1e293b',
+      '--text-primary': '#f1f5f9',
+      '--text-secondary': '#cbd5e1',
+      '--border-color': '#334155',
+      '--btn-primary-bg': '#2563eb',
+      '--msg-user-bg': '#1e3a8a',
+      '--msg-assistant-bg': '#1e293b',
+      '--msg-tool-use-bg': '#78350f',
+      '--msg-tool-result-bg': '#14532d',
+    },
+  }
 
-    // Text colors
-    expect(lightVars['--text-primary']).toBeDefined()
-    expect(lightVars['--text-secondary']).toBeDefined()
-    expect(lightVars['--text-tertiary']).toBeDefined()
-    expect(lightVars['--text-link']).toBeDefined()
-    expect(lightVars['--text-link-hover']).toBeDefined()
+  /**
+   * Helper function to test variable existence for a theme
+   */
+  const testVariableExistence = (themeName: string, selector: string) => {
+    describe(`${themeName} theme variable existence`, () => {
+      const vars = extractCSSVariables(dashboardStyles, selector)
 
-    // Border colors
-    expect(lightVars['--border-color']).toBeDefined()
-    expect(lightVars['--border-color-light']).toBeDefined()
+      Object.entries(EXPECTED_CSS_VARIABLES).forEach(([category, variables]) => {
+        it(`should define all ${category} variables`, () => {
+          variables.forEach(varName => {
+            expect(vars[varName]).toBeDefined()
+          })
+        })
+      })
+    })
+  }
 
-    // Button colors
-    expect(lightVars['--btn-primary-bg']).toBeDefined()
-    expect(lightVars['--btn-primary-hover']).toBeDefined()
-    expect(lightVars['--btn-secondary-bg']).toBeDefined()
-    expect(lightVars['--btn-secondary-hover']).toBeDefined()
+  /**
+   * Helper function to test specific color values for a theme
+   */
+  const testColorValues = (themeName: 'light' | 'dark', selector: string) => {
+    describe(`${themeName} theme color values`, () => {
+      it(`should have correct color values`, () => {
+        const vars = extractCSSVariables(dashboardStyles, selector)
+        const expectedColors = THEME_COLORS[themeName]
 
-    // Status colors
-    expect(lightVars['--color-success']).toBeDefined()
-    expect(lightVars['--color-error']).toBeDefined()
-    expect(lightVars['--color-warning']).toBeDefined()
-    expect(lightVars['--color-info']).toBeDefined()
+        Object.entries(expectedColors).forEach(([varName, expectedValue]) => {
+          expect(vars[varName]).toBe(expectedValue)
+        })
+      })
+    })
+  }
+
+  // Test light theme
+  testVariableExistence('Light', ':root')
+  testColorValues('light', ':root')
+
+  // Test dark theme
+  testVariableExistence('Dark', '[data-theme="dark"]')
+  testColorValues('dark', '[data-theme="dark"]')
+
+  describe('Theme component styles', () => {
+    it('should include theme toggle styles', () => {
+      expect(dashboardStyles).toContain('.theme-toggle {')
+      expect(dashboardStyles).toContain('width: 36px')
+      expect(dashboardStyles).toContain('height: 36px')
+      expect(dashboardStyles).toContain('.theme-toggle:hover {')
+      expect(dashboardStyles).toContain('.theme-toggle svg {')
+    })
+
+    it('should include dark mode specific adjustments', () => {
+      // Check for dark mode code block adjustments
+      expect(dashboardStyles).toContain('[data-theme="dark"] .message-content pre')
+      expect(dashboardStyles).toContain('[data-theme="dark"] .message-content code')
+      expect(dashboardStyles).toContain('[data-theme="dark"] .hljs')
+
+      // Check that styles use CSS variables
+      expect(dashboardStyles).toContain('background: var(--bg-secondary)')
+      expect(dashboardStyles).toContain('color: var(--text-primary)')
+      expect(dashboardStyles).toContain('border-color: var(--border-color)')
+    })
   })
 
-  it('should define all required CSS variables for dark theme', () => {
-    const darkVars = extractCSSVariables(dashboardStyles, '\\[data-theme="dark"\\]')
+  describe('Edge cases and error handling', () => {
+    it('should handle missing selectors gracefully', () => {
+      const result = extractCSSVariables(dashboardStyles, '.non-existent-selector')
+      expect(result).toEqual({})
+    })
 
-    // Background colors
-    expect(darkVars['--bg-primary']).toBeDefined()
-    expect(darkVars['--bg-secondary']).toBeDefined()
-    expect(darkVars['--bg-tertiary']).toBeDefined()
-    expect(darkVars['--bg-dark-section']).toBeDefined()
+    it('should handle empty style content', () => {
+      const result = extractCSSVariables('', ':root')
+      expect(result).toEqual({})
+    })
 
-    // Text colors
-    expect(darkVars['--text-primary']).toBeDefined()
-    expect(darkVars['--text-secondary']).toBeDefined()
-    expect(darkVars['--text-tertiary']).toBeDefined()
-    expect(darkVars['--text-link']).toBeDefined()
-    expect(darkVars['--text-link-hover']).toBeDefined()
-
-    // Border colors
-    expect(darkVars['--border-color']).toBeDefined()
-    expect(darkVars['--border-color-light']).toBeDefined()
-
-    // Button colors
-    expect(darkVars['--btn-primary-bg']).toBeDefined()
-    expect(darkVars['--btn-primary-hover']).toBeDefined()
-    expect(darkVars['--btn-secondary-bg']).toBeDefined()
-    expect(darkVars['--btn-secondary-hover']).toBeDefined()
-  })
-
-  it('should have correct color values for light theme', () => {
-    const lightVars = extractCSSVariables(dashboardStyles, ':root')
-
-    expect(lightVars['--bg-primary']).toBe('#f9fafb')
-    expect(lightVars['--bg-secondary']).toBe('#ffffff')
-    expect(lightVars['--text-primary']).toBe('#1f2937')
-    expect(lightVars['--text-secondary']).toBe('#6b7280')
-    expect(lightVars['--border-color']).toBe('#e5e7eb')
-    expect(lightVars['--btn-primary-bg']).toBe('#3b82f6')
-  })
-
-  it('should have correct color values for dark theme', () => {
-    const darkVars = extractCSSVariables(dashboardStyles, '\\[data-theme="dark"\\]')
-
-    expect(darkVars['--bg-primary']).toBe('#0f172a')
-    expect(darkVars['--bg-secondary']).toBe('#1e293b')
-    expect(darkVars['--text-primary']).toBe('#f1f5f9')
-    expect(darkVars['--text-secondary']).toBe('#cbd5e1')
-    expect(darkVars['--border-color']).toBe('#334155')
-    expect(darkVars['--btn-primary-bg']).toBe('#2563eb')
-  })
-
-  it('should include theme toggle styles', () => {
-    expect(dashboardStyles).toContain('.theme-toggle {')
-    expect(dashboardStyles).toContain('width: 36px')
-    expect(dashboardStyles).toContain('height: 36px')
-    expect(dashboardStyles).toContain('.theme-toggle:hover {')
-    expect(dashboardStyles).toContain('.theme-toggle svg {')
-  })
-
-  it('should include dark mode specific adjustments', () => {
-    // Check for dark mode code block adjustments
-    expect(dashboardStyles).toContain('[data-theme="dark"] .message-content pre')
-    expect(dashboardStyles).toContain('[data-theme="dark"] .message-content code')
-    expect(dashboardStyles).toContain('[data-theme="dark"] .hljs')
-
-    // Check that styles use CSS variables
-    expect(dashboardStyles).toContain('background: var(--bg-secondary)')
-    expect(dashboardStyles).toContain('color: var(--text-primary)')
-    expect(dashboardStyles).toContain('border-color: var(--border-color)')
-  })
-
-  it('should define message-specific color variables', () => {
-    const lightVars = extractCSSVariables(dashboardStyles, ':root')
-    const darkVars = extractCSSVariables(dashboardStyles, '\\[data-theme="dark"\\]')
-
-    // Light theme message colors
-    expect(lightVars['--msg-user-bg']).toBe('#eff6ff')
-    expect(lightVars['--msg-assistant-bg']).toBe('#ffffff')
-    expect(lightVars['--msg-tool-use-bg']).toBe('#fef3c7')
-    expect(lightVars['--msg-tool-result-bg']).toBe('#dcfce7')
-
-    // Dark theme message colors
-    expect(darkVars['--msg-user-bg']).toBe('#1e3a8a')
-    expect(darkVars['--msg-assistant-bg']).toBe('#1e293b')
-    expect(darkVars['--msg-tool-use-bg']).toBe('#78350f')
-    expect(darkVars['--msg-tool-result-bg']).toBe('#14532d')
+    it('should handle malformed CSS', () => {
+      const malformedCSS = ':root { --color: }'
+      const result = extractCSSVariables(malformedCSS, ':root')
+      // Should not throw and should handle gracefully
+      expect(typeof result).toBe('object')
+    })
   })
 })
