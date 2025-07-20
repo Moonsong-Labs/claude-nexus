@@ -25,6 +25,10 @@ jobs:
       id-token: write
       models: read
     services:
+      # SECURITY NOTE: This uses an external Docker image. Consider:
+      # 1. Verifying the source and contents of this image
+      # 2. Using an official Anthropic action if available
+      # 3. Self-hosting if this functionality is critical
       claude-code-proxy:
         image: ghcr.io/kiyo-e/claude-code-proxy:latest
         ports:

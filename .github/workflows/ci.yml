@@ -28,9 +28,6 @@ jobs:
       - name: Build shared package
         run: bun run build:shared
 
-      - name: Run type checks
-        run: bun run typecheck
-
       - name: Build proxy service
         run: bun run build:proxy
 

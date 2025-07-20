@@ -30,6 +30,18 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ## Recent Grooming Activities
 
+### 2025-07-21
+
+- **.github directory cleanup**: Streamlined CI/CD workflows for production readiness
+  - Deleted `.github/workflows/typecheck.yml` - Functionality duplicated in code-quality.yml
+  - Deleted `.github/PRETTIER_CI_SETUP.md` - Referenced non-existent auto-format.yml workflow
+  - Removed redundant type checking from ci.yml (already in code-quality.yml)
+  - Added security documentation to claude.yml about external Docker image usage
+  - Verified all workflows use consistent bun@v2 and dependency installation
+  - Validated with Gemini-2.5-flash (9/10) and O3-mini (9/10) - strong consensus
+  - Rationale: Reduces CI/CD redundancy, improves maintainability, addresses security concerns
+  - Impact: Faster CI runs, clearer workflow responsibilities, improved developer experience
+
 ### 2025-07-20
 
 - **Deleted services/dashboard/preload.js**: Removed dead code file

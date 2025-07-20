@@ -51,6 +51,7 @@
         "claude-nexus-dashboard": "./dist/main.js",
       },
       "dependencies": {
+        "@claude-nexus/shared": "workspace:*",
         "@hono/node-server": "^1.13.7",
         "elkjs": "^0.10.0",
         "hono": "^4.6.13",
