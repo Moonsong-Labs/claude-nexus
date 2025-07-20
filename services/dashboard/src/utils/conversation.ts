@@ -42,8 +42,144 @@ export interface ConversationData {
   rawResponse?: any
 }
 
-const MESSAGE_TRUNCATE_LENGTH = 300
+/**
+ * Tool use content block interface
+ */
+interface ToolUseContentBlock {
+  type: 'tool_use'
+  id?: string
+  name?: string
+  input?: any
+}
 
+/**
+ * Image content block interface
+ */
+interface ImageContentBlock {
+  type: 'image'
+  source: {
+    type: string
+    data?: string
+    media_type?: string
+  }
+}
+
+/**
+ * Validates and processes image data for security and performance
+ * @param source - Image source object containing type, data, and media_type
+ * @returns HTML string for valid image or error message
+ */
+function validateAndProcessImage(source: ImageContentBlock['source']): string {
+  if (source.type !== 'base64' || !source.data || !source.media_type) {
+    return '<!-- Unsupported image format -->'
+  }
+
+  // Validate media type to prevent XSS
+  if (!CONVERSATION_CONFIG.VALID_IMAGE_TYPES.includes(source.media_type as any)) {
+    return '<!-- Unsupported image type -->'
+  }
+
+  // Check data size to prevent performance issues
+  const sizeInBytes = source.data.length * 0.75 // Approximate base64 to bytes
+  if (sizeInBytes > CONVERSATION_CONFIG.MAX_IMAGE_SIZE_BYTES) {
+    return '<!-- Image too large (max 10MB) -->'
+  }
+
+  // Create a data URI for the image
+  const dataUri = `data:${source.media_type};base64,${source.data}`
+  return `<img src="${dataUri}" alt="Tool result image" class="tool-result-image" loading="lazy" />`
+}
+
+/**
+ * Processes tool use content block into formatted HTML
+ * @param block - Tool use content block
+ * @returns Formatted HTML string for tool use
+ */
+function processToolUseContent(block: ToolUseContentBlock): string {
+  let toolContent = `**Tool Use: ${block.name || 'Unknown Tool'}**`
+  if (block.id) {
+    toolContent += ` (ID: ${block.id})`
+  }
+  toolContent += '\n\n'
+
+  // Add tool input if available
+  if (block.input) {
+    const jsonStr = JSON.stringify(block.input, null, 2)
+    toolContent += '```json\n' + jsonStr + '\n```'
+  }
+  return toolContent
+}
+
+/**
+ * Shared sanitizeHtml configuration for consistent HTML processing
+ */
+const SANITIZE_HTML_CONFIG = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'pre',
+    'code',
+    'img',
+  ]),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    code: ['class'],
+    pre: ['class'],
+    img: ['src', 'alt', 'class', 'loading'],
+  },
+  allowedSchemesByTag: {
+    img: ['data', 'http', 'https'],
+  },
+  // Don't escape entities in code blocks
+  textFilter: function (text: string, tagName: string) {
+    if (tagName === 'code' || tagName === 'pre') {
+      return text
+    }
+    return text
+  },
+  transformTags: {
+    img: (tagName: string, attribs: Record<string, string>) => {
+      // Extra validation for data URIs - only allow image types
+      const src = attribs.src || ''
+      if (src.startsWith('data:')) {
+        if (!src.startsWith('data:image/')) {
+          // Remove non-image data URIs for security
+          return {
+            tagName: 'span',
+            attribs: {},
+            text: '[Invalid image data]',
+          }
+        }
+      }
+      return {
+        tagName,
+        attribs,
+      }
+    },
+  },
+}
+
+/**
+ * Configuration constants for conversation parsing
+ */
+const CONVERSATION_CONFIG = {
+  /** Maximum length of content before truncation */
+  MESSAGE_TRUNCATE_LENGTH: 300,
+  /** Maximum image size in bytes (10MB) */
+  MAX_IMAGE_SIZE_BYTES: 10 * 1024 * 1024,
+  /** Valid image MIME types for security */
+  VALID_IMAGE_TYPES: ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'],
+} as const
+
+/**
+ * Parses API request/response data into a structured conversation format
+ * @param requestData - Raw request data containing request_body, response_body, timestamps, etc.
+ * @returns Parsed conversation data with messages, token usage, and metadata
+ */
 export async function parseConversation(requestData: any): Promise<ConversationData> {
   const request = requestData.request_body || {}
   const response = requestData.response_body || {}
@@ -131,6 +267,13 @@ export async function parseConversation(requestData: any): Promise<ConversationD
   }
 }
 
+/**
+ * Parses a single message into a structured format with HTML rendering
+ * @param msg - Raw message object with role and content
+ * @param timestamp - Optional timestamp for the message
+ * @param pendingSparkToolUses - Map to track Spark tool invocations across messages
+ * @returns Parsed message with HTML content and metadata
+ */
 async function parseMessage(
   msg: any,
   timestamp?: Date,
@@ -211,18 +354,7 @@ async function parseMessage(
             pendingSparkToolUses.set(block.id, block)
           }
 
-          let toolContent = `**Tool Use: ${block.name || 'Unknown Tool'}**`
-          if (block.id) {
-            toolContent += ` (ID: ${block.id})`
-          }
-          toolContent += '\n\n'
-
-          // Add tool input if available
-          if (block.input) {
-            const jsonStr = JSON.stringify(block.input, null, 2)
-            toolContent += '```json\n' + jsonStr + '\n```'
-          }
-          contentParts.push(toolContent)
+          contentParts.push(processToolUseContent(block))
           break
         }
 
@@ -274,35 +406,7 @@ async function parseMessage(
                 }
               } else if (contentItem.type === 'image' && contentItem.source) {
                 // Handle image content
-                const { source } = contentItem
-                if (source.type === 'base64' && source.data && source.media_type) {
-                  // Validate media_type to prevent XSS
-                  const validImageTypes = [
-                    'image/png',
-                    'image/jpeg',
-                    'image/jpg',
-                    'image/gif',
-                    'image/webp',
-                  ]
-                  if (!validImageTypes.includes(source.media_type)) {
-                    resultParts.push('<!-- Unsupported image type -->')
-                  } else {
-                    // Check data size to prevent performance issues (10MB limit)
-                    const sizeInBytes = source.data.length * 0.75 // Approximate base64 to bytes
-                    if (sizeInBytes > 10 * 1024 * 1024) {
-                      resultParts.push('<!-- Image too large (max 10MB) -->')
-                    } else {
-                      // Create a data URI for the image
-                      const dataUri = `data:${source.media_type};base64,${source.data}`
-                      // Add image HTML with proper class for styling
-                      resultParts.push(
-                        `<img src="${dataUri}" alt="Tool result image" class="tool-result-image" loading="lazy" />`
-                      )
-                    }
-                  }
-                } else {
-                  resultParts.push('<!-- Unsupported image format -->')
-                }
+                resultParts.push(validateAndProcessImage(contentItem.source))
               }
             }
 
@@ -320,58 +424,10 @@ async function parseMessage(
 
   // Render markdown to HTML
   const dirtyHtml = await marked.parse(content)
-  const htmlContent = sanitizeHtml(dirtyHtml, {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-      'h1',
-      'h2',
-      'h3',
-      'h4',
-      'h5',
-      'h6',
-      'pre',
-      'code',
-      'img',
-    ]),
-    allowedAttributes: {
-      ...sanitizeHtml.defaults.allowedAttributes,
-      code: ['class'],
-      pre: ['class'],
-      img: ['src', 'alt', 'class', 'loading'],
-    },
-    allowedSchemesByTag: {
-      img: ['data', 'http', 'https'],
-    },
-    // Don't escape entities in code blocks
-    textFilter: function (text, tagName) {
-      if (tagName === 'code' || tagName === 'pre') {
-        return text
-      }
-      return text
-    },
-    transformTags: {
-      img: (tagName, attribs) => {
-        // Extra validation for data URIs - only allow image types
-        const src = attribs.src || ''
-        if (src.startsWith('data:')) {
-          if (!src.startsWith('data:image/')) {
-            // Remove non-image data URIs for security
-            return {
-              tagName: 'span',
-              attribs: {},
-              text: '[Invalid image data]',
-            }
-          }
-        }
-        return {
-          tagName,
-          attribs,
-        }
-      },
-    },
-  })
+  const htmlContent = sanitizeHtml(dirtyHtml, SANITIZE_HTML_CONFIG)
 
   // Check if message is long
-  const isLong = content.length > MESSAGE_TRUNCATE_LENGTH
+  const isLong = content.length > CONVERSATION_CONFIG.MESSAGE_TRUNCATE_LENGTH
   let truncatedHtml
   let hiddenLineCount = 0
   let onlyImageHidden = false
@@ -382,7 +438,7 @@ async function parseMessage(
 
     // Check if content has images that would be broken by truncation
     const hasImage = content.includes('<img src="data:image/')
-    let truncatedContent = content.substring(0, MESSAGE_TRUNCATE_LENGTH)
+    let truncatedContent = content.substring(0, CONVERSATION_CONFIG.MESSAGE_TRUNCATE_LENGTH)
 
     if (hasImage) {
       // Check if truncation would break an image tag
@@ -441,55 +497,7 @@ async function parseMessage(
       : Math.max(0, fullLines.length - truncatedLines.length + 1) // -1 signals only image is hidden
 
     const dirtyTruncatedHtml = await marked.parse(truncatedContent)
-    truncatedHtml = sanitizeHtml(dirtyTruncatedHtml, {
-      allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-        'h1',
-        'h2',
-        'h3',
-        'h4',
-        'h5',
-        'h6',
-        'pre',
-        'code',
-        'img',
-      ]),
-      allowedAttributes: {
-        ...sanitizeHtml.defaults.allowedAttributes,
-        code: ['class'],
-        pre: ['class'],
-        img: ['src', 'alt', 'class', 'loading'],
-      },
-      allowedSchemesByTag: {
-        img: ['data', 'http', 'https'],
-      },
-      // Don't escape entities in code blocks
-      textFilter: function (text, tagName) {
-        if (tagName === 'code' || tagName === 'pre') {
-          return text
-        }
-        return text
-      },
-      transformTags: {
-        img: (tagName, attribs) => {
-          // Extra validation for data URIs - only allow image types
-          const src = attribs.src || ''
-          if (src.startsWith('data:')) {
-            if (!src.startsWith('data:image/')) {
-              // Remove non-image data URIs for security
-              return {
-                tagName: 'span',
-                attribs: {},
-                text: '[Invalid image data]',
-              }
-            }
-          }
-          return {
-            tagName,
-            attribs,
-          }
-        },
-      },
-    })
+    truncatedHtml = sanitizeHtml(dirtyTruncatedHtml, SANITIZE_HTML_CONFIG)
   }
 
   return {
@@ -512,10 +520,22 @@ async function parseMessage(
   }
 }
 
-// Cost calculation utilities
-const DEFAULT_INPUT_COST_PER_MTOK = 15.0 // $15 per million tokens (Opus default)
-const DEFAULT_OUTPUT_COST_PER_MTOK = 75.0 // $75 per million tokens (Opus default)
+/**
+ * Default cost configuration for token pricing
+ */
+const COST_CONFIG = {
+  /** Default input cost per million tokens (Opus pricing) */
+  DEFAULT_INPUT_COST_PER_MTOK: 15.0,
+  /** Default output cost per million tokens (Opus pricing) */
+  DEFAULT_OUTPUT_COST_PER_MTOK: 75.0,
+} as const
 
+/**
+ * Calculates the cost of token usage based on configured pricing
+ * @param inputTokens - Number of input tokens
+ * @param outputTokens - Number of output tokens
+ * @returns Object containing input cost, output cost, total cost, and formatted total
+ */
 export function calculateCost(
   inputTokens: number,
   outputTokens: number
@@ -526,9 +546,11 @@ export function calculateCost(
   formattedTotal: string
 } {
   const inputCostPerMtok =
-    parseFloat(process.env.ANTHROPIC_INPUT_COST_PER_MTOK || '') || DEFAULT_INPUT_COST_PER_MTOK
+    parseFloat(process.env.ANTHROPIC_INPUT_COST_PER_MTOK || '') ||
+    COST_CONFIG.DEFAULT_INPUT_COST_PER_MTOK
   const outputCostPerMtok =
-    parseFloat(process.env.ANTHROPIC_OUTPUT_COST_PER_MTOK || '') || DEFAULT_OUTPUT_COST_PER_MTOK
+    parseFloat(process.env.ANTHROPIC_OUTPUT_COST_PER_MTOK || '') ||
+    COST_CONFIG.DEFAULT_OUTPUT_COST_PER_MTOK
 
   const inputCost = (inputTokens / 1_000_000) * inputCostPerMtok
   const outputCost = (outputTokens / 1_000_000) * outputCostPerMtok
@@ -545,7 +567,11 @@ export function calculateCost(
 // Re-export formatDuration from formatters for backward compatibility
 export const formatDuration = formatDurationUtil
 
-// Format timestamp for display
+/**
+ * Formats a timestamp for display in HH:MM:SS format
+ * @param date - Date to format
+ * @returns Formatted time string or empty string if no date
+ */
 export function formatMessageTime(date?: Date): string {
   if (!date) {
     return ''
