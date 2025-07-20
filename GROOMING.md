@@ -30,6 +30,20 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ## Recent Grooming Activities
 
+### 2025-01-20
+
+- **services/proxy/src/routes/health.ts**: Refactored health check endpoints for production readiness
+  - Added proper TypeScript interfaces replacing `any` types
+  - Implemented comprehensive error logging for database failures
+  - Replaced magic numbers with HTTP_STATUS constants
+  - Standardized response structures across all endpoints
+  - Added requestId to all responses for better observability
+  - Enhanced database health check using pg_catalog query instead of basic SELECT 1
+  - Extracted repeated database check logic into DRY helper function
+  - Added comprehensive JSDoc documentation for all endpoints
+  - Clearly distinguished between liveness (no deps) and readiness (with deps) probes
+  - Rationale: Health endpoints are critical for container orchestration and monitoring. The refactoring improves type safety, error visibility, and maintainability while maintaining compatibility with existing Docker/Kubernetes configurations
+
 ### 2025-01-19
 
 - **client-setup/.claude.json**: Removed user-specific Claude configuration from version control
