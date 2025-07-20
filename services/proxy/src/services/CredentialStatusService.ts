@@ -1,8 +1,13 @@
-import { readdirSync, statSync, existsSync } from 'fs'
+import { promises as fs } from 'fs'
 import { join, resolve } from 'path'
 import { homedir } from 'os'
 import { loadCredentials, ClaudeCredentials } from '../credentials'
 import { logger } from '../middleware/logger'
+
+// Time constants for better readability
+const ONE_MINUTE_MS = 60 * 1000
+const ONE_HOUR_MS = 60 * ONE_MINUTE_MS
+const ONE_DAY_MS = 24 * ONE_HOUR_MS
 
 export interface CredentialStatus {
   domain: string
@@ -38,7 +43,9 @@ export class CredentialStatusService {
 
     try {
       // Check if directory exists
-      if (!existsSync(this.credentialsDir)) {
+      try {
+        await fs.access(this.credentialsDir)
+      } catch {
         logger.info('Credentials directory does not exist', {
           metadata: { credentialsDir: this.credentialsDir },
         })
@@ -46,7 +53,7 @@ export class CredentialStatusService {
       }
 
       // Get all .credentials.json files
-      const files = readdirSync(this.credentialsDir)
+      const files = (await fs.readdir(this.credentialsDir))
         .filter(file => file.endsWith('.credentials.json'))
         .sort()
 
@@ -59,8 +66,9 @@ export class CredentialStatusService {
         statuses.push(status)
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to read credentials directory', {
-        error: error instanceof Error ? { message: error.message } : { message: String(error) },
+        error: { message: errorMessage },
         metadata: { credentialsDir: this.credentialsDir },
       })
     }
@@ -77,7 +85,7 @@ export class CredentialStatusService {
 
     try {
       // Check if file exists and is readable
-      const stats = statSync(filePath)
+      const stats = await fs.stat(filePath)
       if (!stats.isFile()) {
         return {
           domain,
@@ -129,12 +137,17 @@ export class CredentialStatusService {
         }
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error(`Failed to check credential file: ${filename}`, {
+        error: { message: errorMessage },
+        metadata: { domain, filePath },
+      })
       return {
         domain,
         file: filename,
         type: 'api_key',
         status: 'error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorMessage,
         hasClientApiKey: false,
         hasSlackConfig: false,
       }
@@ -149,7 +162,18 @@ export class CredentialStatusService {
     filename: string,
     credentials: ClaudeCredentials
   ): CredentialStatus {
-    const oauth = credentials.oauth!
+    const oauth = credentials.oauth
+    if (!oauth) {
+      return {
+        domain,
+        file: filename,
+        type: 'oauth',
+        status: 'invalid',
+        message: 'OAuth credentials missing',
+        hasClientApiKey: !!credentials.client_api_key,
+        hasSlackConfig: !!credentials.slack,
+      }
+    }
     const now = Date.now()
     const expiresAt = oauth.expiresAt || 0
     const expiresIn = expiresAt - now
@@ -183,10 +207,9 @@ export class CredentialStatusService {
     }
 
     // Check if expiring soon (within 24 hours)
-    const twentyFourHours = 24 * 60 * 60 * 1000
-    if (expiresIn <= twentyFourHours) {
-      const hours = Math.floor(expiresIn / (1000 * 60 * 60))
-      const minutes = Math.floor((expiresIn % (1000 * 60 * 60)) / (1000 * 60))
+    if (expiresIn <= ONE_DAY_MS) {
+      const hours = Math.floor(expiresIn / ONE_HOUR_MS)
+      const minutes = Math.floor((expiresIn % ONE_HOUR_MS) / ONE_MINUTE_MS)
 
       return {
         domain,
@@ -202,8 +225,8 @@ export class CredentialStatusService {
     }
 
     // Token is valid
-    const days = Math.floor(expiresIn / (1000 * 60 * 60 * 24))
-    const hours = Math.floor((expiresIn % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    const days = Math.floor(expiresIn / ONE_DAY_MS)
+    const hours = Math.floor((expiresIn % ONE_DAY_MS) / ONE_HOUR_MS)
 
     return {
       domain,
@@ -219,60 +242,87 @@ export class CredentialStatusService {
   }
 
   /**
+   * Group credential statuses by their status type
+   */
+  private groupStatusesByType(statuses: CredentialStatus[]): Record<string, CredentialStatus[]> {
+    return statuses.reduce(
+      (groups, status) => {
+        const key = status.status
+        if (!groups[key]) {
+          groups[key] = []
+        }
+        groups[key].push(status)
+        return groups
+      },
+      {} as Record<string, CredentialStatus[]>
+    )
+  }
+
+  /**
+   * Format a single credential status line
+   */
+  private formatStatusLine(status: CredentialStatus): string {
+    const extras: string[] = []
+    if (status.hasClientApiKey) {
+      extras.push('client_key')
+    }
+    if (status.hasSlackConfig) {
+      extras.push('slack')
+    }
+
+    let line = `  ${status.domain}: ${status.type} - ${status.status}`
+    if (status.expiresIn) {
+      line += ` (expires in ${status.expiresIn})`
+    }
+    if (extras.length > 0) {
+      line += ` [${extras.join(', ')}]`
+    }
+    return line
+  }
+
+  /**
+   * Get credential statuses that need attention
+   */
+  private getStatusesNeedingAttention(statuses: CredentialStatus[]): CredentialStatus[] {
+    return statuses.filter(
+      s =>
+        s.status === 'expired' ||
+        s.status === 'missing_refresh_token' ||
+        s.status === 'invalid' ||
+        s.status === 'error'
+    )
+  }
+
+  /**
    * Format credential status for logging
    */
   formatStatusForLogging(statuses: CredentialStatus[]): string[] {
     const lines: string[] = []
 
     // Group by status
-    const byStatus = {
-      valid: statuses.filter(s => s.status === 'valid'),
-      expired: statuses.filter(s => s.status === 'expired'),
-      expiring_soon: statuses.filter(s => s.status === 'expiring_soon'),
-      missing_refresh_token: statuses.filter(s => s.status === 'missing_refresh_token'),
-      invalid: statuses.filter(s => s.status === 'invalid'),
-      error: statuses.filter(s => s.status === 'error'),
-    }
+    const byStatus = this.groupStatusesByType(statuses)
 
     // Summary
     lines.push(`Credential Status Summary:`)
     lines.push(`  Total: ${statuses.length} domains`)
-    lines.push(`  Valid: ${byStatus.valid.length}`)
-    if (byStatus.expired.length > 0) {
-      lines.push(`  Expired: ${byStatus.expired.length}`)
-    }
-    if (byStatus.expiring_soon.length > 0) {
-      lines.push(`  Expiring Soon: ${byStatus.expiring_soon.length}`)
-    }
-    if (byStatus.missing_refresh_token.length > 0) {
-      lines.push(`  Missing Refresh Token: ${byStatus.missing_refresh_token.length}`)
-    }
-    if (byStatus.invalid.length > 0) {
-      lines.push(`  Invalid: ${byStatus.invalid.length}`)
-    }
-    if (byStatus.error.length > 0) {
-      lines.push(`  Errors: ${byStatus.error.length}`)
+    lines.push(`  Valid: ${byStatus.valid?.length || 0}`)
+
+    const statusTypes = ['expired', 'expiring_soon', 'missing_refresh_token', 'invalid', 'error']
+    for (const statusType of statusTypes) {
+      const count = byStatus[statusType]?.length || 0
+      if (count > 0) {
+        const label = statusType
+          .split('_')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')
+        lines.push(`  ${label}: ${count}`)
+      }
     }
 
     // Details for each domain
     lines.push(`\nDomain Details:`)
     for (const status of statuses) {
-      const extras: string[] = []
-      if (status.hasClientApiKey) {
-        extras.push('client_key')
-      }
-      if (status.hasSlackConfig) {
-        extras.push('slack')
-      }
-
-      let line = `  ${status.domain}: ${status.type} - ${status.status}`
-      if (status.expiresIn) {
-        line += ` (expires in ${status.expiresIn})`
-      }
-      if (extras.length > 0) {
-        line += ` [${extras.join(', ')}]`
-      }
-      lines.push(line)
+      lines.push(this.formatStatusLine(status))
 
       if (status.status !== 'valid') {
         lines.push(`    → ${status.message}`)
@@ -280,13 +330,7 @@ export class CredentialStatusService {
     }
 
     // Warnings for domains that need attention
-    const needsAttention = statuses.filter(
-      s =>
-        s.status === 'expired' ||
-        s.status === 'missing_refresh_token' ||
-        s.status === 'invalid' ||
-        s.status === 'error'
-    )
+    const needsAttention = this.getStatusesNeedingAttention(statuses)
 
     if (needsAttention.length > 0) {
       lines.push(`\n⚠️  Domains Needing Attention:`)
