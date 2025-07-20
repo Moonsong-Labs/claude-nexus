@@ -11,15 +11,10 @@ export const DEFAULT_ERROR_STATUS_CODE = 500
  * HTTP error with status code information
  * @interface HTTPResponseError
  * @extends {Error}
- * @property {number} [status] - HTTP status code (deprecated, use statusCode)
- * @property {number} [statusCode] - HTTP status code (preferred)
+ * @property {number} [statusCode] - HTTP status code
  * @property {string} [code] - Error code identifier
  */
 export interface HTTPResponseError extends Error {
-  /**
-   * @deprecated Use statusCode instead for consistency
-   */
-  status?: number
   statusCode?: number
   code?: string
 }
@@ -27,14 +22,14 @@ export interface HTTPResponseError extends Error {
 /**
  * Type guard to check if an error has a status code property
  * @param {unknown} error - Value to check
- * @returns {boolean} True if error has status or statusCode property
+ * @returns {boolean} True if error has statusCode property
  * @example
  * ```typescript
  * try {
  *   await fetch(url)
  * } catch (error) {
  *   if (hasStatusCode(error)) {
- *     console.log('HTTP error:', error.statusCode || error.status)
+ *     console.log('HTTP error:', error.statusCode)
  *   }
  * }
  * ```
@@ -45,7 +40,7 @@ export function hasStatusCode(error: unknown): error is HTTPResponseError {
   }
 
   const err = error as HTTPResponseError
-  return typeof err.status === 'number' || typeof err.statusCode === 'number'
+  return typeof err.statusCode === 'number'
 }
 
 /**
@@ -146,17 +141,17 @@ export function getErrorCode(error: unknown): string | undefined {
  */
 export function getStatusCode(error: unknown): number {
   if (hasStatusCode(error)) {
-    return error.status || error.statusCode || DEFAULT_ERROR_STATUS_CODE
+    return error.statusCode || DEFAULT_ERROR_STATUS_CODE
   }
   return DEFAULT_ERROR_STATUS_CODE
 }
 
 /**
  * Sanitize error messages for safe client exposure.
- * 
+ *
  * This function truncates messages to prevent ReDoS attacks and masks
  * sensitive data like API keys before returning error messages to clients.
- * 
+ *
  * @param {string} message - Raw error message
  * @returns {string} Sanitized error message safe for client exposure
  * @example
@@ -168,10 +163,12 @@ export function getStatusCode(error: unknown): number {
  * ```
  */
 export function sanitizeErrorMessage(message: string): string {
-  // Import at function level to avoid circular dependencies
-  const { truncateString, maskSensitiveData } = require('./validation')
-  
-  // First truncate to prevent ReDoS, then mask sensitive data
-  const truncatedMessage = truncateString(message, 1000)
-  return maskSensitiveData(truncatedMessage)
+  // First truncate to prevent ReDoS (simple implementation to avoid circular dependency)
+  const truncatedMessage = message.length > 1000 ? message.substring(0, 1000) + '...' : message
+
+  // Mask sensitive data patterns
+  return truncatedMessage
+    .replace(/sk-ant-[a-zA-Z0-9-]+/g, 'sk-ant-****')
+    .replace(/Bearer\s+[a-zA-Z0-9._-]+/gi, 'Bearer ****')
+    .replace(/cnp_[a-zA-Z0-9._-]+/g, 'cnp_****')
 }

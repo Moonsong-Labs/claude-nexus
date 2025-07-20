@@ -100,43 +100,22 @@ export class StorageError extends BaseError {
   }
 }
 
+export class CredentialError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super('CREDENTIAL_ERROR', message, 401, context)
+  }
+}
+
+export class ProxyConfigurationError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super('PROXY_CONFIGURATION_ERROR', message, 500, context)
+  }
+}
+
 // Error handler middleware
 export function isOperationalError(error: Error): boolean {
   if (error instanceof BaseError) {
     return true
   }
   return false
-}
-
-// Serialize error for API response
-export function serializeError(error: Error): {
-  error: {
-    code: string
-    message: string
-    statusCode: number
-    timestamp: Date
-    requestId?: string
-  }
-} {
-  if (error instanceof BaseError) {
-    return {
-      error: {
-        code: error.code,
-        message: error.message,
-        statusCode: error.statusCode,
-        timestamp: error.timestamp,
-        requestId: error.context?.requestId as string | undefined,
-      },
-    }
-  }
-
-  // Handle non-operational errors
-  return {
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: 'An unexpected error occurred',
-      statusCode: 500,
-      timestamp: new Date(),
-    },
-  }
 }

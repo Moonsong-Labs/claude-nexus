@@ -44,6 +44,7 @@ export * from './middleware/index.js'
 // Utilities
 // ============================================================================
 export * from './utils/errors.js'
+export * from './utils/error-serialization.js'
 export * from './utils/conversation-hash.js'
 export * from './utils/conversation-linker.js'
 export * from './utils/system-reminder.js'

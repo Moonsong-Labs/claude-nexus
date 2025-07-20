@@ -1,8 +1,8 @@
 /**
- * Error serialization utilities specific to Claude API compatibility
+ * Error serialization utilities for Claude API compatibility
  */
 
-import type { BaseError, UpstreamError } from '@claude-nexus/shared'
+import type { BaseError, UpstreamError } from '../types/errors'
 
 // Map error codes to Claude API error types
 const errorCodeToType: Record<string, string> = {
@@ -15,11 +15,16 @@ const errorCodeToType: Record<string, string> = {
   TIMEOUT_ERROR: 'timeout_error',
   CONFIGURATION_ERROR: 'internal_error',
   STORAGE_ERROR: 'internal_error',
+  CREDENTIAL_ERROR: 'authentication_error',
+  PROXY_CONFIGURATION_ERROR: 'internal_error',
   INTERNAL_ERROR: 'internal_error',
 }
 
-// Serialize error for Claude API response format
-export function serializeError(error: Error): any {
+/**
+ * Serialize error for Claude API response format
+ * Maintains compatibility with Claude's error response structure
+ */
+export function serializeError(error: Error): unknown {
   // Special handling for UpstreamError to return Claude's original error format
   if ((error as UpstreamError).upstreamResponse) {
     // Return Claude's error response directly to maintain compatibility
@@ -38,13 +43,11 @@ export function serializeError(error: Error): any {
     }
   }
 
-  // Handle non-operational errors
+  // Handle non-operational errors with Claude's format
   return {
     error: {
-      code: 'INTERNAL_ERROR',
+      type: 'internal_error',
       message: error.message || 'An unexpected error occurred',
-      statusCode: 500,
-      timestamp: new Date(),
     },
   }
 }
