@@ -32,15 +32,23 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
-- **services/dashboard/src/routes/sse.ts & sse-simple.ts**: Improved incomplete SSE implementation
+- **services/dashboard/src/routes/sse.ts**: Improved incomplete SSE implementation
   - Added comprehensive TODO documentation explaining the incomplete state
   - Enhanced type safety with proper interfaces (SSEConnection, SSEMessage)
   - Added connection limit protection (MAX_CONNECTIONS_PER_DOMAIN = 100)
   - Improved error handling and logging throughout
   - Added proper JSDoc documentation for all functions
-  - Kept both implementations as the feature is documented but not yet integrated
+  - Kept implementation as the feature is documented but not yet integrated
   - Validated with Gemini-2.5-pro (9/10) and O3-mini (9/10) who recommended completing the feature
   - Rationale: The SSE feature is documented in multiple places but not registered in routes. Rather than delete potentially valuable code or complete a cross-service integration during grooming, improved code quality and documented the incomplete state for future implementation
+
+- **Deleted services/dashboard/src/routes/sse-simple.ts**: Removed deprecated fallback SSE implementation
+  - File had critical missing imports (logger, MAX_CONNECTIONS_PER_DOMAIN, connectionId)
+  - Not used anywhere in the codebase (no imports)
+  - Marked as "deprecated fallback implementation" in recent commit
+  - Duplicated functionality already present in sse.ts
+  - Validated deletion with Gemini-2.5-flash who agreed it adds confusion and maintenance burden
+  - Updated technical debt documentation to reflect removal
 
 - **services/dashboard/src/components/spark-feedback.ts**: Removed unused duplicate Spark feedback component
   - File exported `renderSparkRecommendation()` but was never imported anywhere

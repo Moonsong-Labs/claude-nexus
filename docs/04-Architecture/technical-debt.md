@@ -181,7 +181,7 @@ setInterval(() => {
 
 ### 8. Incomplete SSE Implementation
 
-**Location**: `services/dashboard/src/routes/sse.ts`, `services/dashboard/src/routes/sse-simple.ts`
+**Location**: `services/dashboard/src/routes/sse.ts`
 
 **Issue**: Server-Sent Events (SSE) implementation exists but is not integrated:
 
