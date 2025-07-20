@@ -1,8 +1,19 @@
-import { getApiKey, DomainCredentialMapping, loadCredentials, SlackConfig } from '../credentials'
+import {
+  getApiKey,
+  DomainCredentialMapping,
+  loadCredentials,
+  SlackConfig,
+  ClaudeCredentials,
+} from '../credentials'
 import { AuthenticationError } from '@claude-nexus/shared'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { logger } from '../middleware/logger'
 import * as path from 'path'
+
+// Constants
+const OAUTH_BETA_HEADER = 'oauth-2025-04-20'
+const DOMAIN_REGEX = /^[a-zA-Z0-9.\-:]+$/
+const KEY_PREVIEW_LENGTH = 20
 
 export interface AuthResult {
   type: 'api_key' | 'oauth'
@@ -10,6 +21,11 @@ export interface AuthResult {
   key: string
   betaHeader?: string
   accountId?: string // Account identifier from credentials
+}
+
+interface ErrorDetails {
+  message: string
+  code?: string
 }
 
 /**
@@ -37,6 +53,9 @@ export class AuthenticationService {
 
   /**
    * Authenticate non-personal domains - only uses domain credentials, no fallbacks
+   * @param context - The request context containing host and request ID
+   * @returns Authentication result with headers and credentials
+   * @throws AuthenticationError if authentication fails
    */
   async authenticateNonPersonalDomain(context: RequestContext): Promise<AuthResult> {
     try {
@@ -65,55 +84,12 @@ export class AuthenticationService {
         })
       }
 
-      // Return auth based on credential type
-      if (credentials.type === 'oauth') {
-        logger.info(`Using OAuth credentials for non-personal domain`, {
-          requestId: context.requestId,
-          domain: context.host,
-          metadata: {
-            accountId: credentials.accountId,
-          },
-        })
-
-        return {
-          type: 'oauth',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'anthropic-beta': 'oauth-2025-04-20',
-          },
-          key: apiKey,
-          betaHeader: 'oauth-2025-04-20',
-          accountId: credentials.accountId,
-        }
-      } else {
-        logger.info(`Using API key for non-personal domain`, {
-          requestId: context.requestId,
-          domain: context.host,
-          metadata: {
-            accountId: credentials.accountId,
-          },
-        })
-
-        return {
-          type: 'api_key',
-          headers: {
-            'x-api-key': apiKey,
-          },
-          key: apiKey,
-          accountId: credentials.accountId,
-        }
-      }
+      return this.buildAuthResult(credentials, apiKey, context, 'non-personal domain')
     } catch (error) {
       logger.error('Authentication failed for non-personal domain', {
         requestId: context.requestId,
         domain: context.host,
-        error:
-          error instanceof Error
-            ? {
-                message: error.message,
-                code: (error as any).code,
-              }
-            : { message: String(error) },
+        error: this.formatErrorDetails(error),
       })
 
       if (error instanceof AuthenticationError) {
@@ -129,6 +105,9 @@ export class AuthenticationService {
   /**
    * Authenticate personal domains - uses fallback logic
    * Priority: Domain credentials → Bearer token → Default API key
+   * @param context - The request context containing host and request ID
+   * @returns Authentication result with headers and credentials
+   * @throws AuthenticationError if no valid credentials found
    */
   async authenticatePersonalDomain(context: RequestContext): Promise<AuthResult> {
     try {
@@ -165,44 +144,7 @@ export class AuthenticationService {
           // Get API key from credentials
           const apiKey = await getApiKey(credentialPath)
           if (apiKey) {
-            // Return auth result based on credential type
-            if (credentials.type === 'oauth') {
-              logger.debug(`Using OAuth credentials from file`, {
-                requestId: context.requestId,
-                domain: context.host,
-                metadata: {
-                  hasRefreshToken: !!credentials.oauth?.refreshToken,
-                },
-              })
-
-              return {
-                type: 'oauth',
-                headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                  'anthropic-beta': 'oauth-2025-04-20',
-                },
-                key: apiKey,
-                betaHeader: 'oauth-2025-04-20',
-                accountId: credentials.accountId,
-              }
-            } else {
-              logger.debug(`Using API key from credential file`, {
-                requestId: context.requestId,
-                domain: context.host,
-                metadata: {
-                  keyPreview: apiKey.substring(0, 20) + '****',
-                },
-              })
-
-              return {
-                type: 'api_key',
-                headers: {
-                  'x-api-key': apiKey,
-                },
-                key: apiKey,
-                accountId: credentials.accountId,
-              }
-            }
+            return this.buildAuthResult(credentials, apiKey, context, 'credential file')
           }
         }
       } catch (_e) {
@@ -226,7 +168,7 @@ export class AuthenticationService {
           domain: context.host,
           metadata: {
             authType: 'oauth',
-            keyPreview: context.apiKey.substring(0, 20) + '****',
+            keyPreview: this.getMaskedKey(context.apiKey),
           },
         })
 
@@ -234,10 +176,10 @@ export class AuthenticationService {
           type: 'oauth',
           headers: {
             Authorization: context.apiKey,
-            'anthropic-beta': 'oauth-2025-04-20',
+            'anthropic-beta': OAUTH_BETA_HEADER,
           },
           key: context.apiKey.replace('Bearer ', ''),
-          betaHeader: 'oauth-2025-04-20',
+          betaHeader: OAUTH_BETA_HEADER,
           // Note: No accountId available when using Bearer token from request
         }
       } else if (this.defaultApiKey) {
@@ -246,7 +188,7 @@ export class AuthenticationService {
           requestId: context.requestId,
           domain: context.host,
           metadata: {
-            keyPreview: this.defaultApiKey.substring(0, 20) + '****',
+            keyPreview: this.getMaskedKey(this.defaultApiKey),
           },
         })
 
@@ -271,13 +213,7 @@ export class AuthenticationService {
       logger.error('Authentication failed for personal domain', {
         requestId: context.requestId,
         domain: context.host,
-        error:
-          error instanceof Error
-            ? {
-                message: error.message,
-                code: (error as any).code,
-              }
-            : { message: String(error) },
+        error: this.formatErrorDetails(error),
       })
 
       if (error instanceof AuthenticationError) {
@@ -292,6 +228,8 @@ export class AuthenticationService {
 
   /**
    * Check if a request has valid authentication
+   * @param context - The request context
+   * @returns true if authentication is available
    */
   hasAuthentication(context: RequestContext): boolean {
     return !!(context.apiKey || this.defaultApiKey)
@@ -299,14 +237,18 @@ export class AuthenticationService {
 
   /**
    * Get masked credential info for logging
+   * @param auth - Authentication result
+   * @returns Masked credential string for safe logging
    */
   getMaskedCredentialInfo(auth: AuthResult): string {
-    const maskedKey = auth.key.substring(0, 10) + '****'
+    const maskedKey = this.getMaskedKey(auth.key, 10)
     return `${auth.type}:${maskedKey}`
   }
 
   /**
    * Get Slack configuration for a domain
+   * @param domain - Domain to get Slack config for
+   * @returns Slack configuration or null if not configured
    */
   async getSlackConfig(domain: string): Promise<SlackConfig | null> {
     const credentialPath = this.getSafeCredentialPath(domain)
@@ -330,6 +272,8 @@ export class AuthenticationService {
   /**
    * Get client API key for a domain
    * Used for proxy-level authentication (different from Claude API keys)
+   * @param domain - Domain to get client API key for
+   * @returns Client API key or null if not configured
    */
   async getClientApiKey(domain: string): Promise<string | null> {
     const credentialPath = this.getSafeCredentialPath(domain)
@@ -355,13 +299,13 @@ export class AuthenticationService {
 
   /**
    * Get safe credential path, preventing path traversal attacks
+   * @param domain - Domain name to validate and convert to path
+   * @returns Safe credential path or null if validation fails
    */
   private getSafeCredentialPath(domain: string): string | null {
     try {
       // Validate domain to prevent path traversal and ensure safe characters
-      // Allow alphanumeric, dots, hyphens, and colons for port numbers
-      const domainRegex = /^[a-zA-Z0-9.\-:]+$/
-      if (!domainRegex.test(domain)) {
+      if (!DOMAIN_REGEX.test(domain)) {
         logger.warn('Domain contains invalid characters', {
           domain,
         })
@@ -401,9 +345,80 @@ export class AuthenticationService {
     } catch (error) {
       logger.error('Error sanitizing credential path', {
         domain,
-        error: error instanceof Error ? { message: error.message } : { message: String(error) },
+        error: this.formatErrorDetails(error),
       })
       return null
     }
+  }
+
+  /**
+   * Build authentication result based on credential type
+   * @private
+   */
+  private buildAuthResult(
+    credentials: ClaudeCredentials,
+    apiKey: string,
+    context: RequestContext,
+    source: string
+  ): AuthResult {
+    const isOAuth = credentials.type === 'oauth'
+
+    logger.info(`Using ${isOAuth ? 'OAuth' : 'API key'} for ${source}`, {
+      requestId: context.requestId,
+      domain: context.host,
+      metadata: {
+        accountId: credentials.accountId,
+        ...(isOAuth && { hasRefreshToken: !!credentials.oauth?.refreshToken }),
+        ...(!isOAuth && { keyPreview: this.getMaskedKey(apiKey) }),
+      },
+    })
+
+    if (isOAuth) {
+      return {
+        type: 'oauth',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'anthropic-beta': OAUTH_BETA_HEADER,
+        },
+        key: apiKey,
+        betaHeader: OAUTH_BETA_HEADER,
+        accountId: credentials.accountId,
+      }
+    }
+
+    return {
+      type: 'api_key',
+      headers: {
+        'x-api-key': apiKey,
+      },
+      key: apiKey,
+      accountId: credentials.accountId,
+    }
+  }
+
+  /**
+   * Format error details for logging
+   * @private
+   */
+  private formatErrorDetails(error: unknown): ErrorDetails {
+    if (error instanceof Error) {
+      const errorDetails: ErrorDetails = {
+        message: error.message,
+      }
+      // Check if error has a code property
+      if ('code' in error && typeof error.code === 'string') {
+        errorDetails.code = error.code
+      }
+      return errorDetails
+    }
+    return { message: String(error) }
+  }
+
+  /**
+   * Get masked key for safe logging
+   * @private
+   */
+  private getMaskedKey(key: string, visibleLength: number = KEY_PREVIEW_LENGTH): string {
+    return key.substring(0, visibleLength) + '****'
   }
 }
