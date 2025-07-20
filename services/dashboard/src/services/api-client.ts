@@ -134,7 +134,7 @@ export class ProxyApiClient {
 
   constructor(baseUrl?: string, apiKey?: string) {
     this.baseUrl = baseUrl || process.env.PROXY_API_URL || 'http://localhost:3000'
-    this.apiKey = apiKey || process.env.DASHBOARD_API_KEY || process.env.INTERNAL_API_KEY
+    this.apiKey = apiKey || process.env.DASHBOARD_API_KEY
   }
 
   private getHeaders(): Record<string, string> {
