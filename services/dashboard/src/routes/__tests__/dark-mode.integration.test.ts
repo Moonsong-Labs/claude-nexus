@@ -93,6 +93,7 @@ describe('Dark Mode Integration', () => {
 
     // Verify dark mode specific styles exist
     expect(html).toContain('[data-theme="dark"]')
-    expect(html).toContain('Dark mode specific code block adjustments')
+    // Check for actual dark mode JSON viewer styles
+    expect(html).toContain("[data-theme='dark'] andypf-json-viewer")
   })
 })

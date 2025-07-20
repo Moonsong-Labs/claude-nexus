@@ -1333,7 +1333,147 @@ const utilityStyles = `
 `
 
 /**
+ * JSON Viewer component styles
+ * Styles for the andypf-json-viewer web component
+ */
+const jsonViewerStyles = `
+  /* Ultra-dense JSON viewer styles injected globally */
+  andypf-json-viewer::part(json-viewer) {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+  }
+
+  andypf-json-viewer::part(key) {
+    font-size: 10px !important;
+  }
+
+  andypf-json-viewer::part(value) {
+    font-size: 10px !important;
+  }
+
+  andypf-json-viewer::part(row) {
+    line-height: 1.1 !important;
+    padding: 0 !important;
+  }
+
+  /* JSON Viewer styling - Ultra Dense */
+  andypf-json-viewer {
+    display: block;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    overflow: auto;
+    margin-bottom: 0.125rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+    font-size: 10px;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+    --json-viewer-indent: 12px;
+    --json-viewer-key-color: #1e40af;
+    --json-viewer-value-string-color: #059669;
+    --json-viewer-value-number-color: #dc2626;
+    --json-viewer-value-boolean-color: #7c3aed;
+    --json-viewer-value-null-color: #6b7280;
+    --json-viewer-property-color: #1e40af;
+    --json-viewer-bracket-color: #6b7280;
+    --json-viewer-comma-color: #6b7280;
+  }
+
+  /* Dark mode JSON viewer colors */
+  [data-theme='dark'] andypf-json-viewer {
+    --json-viewer-key-color: #60a5fa;
+    --json-viewer-value-string-color: #34d399;
+    --json-viewer-value-number-color: #f87171;
+    --json-viewer-value-boolean-color: #a78bfa;
+    --json-viewer-value-null-color: #94a3b8;
+    --json-viewer-property-color: #60a5fa;
+    --json-viewer-bracket-color: #94a3b8;
+    --json-viewer-comma-color: #94a3b8;
+  }
+
+  /* Compact view - reduce padding on containers */
+  #request-json-container andypf-json-viewer,
+  #response-json-container andypf-json-viewer {
+    padding: 0.25rem;
+    margin-bottom: 0;
+  }
+
+  /* Make the overall section more compact */
+  #raw-view .section-content {
+    padding: 0.25rem;
+  }
+
+  /* Reduce spacing between sections */
+  .section {
+    margin-bottom: 0.5rem;
+  }
+
+  .section-header {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .section-content {
+    padding: 0.375rem;
+  }
+
+  /* Dense view toggle buttons */
+  .view-toggle {
+    margin: 0.5rem 0;
+  }
+
+  .view-toggle button {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Ensure code blocks in these containers have light backgrounds */
+  .hljs {
+    background: transparent !important;
+    color: #1f2937 !important;
+  }
+
+  /* Chunk containers */
+  #chunks-container > div > div {
+    background-color: white !important;
+  }
+
+  /* Tool use and conversation code blocks */
+  .message-content pre,
+  .message-content code,
+  .conversation-container pre,
+  .conversation-container code {
+    background-color: #f9fafb !important;
+    color: #1f2937 !important;
+    border: 1px solid #e5e7eb;
+  }
+
+  .message-content pre code,
+  .conversation-container pre code {
+    background-color: transparent !important;
+    border: none;
+  }
+
+  /* Specific language code blocks */
+  .language-json,
+  .language-javascript,
+  .language-python,
+  .language-bash,
+  .language-shell,
+  pre.hljs,
+  code.hljs {
+    background-color: #f9fafb !important;
+    color: #1f2937 !important;
+  }
+`
+
+/**
  * Export the concatenated styles for use with Hono's raw() function
  */
 export const dashboardStyles =
-  themeStyles + baseStyles + layoutStyles + componentStyles + messageStyles + utilityStyles
+  themeStyles +
+  baseStyles +
+  layoutStyles +
+  componentStyles +
+  messageStyles +
+  utilityStyles +
+  jsonViewerStyles

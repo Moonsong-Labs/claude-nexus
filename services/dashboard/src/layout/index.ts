@@ -1,17 +1,31 @@
 import { html, raw } from 'hono/html'
 import { dashboardStyles } from './styles.js'
+import { themeToggleScript } from './theme-toggle.js'
 import { Context } from 'hono'
 
 /**
  * Dashboard HTML layout template
+ *
+ * Generates the main HTML structure for all dashboard pages including:
+ * - Theme switching (dark/light mode)
+ * - Navigation with links to different dashboard sections
+ * - CSRF protection when context is provided
+ * - External dependencies (highlight.js, htmx, json-viewer)
+ *
+ * @param title - Page title to display in browser tab
+ * @param content - HTML content to render in the main section (can be async)
+ * @param additionalScripts - Optional JavaScript to include at the end of the page
+ * @param context - Optional Hono context for CSRF token extraction
+ * @returns Complete HTML page as a template literal
  */
 export const layout = (
   title: string,
-  content: any,
+  content: string | Promise<string>,
   additionalScripts: string = '',
   context?: Context
 ) => {
   // Get CSRF token if context is provided
+  // The token is stored in the context by middleware and used for request validation
   const csrfToken = context?.get('csrfToken') || ''
 
   return html`
@@ -21,30 +35,10 @@ export const layout = (
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>${title} - Claude Nexus Dashboard</title>
+        ${/* CSRF token meta tag - Used by HTMX to add token to all requests */ ''}
         ${csrfToken ? html`<meta name="csrf-token" content="${csrfToken}" />` : ''}
         <style>
-          ${raw(
-            dashboardStyles
-          )}
-        
-        /* Ultra-dense JSON viewer styles injected globally */
-        andypf-json-viewer::part(json-viewer) {
-            font-size: 10px !important;
-            line-height: 1.1 !important;
-          }
-
-          andypf-json-viewer::part(key) {
-            font-size: 10px !important;
-          }
-
-          andypf-json-viewer::part(value) {
-            font-size: 10px !important;
-          }
-
-          andypf-json-viewer::part(row) {
-            line-height: 1.1 !important;
-            padding: 0 !important;
-          }
+          ${raw(dashboardStyles)}
         </style>
         <link
           rel="stylesheet"
@@ -59,121 +53,13 @@ export const layout = (
         />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@andypf/json-viewer@2.1.10/dist/iife/index.js"></script>
-        <style>
-          /* JSON Viewer styling - Ultra Dense */
-          andypf-json-viewer {
-            display: block;
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            overflow: auto;
-            margin-bottom: 0.125rem;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
-            font-size: 10px;
-            line-height: 1.2;
-            letter-spacing: -0.03em;
-            --json-viewer-indent: 12px;
-            --json-viewer-key-color: #1e40af;
-            --json-viewer-value-string-color: #059669;
-            --json-viewer-value-number-color: #dc2626;
-            --json-viewer-value-boolean-color: #7c3aed;
-            --json-viewer-value-null-color: #6b7280;
-            --json-viewer-property-color: #1e40af;
-            --json-viewer-bracket-color: #6b7280;
-            --json-viewer-comma-color: #6b7280;
-          }
-
-          /* Dark mode JSON viewer colors */
-          [data-theme='dark'] andypf-json-viewer {
-            --json-viewer-key-color: #60a5fa;
-            --json-viewer-value-string-color: #34d399;
-            --json-viewer-value-number-color: #f87171;
-            --json-viewer-value-boolean-color: #a78bfa;
-            --json-viewer-value-null-color: #94a3b8;
-            --json-viewer-property-color: #60a5fa;
-            --json-viewer-bracket-color: #94a3b8;
-            --json-viewer-comma-color: #94a3b8;
-          }
-
-          /* Compact view - reduce padding on containers */
-          #request-json-container andypf-json-viewer,
-          #response-json-container andypf-json-viewer {
-            padding: 0.25rem;
-            margin-bottom: 0;
-          }
-
-          /* Make the overall section more compact */
-          #raw-view .section-content {
-            padding: 0.25rem;
-          }
-
-          /* Reduce spacing between sections */
-          .section {
-            margin-bottom: 0.5rem;
-          }
-
-          .section-header {
-            padding: 0.375rem 0.5rem;
-            font-size: 0.875rem;
-          }
-
-          .section-content {
-            padding: 0.375rem;
-          }
-
-          /* Dense view toggle buttons */
-          .view-toggle {
-            margin: 0.5rem 0;
-          }
-
-          .view-toggle button {
-            padding: 0.25rem 0.75rem;
-            font-size: 0.8125rem;
-          }
-
-          /* Ensure code blocks in these containers have light backgrounds */
-          .hljs {
-            background: transparent !important;
-            color: #1f2937 !important;
-          }
-
-          /* Chunk containers */
-          #chunks-container > div > div {
-            background-color: white !important;
-          }
-
-          /* Tool use and conversation code blocks */
-          .message-content pre,
-          .message-content code,
-          .conversation-container pre,
-          .conversation-container code {
-            background-color: #f9fafb !important;
-            color: #1f2937 !important;
-            border: 1px solid #e5e7eb;
-          }
-
-          .message-content pre code,
-          .conversation-container pre code {
-            background-color: transparent !important;
-            border: none;
-          }
-
-          /* Specific language code blocks */
-          .language-json,
-          .language-javascript,
-          .language-python,
-          .language-bash,
-          .language-shell,
-          pre.hljs,
-          code.hljs {
-            background-color: #f9fafb !important;
-            color: #1f2937 !important;
-          }
-        </style>
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
         ${csrfToken
           ? raw(`
       <script>
-        // Add CSRF token to all HTMX requests
+        // CSRF Protection Implementation
+        // Automatically adds the CSRF token from the meta tag to all HTMX requests
+        // This ensures that all AJAX requests include the token for server-side validation
         document.addEventListener('DOMContentLoaded', function() {
           document.body.addEventListener('htmx:configRequest', function(evt) {
             const token = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -234,55 +120,7 @@ export const layout = (
         </nav>
         <main class="container" style="padding: 2rem 1rem;">${content}</main>
         <script>
-          // Dark mode functionality
-          ;(function () {
-            const themeToggle = document.getElementById('theme-toggle')
-            const lightIcon = document.getElementById('theme-icon-light')
-            const darkIcon = document.getElementById('theme-icon-dark')
-            const htmlElement = document.documentElement
-            const hljsLightTheme = document.getElementById('hljs-light-theme')
-            const hljsDarkTheme = document.getElementById('hljs-dark-theme')
-
-            // Check for saved theme preference or default to light mode
-            const currentTheme = localStorage.getItem('theme') || 'light'
-            htmlElement.setAttribute('data-theme', currentTheme)
-            updateTheme(currentTheme)
-
-            // Theme toggle functionality
-            themeToggle.addEventListener('click', function () {
-              const currentTheme = htmlElement.getAttribute('data-theme')
-              const newTheme = currentTheme === 'light' ? 'dark' : 'light'
-
-              htmlElement.setAttribute('data-theme', newTheme)
-              localStorage.setItem('theme', newTheme)
-              updateTheme(newTheme)
-            })
-
-            function updateTheme(theme) {
-              updateThemeIcon(theme)
-              updateHighlightTheme(theme)
-            }
-
-            function updateThemeIcon(theme) {
-              if (theme === 'dark') {
-                lightIcon.style.display = 'none'
-                darkIcon.style.display = 'block'
-              } else {
-                lightIcon.style.display = 'block'
-                darkIcon.style.display = 'none'
-              }
-            }
-
-            function updateHighlightTheme(theme) {
-              if (theme === 'dark') {
-                hljsLightTheme.disabled = true
-                hljsDarkTheme.disabled = false
-              } else {
-                hljsLightTheme.disabled = false
-                hljsDarkTheme.disabled = true
-              }
-            }
-          })()
+          ${raw(themeToggleScript)}
         </script>
       </body>
     </html>

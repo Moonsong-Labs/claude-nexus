@@ -32,6 +32,16 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Refactored services/dashboard/src/layout/index.ts**: Improved code organization and maintainability
+  - Extracted theme toggle JavaScript to new file `layout/theme-toggle.ts` for better separation of concerns
+  - Moved 140+ lines of inline CSS styles to `layout/styles.ts` as `jsonViewerStyles` section
+  - Improved type safety by changing `content` parameter from `any` to `string | Promise<string>`
+  - Added comprehensive JSDoc documentation for the layout function
+  - Added inline comments explaining CSRF token implementation for security clarity
+  - Fixed related test in `dark-mode.integration.test.ts` to check for actual CSS instead of removed comment
+  - Validated refactoring plan with both Gemini-2.5-flash and O3-mini models
+  - Rationale: The file had accumulated technical debt with mixed inline styles/scripts. This refactoring improves maintainability while preserving all functionality
+
 - **Deleted services/dashboard/src/routes/partials/analytics-conversation.ts**: Removed unused analytics route
   - Route `/partials/analytics/conversation/:conversationId` was registered but never used anywhere in the UI
   - No HTMX calls, fetch requests, or any references to this endpoint existed
