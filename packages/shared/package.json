@@ -35,9 +35,13 @@
   },
   "dependencies": {
     "@lenml/tokenizer-gemini": "^3.4.2",
+    "nanoid": "^5.1.5",
     "zod": "^3.25.72"
   },
   "devDependencies": {},
+  "peerDependencies": {
+    "hono": "^4.0.0"
+  },
   "engines": {
     "node": ">=20.0.0"
   }

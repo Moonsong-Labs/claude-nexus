@@ -33,7 +33,11 @@
       "version": "2.0.0",
       "dependencies": {
         "@lenml/tokenizer-gemini": "^3.4.2",
+        "nanoid": "^5.1.5",
         "zod": "^3.25.72",
+      },
+      "peerDependencies": {
+        "hono": "^4.0.0",
       },
     },
     "services/dashboard": {

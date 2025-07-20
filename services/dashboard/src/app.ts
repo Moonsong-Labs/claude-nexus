@@ -3,12 +3,11 @@ import { cors } from 'hono/cors'
 // Remove static file serving - will inline CSS instead
 import { container } from './container.js'
 import { loggingMiddleware, logger } from './middleware/logger.js'
-import { requestIdMiddleware } from './middleware/request-id.js'
+import { requestIdMiddleware, getErrorMessage, getStatusCode } from '@claude-nexus/shared'
 // Use the new API-based dashboard routes
 import { dashboardRoutes } from './routes/dashboard-api.js'
 import { conversationDetailRoutes } from './routes/conversation-detail.js'
 import { dashboardAuth } from './middleware/auth.js'
-import { getErrorMessage, getStatusCode } from '@claude-nexus/shared'
 import { sparkProxyRoutes } from './routes/spark-proxy.js'
 import { analysisRoutes } from './routes/analysis-api.js'
 import { analysisPartialsRoutes } from './routes/partials/analysis.js'
