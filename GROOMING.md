@@ -32,6 +32,14 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Deleted services/dashboard/src/types/storage-service.ts**: Removed unused interface file
+  - File contained `StorageServiceEnhancements` interface that was never used in codebase
+  - `getConversationById` method already implemented in storage reader
+  - `getConversationSummariesPaginated` method not implemented or needed
+  - Validated deletion with Gemini-2.5-pro (9/10 confidence)
+  - Build and tests pass after deletion
+  - Rationale: Dead code elimination following clean code principles
+
 - **Minimal refactoring of services/dashboard/src/storage/reader.ts**: Applied targeted improvements to deprecated file
   - Added @deprecated JSDoc annotation with clear migration guidance to ProxyApiClient
   - Extracted type-safe cache key generation utility (`getCacheKey`) to replace error-prone string concatenation
