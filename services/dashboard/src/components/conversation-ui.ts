@@ -1,6 +1,5 @@
 import { html, raw } from 'hono/html'
 import { formatNumber, formatDuration, escapeHtml } from '../utils/formatters.js'
-import { formatDuration as formatMetricDuration } from '../utils/conversation-metrics.js'
 import { styles, getBranchColor } from '../utils/conversation-styles.js'
 import type { ConversationRequest } from '../types/conversation.js'
 import type { EnrichedInvocation } from '../utils/conversation-graph-data.js'
@@ -112,7 +111,7 @@ export function renderStatsGrid(stats: ConversationStats | BranchStats, title: s
           >
           <span class="conversation-stat-value">
             ${stats.toolExecution.count > 0
-              ? `${formatMetricDuration(stats.toolExecution.totalMs)} (${stats.toolExecution.count} tools)`
+              ? `${formatDuration(stats.toolExecution.totalMs)} (${stats.toolExecution.count} tools)`
               : 'No tools used'}
           </span>
         </div>
@@ -122,7 +121,7 @@ export function renderStatsGrid(stats: ConversationStats | BranchStats, title: s
           >
           <span class="conversation-stat-value">
             ${stats.userReply.count > 0
-              ? `${formatMetricDuration(stats.userReply.totalMs)} (${stats.userReply.count} intervals)`
+              ? `${formatDuration(stats.userReply.totalMs)} (${stats.userReply.count} intervals)`
               : 'No replies'}
           </span>
         </div>

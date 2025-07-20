@@ -4,6 +4,12 @@
  */
 
 import type { ConversationRequest } from '../types/conversation.js'
+import type {
+  ClaudeMessage,
+  ClaudeContent,
+  ClaudeTextContent,
+} from '../../../packages/shared/src/types/claude.js'
+import { formatDuration } from './formatters.js'
 
 interface ToolExecution {
   toolUseRequestId: string
@@ -46,7 +52,7 @@ export interface ConversationMetrics {
 /**
  * Check if a message contains user-visible text (not just tool operations)
  */
-function hasVisibleText(message: any): boolean {
+function hasVisibleText(message: ClaudeMessage): boolean {
   if (!message?.content) {
     return false
   }
@@ -56,7 +62,8 @@ function hasVisibleText(message: any): boolean {
   }
 
   return message.content.some(
-    (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
+    (item): item is ClaudeTextContent =>
+      item.type === 'text' && 'text' in item && item.text.trim().length > 0
   )
 }
 
@@ -75,8 +82,9 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   requests.forEach(request => {
     // Check response_body for tool uses
     if (request.response_body?.content && Array.isArray(request.response_body.content)) {
-      request.response_body.content.forEach((item: any) => {
-        if (item.type === 'tool_use' && item.id) {
+      const content = request.response_body.content as ClaudeContent[]
+      content.forEach(item => {
+        if (item.type === 'tool_use' && 'id' in item && item.id) {
           toolUseMap.set(item.id, {
             request: request,
             toolName: item.name || 'unknown',
@@ -89,20 +97,27 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
   // Second pass: find tool results in last_message or messages
   requests.forEach(request => {
     // Check last_message first (optimized field)
-    const lastMessage =
+    const lastMessage: ClaudeMessage | undefined =
       request.last_message ||
       (request.body?.messages &&
         Array.isArray(request.body.messages) &&
         request.body.messages[request.body.messages.length - 1])
 
     if (lastMessage?.role === 'user' && lastMessage.content && Array.isArray(lastMessage.content)) {
-      lastMessage.content.forEach((item: any) => {
-        if (item.type === 'tool_result' && item.tool_use_id) {
+      const content = lastMessage.content as ClaudeContent[]
+      content.forEach(item => {
+        if (item.type === 'tool_result' && 'tool_use_id' in item && item.tool_use_id) {
           const toolUseInfo = toolUseMap.get(item.tool_use_id)
           if (toolUseInfo) {
-            // Simple calculation: tool_result timestamp - tool_use timestamp
+            // Validate timestamps before processing
             const toolUseTime = new Date(toolUseInfo.request.timestamp)
             const toolResultTime = new Date(request.timestamp)
+
+            if (isNaN(toolUseTime.getTime()) || isNaN(toolResultTime.getTime())) {
+              console.warn('Invalid timestamp detected in tool execution')
+              return
+            }
+
             const durationMs = toolResultTime.getTime() - toolUseTime.getTime()
 
             // Only include if duration is positive (result after use)
@@ -119,14 +134,17 @@ function findToolExecutions(requests: ConversationRequest[]): ToolExecution[] {
           } else {
             // Even if we can't find the matching tool_use, count this tool_result
             // This handles cases where tool_use might be from a different conversation/branch
-            executions.push({
-              toolUseRequestId: '',
-              toolResultRequestId: request.request_id,
-              toolUseTimestamp: new Date(request.timestamp),
-              toolResultTimestamp: new Date(request.timestamp),
-              durationMs: 0,
-              toolName: 'unknown',
-            })
+            const timestamp = new Date(request.timestamp)
+            if (!isNaN(timestamp.getTime())) {
+              executions.push({
+                toolUseRequestId: '',
+                toolResultRequestId: request.request_id,
+                toolUseTimestamp: timestamp,
+                toolResultTimestamp: timestamp,
+                durationMs: 0,
+                toolName: 'unknown',
+              })
+            }
           }
         }
       })
@@ -194,8 +212,10 @@ function findReplyIntervals(
     // Then check if this request has an assistant response with visible text
     // Do this after user check to handle requests that have both
     if (request.response_body?.content && Array.isArray(request.response_body.content)) {
-      const hasAssistantText = request.response_body.content.some(
-        (item: any) => item.type === 'text' && item.text && item.text.trim().length > 0
+      const content = request.response_body.content as ClaudeContent[]
+      const hasAssistantText = content.some(
+        (item): item is ClaudeTextContent =>
+          item.type === 'text' && 'text' in item && item.text.trim().length > 0
       )
 
       if (hasAssistantText) {
@@ -214,15 +234,12 @@ function countUserInteractionsFromLastRequest(lastRequest: ConversationRequest):
   count: number
   requests: string[]
 } {
-  const messages = lastRequest.body?.messages || []
-  let userCount = 0
+  const messages = (lastRequest.body?.messages || []) as ClaudeMessage[]
 
   // Count user messages with visible text
-  for (const message of messages) {
-    if (message.role === 'user' && hasVisibleText(message)) {
-      userCount++
-    }
-  }
+  const userCount = messages.filter(
+    message => message.role === 'user' && hasVisibleText(message)
+  ).length
 
   return {
     count: userCount,
@@ -238,18 +255,7 @@ function countUserInteractions(requests: ConversationRequest[]): {
   requests: string[]
 } {
   // Find the last request per branch (which should have full body)
-  const lastRequestPerBranch = new Map<string, ConversationRequest>()
-
-  for (const request of requests) {
-    const branch = request.branch_id || 'main'
-    if (
-      request.body?.messages &&
-      (!lastRequestPerBranch.has(branch) ||
-        new Date(request.timestamp) > new Date(lastRequestPerBranch.get(branch)!.timestamp))
-    ) {
-      lastRequestPerBranch.set(branch, request)
-    }
-  }
+  const lastRequestPerBranch = findLastRequestPerBranch(requests)
 
   // If we have a last request with full body, use it
   if (lastRequestPerBranch.size > 0) {
@@ -258,17 +264,46 @@ function countUserInteractions(requests: ConversationRequest[]): {
   }
 
   // Fallback to old method if no full body available
-  const userRequests: string[] = []
+  return countUserInteractionsLegacy(requests)
+}
+
+/**
+ * Find the last request per branch
+ */
+function findLastRequestPerBranch(
+  requests: ConversationRequest[]
+): Map<string, ConversationRequest> {
+  const lastRequestPerBranch = new Map<string, ConversationRequest>()
 
   for (const request of requests) {
-    const messages = request.body?.messages || []
-    const lastMessage = messages[messages.length - 1]
+    const branch = request.branch_id || 'main'
+    if (!request.body?.messages) {
+      continue
+    }
 
-    // Count requests where the last message is from user and has visible text
-    if (lastMessage?.role === 'user' && hasVisibleText(lastMessage)) {
-      userRequests.push(request.request_id)
+    const existingRequest = lastRequestPerBranch.get(branch)
+    if (!existingRequest || new Date(request.timestamp) > new Date(existingRequest.timestamp)) {
+      lastRequestPerBranch.set(branch, request)
     }
   }
+
+  return lastRequestPerBranch
+}
+
+/**
+ * Legacy method for counting user interactions
+ */
+function countUserInteractionsLegacy(requests: ConversationRequest[]): {
+  count: number
+  requests: string[]
+} {
+  const userRequests = requests
+    .filter(request => {
+      const messages = (request.body?.messages || []) as ClaudeMessage[]
+      const lastMessage = messages[messages.length - 1]
+      return lastMessage?.role === 'user' && hasVisibleText(lastMessage)
+    })
+    .map(request => request.request_id)
 
   return {
     count: userRequests.length,
@@ -319,21 +354,5 @@ export function calculateConversationMetrics(requests: ConversationRequest[]): C
   }
 }
 
-/**
- * Format duration in milliseconds to human-readable string
- */
-export function formatDuration(ms: number): string {
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`
-  } else if (ms < 60000) {
-    return `${(ms / 1000).toFixed(1)}s`
-  } else if (ms < 3600000) {
-    const minutes = Math.floor(ms / 60000)
-    const seconds = Math.round((ms % 60000) / 1000)
-    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`
-  } else {
-    const hours = Math.floor(ms / 3600000)
-    const minutes = Math.round((ms % 3600000) / 60000)
-    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
-  }
-}
+// Re-export formatDuration from formatters for backward compatibility
+export { formatDuration }
