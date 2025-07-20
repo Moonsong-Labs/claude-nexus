@@ -32,6 +32,15 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Deleted services/dashboard/src/routes/partials/analytics-conversation.ts**: Removed unused analytics route
+  - Route `/partials/analytics/conversation/:conversationId` was registered but never used anywhere in the UI
+  - No HTMX calls, fetch requests, or any references to this endpoint existed
+  - File contained 400+ lines of dead code with inline JavaScript charts
+  - Had duplicate helper functions from `analytics.ts` and outdated hardcoded pricing
+  - Validated deletion with Gemini-2.5-flash who confirmed it as dead code best removed during cleanup
+  - Removed import and route registration from `app.ts`
+  - Rationale: Dead code increases maintenance burden and confuses developers. The sprint goal is cleaning for production
+
 - **services/dashboard/src/routes/sse.ts**: Improved incomplete SSE implementation
   - Added comprehensive TODO documentation explaining the incomplete state
   - Enhanced type safety with proper interfaces (SSEConnection, SSEMessage)

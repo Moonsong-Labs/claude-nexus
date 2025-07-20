@@ -10,7 +10,6 @@ import { sparkProxyRoutes } from './routes/spark-proxy.js'
 import { analysisRoutes } from './routes/analysis-api.js'
 import { analysisPartialsRoutes } from './routes/partials/analysis.js'
 import { analyticsPartialRoutes } from './routes/partials/analytics.js'
-import { analyticsConversationPartialRoutes } from './routes/partials/analytics-conversation.js'
 import { mcpProxyRoutes } from './routes/mcp-proxy.js'
 import type { ProxyApiClient } from './services/api-client.js'
 
@@ -245,7 +244,6 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: AppVariabl
   // Mount partials routes
   app.route('/partials/analysis', analysisPartialsRoutes)
   app.route('/', analyticsPartialRoutes)
-  app.route('/', analyticsConversationPartialRoutes)
 
   /**
    * Root endpoint - redirects to dashboard
