@@ -12,7 +12,7 @@
 2. **Fixed TypeScript import**: Consolidated Hono imports to avoid duplicate import warning
 3. **Improved error handling**: Made error parsing more robust and consistent across endpoints
 4. **Added constant for magic number**: Extracted `MAX_BATCH_SESSION_IDS` constant instead of hardcoded 100
-5. **Type safety improvements**: 
+5. **Type safety improvements**:
    - Replaced unsafe `catch(() => ({}))` patterns with proper error handling
    - Added explicit `unknown` type annotations for external API responses
    - Documented the use of `as any` casts for external API responses with a comment explaining the rationale
@@ -27,6 +27,7 @@
 #### Minimal Approach:
 
 Given this is production code that's working well, the refactoring focused on:
+
 - Essential improvements for code quality
 - Keeping Zod schemas in the file since they're only used here
 - Minimal risk changes while improving maintainability
@@ -48,6 +49,59 @@ Given this is production code that's working well, the refactoring focused on:
 6. **Repository hygiene**: Removing unused scripts reduces clutter and technical debt
 
 #### AI Consensus:
+
+## 2025-01-20: SQL Logger Refactoring
+
+### File: `services/proxy/src/utils/sql-logger.ts`
+
+#### Action: REFACTORED
+
+#### Changes Made:
+
+1. **Replaced Object.create with Proxy**: Uses modern Proxy API for more robust pool wrapping that automatically delegates all non-query methods
+2. **Extracted helper functions**:
+   - `extractQueryInfo()` - Handles different pg query signatures
+   - `getLoggableValues()` - Centralizes value redaction logic (was duplicated 3 times)
+   - `logQueryStart()`, `logQueryComplete()`, `logSlowQuery()`, `logQueryError()` - Separate logging concerns
+3. **Enhanced security redaction**:
+   - Added patterns for `cnp_live_` keys and database URLs
+   - Made email/IP redaction opt-in for performance
+   - Added configurable custom redaction patterns
+4. **Performance optimization**:
+   - Lazy stack trace generation only when needed (not on every query)
+   - Conditional regex redaction to avoid performance overhead
+5. **Improved type safety**:
+   - Added proper TypeScript interfaces for options
+   - Better type handling for query result (Promise vs void)
+6. **Added comprehensive tests**: Created test suite with 17 tests covering all functionality
+
+#### Rationale:
+
+1. **Type safety issues**: Used `any[]` for args, losing pg's query overloads
+2. **Code duplication**: Value redaction logic repeated 3 times
+3. **Performance**: Stack traces generated even when not used; Object.create + property copying inefficient
+4. **Security**: Limited redaction patterns (only sk-ant- and Bearer tokens)
+5. **Code organization**: Single 142-line function doing too many things
+6. **Modern patterns**: Object.create is outdated; Proxy is the modern approach
+
+#### Expert Validation:
+
+- **Gemini 2.5 Pro**: Strongly endorsed Proxy approach, emphasized opt-in regex redaction for performance
+- **O3-mini**: Confirmed Proxy is ideal, suggested Parameters<> and ReturnType<> for type preservation
+
+#### Test Coverage:
+
+Added comprehensive test suite (`sql-logger.test.ts`) with 17 tests covering:
+
+- Logging enable/disable behavior
+- Query logging with different signatures
+- Slow query detection
+- Error handling
+- All redaction patterns
+- Custom redaction functions
+- Proxy delegation behavior
+
+All tests passing with 100% coverage of the refactored code.
 
 Both Gemini (9/10 confidence) and O3 (10/10 confidence) strongly agreed with deletion:
 
