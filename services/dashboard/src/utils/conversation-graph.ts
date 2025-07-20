@@ -1,17 +1,39 @@
 import { calculateSimpleLayout } from './simple-graph-layout.js'
 import { getModelContextLimit, getBatteryColor } from '@claude-nexus/shared'
+import { escapeHtml } from './formatters.js'
 
-/**
- * Escape HTML special characters
- */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
+// Layout dimension constants
+const LAYOUT_DIMENSIONS = {
+  NODE_WIDTH: 160,
+  NODE_HEIGHT: 32,
+  SUBTASK_NODE_WIDTH: 100,
+  SUBTASK_NODE_HEIGHT: 36,
+  HORIZONTAL_SPACING: 180,
+  VERTICAL_SPACING: 30,
+  SUBTASK_OFFSET: 180, // How far to the right sub-task nodes should be
+  NODE_RADIUS: 8,
+  PADDING: 40,
+  BATTERY_WIDTH: 11,
+  BATTERY_HEIGHT: 18,
+  ANCHOR_RADIUS: 4,
+  TOOLTIP_WIDTH: 250,
+  TOOLTIP_HEIGHT: 130,
+} as const
+
+// Color constants for branch visualization
+const BRANCH_COLORS = {
+  MAIN: '#6b7280', // gray-500
+  PALETTE: [
+    '#3b82f6', // blue-500
+    '#10b981', // green-500
+    '#8b5cf6', // purple-500
+    '#f59e0b', // amber-500
+    '#ef4444', // red-500
+    '#06b6d4', // cyan-500
+    '#f97316', // orange-500
+    '#ec4899', // pink-500
+  ],
+} as const
 
 export interface ConversationNode {
   id: string
@@ -42,31 +64,11 @@ export interface ConversationGraph {
   edges: Array<{ source: string; target: string }>
 }
 
-export interface LayoutNode {
-  id: string
+export interface LayoutNode extends ConversationNode {
   x: number
   y: number
   width: number
   height: number
-  branchId: string
-  timestamp: Date
-  label: string
-  tokens: number
-  model: string
-  hasError: boolean
-  messageIndex?: number
-  messageCount?: number
-  toolCallCount?: number
-  messageTypes?: string[]
-  isSubtask?: boolean
-  hasSubtasks?: boolean
-  subtaskCount?: number
-  linkedConversationId?: string
-  subtaskPrompt?: string
-  hasUserMessage?: boolean
-  contextTokens?: number
-  lastMessageType?: 'user' | 'assistant' | 'tool_result'
-  toolResultStatus?: 'success' | 'error' | 'mixed'
 }
 
 export interface LayoutEdge {
@@ -90,14 +92,34 @@ export interface GraphLayout {
 /**
  * Calculate the layout for a conversation graph
  */
+/**
+ * Calculate the layout for a conversation graph
+ * @param graph - The conversation graph to layout
+ * @param reversed - Whether to reverse the layout (newest at top)
+ * @returns A promise resolving to the graph layout with positioned nodes and edges
+ */
 export async function calculateGraphLayout(
   graph: ConversationGraph,
-  reversed: boolean = false,
-  _requestMap?: Map<string, any>
+  reversed: boolean = false
 ): Promise<GraphLayout> {
+  // Validate input
+  if (!graph || !graph.nodes || !graph.edges) {
+    throw new Error('Invalid graph: missing nodes or edges')
+  }
+
+  if (graph.nodes.length === 0) {
+    // Return empty layout for empty graph
+    return {
+      nodes: [],
+      edges: [],
+      width: 0,
+      height: 0,
+    }
+  }
+
   if (reversed) {
     // For reversed layout, we need a custom approach
-    return calculateReversedLayout(graph, _requestMap)
+    return calculateReversedLayout(graph)
   }
 
   // Use the simple layout algorithm
@@ -107,17 +129,21 @@ export async function calculateGraphLayout(
 /**
  * Calculate layout for reversed tree (newest at top)
  */
-function calculateReversedLayout(
-  graph: ConversationGraph,
-  _requestMap?: Map<string, any>
-): GraphLayout {
-  const nodeWidth = 160
-  const nodeHeight = 32
-  const subtaskNodeWidth = 100
-  const subtaskNodeHeight = 36
-  const horizontalSpacing = 180
-  const verticalSpacing = 30
-  const subtaskOffset = 180 // How far to the right sub-task nodes should be
+/**
+ * Calculate layout for reversed tree (newest at top)
+ * @param graph - The conversation graph to layout
+ * @returns The calculated graph layout
+ */
+function calculateReversedLayout(graph: ConversationGraph): GraphLayout {
+  const {
+    NODE_WIDTH: nodeWidth,
+    NODE_HEIGHT: nodeHeight,
+    SUBTASK_NODE_WIDTH: subtaskNodeWidth,
+    SUBTASK_NODE_HEIGHT: subtaskNodeHeight,
+    HORIZONTAL_SPACING: horizontalSpacing,
+    VERTICAL_SPACING: verticalSpacing,
+    SUBTASK_OFFSET: subtaskOffset,
+  } = LAYOUT_DIMENSIONS
 
   // Build parent-child relationships for branch detection
   const childrenMap = new Map<string | undefined, string[]>()
@@ -302,12 +328,7 @@ function calculateReversedLayout(
       // Use the actual Y position we calculated for the parent
       const parentY = parentId ? nodeYPositions.get(parentId) || 0 : 0
 
-      // Count how many subtask nodes are already positioned for this parent
-      const _existingSubtaskNodes = layoutNodes.filter(
-        ln =>
-          ln.id.endsWith('-subtasks') &&
-          subtaskNodes.find(n => n.id === ln.id)?.parentId === parentId
-      ).length
+      // Position subtask node aligned with parent
 
       layoutNodes.push({
         id: node.id,
@@ -484,40 +505,42 @@ function calculateReversedLayout(
 }
 
 /**
- * Generate branch colors consistently
+ * Generate branch colors consistently based on branch ID
+ * @param branchId - The branch identifier
+ * @returns A color hex string for the branch
  */
 export function getBranchColor(branchId: string): string {
+  if (!branchId) {
+    return BRANCH_COLORS.MAIN // Default to main color for invalid input
+  }
+
   if (branchId === 'main') {
-    return '#6b7280' // gray-500
+    return BRANCH_COLORS.MAIN
   }
 
   // Generate a color based on the branch ID hash
-  const colors = [
-    '#3b82f6', // blue-500
-    '#10b981', // green-500
-    '#8b5cf6', // purple-500
-    '#f59e0b', // amber-500
-    '#ef4444', // red-500
-    '#06b6d4', // cyan-500
-    '#f97316', // orange-500
-    '#ec4899', // pink-500
-  ]
-
   let hash = 0
   for (let i = 0; i < branchId.length; i++) {
     hash = (hash << 5) - hash + branchId.charCodeAt(i)
     hash = hash & hash // Convert to 32-bit integer
   }
 
-  return colors[Math.abs(hash) % colors.length]
+  return BRANCH_COLORS.PALETTE[Math.abs(hash) % BRANCH_COLORS.PALETTE.length]
 }
 
 /**
  * Render the conversation graph as SVG
+ * @param layout - The calculated graph layout
+ * @param interactive - Whether to make nodes clickable (default: true)
+ * @returns An SVG string representation of the graph
  */
 export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true): string {
-  const padding = 40
-  const nodeRadius = 8
+  // Validate input
+  if (!layout || !layout.nodes || !layout.edges) {
+    throw new Error('Invalid layout: missing nodes or edges')
+  }
+
+  const { PADDING: padding, NODE_RADIUS: nodeRadius } = LAYOUT_DIMENSIONS
   const width = layout.width + padding * 2
   const height = layout.height + padding * 2
 
@@ -693,7 +716,8 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
             ? node.subtaskPrompt.substring(0, 250) + '...'
             : node.subtaskPrompt
 
-        tooltips += `    <foreignObject x="${x - 75}" y="${y - 140}" width="250" height="130" style="display: none; z-index: 1000; pointer-events: none;" class="${tooltipId}">\n`
+        const { TOOLTIP_WIDTH, TOOLTIP_HEIGHT } = LAYOUT_DIMENSIONS
+        tooltips += `    <foreignObject x="${x - 75}" y="${y - 140}" width="${TOOLTIP_WIDTH}" height="${TOOLTIP_HEIGHT}" style="display: none; z-index: 1000; pointer-events: none;" class="${tooltipId}">\n`
         tooltips += `      <div xmlns="http://www.w3.org/1999/xhtml" style="background: linear-gradient(135deg, #374151 0%, #1f2937 100%); border: 2px solid #6b7280; padding: 12px 14px; border-radius: 8px; font-size: 11px; line-height: 1.6; box-shadow: 0 6px 20px rgba(0,0,0,0.4); word-wrap: break-word; position: relative;">\n`
         tooltips += `        <div style="font-size: 10px; color: #9ca3af; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #4b5563; padding-bottom: 4px;">📋 Task Prompt</div>\n`
         tooltips += `        <div style="color: #e5e7eb; font-size: 11px;">${escapeHtml(truncatedPrompt)}</div>\n`
@@ -780,8 +804,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
 
         const batteryX = x + node.width - 16
         const batteryY = y + 8
-        const batteryWidth = 11
-        const batteryHeight = 18
+        const { BATTERY_WIDTH: batteryWidth, BATTERY_HEIGHT: batteryHeight } = LAYOUT_DIMENSIONS
 
         // Battery group with hover area
         svg += `    <g class="battery-group">\n`
@@ -817,7 +840,7 @@ export function renderGraphSVG(layout: GraphLayout, interactive: boolean = true)
       // Add anchor points if this node needs them
       const anchors = nodeAnchors.get(node.id)
       if (anchors) {
-        const anchorRadius = 4
+        const { ANCHOR_RADIUS: anchorRadius } = LAYOUT_DIMENSIONS
 
         if (anchors.left) {
           // Determine if this is a source or target anchor based on edges
