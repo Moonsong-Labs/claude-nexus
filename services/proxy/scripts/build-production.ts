@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { $ } from 'bun'
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -11,6 +11,13 @@ console.log('🏗️  Building Claude Nexus Proxy Service for Production...')
 
 const distDir = join(__dirname, '..', 'dist')
 const srcDir = join(__dirname, '..', 'src')
+const pkgPath = join(__dirname, '..', 'package.json')
+
+// Read package.json for dynamic values
+const sourcePkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+// Also read root package.json for workspace dependencies
+const rootPkgPath = join(__dirname, '..', '..', '..', 'package.json')
+const rootPkg = existsSync(rootPkgPath) ? JSON.parse(readFileSync(rootPkgPath, 'utf-8')) : {}
 
 try {
   // Clean dist directory
@@ -22,25 +29,48 @@ try {
   console.log('📦 Bundling with optimizations...')
 
   // Build with Bun - production optimizations
-  await $`bun build ${join(srcDir, 'main.ts')} \
-    --outdir ${distDir} \
+  // - --target node: Optimize for Node.js runtime
+  // - --minify: Reduce bundle size
+  // - --sourcemap: Enable debugging in production
+  // - --external: Keep these as external dependencies to reduce bundle size
+  // Use forward slashes for cross-platform compatibility in shell commands
+  const mainPath = join(srcDir, 'main.ts').replace(/\\/g, '/')
+  const outPath = distDir.replace(/\\/g, '/')
+
+  await $`bun build ${mainPath} \
+    --outdir ${outPath} \
     --target node \
     --minify \
     --sourcemap \
     --external pg \
     --external @slack/webhook`
 
+  // Verify build output
+  const mainJsPath = join(distDir, 'main.js')
+  if (!existsSync(mainJsPath)) {
+    throw new Error('Build failed: main.js was not created')
+  }
+
   // Create a minimal package.json for production
+  // Extract only the runtime dependencies that are marked as external
+  const externalDeps = ['pg', '@slack/webhook']
+  const productionDeps: Record<string, string> = {}
+
+  for (const dep of externalDeps) {
+    // Check both local and root dependencies (for monorepo)
+    if (sourcePkg.dependencies?.[dep]) {
+      productionDeps[dep] = sourcePkg.dependencies[dep]
+    } else if (rootPkg.dependencies?.[dep]) {
+      productionDeps[dep] = rootPkg.dependencies[dep]
+    }
+  }
+
   const pkgJson = {
-    name: '@claude-nexus/proxy',
-    version: '2.0.0',
+    name: sourcePkg.name || '@claude-nexus/proxy',
+    version: sourcePkg.version || '2.0.0',
     type: 'module',
     main: 'main.js',
-    dependencies: {
-      // Only include runtime dependencies that weren't bundled
-      pg: '^8.13.1',
-      '@slack/webhook': '^7.0.3',
-    },
+    dependencies: productionDeps,
   }
 
   writeFileSync(join(distDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
@@ -67,11 +97,14 @@ import('./main.js').catch(err => {
   writeFileSync(join(distDir, 'index.js'), entryWrapper)
   await $`chmod +x ${join(distDir, 'index.js')}`
 
-  // Generate size report
+  // Generate size report using cross-platform methods
   const sizeOutput = await $`du -sh ${distDir}`.text()
   const size = sizeOutput.split('\t')[0]
-  const mainSizeOutput = await $`stat -c%s ${join(distDir, 'main.js')}`.text()
-  const mainSizeMB = (parseInt(mainSizeOutput.trim()) / 1024 / 1024).toFixed(2)
+
+  // Use Bun's file API for cross-platform file size
+  const mainFile = Bun.file(mainJsPath)
+  const mainSizeBytes = mainFile.size
+  const mainSizeMB = (mainSizeBytes / 1024 / 1024).toFixed(2)
 
   console.log('✅ Build completed successfully!')
   console.log(`📦 Output: ${distDir}`)
@@ -79,5 +112,12 @@ import('./main.js').catch(err => {
   console.log(`📁 Total size: ${size}`)
 } catch (error) {
   console.error('❌ Build failed:', error)
+  // Provide more context about the failure
+  if (error instanceof Error) {
+    console.error('Error details:', error.message)
+    if (error.stack) {
+      console.error('Stack trace:', error.stack)
+    }
+  }
   process.exit(1)
 }
