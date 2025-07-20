@@ -2,131 +2,34 @@ import { logger } from '../middleware/logger.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import { HttpError } from '../errors/HttpError.js'
 
-export interface StatsResponse {
-  totalRequests: number
-  totalTokens: number
-  totalInputTokens: number
-  totalOutputTokens: number
-  averageResponseTime: number
-  errorCount: number
-  activeDomains: number
-  requestsByModel: Record<string, number>
-  requestsByType: Record<string, number>
-}
+// Re-export all types
+export * from './api-client.types.js'
 
-export interface RequestSummary {
-  requestId: string
-  domain: string
-  model: string
-  timestamp: string
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  durationMs: number
-  responseStatus: number
-  error?: string
-  requestType?: string
-  conversationId?: string
-}
-
-export interface RequestsResponse {
-  requests: RequestSummary[]
-  pagination: {
-    total: number
-    limit: number
-    offset: number
-    hasMore: boolean
-  }
-}
-
-export interface RequestDetails extends RequestSummary {
-  requestBody: unknown
-  responseBody: unknown
-  streamingChunks: Array<{
-    chunkIndex: number
-    timestamp: string
-    data: string
-    tokenCount: number
-  }>
-  parentRequestId?: string
-  branchId?: string
-  // Optional fields that may be added in the future
-  requestHeaders?: Record<string, string>
-  responseHeaders?: Record<string, string>
-  telemetry?: unknown
-  method?: string
-  endpoint?: string
-  streaming?: boolean
-}
-
-export interface DomainsResponse {
-  domains: Array<{
-    domain: string
-    requestCount: number
-  }>
-}
-
-interface TokenUsageWindow {
-  accountId: string
-  domain: string
-  model: string
-  windowStart: string
-  windowEnd: string
-  totalInputTokens: number
-  totalOutputTokens: number
-  totalTokens: number
-  totalRequests: number
-  cacheCreationInputTokens: number
-  cacheReadInputTokens: number
-}
-
-interface DailyUsage {
-  date: string
-  accountId: string
-  domain: string
-  totalInputTokens: number
-  totalOutputTokens: number
-  totalTokens: number
-  totalRequests: number
-}
-
-interface RateLimitConfig {
-  id: number
-  accountId?: string
-  domain?: string
-  model?: string
-  windowMinutes: number
-  tokenLimit: number
-  requestLimit?: number
-  fallbackModel?: string
-  enabled: boolean
-}
-
-interface ConversationSummary {
-  conversationId: string
-  domain: string
-  accountId?: string
-  firstMessageTime: string
-  lastMessageTime: string
-  messageCount: number
-  totalTokens: number
-  branchCount: number
-  // New branch type counts
-  subtaskBranchCount?: number
-  compactBranchCount?: number
-  userBranchCount?: number
-  modelsUsed: string[]
-  latestRequestId?: string
-  latestModel?: string
-  latestContextTokens?: number
-  isSubtask?: boolean
-  parentTaskRequestId?: string
-  parentConversationId?: string
-  subtaskMessageCount?: number
-}
+// Import only the types we need for implementation
+import type {
+  StatsResponse,
+  RequestsResponse,
+  RequestDetails,
+  DomainsResponse,
+  TokenUsageWindow,
+  DailyUsage,
+  RateLimitConfig,
+  ConversationSummary,
+  TokenUsageTimeSeriesResponse,
+  AccountsTokenUsageResponse,
+} from './api-client.types.js'
 
 /**
- * API client for communicating with the Proxy service
+ * API client for communicating with the Proxy service.
+ *
+ * This client provides typed methods for all proxy API endpoints,
+ * handling authentication, error handling, and response parsing.
+ *
+ * @example
+ * ```typescript
+ * const client = new ProxyApiClient('http://localhost:3000', 'api-key');
+ * const stats = await client.getStats({ domain: 'example.com' });
+ * ```
  */
 export class ProxyApiClient {
   private baseUrl: string
@@ -137,9 +40,10 @@ export class ProxyApiClient {
     this.apiKey = apiKey || process.env.DASHBOARD_API_KEY
   }
 
-  private getHeaders(): Record<string, string> {
+  private getHeaders(additionalHeaders?: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...additionalHeaders,
     }
 
     if (this.apiKey) {
@@ -150,165 +54,135 @@ export class ProxyApiClient {
   }
 
   /**
-   * Get aggregated statistics
+   * Internal method to make HTTP requests with consistent error handling
    */
-  async getStats(params?: { domain?: string; since?: string }): Promise<StatsResponse> {
+  private async request<T>(
+    path: string,
+    options?: {
+      method?: string
+      body?: unknown
+      params?: Record<string, string | number | boolean>
+      headers?: Record<string, string>
+    }
+  ): Promise<T> {
     try {
-      const url = new URL('/api/stats', this.baseUrl)
-      if (params?.domain) {
-        url.searchParams.set('domain', params.domain)
-      }
-      if (params?.since) {
-        url.searchParams.set('since', params.since)
+      const url = new URL(path, this.baseUrl)
+
+      // Add query parameters if provided
+      if (options?.params) {
+        Object.entries(options.params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            url.searchParams.set(key, value.toString())
+          }
+        })
       }
 
       const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
+        method: options?.method || 'GET',
+        headers: this.getHeaders(options?.headers),
+        body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
       })
+
       if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
+        if (response.status === 404 && path.includes('/api/requests/')) {
+          throw new Error('Request not found')
+        }
+        throw await HttpError.fromResponse(response)
       }
 
-      return (await response.json()) as StatsResponse
+      return await response.json()
     } catch (error) {
-      logger.error('Failed to fetch stats from proxy API', {
+      // If it's already an HttpError or known error, just re-throw it
+      if (HttpError.isHttpError(error) || error instanceof Error) {
+        throw error
+      }
+
+      logger.error('API request failed', {
         error: getErrorMessage(error),
-        params,
+        path,
+        method: options?.method || 'GET',
       })
       throw error
     }
   }
 
   /**
-   * Get recent requests
+   * Get aggregated statistics from the proxy
+   *
+   * @param params - Optional filter parameters
+   * @param params.domain - Filter by specific domain
+   * @param params.since - Filter by time range (ISO date string)
+   * @returns Aggregated statistics response
+   */
+  async getStats(params?: { domain?: string; since?: string }): Promise<StatsResponse> {
+    return this.request<StatsResponse>('/api/stats', { params })
+  }
+
+  /**
+   * Get recent requests with pagination
+   *
+   * @param params - Query parameters
+   * @param params.domain - Filter by specific domain
+   * @param params.limit - Number of results to return (default: 50)
+   * @param params.offset - Pagination offset (default: 0)
+   * @returns Paginated requests response
    */
   async getRequests(params?: {
     domain?: string
     limit?: number
     offset?: number
   }): Promise<RequestsResponse> {
-    try {
-      const url = new URL('/api/requests', this.baseUrl)
-      if (params?.domain) {
-        url.searchParams.set('domain', params.domain)
-      }
-      if (params?.limit) {
-        url.searchParams.set('limit', params.limit.toString())
-      }
-      if (params?.offset) {
-        url.searchParams.set('offset', params.offset.toString())
-      }
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as RequestsResponse
-    } catch (error) {
-      logger.error('Failed to fetch requests from proxy API', {
-        error: getErrorMessage(error),
-        params,
-      })
-      throw error
-    }
+    return this.request<RequestsResponse>('/api/requests', { params })
   }
 
   /**
-   * Get request details
+   * Get detailed information for a specific request
+   *
+   * @param requestId - The unique request ID
+   * @returns Detailed request information including body and response
+   * @throws Error if request not found
    */
   async getRequestDetails(requestId: string): Promise<RequestDetails> {
-    try {
-      const url = new URL(`/api/requests/${requestId}`, this.baseUrl)
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Request not found')
-        }
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as RequestDetails
-    } catch (error) {
-      logger.error('Failed to fetch request details from proxy API', {
-        error: getErrorMessage(error),
-        requestId,
-      })
-      throw error
-    }
+    return this.request<RequestDetails>(`/api/requests/${requestId}`)
   }
 
   /**
-   * Get list of active domains with request counts
+   * Get list of active domains with their request counts
+   *
+   * @returns List of domains with request statistics
    */
   async getDomains(): Promise<DomainsResponse> {
-    try {
-      const url = new URL('/api/domains', this.baseUrl)
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      const data = (await response.json()) as DomainsResponse
-      // Return the full domain objects with request counts
-      return data
-    } catch (error) {
-      logger.error('Failed to fetch domains from proxy API', {
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
+    return this.request<DomainsResponse>('/api/domains')
   }
 
   /**
-   * Get current window token usage
+   * Get current window token usage for rate limiting
+   *
+   * @param params - Query parameters
+   * @param params.accountId - Account ID to query
+   * @param params.window - Window in minutes (default: 300 = 5 hours)
+   * @param params.domain - Filter by specific domain
+   * @param params.model - Filter by specific model
+   * @returns Token usage within the specified window
    */
   async getTokenUsageWindow(params: {
     accountId: string
-    window?: number // Window in minutes (default 300 = 5 hours)
+    window?: number
     domain?: string
     model?: string
   }): Promise<TokenUsageWindow> {
-    try {
-      const url = new URL('/api/token-usage/current', this.baseUrl)
-      url.searchParams.set('accountId', params.accountId)
-      if (params.window) {
-        url.searchParams.set('window', params.window.toString())
-      }
-      if (params.domain) {
-        url.searchParams.set('domain', params.domain)
-      }
-      if (params.model) {
-        url.searchParams.set('model', params.model)
-      }
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as TokenUsageWindow
-    } catch (error) {
-      logger.error('Failed to fetch token usage window from proxy API', {
-        error: getErrorMessage(error),
-        params,
-      })
-      throw error
-    }
+    return this.request<TokenUsageWindow>('/api/token-usage/current', { params })
   }
 
   /**
-   * Get daily token usage
+   * Get daily token usage history
+   *
+   * @param params - Query parameters
+   * @param params.accountId - Account ID to query
+   * @param params.days - Number of days to fetch (default: 30)
+   * @param params.domain - Filter by specific domain
+   * @param params.aggregate - Aggregate results across domains
+   * @returns Daily usage statistics
    */
   async getDailyTokenUsage(params: {
     accountId: string
@@ -316,319 +190,96 @@ export class ProxyApiClient {
     domain?: string
     aggregate?: boolean
   }): Promise<{ usage: DailyUsage[] }> {
-    try {
-      const url = new URL('/api/token-usage/daily', this.baseUrl)
-      url.searchParams.set('accountId', params.accountId)
-      if (params.days) {
-        url.searchParams.set('days', params.days.toString())
-      }
-      if (params.domain) {
-        url.searchParams.set('domain', params.domain)
-      }
-      if (params.aggregate !== undefined) {
-        url.searchParams.set('aggregate', params.aggregate.toString())
-      }
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as { usage: DailyUsage[] }
-    } catch (error) {
-      logger.error('Failed to fetch daily token usage from proxy API', {
-        error: getErrorMessage(error),
-        params,
-      })
-      throw error
-    }
+    return this.request<{ usage: DailyUsage[] }>('/api/token-usage/daily', { params })
   }
 
   /**
-   * Get token usage time series data
+   * Get token usage time series data for visualization
+   *
+   * @param params - Query parameters
+   * @param params.accountId - Account ID to query
+   * @param params.window - Window in hours (default: 5)
+   * @param params.interval - Interval in minutes (default: 5)
+   * @returns Time series data for token usage
    */
   async getTokenUsageTimeSeries(params: {
     accountId: string
-    window?: number // Window in hours (default 5)
-    interval?: number // Interval in minutes (default 5)
-  }): Promise<{
-    accountId: string
-    windowHours: number
-    intervalMinutes: number
-    tokenLimit: number
-    timeSeries: Array<{
-      time: string
-      outputTokens: number
-      cumulativeUsage: number
-      remaining: number
-      percentageUsed: number
-    }>
-  }> {
-    try {
-      const url = new URL('/api/token-usage/time-series', this.baseUrl)
-      url.searchParams.set('accountId', params.accountId)
-      if (params.window) {
-        url.searchParams.set('window', params.window.toString())
-      }
-      if (params.interval) {
-        url.searchParams.set('interval', params.interval.toString())
-      }
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as {
-        accountId: string
-        windowHours: number
-        intervalMinutes: number
-        tokenLimit: number
-        timeSeries: {
-          time: string
-          outputTokens: number
-          cumulativeUsage: number
-          remaining: number
-          percentageUsed: number
-        }[]
-      }
-    } catch (error) {
-      logger.error('Failed to fetch token usage time series from proxy API', {
-        error: getErrorMessage(error),
-        params,
-      })
-      throw error
-    }
+    window?: number
+    interval?: number
+  }): Promise<TokenUsageTimeSeriesResponse> {
+    return this.request<TokenUsageTimeSeriesResponse>('/api/token-usage/time-series', { params })
   }
 
   /**
-   * Get all accounts with their token usage
+   * Get token usage for all accounts
+   *
+   * @returns Token usage statistics for all accounts
    */
-  async getAccountsTokenUsage(): Promise<{
-    accounts: Array<{
-      accountId: string
-      outputTokens: number
-      inputTokens: number
-      requestCount: number
-      lastRequestTime: string
-      remainingTokens: number
-      percentageUsed: number
-      domains: Array<{
-        domain: string
-        outputTokens: number
-        requests: number
-      }>
-      miniSeries: Array<{
-        time: string
-        remaining: number
-      }>
-    }>
-    tokenLimit: number
-  }> {
-    try {
-      const url = new URL('/api/token-usage/accounts', this.baseUrl)
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as {
-        accounts: {
-          accountId: string
-          outputTokens: number
-          inputTokens: number
-          requestCount: number
-          lastRequestTime: string
-          remainingTokens: number
-          percentageUsed: number
-          domains: {
-            domain: string
-            outputTokens: number
-            requests: number
-          }[]
-          miniSeries: {
-            time: string
-            remaining: number
-          }[]
-        }[]
-        tokenLimit: number
-      }
-    } catch (error) {
-      logger.error('Failed to fetch accounts token usage from proxy API', {
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
+  async getAccountsTokenUsage(): Promise<AccountsTokenUsageResponse> {
+    return this.request<AccountsTokenUsageResponse>('/api/token-usage/accounts')
   }
 
   /**
    * Get rate limit configurations
+   *
+   * @param params - Filter parameters
+   * @param params.accountId - Filter by account ID
+   * @param params.domain - Filter by domain
+   * @param params.model - Filter by model
+   * @returns Rate limit configurations
    */
   async getRateLimitConfigs(params?: {
     accountId?: string
     domain?: string
     model?: string
   }): Promise<{ configs: RateLimitConfig[] }> {
-    try {
-      const url = new URL('/api/rate-limits', this.baseUrl)
-      if (params?.accountId) {
-        url.searchParams.set('accountId', params.accountId)
-      }
-      if (params?.domain) {
-        url.searchParams.set('domain', params.domain)
-      }
-      if (params?.model) {
-        url.searchParams.set('model', params.model)
-      }
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as { configs: RateLimitConfig[] }
-    } catch (error) {
-      logger.error('Failed to fetch rate limit configs from proxy API', {
-        error: getErrorMessage(error),
-        params,
-      })
-      throw error
-    }
+    return this.request<{ configs: RateLimitConfig[] }>('/api/rate-limits', { params })
   }
 
   /**
    * Get conversations with account information
+   *
+   * @param params - Filter parameters
+   * @param params.domain - Filter by domain
+   * @param params.accountId - Filter by account ID
+   * @param params.limit - Maximum number of conversations to return
+   * @returns List of conversation summaries
    */
   async getConversations(params?: {
     domain?: string
     accountId?: string
     limit?: number
   }): Promise<{ conversations: ConversationSummary[] }> {
-    try {
-      const url = new URL('/api/conversations', this.baseUrl)
-      if (params?.domain) {
-        url.searchParams.set('domain', params.domain)
-      }
-      if (params?.accountId) {
-        url.searchParams.set('accountId', params.accountId)
-      }
-      if (params?.limit) {
-        url.searchParams.set('limit', params.limit.toString())
-      }
-
-      const response = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      return (await response.json()) as { conversations: ConversationSummary[] }
-    } catch (error) {
-      logger.error('Failed to fetch conversations from proxy API', {
-        error: getErrorMessage(error),
-        params,
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Convert API response to dashboard format for backward compatibility
-   */
-  convertToDashboardFormat(stats: StatsResponse, requests: RequestSummary[]) {
-    return {
-      stats: {
-        totalRequests: stats.totalRequests,
-        totalTokens: stats.totalTokens,
-        estimatedCost: (stats.totalTokens / 1000) * 0.002, // Rough estimate
-        activeDomains: stats.activeDomains,
-      },
-      requests: requests.map(req => ({
-        request_id: req.requestId,
-        domain: req.domain,
-        model: req.model,
-        total_tokens: req.totalTokens,
-        input_tokens: req.inputTokens,
-        output_tokens: req.outputTokens,
-        timestamp: req.timestamp,
-        response_status: req.responseStatus,
-      })),
-    }
+    return this.request<{ conversations: ConversationSummary[] }>('/api/conversations', { params })
   }
 
   /**
    * Generic GET method for API calls
+   *
+   * @param path - API endpoint path
+   * @returns Parsed JSON response
    */
   async get<T = unknown>(path: string): Promise<T> {
-    try {
-      const url = new URL(path, this.baseUrl)
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: this.getHeaders(),
-      })
-
-      if (!response.ok) {
-        throw await HttpError.fromResponse(response)
-      }
-
-      return (await response.json()) as T
-    } catch (error) {
-      // If it's already an HttpError, just re-throw it
-      if (HttpError.isHttpError(error)) {
-        throw error
-      }
-
-      logger.error('API GET request failed', {
-        error: getErrorMessage(error),
-        path,
-      })
-      throw error
-    }
+    return this.request<T>(path)
   }
 
   /**
    * Generic POST method for API calls
+   *
+   * @param path - API endpoint path
+   * @param body - Request body to send
+   * @returns Parsed JSON response
    */
   async post<T = unknown>(path: string, body?: unknown): Promise<T> {
-    try {
-      const url = new URL(path, this.baseUrl)
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-      })
-
-      if (!response.ok) {
-        throw await HttpError.fromResponse(response)
-      }
-
-      return (await response.json()) as T
-    } catch (error) {
-      // If it's already an HttpError, just re-throw it
-      if (HttpError.isHttpError(error)) {
-        throw error
-      }
-
-      logger.error('API POST request failed', {
-        error: getErrorMessage(error),
-        path,
-      })
-      throw error
-    }
+    return this.request<T>(path, { method: 'POST', body })
   }
 
   /**
    * Make a generic fetch request to the proxy API
+   *
+   * @param path - API endpoint path
+   * @param options - Fetch options
+   * @returns Raw fetch response
    */
   async fetch(path: string, options?: RequestInit): Promise<Response> {
     try {
