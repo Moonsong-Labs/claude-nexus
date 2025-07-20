@@ -2,8 +2,7 @@ import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { AuthResult, AuthenticationService } from './AuthenticationService'
-import { sendToSlack, initializeDomainSlack, MessageInfo } from './slack'
-import { IncomingWebhook } from '@slack/webhook'
+import { sendToSlack, createDomainSlackService, MessageInfo, SlackService } from './slack'
 import { logger } from '../middleware/logger'
 
 export interface NotificationConfig {
@@ -218,9 +217,9 @@ export class NotificationService {
   /**
    * Get domain-specific Slack webhook
    */
-  private async getDomainWebhook(host: string): Promise<IncomingWebhook | null> {
+  private async getDomainWebhook(host: string): Promise<SlackService | null> {
     const slackConfig = this.authService ? await this.authService.getSlackConfig(host) : undefined
-    return slackConfig ? initializeDomainSlack(slackConfig) : null
+    return slackConfig ? createDomainSlackService(slackConfig) : null
   }
 
   /**
