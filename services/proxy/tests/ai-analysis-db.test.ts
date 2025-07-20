@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn, type Mock } from 'bun:test'
 import type { Pool, PoolClient, QueryResult } from 'pg'
 import {
   claimJob,
@@ -7,20 +7,78 @@ import {
   resetStuckJobs,
   fetchConversationMessages,
   type ConversationAnalysisJob,
-} from '../src/workers/ai-analysis/db.js'
-import * as containerModule from '../src/container.js'
-import { logger } from '../src/middleware/logger.js'
+} from '../src/workers/ai-analysis/db'
+import * as containerModule from '../src/container'
+import { logger } from '../src/middleware/logger'
 import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
+import type { ConversationAnalysis } from '@claude-nexus/shared/types'
+
+// Test constants
+const TEST_JOB_ID = 1
+const TEST_CONVERSATION_ID = 'conv-123'
+const TEST_BRANCH_ID = 'main'
+const TEST_MODEL = 'gemini-2.0-flash-exp'
+const TEST_PROMPT_TOKENS = 100
+const TEST_COMPLETION_TOKENS = 200
+const TEST_PROCESSING_DURATION_MS = 5000
+
+// Type for the spyOn return value
+type GetDbPoolSpy = ReturnType<typeof spyOn<typeof containerModule.container, 'getDbPool'>>
 
 describe('AI Analysis DB Functions', () => {
   let mockPool: Partial<Pool>
   let mockClient: Partial<PoolClient>
-  let mockQueryResult: <T = any>(rows: T[]) => QueryResult<T>
-  let getDbPoolSpy: any
+  let mockQueryResult: <T>(rows: T[]) => QueryResult<T>
+  let getDbPoolSpy: GetDbPoolSpy
+
+  // Test factory functions
+  function createMockJob(
+    overrides: Partial<ConversationAnalysisJob> = {}
+  ): ConversationAnalysisJob {
+    return {
+      id: TEST_JOB_ID,
+      conversation_id: TEST_CONVERSATION_ID,
+      branch_id: TEST_BRANCH_ID,
+      status: 'processing',
+      retry_count: 0,
+      created_at: new Date(),
+      updated_at: new Date(),
+      ...overrides,
+    }
+  }
+
+  function createMockAnalysisData(): ConversationAnalysis {
+    return {
+      summary: 'Test summary',
+      keyTopics: ['topic1'],
+      sentiment: 'positive' as const,
+      userIntent: 'Test intent',
+      outcomes: ['outcome1'],
+      actionItems: [],
+      promptingTips: [],
+      interactionPatterns: {
+        promptClarity: 7,
+        contextCompleteness: 8,
+        followUpEffectiveness: 'good' as const,
+        commonIssues: [],
+        strengths: [],
+      },
+      technicalDetails: {
+        frameworks: ['framework1'],
+        issues: [],
+        solutions: [],
+      },
+      conversationQuality: {
+        clarity: 'high' as const,
+        completeness: 'complete' as const,
+        effectiveness: 'effective' as const,
+      },
+    }
+  }
 
   beforeEach(() => {
     // Create mock query result helper
-    mockQueryResult = <T = any>(rows: T[]) => ({
+    mockQueryResult = <T>(rows: T[]) => ({
       rows,
       rowCount: rows.length,
       command: '',
@@ -57,15 +115,7 @@ describe('AI Analysis DB Functions', () => {
 
   describe('claimJob', () => {
     it('should claim a pending job successfully', async () => {
-      const mockJob: ConversationAnalysisJob = {
-        id: 1,
-        conversation_id: 'conv-123',
-        branch_id: 'main',
-        status: 'processing',
-        retry_count: 0,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      const mockJob = createMockJob()
 
       mockPool.query = mock(() => Promise.resolve(mockQueryResult([mockJob])))
 
@@ -73,9 +123,10 @@ describe('AI Analysis DB Functions', () => {
 
       expect(result).toEqual(mockJob)
       expect(mockPool.query).toHaveBeenCalled()
-      const [query, params] = (mockPool.query as any).mock.calls[0]
+      const mockQuery = mockPool.query as Mock<typeof mockPool.query>
+      const [query, params] = mockQuery.mock.calls[0]
       expect(query).toContain('UPDATE conversation_analyses')
-      expect(params).toEqual([AI_WORKER_CONFIG.MAX_RETRIES]) // Use the actual configured value
+      expect(params).toEqual([AI_WORKER_CONFIG.MAX_RETRIES])
     })
 
     it('should return null when no jobs are available', async () => {
@@ -99,87 +150,93 @@ describe('AI Analysis DB Functions', () => {
       mockPool.query = mock(() => Promise.reject(dbError))
 
       await expect(claimJob()).rejects.toThrow('Database connection failed')
+      expect(logger.error).toHaveBeenCalledWith(
+        'Error claiming job',
+        expect.objectContaining({
+          error: expect.objectContaining({
+            message: 'Database connection failed',
+          }),
+          metadata: { worker: 'analysis-worker' },
+        })
+      )
     })
   })
 
   describe('completeJob', () => {
     it('should complete a job successfully', async () => {
-      const analysisData = {
-        summary: 'Test summary',
-        keyTopics: ['topic1'],
-        sentiment: 'positive' as const,
-        userIntent: 'Test intent',
-        outcomes: ['outcome1'],
-        actionItems: [],
-        promptingTips: [],
-        interactionPatterns: {
-          promptClarity: 7,
-          contextCompleteness: 8,
-          followUpEffectiveness: 'good' as const,
-          commonIssues: [],
-          strengths: [],
-        },
-        technicalDetails: {
-          frameworks: ['framework1'],
-          issues: [],
-          solutions: [],
-        },
-        conversationQuality: {
-          clarity: 'high' as const,
-          completeness: 'complete' as const,
-          effectiveness: 'effective' as const,
-        },
-      }
+      const analysisData = createMockAnalysisData()
+      const rawResponse = { raw: 'response' }
 
       mockPool.query = mock(() => Promise.resolve(mockQueryResult([])))
 
       await completeJob(
-        1,
+        TEST_JOB_ID,
         'Test analysis content',
         analysisData,
-        { raw: 'response' },
-        'gemini-2.0-flash-exp',
-        100,
-        200,
-        5000
+        rawResponse,
+        TEST_MODEL,
+        TEST_PROMPT_TOKENS,
+        TEST_COMPLETION_TOKENS,
+        TEST_PROCESSING_DURATION_MS
       )
 
       expect(mockPool.query).toHaveBeenCalled()
-      const [query, params] = (mockPool.query as any).mock.calls[0]
+      const mockQuery = mockPool.query as Mock<typeof mockPool.query>
+      const [query, params] = mockQuery.mock.calls[0]
       expect(query).toContain('UPDATE conversation_analyses')
       expect(params).toEqual([
         'Test analysis content',
         JSON.stringify(analysisData),
-        JSON.stringify({ raw: 'response' }),
-        'gemini-2.0-flash-exp',
-        100,
-        200,
-        5000,
-        1,
+        JSON.stringify(rawResponse),
+        TEST_MODEL,
+        TEST_PROMPT_TOKENS,
+        TEST_COMPLETION_TOKENS,
+        TEST_PROCESSING_DURATION_MS,
+        TEST_JOB_ID,
       ])
+    })
+
+    it('should complete a job with null analysis data', async () => {
+      mockPool.query = mock(() => Promise.resolve(mockQueryResult([])))
+
+      await completeJob(
+        TEST_JOB_ID,
+        'Test analysis content',
+        null, // null analysis data
+        { raw: 'response' },
+        TEST_MODEL,
+        TEST_PROMPT_TOKENS,
+        TEST_COMPLETION_TOKENS,
+        TEST_PROCESSING_DURATION_MS
+      )
+
+      expect(mockPool.query).toHaveBeenCalled()
+      const mockQuery = mockPool.query as Mock<typeof mockPool.query>
+      const [_query, params] = mockQuery.mock.calls[0]
+      expect(params[1]).toBeNull() // analysisData should be null
     })
 
     it('should throw error when database pool is not available', async () => {
       getDbPoolSpy.mockReturnValue(null)
 
       await expect(
-        completeJob(1, 'content', {} as any, {}, 'model', 100, 200, 5000)
+        completeJob(
+          TEST_JOB_ID,
+          'content',
+          null,
+          {},
+          TEST_MODEL,
+          TEST_PROMPT_TOKENS,
+          TEST_COMPLETION_TOKENS,
+          TEST_PROCESSING_DURATION_MS
+        )
       ).rejects.toThrow('Database pool not available')
     })
   })
 
   describe('failJob', () => {
     it('should retry job when retries remain', async () => {
-      const job: ConversationAnalysisJob = {
-        id: 1,
-        conversation_id: 'conv-123',
-        branch_id: 'main',
-        status: 'processing',
-        retry_count: 1,
-        error_message: undefined,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      const job = createMockJob({ retry_count: 1 })
 
       mockPool.query = mock(() => Promise.resolve(mockQueryResult([])))
 
@@ -187,23 +244,15 @@ describe('AI Analysis DB Functions', () => {
       await failJob(job, error)
 
       expect(mockPool.query).toHaveBeenCalled()
-      const [query, params] = (mockPool.query as any).mock.calls[0]
+      const mockQuery = mockPool.query as Mock<typeof mockPool.query>
+      const [query, params] = mockQuery.mock.calls[0]
       expect(query).toContain("status = 'pending'")
       expect(params[0]).toContain('retry_2')
-      expect(params[1]).toBe(1)
+      expect(params[1]).toBe(TEST_JOB_ID)
     })
 
     it('should permanently fail job when max retries exceeded', async () => {
-      const job: ConversationAnalysisJob = {
-        id: 1,
-        conversation_id: 'conv-123',
-        branch_id: 'main',
-        status: 'processing',
-        retry_count: AI_WORKER_CONFIG.MAX_RETRIES, // Set to MAX_RETRIES to trigger permanent failure
-        error_message: undefined,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      const job = createMockJob({ retry_count: AI_WORKER_CONFIG.MAX_RETRIES })
 
       mockPool.query = mock(() => Promise.resolve(mockQueryResult([])))
 
@@ -211,23 +260,18 @@ describe('AI Analysis DB Functions', () => {
       await failJob(job, error)
 
       expect(mockPool.query).toHaveBeenCalled()
-      const [query, params] = (mockPool.query as any).mock.calls[0]
+      const mockQuery = mockPool.query as Mock<typeof mockPool.query>
+      const [query, params] = mockQuery.mock.calls[0]
       expect(query).toContain("status = 'failed'")
       expect(params[0]).toContain('final_error')
-      expect(params[1]).toBe(1)
+      expect(params[1]).toBe(TEST_JOB_ID)
     })
 
     it('should handle JSON parse errors gracefully', async () => {
-      const job: ConversationAnalysisJob = {
-        id: 1,
-        conversation_id: 'conv-123',
-        branch_id: 'main',
-        status: 'processing',
+      const job = createMockJob({
         retry_count: 1,
         error_message: 'invalid json',
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      })
 
       mockPool.query = mock(() => Promise.resolve(mockQueryResult([])))
 
@@ -235,10 +279,20 @@ describe('AI Analysis DB Functions', () => {
       await failJob(job, error)
 
       expect(mockPool.query).toHaveBeenCalled()
-      const [query, params] = (mockPool.query as any).mock.calls[0]
+      const mockQuery = mockPool.query as Mock<typeof mockPool.query>
+      const [query, params] = mockQuery.mock.calls[0]
       expect(typeof query).toBe('string')
       expect(params[0]).toContain('parse_error')
-      expect(params[1]).toBe(1)
+      expect(params[1]).toBe(TEST_JOB_ID)
+    })
+
+    it('should throw error when database pool is not available', async () => {
+      const job = createMockJob()
+      getDbPoolSpy.mockReturnValue(null)
+
+      await expect(failJob(job, new Error('Test error'))).rejects.toThrow(
+        'Database pool not available'
+      )
     })
   })
 
@@ -306,7 +360,7 @@ describe('AI Analysis DB Functions', () => {
 
       mockPool.query = mock(() => Promise.resolve(mockQueryResult(mockRows)))
 
-      const result = await fetchConversationMessages('conv-123', 'main')
+      const result = await fetchConversationMessages(TEST_CONVERSATION_ID, TEST_BRANCH_ID)
 
       expect(result).toEqual([
         { role: 'user', content: 'How are you?' },
@@ -319,7 +373,7 @@ describe('AI Analysis DB Functions', () => {
     it('should handle empty results', async () => {
       mockPool.query = mock(() => Promise.resolve(mockQueryResult([])))
 
-      const result = await fetchConversationMessages('conv-123', 'main')
+      const result = await fetchConversationMessages(TEST_CONVERSATION_ID, TEST_BRANCH_ID)
 
       expect(result).toEqual([])
     })
@@ -327,7 +381,7 @@ describe('AI Analysis DB Functions', () => {
     it('should throw error when database pool is not available', async () => {
       getDbPoolSpy.mockReturnValue(null)
 
-      await expect(fetchConversationMessages('conv-123')).rejects.toThrow(
+      await expect(fetchConversationMessages(TEST_CONVERSATION_ID, TEST_BRANCH_ID)).rejects.toThrow(
         'Database pool not available'
       )
     })
