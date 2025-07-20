@@ -73,7 +73,9 @@ export function clientAuthMiddleware() {
           requestId,
           domain,
           path: c.req.path,
-          ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+          metadata: {
+            ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+          },
         })
         return c.json(
           {
@@ -110,7 +112,9 @@ export function clientAuthMiddleware() {
           requestId,
           domain,
           path: c.req.path,
-          ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+          metadata: {
+            ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+          },
         })
         return c.json(
           {

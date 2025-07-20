@@ -141,8 +141,8 @@ export class MetricsService {
     logger.info('Request processed', {
       requestId: context.requestId,
       domain: context.host,
-      model: request.model,
       metadata: {
+        model: request.model,
         inputTokens: metrics.inputTokens,
         outputTokens: metrics.outputTokens,
         duration: context.getElapsedTime(),
@@ -267,8 +267,10 @@ export class MetricsService {
     if (NON_STORABLE_REQUEST_TYPES.has(request.requestType)) {
       logger.debug('Skipping storage for non-storable request type', {
         requestId: context.requestId,
-        requestType: request.requestType,
         domain: context.host,
+        metadata: {
+          requestType: request.requestType,
+        },
       })
       return
     }

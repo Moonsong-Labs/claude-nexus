@@ -46,7 +46,9 @@ export function apiAuthMiddleware() {
     if (!providedKey) {
       logger.warn('API request without authentication', {
         path: c.req.path,
-        ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+        metadata: {
+          ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+        },
       })
       return c.json(
         {
@@ -70,7 +72,9 @@ export function apiAuthMiddleware() {
     if (!keysMatch) {
       logger.warn('API request with invalid key', {
         path: c.req.path,
-        ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+        metadata: {
+          ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+        },
       })
       return c.json(
         {

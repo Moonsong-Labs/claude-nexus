@@ -35,6 +35,6 @@ export async function auditLog(pool: Pool, data: AuditLogData): Promise<void> {
       ]
     )
   } catch (error) {
-    logger.error('Failed to write audit log', { error, data })
+    logger.error('Failed to write audit log', { error, metadata: { data } })
   }
 }

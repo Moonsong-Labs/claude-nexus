@@ -179,7 +179,9 @@ export class ClaudeApiClient {
               logger.warn('Failed to parse streaming event', {
                 requestId: proxyResponse.requestId,
                 error: getErrorMessage(error),
-                data,
+                metadata: {
+                  data,
+                },
               })
               // Still forward the data even if we can't parse it
               yield `data: ${data}\n\n`

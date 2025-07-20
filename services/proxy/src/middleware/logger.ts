@@ -1,7 +1,9 @@
 import { Context, Next } from 'hono'
 import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
 
-// Log levels
+/**
+ * Available log levels for the logger
+ */
 export enum LogLevel {
   DEBUG = 'debug',
   INFO = 'info',
@@ -9,8 +11,11 @@ export enum LogLevel {
   ERROR = 'error',
 }
 
-// Structured log entry - extends to include all properties used
-interface LogEntry {
+/**
+ * Core structured log entry interface
+ * Contains essential fields for all log entries
+ */
+export interface LogEntry {
   timestamp: string
   level: LogLevel
   requestId: string
@@ -21,36 +26,55 @@ interface LogEntry {
   statusCode?: number
   duration?: number
   error?: any
+  /**
+   * Additional context-specific data
+   * Use this for application-specific fields instead of extending LogEntry
+   */
   metadata?: Record<string, any>
-  // Additional properties used throughout the proxy
-  hasPool?: boolean
-  systemField?: string
-  usage?: any
-  eventType?: string
-  event?: string
-  ip?: string
-  version?: string
-  port?: number
-  stack?: string
-  credentialPath?: string
-  hasRefreshToken?: boolean
-  keyPreview?: string
-  expectedPath?: string
-  model?: string
-  data?: any
-  params?: Record<string, any>
-  requestType?: string
 }
 
-// Logger configuration
-interface LoggerConfig {
+// Constants for sensitive data masking
+const SENSITIVE_KEY_PATTERNS = [
+  'api_key',
+  'apiKey',
+  'x-api-key',
+  'authorization',
+  'password',
+  'secret',
+  'refreshToken',
+  'accessToken',
+] as const
+
+const API_KEY_PREFIX = 'sk-ant-'
+const BEARER_PREFIX = 'Bearer '
+const MASKED_SUFFIX = '****'
+
+/**
+ * Logger configuration options
+ */
+export interface LoggerConfig {
+  /** Minimum log level to output */
   level: LogLevel
+  /** Whether to format logs for human readability */
   prettyPrint: boolean
+  /** Whether to mask sensitive data in logs */
   maskSensitiveData: boolean
+  /** Additional keys to treat as sensitive (merged with defaults) */
+  additionalSensitiveKeys?: string[]
 }
 
+/**
+ * Logger class for structured logging with sensitive data masking
+ * 
+ * @example
+ * ```ts
+ * const logger = new Logger({ level: LogLevel.DEBUG })
+ * logger.info('Request received', { domain: 'api.example.com', method: 'POST' })
+ * ```
+ */
 class Logger {
   private config: LoggerConfig
+  private sensitiveKeys: string[]
 
   constructor(config: Partial<LoggerConfig> = {}) {
     // Enable debug logging if DEBUG or DEBUG_SQL is set
@@ -59,12 +83,20 @@ class Logger {
         ? LogLevel.DEBUG
         : (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO
 
+    const isProduction = process.env.NODE_ENV === 'production'
+
     this.config = {
       level: defaultLevel,
-      prettyPrint: process.env.NODE_ENV !== 'production',
+      prettyPrint: !isProduction,
       maskSensitiveData: true,
       ...config,
     }
+
+    // Combine default sensitive keys with additional ones
+    this.sensitiveKeys = [
+      ...SENSITIVE_KEY_PATTERNS,
+      ...(config.additionalSensitiveKeys || [])
+    ]
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -74,31 +106,18 @@ class Logger {
     return messageLevelIndex >= currentLevelIndex
   }
 
+  /**
+   * Masks sensitive data in log entries
+   * @param obj - Object to mask sensitive data from
+   * @returns Object with sensitive data masked
+   */
   private maskSensitive(obj: any): any {
     if (!this.config.maskSensitiveData) {
       return obj
     }
 
-    const sensitiveKeys = [
-      'api_key',
-      'apiKey',
-      'x-api-key',
-      'authorization',
-      'password',
-      'secret',
-      'refreshToken',
-      'accessToken',
-    ]
-
     if (typeof obj === 'string') {
-      // Mask API keys
-      if (obj.startsWith('sk-ant-')) {
-        return obj.substring(0, 10) + '****'
-      }
-      if (obj.startsWith('Bearer ')) {
-        return 'Bearer ****'
-      }
-      return obj
+      return this.maskSensitiveString(obj)
     }
 
     if (Array.isArray(obj)) {
@@ -106,28 +125,54 @@ class Logger {
     }
 
     if (obj && typeof obj === 'object') {
-      const masked: any = {}
-      for (const [key, value] of Object.entries(obj)) {
-        // Don't mask token count fields
-        if (
-          key === 'input_tokens' ||
-          key === 'output_tokens' ||
-          key === 'inputTokens' ||
-          key === 'outputTokens' ||
-          key === 'total_tokens' ||
-          key === 'totalTokens'
-        ) {
-          masked[key] = value
-        } else if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk.toLowerCase()))) {
-          masked[key] = '****'
-        } else {
-          masked[key] = this.maskSensitive(value)
-        }
-      }
-      return masked
+      return this.maskSensitiveObject(obj)
     }
 
     return obj
+  }
+
+  /**
+   * Masks sensitive patterns in strings
+   */
+  private maskSensitiveString(str: string): string {
+    if (str.startsWith(API_KEY_PREFIX)) {
+      return str.substring(0, 10) + MASKED_SUFFIX
+    }
+    if (str.startsWith(BEARER_PREFIX)) {
+      return BEARER_PREFIX + MASKED_SUFFIX
+    }
+    return str
+  }
+
+  /**
+   * Masks sensitive fields in objects
+   */
+  private maskSensitiveObject(obj: Record<string, any>): Record<string, any> {
+    const masked: Record<string, any> = {}
+    const tokenFields = new Set([
+      'input_tokens', 'output_tokens', 'inputTokens', 
+      'outputTokens', 'total_tokens', 'totalTokens'
+    ])
+
+    for (const [key, value] of Object.entries(obj)) {
+      // Don't mask token count fields
+      if (tokenFields.has(key)) {
+        masked[key] = value
+      } else if (this.isSensitiveKey(key)) {
+        masked[key] = MASKED_SUFFIX
+      } else {
+        masked[key] = this.maskSensitive(value)
+      }
+    }
+    return masked
+  }
+
+  /**
+   * Checks if a key should be treated as sensitive
+   */
+  private isSensitiveKey(key: string): boolean {
+    const lowerKey = key.toLowerCase()
+    return this.sensitiveKeys.some(sk => lowerKey.includes(sk.toLowerCase()))
   }
 
   private formatLog(entry: LogEntry): string {
@@ -146,6 +191,12 @@ class Logger {
     return JSON.stringify(masked)
   }
 
+  /**
+   * Logs a message with the specified level and context
+   * @param level - Log level
+   * @param message - Log message
+   * @param context - Additional context to include in the log entry
+   */
   log(level: LogLevel, message: string, context: Partial<LogEntry> = {}) {
     if (!this.shouldLog(level)) {
       return
@@ -160,7 +211,13 @@ class Logger {
     }
 
     const formatted = this.formatLog(entry)
+    this.writeLog(level, formatted)
+  }
 
+  /**
+   * Writes the formatted log to the appropriate output
+   */
+  private writeLog(level: LogLevel, formatted: string): void {
     switch (level) {
       case LogLevel.DEBUG:
       case LogLevel.INFO:
@@ -192,10 +249,25 @@ class Logger {
   }
 }
 
-// Global logger instance
+/**
+ * Global logger instance
+ * @example
+ * ```ts
+ * import { logger } from './middleware/logger'
+ * logger.info('Server started', { port: 3000 })
+ * ```
+ */
 export const logger = new Logger()
 
-// Logging middleware
+/**
+ * Hono middleware for request/response logging
+ * Automatically logs incoming requests and their responses with timing information
+ * 
+ * @example
+ * ```ts
+ * app.use(loggingMiddleware())
+ * ```
+ */
 export function loggingMiddleware() {
   return async (c: Context, next: Next) => {
     // Get request ID from context (set by request-id middleware)
@@ -259,7 +331,17 @@ export function loggingMiddleware() {
   }
 }
 
-// Helper to get logger with request context
+/**
+ * Creates a logger instance with request context automatically included
+ * @param c - Hono context object
+ * @returns Logger functions with request context
+ * 
+ * @example
+ * ```ts
+ * const log = getRequestLogger(c)
+ * log.info('Processing payment', { amount: 100 })
+ * ```
+ */
 export function getRequestLogger(c: Context): {
   debug: (message: string, metadata?: Record<string, any>) => void
   info: (message: string, metadata?: Record<string, any>) => void

@@ -246,8 +246,10 @@ apiRoutes.get('/requests/:id', async c => {
     return c.json(details)
   } catch (error) {
     logger.error('Failed to get request details', {
-      stack: getErrorStack(error),
       requestId,
+      metadata: {
+        stack: getErrorStack(error),
+      },
     })
     return handleApiError(c, error, 'Failed to retrieve request details')
   }
@@ -628,7 +630,9 @@ apiRoutes.get('/usage/requests/hourly', async c => {
     })
   } catch (error) {
     logger.error('Failed to get hourly usage data', {
-      stack: getErrorStack(error),
+      metadata: {
+        stack: getErrorStack(error),
+      },
     })
     return handleApiError(c, error, 'Failed to retrieve hourly usage data')
   }
