@@ -6,13 +6,14 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as Handlebars from 'handlebars'
 import * as yaml from 'js-yaml'
-import { watch } from 'node:fs'
+import { watch, type FSWatcher } from 'node:fs'
+import { logger } from '../middleware/logger.js'
+import { YamlPromptFormat } from './types/prompts.js'
+import { config } from '@claude-nexus/shared/config'
 
-interface PromptFile {
-  name?: string
-  description?: string
-  template: string
-}
+// Constants
+const SUPPORTED_EXTENSIONS = ['.yaml', '.yml']
+const DEFAULT_DEBOUNCE_DELAY_MS = 500
 
 interface PromptCacheEntry {
   name: string
@@ -31,41 +32,50 @@ export interface PromptInfo {
 export class PromptRegistryService {
   private promptCache = new Map<string, PromptCacheEntry>()
   private promptDir: string
-  private watcher?: fs.FileHandle
+  private watcher?: FSWatcher
+  private reloadTimeoutId?: NodeJS.Timeout
+  private isLoadingPrompts = false
 
   constructor(promptDir: string = 'prompts') {
     this.promptDir = path.resolve(promptDir)
   }
 
   public async initialize(): Promise<void> {
-    console.log('Initializing PromptRegistryService...')
+    logger.info('Initializing PromptRegistryService', {
+      metadata: { promptDir: this.promptDir, watchEnabled: config.mcp.watchFiles },
+    })
 
     // Ensure prompts directory exists
     await fs.mkdir(this.promptDir, { recursive: true })
 
     await this.loadPrompts()
 
-    // Watch for changes in the prompts directory
-    this.startWatching()
+    // Watch for changes in the prompts directory if enabled
+    if (config.mcp.watchFiles) {
+      this.startWatching()
+    }
   }
 
   public async loadPrompts(): Promise<void> {
-    console.log(`Loading prompts from ${this.promptDir}...`)
+    logger.info('Loading prompts', { metadata: { promptDir: this.promptDir } })
+
     try {
       const tempCache = new Map<string, PromptCacheEntry>()
       const files = await fs.readdir(this.promptDir)
 
       for (const file of files) {
-        if (file.endsWith('.yaml') || file.endsWith('.yml')) {
+        if (SUPPORTED_EXTENSIONS.some(ext => file.endsWith(ext))) {
           const promptId = path.basename(file, path.extname(file))
           const filePath = path.join(this.promptDir, file)
 
           try {
             const fileContent = await fs.readFile(filePath, 'utf-8')
-            const parsed = yaml.load(fileContent) as PromptFile
+            const parsed = yaml.load(fileContent) as YamlPromptFormat
 
             if (typeof parsed.template !== 'string') {
-              console.warn(`WARN: Skipping ${file}. 'template' key is missing or not a string.`)
+              logger.warn('Skipping invalid prompt file', {
+                metadata: { file, reason: 'template key is missing or not a string' },
+              })
               continue
             }
 
@@ -76,41 +86,87 @@ export class PromptRegistryService {
             })
 
             tempCache.set(promptId, {
-              name: promptId, // Always use file name as the prompt name
+              name: parsed.name || promptId, // Use name from YAML, fallback to file ID
               description: parsed.description,
               rawTemplate: parsed.template,
               compiledTemplate,
             })
           } catch (e) {
-            console.error(`Error processing prompt file ${file}:`, e)
+            logger.error('Error processing prompt file', {
+              metadata: { file, error: e instanceof Error ? e.message : String(e) },
+            })
           }
         }
       }
 
       // Atomic swap to ensure the cache is always in a consistent state
       this.promptCache = tempCache
-      console.log(`Successfully loaded ${this.promptCache.size} prompts.`)
+      logger.info('Successfully loaded prompts', {
+        metadata: { count: this.promptCache.size },
+      })
     } catch (error) {
-      console.error('Failed to read prompts directory:', error)
-      this.promptCache.clear()
+      logger.error('Failed to read prompts directory', {
+        metadata: {
+          promptDir: this.promptDir,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      // Don't clear the cache on read failure - preserve the last known good state
     }
   }
 
   private startWatching(): void {
     try {
-      const watcher = watch(this.promptDir, { recursive: false }, async (eventType, filename) => {
-        if (filename && (filename.endsWith('.yaml') || filename.endsWith('.yml'))) {
-          console.log(`Prompt file ${eventType}: ${filename}`)
-          // Debounce reloads to avoid multiple rapid reloads
-          setTimeout(() => this.loadPrompts(), 500)
+      const watcher = watch(this.promptDir, { recursive: false }, (eventType, filename) => {
+        if (filename && SUPPORTED_EXTENSIONS.some(ext => filename.endsWith(ext))) {
+          this.handleFileChange(eventType, filename)
         }
       })
 
-      // Keep watcher reference to close it later if needed
-      this.watcher = watcher as any
+      this.watcher = watcher
+      logger.info('Started watching prompts directory', {
+        metadata: { promptDir: this.promptDir },
+      })
     } catch (error) {
-      console.error('Failed to start watching prompts directory:', error)
+      logger.error('Failed to start watching prompts directory', {
+        metadata: {
+          promptDir: this.promptDir,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
     }
+  }
+
+  private handleFileChange(eventType: string, filename: string): void {
+    logger.info('Prompt file changed', {
+      metadata: { eventType, filename },
+    })
+
+    // Clear any existing reload timeout
+    if (this.reloadTimeoutId) {
+      clearTimeout(this.reloadTimeoutId)
+    }
+
+    // Schedule a new reload with debouncing
+    this.reloadTimeoutId = setTimeout(async () => {
+      if (this.isLoadingPrompts) {
+        logger.debug('Skipping prompt reload: a reload is already in progress')
+        return
+      }
+
+      this.isLoadingPrompts = true
+      try {
+        await this.loadPrompts()
+      } catch (error) {
+        logger.error('Error during scheduled prompt reload', {
+          metadata: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        })
+      } finally {
+        this.isLoadingPrompts = false
+      }
+    }, DEFAULT_DEBOUNCE_DELAY_MS)
   }
 
   public renderPrompt(promptId: string, context: Record<string, any> = {}): string | null {
@@ -122,7 +178,12 @@ export class PromptRegistryService {
     try {
       return entry.compiledTemplate(context)
     } catch (error) {
-      console.error(`Error rendering prompt ${promptId}:`, error)
+      logger.error('Error rendering prompt', {
+        metadata: {
+          promptId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
       return null
     }
   }
@@ -151,11 +212,23 @@ export class PromptRegistryService {
   }
 
   public async stop(): Promise<void> {
+    // Clear any pending reload timeout
+    if (this.reloadTimeoutId) {
+      clearTimeout(this.reloadTimeoutId)
+      this.reloadTimeoutId = undefined
+    }
+
+    // Close the file watcher
     if (this.watcher) {
       try {
-        await (this.watcher as any).close()
+        this.watcher.close()
+        logger.info('Stopped watching prompts directory')
       } catch (error) {
-        console.error('Error closing file watcher:', error)
+        logger.error('Error closing file watcher', {
+          metadata: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        })
       }
     }
   }
