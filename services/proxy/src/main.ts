@@ -16,7 +16,6 @@ import { tokenTracker } from './services/tokenTracker.js'
 import { container } from './container.js'
 import { closeRateLimitStores } from './middleware/rate-limit.js'
 import { CredentialStatusService } from './services/CredentialStatusService.js'
-import { CredentialManager } from './services/CredentialManager.js'
 import { config } from '@claude-nexus/shared'
 import { startAnalysisWorker, type AnalysisWorker } from './workers/ai-analysis/index.js'
 
@@ -195,7 +194,6 @@ function parseCliArguments(args: string[]): CliOptions {
  */
 function setupShutdownHandlers(
   server: ReturnType<typeof serve>,
-  credentialManager: CredentialManager,
   analysisWorker: AnalysisWorker | null
 ): void {
   const shutdown = async (signal: string) => {
@@ -229,9 +227,6 @@ function setupShutdownHandlers(
 
       // Close rate limit stores
       closeRateLimitStores()
-
-      // Stop credential manager cleanup
-      credentialManager.stopPeriodicCleanup()
 
       // Stop analysis worker
       if (analysisWorker) {
@@ -406,7 +401,6 @@ async function main(): Promise<void> {
   }
 
   let analysisWorker: AnalysisWorker | null = null
-  let credentialManager: CredentialManager | null = null
 
   try {
     printStartupBanner()
@@ -422,10 +416,6 @@ async function main(): Promise<void> {
     } else {
       console.log('  No credential files found')
     }
-
-    // Start credential manager periodic cleanup
-    credentialManager = new CredentialManager()
-    credentialManager.startPeriodicCleanup()
 
     // Start token usage tracking
     tokenTracker.startReporting(TOKEN_REPORTING_INTERVAL)
@@ -450,7 +440,7 @@ async function main(): Promise<void> {
     const server = await configureServer(options.port, options.hostname)
 
     // Setup shutdown handlers
-    setupShutdownHandlers(server, credentialManager, analysisWorker)
+    setupShutdownHandlers(server, analysisWorker)
   } catch (error) {
     console.error(
       '❌ Failed to start server:',

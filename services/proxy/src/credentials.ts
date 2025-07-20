@@ -20,7 +20,8 @@ import { join, dirname } from 'path'
 import { homedir } from 'os'
 import * as process from 'process'
 import { randomBytes, createHash } from 'crypto'
-import { CredentialManager } from './services/CredentialManager'
+import { container } from './container.js'
+import type { RefreshMetrics } from './services/CredentialManager.js'
 
 export interface OAuthCredentials {
   accessToken: string
@@ -66,17 +67,13 @@ const OAUTH_CONFIG = {
   betaHeader: 'oauth-2025-04-20',
 }
 
-// Create a credential manager instance for this module
-// In a larger application, this would be injected via dependency injection
-const credentialManager = new CredentialManager()
-
-// Helper functions for cache management - delegate to the credential manager
+// Helper functions for cache management - delegate to the container's credential manager
 function getCachedCredential(key: string): ClaudeCredentials | null {
-  return credentialManager.getCachedCredential(key)
+  return container.getCredentialManager().getCachedCredential(key)
 }
 
 function setCachedCredential(key: string, credential: ClaudeCredentials): void {
-  credentialManager.setCachedCredential(key, credential)
+  container.getCredentialManager().setCachedCredential(key, credential)
 }
 
 // PKCE helper functions
@@ -355,7 +352,7 @@ export async function getApiKey(
         }
 
         // Check if this refresh recently failed (negative cache)
-        const failureCheck = credentialManager.hasRecentFailure(credentialPath)
+        const failureCheck = container.getCredentialManager().hasRecentFailure(credentialPath)
         if (failureCheck.failed) {
           if (debug) {
             console.log(
@@ -366,9 +363,9 @@ export async function getApiKey(
         }
 
         // Check if a refresh is already in progress for this credential
-        const existingRefresh = credentialManager.getActiveRefresh(credentialPath)
+        const existingRefresh = container.getCredentialManager().getActiveRefresh(credentialPath)
         if (existingRefresh) {
-          credentialManager.updateMetrics('concurrent')
+          container.getCredentialManager().updateMetrics('concurrent')
           if (debug) {
             console.log(`[CONCURRENT] Waiting for existing refresh for ${credentialPath}`)
           } else {
@@ -380,7 +377,7 @@ export async function getApiKey(
         // Create a new refresh promise
         const refreshPromise = (async () => {
           const startTime = Date.now()
-          credentialManager.updateMetrics('attempt')
+          container.getCredentialManager().updateMetrics('attempt')
 
           try {
             if (debug) {
@@ -401,7 +398,7 @@ export async function getApiKey(
 
               // Update metrics
               const duration = Date.now() - startTime
-              credentialManager.updateMetrics('success', duration)
+              container.getCredentialManager().updateMetrics('success', duration)
 
               if (debug) {
                 console.log(`OAuth token refreshed for ${credentialPath} in ${duration}ms`)
@@ -419,7 +416,7 @@ export async function getApiKey(
               )
             }
           } catch (refreshError: any) {
-            credentialManager.updateMetrics('failure')
+            container.getCredentialManager().updateMetrics('failure')
 
             console.error(
               `Failed to refresh OAuth token for ${credentialPath}:`,
@@ -427,10 +424,9 @@ export async function getApiKey(
             )
 
             // Cache the failure to prevent thundering herd
-            credentialManager.recordFailedRefresh(
-              credentialPath,
-              refreshError.message || 'Unknown error'
-            )
+            container
+              .getCredentialManager()
+              .recordFailedRefresh(credentialPath, refreshError.message || 'Unknown error')
 
             // Check for specific error codes
             if (refreshError.errorCode === 'invalid_grant' || refreshError.status === 400) {
@@ -441,12 +437,12 @@ export async function getApiKey(
             return null
           } finally {
             // Clean up tracking
-            credentialManager.removeActiveRefresh(credentialPath)
+            container.getCredentialManager().removeActiveRefresh(credentialPath)
           }
         })()
 
         // Store the refresh promise
-        credentialManager.setActiveRefresh(credentialPath, refreshPromise)
+        container.getCredentialManager().setActiveRefresh(credentialPath, refreshPromise)
 
         return refreshPromise
       }
@@ -810,12 +806,15 @@ export function addMemoryCredentials(id: string, credentials: ClaudeCredentials)
  * Clear credential cache
  */
 export function clearCredentialCache(): void {
-  credentialManager.clearCredentialCache()
+  container.getCredentialManager().clearCredentialCache()
 }
 
 /**
  * Get current OAuth refresh metrics
  */
-export function getRefreshMetrics() {
-  return credentialManager.getRefreshMetrics()
+export function getRefreshMetrics(): RefreshMetrics & {
+  currentActiveRefreshes: number
+  currentFailedRefreshes: number
+} {
+  return container.getCredentialManager().getRefreshMetrics()
 }

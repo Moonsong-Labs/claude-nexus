@@ -7,6 +7,7 @@ import { MetricsService } from './services/MetricsService.js'
 import { NotificationService } from './services/NotificationService.js'
 import { StorageAdapter } from './storage/StorageAdapter.js'
 import { TokenUsageService } from './services/TokenUsageService.js'
+import { CredentialManager } from './services/CredentialManager.js'
 import { config } from '@claude-nexus/shared/config'
 import { logger } from './middleware/logger.js'
 import { McpServer } from './mcp/McpServer.js'
@@ -28,6 +29,7 @@ class Container {
   private claudeApiClient?: ClaudeApiClient
   private proxyService?: ProxyService
   private messageController?: MessageController
+  private credentialManager?: CredentialManager
   private mcpServer?: McpServer
   private promptRegistry?: PromptRegistryService
   private githubSyncService?: GitHubSyncService
@@ -83,6 +85,9 @@ class Container {
     }
 
     // Initialize services
+    this.credentialManager = new CredentialManager()
+    this.credentialManager.startPeriodicCleanup()
+
     this.metricsService = new MetricsService(
       {
         enableTokenTracking: true,
@@ -186,6 +191,13 @@ class Container {
     return this.claudeApiClient
   }
 
+  getCredentialManager(): CredentialManager {
+    if (!this.credentialManager) {
+      throw new Error('CredentialManager not initialized')
+    }
+    return this.credentialManager
+  }
+
   getProxyService(): ProxyService {
     if (!this.proxyService) {
       throw new Error('ProxyService not initialized')
@@ -217,6 +229,9 @@ class Container {
   }
 
   async cleanup(): Promise<void> {
+    if (this.credentialManager) {
+      this.credentialManager.stopPeriodicCleanup()
+    }
     if (this.syncScheduler) {
       this.syncScheduler.stop()
     }
@@ -269,6 +284,10 @@ class LazyContainer {
 
   getClaudeApiClient(): ClaudeApiClient {
     return this.ensureInstance().getClaudeApiClient()
+  }
+
+  getCredentialManager(): CredentialManager {
+    return this.ensureInstance().getCredentialManager()
   }
 
   getProxyService(): ProxyService {
