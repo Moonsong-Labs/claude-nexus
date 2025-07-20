@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "bun run src/main.ts",
     "dev:watch": "bun --watch src/main.ts",
-    "build": "bun scripts/build-bun.ts",
+    "build": "bun scripts/build-production.ts",
     "build:production": "bun scripts/build-production.ts",
     "build:check": "bun run build:production",
     "start": "bun dist/index.js",

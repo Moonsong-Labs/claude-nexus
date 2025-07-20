@@ -1818,3 +1818,37 @@ This refactoring addresses a critical anti-pattern in the monorepo where types w
 - Gemini-2.5-pro: 10/10 confidence score - "textbook example of valuable refactoring"
 - Build and type checking pass successfully
 - No functionality changes, only improved code organization
+
+### 2025-07-20 - Build Script Consolidation
+
+**Files Modified:**
+
+- Deleted: `services/proxy/scripts/build-bun.ts`
+- Deleted: `services/proxy/scripts/build-bun.js`
+- Updated: `services/proxy/package.json` - Changed build script to use build-production.ts
+
+**Changes Made:**
+
+1. **Removed Redundant Build Scripts**
+   - Deleted `build-bun.ts` and its compiled `.js` version
+   - These scripts provided a simple build without production optimizations
+   - The `build-production.ts` script already handles all build cases with better features
+
+2. **Updated package.json**
+   - Changed `"build"` script from `build-bun.ts` to `build-production.ts`
+   - Ensures all builds are production-ready with optimizations
+
+**Rationale:**
+
+Following the DRY principle and reducing technical debt:
+
+- Single source of truth for build process
+- Ensures consistent production-ready builds
+- Eliminates confusion about which build script to use
+- The production script includes source maps, external dependencies, and proper entry points
+
+**Validation:**
+
+- Gemini-2.5-pro: 9/10 confidence score for consolidation
+- Build tested successfully with `bun run build`
+- No functionality lost, only improved consistency
