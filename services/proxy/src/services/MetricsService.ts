@@ -9,26 +9,35 @@ import { logger } from '../middleware/logger'
 export interface MetricsConfig {
   enableTokenTracking: boolean
   enableStorage: boolean
-  enableTelemetry: boolean
-}
-
-export interface TelemetryData {
-  requestId: string
-  timestamp: number
-  domain: string
-  apiKey?: string
-  model: string
-  inputTokens?: number
-  outputTokens?: number
-  duration?: number
-  status: number
-  error?: string
-  toolCallCount?: number
-  requestType?: string
 }
 
 // Request types that should not be stored in the database
 const NON_STORABLE_REQUEST_TYPES = new Set<RequestType>(['query_evaluation', 'quota'])
+
+/**
+ * Conversation tracking data for linking messages
+ */
+export interface ConversationData {
+  currentMessageHash: string
+  parentMessageHash: string | null
+  conversationId: string
+  systemHash: string | null
+  branchId?: string
+  parentRequestId?: string
+  parentTaskRequestId?: string
+  isSubtask?: boolean
+}
+
+/**
+ * Parameters for tracking a request
+ */
+export interface TrackRequestParams {
+  status?: number
+  conversationData?: ConversationData
+  responseHeaders?: Record<string, string>
+  fullResponseBody?: any // Claude API response can have various shapes
+  accountId?: string
+}
 
 /**
  * Service responsible for metrics collection and tracking
@@ -39,10 +48,8 @@ export class MetricsService {
     private config: MetricsConfig = {
       enableTokenTracking: true,
       enableStorage: true,
-      enableTelemetry: true,
     },
     private storageService?: StorageAdapter,
-    private telemetryEndpoint?: string,
     private tokenUsageService?: TokenUsageService
   ) {}
 
@@ -53,30 +60,10 @@ export class MetricsService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    status: number = 200,
-    conversationData?: {
-      currentMessageHash: string
-      parentMessageHash: string | null
-      conversationId: string
-      systemHash: string | null
-      branchId?: string
-      parentRequestId?: string
-      parentTaskRequestId?: string
-      isSubtask?: boolean
-    },
-    responseHeaders?: Record<string, string>,
-    fullResponseBody?: any,
-    accountId?: string
+    params: TrackRequestParams = {}
   ): Promise<void> {
+    const { status = 200, conversationData, responseHeaders, fullResponseBody, accountId } = params
     const metrics = response.getMetrics()
-
-    // logger.debug('Tracking metrics for request', {
-    //   requestId: context.requestId,
-    //   domain: context.host,
-    //   metrics: metrics,
-    //   requestType: request.requestType,
-    //   isStreaming: request.isStreaming
-    // })
 
     // Track tokens
     if (this.config.enableTokenTracking) {
@@ -119,23 +106,6 @@ export class MetricsService {
       )
     }
 
-    // Send telemetry
-    if (this.config.enableTelemetry && this.telemetryEndpoint) {
-      await this.sendTelemetry({
-        requestId: context.requestId,
-        timestamp: Date.now(),
-        domain: context.host,
-        apiKey: this.maskApiKey(context.apiKey),
-        model: request.model,
-        inputTokens: metrics.inputTokens,
-        outputTokens: metrics.outputTokens,
-        duration: context.getElapsedTime(),
-        status,
-        toolCallCount: metrics.toolCallCount,
-        requestType: request.requestType,
-      })
-    }
-
     // Log metrics
     logger.info('Request processed', {
       requestId: context.requestId,
@@ -171,21 +141,6 @@ export class MetricsService {
       )
     }
 
-    // Send telemetry
-    if (this.config.enableTelemetry && this.telemetryEndpoint) {
-      await this.sendTelemetry({
-        requestId: context.requestId,
-        timestamp: Date.now(),
-        domain: context.host,
-        apiKey: this.maskApiKey(context.apiKey),
-        model: request.model,
-        duration: context.getElapsedTime(),
-        status,
-        error: error.message,
-        requestType: request.requestType,
-      })
-    }
-
     logger.error('Request error tracked', {
       requestId: context.requestId,
       domain: context.host,
@@ -215,16 +170,7 @@ export class MetricsService {
     response: ProxyResponse,
     context: RequestContext,
     status: number,
-    conversationData?: {
-      currentMessageHash: string
-      parentMessageHash: string | null
-      conversationId: string
-      systemHash: string | null
-      branchId?: string
-      parentRequestId?: string
-      parentTaskRequestId?: string
-      isSubtask?: boolean
-    },
+    conversationData?: ConversationData,
     responseHeaders?: Record<string, string>,
     fullResponseBody?: any,
     accountId?: string
@@ -318,53 +264,5 @@ export class MetricsService {
         },
       })
     }
-  }
-
-  /**
-   * Send telemetry data
-   */
-  private async sendTelemetry(data: TelemetryData): Promise<void> {
-    if (!this.telemetryEndpoint) {
-      return
-    }
-
-    try {
-      const response = await fetch(this.telemetryEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        signal: AbortSignal.timeout(5000), // 5 second timeout
-      })
-
-      if (!response.ok) {
-        logger.warn('Telemetry request failed', {
-          metadata: {
-            status: response.status,
-            endpoint: this.telemetryEndpoint,
-          },
-        })
-      }
-    } catch (error) {
-      // Don't fail the request if telemetry fails
-      logger.debug('Failed to send telemetry', {
-        metadata: {
-          error: error instanceof Error ? error.message : String(error),
-          endpoint: this.telemetryEndpoint,
-        },
-      })
-    }
-  }
-
-  /**
-   * Mask API key for telemetry
-   */
-  private maskApiKey(key?: string): string | undefined {
-    if (!key || key.length < 8) {
-      return undefined
-    }
-    if (key.length <= 10) {
-      return key
-    }
-    return `...${key.slice(-10)}`
   }
 }

@@ -252,16 +252,13 @@ export class ProxyService {
     })
 
     // Track metrics with full response data
-    await this.metricsService.trackRequest(
-      request,
-      response,
-      context,
-      claudeResponse.status,
+    await this.metricsService.trackRequest(request, response, context, {
+      status: claudeResponse.status,
       conversationData,
       responseHeaders,
-      jsonResponse,
-      auth.accountId
-    )
+      fullResponseBody: jsonResponse,
+      accountId: auth.accountId,
+    })
 
     // Update test sample with response if enabled
     if (sampleId) {
@@ -480,16 +477,13 @@ export class ProxyService {
       })
 
       // Track metrics after streaming completes with full response data
-      await this.metricsService.trackRequest(
-        request,
-        response,
-        context,
-        claudeResponse.status,
+      await this.metricsService.trackRequest(request, response, context, {
+        status: claudeResponse.status,
         conversationData,
         responseHeaders,
-        fullResponse,
-        auth.accountId
-      )
+        fullResponseBody: fullResponse,
+        accountId: auth.accountId,
+      })
 
       // Send notifications after streaming completes
       await this.notificationService.notify(request, response, context, auth)

@@ -87,10 +87,8 @@ class Container {
       {
         enableTokenTracking: true,
         enableStorage: config.storage.enabled,
-        enableTelemetry: config.telemetry.enabled,
       },
       this.storageService,
-      config.telemetry.endpoint,
       this.tokenUsageService
     )
     this.notificationService = new NotificationService()
