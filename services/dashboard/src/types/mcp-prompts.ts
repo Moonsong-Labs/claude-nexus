@@ -15,6 +15,21 @@ export interface McpPrompt {
 }
 
 /**
+ * MCP prompt detail data including template content
+ */
+export interface McpPromptDetail extends McpPrompt {
+  /** Handlebars template content */
+  template: string
+}
+
+/**
+ * Response from the MCP prompt detail API
+ */
+export interface McpPromptDetailResponse {
+  prompt: McpPromptDetail
+}
+
+/**
  * Response from the MCP prompts list API
  */
 export interface McpPromptsResponse {

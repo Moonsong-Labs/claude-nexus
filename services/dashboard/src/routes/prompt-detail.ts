@@ -1,11 +1,19 @@
 /**
- * MCP Prompt detail page
+ * MCP Prompt detail page route handler
+ *
+ * Displays detailed information about a specific MCP prompt including:
+ * - Prompt ID and name
+ * - Description (if available)
+ * - Handlebars template content
+ * - Usage instructions
  */
 
 import { Hono } from 'hono'
 import { html } from 'hono/html'
 import { layout } from '../layout/index.js'
 import { ProxyApiClient } from '../services/api-client.js'
+import { promptDetailStyles } from '../styles/prompt-detail.js'
+import type { McpPromptDetailResponse } from '../types/mcp-prompts.js'
 
 const promptDetailRoute = new Hono<{
   Variables: {
@@ -14,6 +22,12 @@ const promptDetailRoute = new Hono<{
   }
 }>()
 
+/**
+ * GET /:id - Display prompt details
+ *
+ * Fetches and displays detailed information about a specific MCP prompt
+ * @param id - The prompt ID (typically filename without extension)
+ */
 promptDetailRoute.get('/:id', async c => {
   const promptId = c.req.param('id')
   const apiClient = c.get('apiClient')
@@ -23,17 +37,27 @@ promptDetailRoute.get('/:id', async c => {
       layout(
         'Error',
         html`
-          <div class="error-banner">
-            <strong>Error:</strong> API client not configured. Please check your configuration.
+          <div class="error-container">
+            <h2>Configuration Error</h2>
+            <p>API client not configured. Please check your configuration.</p>
+            <a href="/dashboard/prompts" class="btn btn-primary">Back to Prompts</a>
           </div>
+          <style>
+            ${promptDetailStyles}
+          </style>
         `
       )
     )
   }
 
   try {
-    // Fetch prompt details
-    const { prompt } = await apiClient.get<{ prompt: any }>(`/api/mcp/prompts/${promptId}`)
+    // Fetch prompt details with proper typing
+    const { prompt } = await apiClient.get<McpPromptDetailResponse>(`/api/mcp/prompts/${promptId}`)
+
+    // Verify prompt exists in response
+    if (!prompt) {
+      throw new Error('Prompt data not found in API response')
+    }
 
     const content = html`
       <div>
@@ -78,225 +102,29 @@ promptDetailRoute.get('/:id', async c => {
       </div>
 
       <style>
-        .header-section {
-          margin-bottom: 2rem;
-        }
-
-        .back-link {
-          color: #3b82f6;
-          text-decoration: none;
-          margin-bottom: 1rem;
-          display: inline-block;
-        }
-
-        .back-link:hover {
-          text-decoration: underline;
-        }
-
-        .subtitle {
-          color: #6b7280;
-          margin-top: 0.5rem;
-        }
-
-        .info-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 1rem;
-          margin-bottom: 2rem;
-        }
-
-        .info-card {
-          background-color: #f9fafb;
-          padding: 1rem;
-          border-radius: 0.5rem;
-          border: 1px solid #e5e7eb;
-        }
-
-        .info-card h3 {
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: #6b7280;
-          margin: 0 0 0.5rem 0;
-        }
-
-        .info-card p {
-          margin: 0;
-          color: #1f2937;
-        }
-
-        .mono {
-          font-family: monospace;
-          font-size: 0.875rem;
-        }
-
-        .section {
-          background-color: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 0.5rem;
-          padding: 1.5rem;
-          margin-bottom: 1.5rem;
-        }
-
-        .section h3 {
-          margin: 0 0 1rem 0;
-          color: #1f2937;
-        }
-
-        .arguments-list {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .argument-card {
-          background-color: #f9fafb;
-          padding: 1rem;
-          border-radius: 0.375rem;
-          border: 1px solid #e5e7eb;
-        }
-
-        .arg-header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 0.5rem;
-        }
-
-        .arg-name {
-          font-weight: 600;
-          color: #1f2937;
-        }
-
-        .arg-required {
-          background-color: #fee2e2;
-          color: #dc2626;
-          padding: 0.125rem 0.5rem;
-          border-radius: 0.25rem;
-          font-size: 0.75rem;
-        }
-
-        .arg-type {
-          background-color: #dbeafe;
-          color: #1e40af;
-          padding: 0.125rem 0.5rem;
-          border-radius: 0.25rem;
-          font-size: 0.75rem;
-        }
-
-        .arg-description {
-          color: #6b7280;
-          margin: 0.5rem 0 0 0;
-          font-size: 0.875rem;
-        }
-
-        .arg-default {
-          color: #6b7280;
-          margin: 0.5rem 0 0 0;
-          font-size: 0.875rem;
-        }
-
-        .content-container,
-        .metadata-container {
-          background-color: #f9fafb;
-          border-radius: 0.375rem;
-          padding: 1rem;
-          overflow-x: auto;
-        }
-
-        .content-container pre,
-        .metadata-container pre {
-          margin: 0;
-        }
-
-        .content-container code,
-        .metadata-container code {
-          font-size: 0.875rem;
-          line-height: 1.5;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-          gap: 1rem;
-          margin-bottom: 2rem;
-        }
-
-        .stat-card {
-          background-color: #f9fafb;
-          padding: 1.5rem;
-          border-radius: 0.5rem;
-          text-align: center;
-        }
-
-        .stat-value {
-          font-size: 2rem;
-          font-weight: 700;
-          color: #1f2937;
-        }
-
-        .stat-label {
-          font-size: 0.875rem;
-          color: #6b7280;
-          margin-top: 0.25rem;
-        }
-
-        .usage-chart h4 {
-          font-size: 1rem;
-          margin: 0 0 1rem 0;
-          color: #1f2937;
-        }
-
-        .chart-container {
-          display: flex;
-          align-items: flex-end;
-          height: 150px;
-          gap: 2px;
-          padding: 1rem 0;
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .chart-bar {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: flex-end;
-          position: relative;
-        }
-
-        .bar {
-          width: 100%;
-          background-color: #3b82f6;
-          border-radius: 2px 2px 0 0;
-          transition: background-color 0.2s;
-        }
-
-        .chart-bar:hover .bar {
-          background-color: #2563eb;
-        }
-
-        .bar-label {
-          font-size: 0.75rem;
-          color: #6b7280;
-          margin-top: 0.25rem;
-          position: absolute;
-          bottom: -20px;
-        }
+        ${promptDetailStyles}
       </style>
     `
 
     return c.html(layout(`${prompt.name} - MCP Prompt`, content))
   } catch (error) {
     console.error('Error loading prompt detail:', error)
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const isNotFound = errorMessage.includes('404') || errorMessage.includes('not found')
+
     return c.html(
       layout(
-        'Prompt Not Found',
+        'Error',
         html`
           <div class="error-container">
-            <h2>Error Loading Prompt</h2>
-            <p>${error instanceof Error ? error.message : 'Unknown error'}</p>
+            <h2>${isNotFound ? 'Prompt Not Found' : 'Error Loading Prompt'}</h2>
+            <p>${errorMessage}</p>
             <a href="/dashboard/prompts" class="btn btn-primary">Back to Prompts</a>
           </div>
+          <style>
+            ${promptDetailStyles}
+          </style>
         `
       )
     )
