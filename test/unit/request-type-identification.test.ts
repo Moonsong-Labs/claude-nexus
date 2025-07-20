@@ -152,7 +152,7 @@ describe('ProxyRequest - Request Type Identification', () => {
         'test-123'
       )
 
-      expect(request.countSystemMessages()).toBe(1)
+      expect(request.systemMessageCount).toBe(1)
     })
 
     it('should count system messages correctly with array system field', () => {
@@ -171,7 +171,7 @@ describe('ProxyRequest - Request Type Identification', () => {
         'test-123'
       )
 
-      expect(request.countSystemMessages()).toBe(3)
+      expect(request.systemMessageCount).toBe(3)
     })
 
     it('should count combined system messages from field and array', () => {
@@ -192,7 +192,7 @@ describe('ProxyRequest - Request Type Identification', () => {
         'test-123'
       )
 
-      expect(request.countSystemMessages()).toBe(3) // 1 from field + 2 from array
+      expect(request.systemMessageCount).toBe(3) // 1 from field + 2 from array
     })
   })
 

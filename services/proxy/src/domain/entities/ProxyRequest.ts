@@ -1,11 +1,20 @@
 import { ClaudeMessagesRequest } from '../../types/claude'
-import { countSystemMessages } from '@claude-nexus/shared'
+import { countSystemMessages, ClaudeTextContent } from '@claude-nexus/shared'
 
 export type RequestType = 'query_evaluation' | 'inference' | 'quota'
 
 /**
- * Domain entity representing a proxy request
- * Encapsulates business logic related to request processing
+ * Threshold for determining request type based on system message count.
+ * Requests with 2 or more system messages are considered "inference" requests.
+ */
+const INFERENCE_SYSTEM_MESSAGE_THRESHOLD = 2
+
+/**
+ * Domain entity representing a proxy request.
+ * Encapsulates business logic related to request processing, including:
+ * - Request type determination based on system message count
+ * - User content extraction for notifications
+ * - Header creation for Claude API
  */
 export class ProxyRequest {
   private _requestType: RequestType | null = null
@@ -17,14 +26,23 @@ export class ProxyRequest {
     public readonly apiKey?: string
   ) {}
 
+  /**
+   * Indicates whether the request is for streaming responses
+   */
   get isStreaming(): boolean {
     return this.raw.stream === true
   }
 
+  /**
+   * The Claude model being requested
+   */
   get model(): string {
     return this.raw.model
   }
 
+  /**
+   * Determines the type of request (query_evaluation, inference, or quota)
+   */
   get requestType(): RequestType {
     if (!this._requestType) {
       this._requestType = this.determineRequestType()
@@ -32,72 +50,89 @@ export class ProxyRequest {
     return this._requestType
   }
 
+  /**
+   * Count of system messages in the request
+   */
   get systemMessageCount(): number {
     return countSystemMessages(this.raw)
   }
 
   /**
-   * Extract user content for notifications
+   * Extract text content from the last user message
+   * @param filterSystemReminders - Whether to filter out system reminders (first and last text blocks) for inference requests
+   * @returns The extracted text content
+   */
+  private extractUserTextContent(filterSystemReminders: boolean = false): string {
+    // Find the last user message
+    const lastUserMessage = [...this.raw.messages].reverse().find(msg => msg.role === 'user')
+
+    if (!lastUserMessage) {
+      return ''
+    }
+
+    if (typeof lastUserMessage.content === 'string') {
+      return lastUserMessage.content
+    }
+
+    // Handle array content - filter for text content only
+    let textContentArray = lastUserMessage.content.filter(
+      (c): c is ClaudeTextContent => c.type === 'text'
+    )
+
+    // Apply system reminder filtering if requested
+    if (filterSystemReminders) {
+      textContentArray = this.filterSystemReminders(textContentArray)
+    }
+
+    return textContentArray.map(c => c.text).join('\n')
+  }
+
+  /**
+   * Filter out system reminders from text content array.
+   * For inference requests with more than 2 text blocks, removes the first and last blocks
+   * which are typically system reminders.
+   * @param contentArray - Array of text content blocks
+   * @returns Filtered array
+   */
+  private filterSystemReminders(contentArray: ClaudeTextContent[]): ClaudeTextContent[] {
+    // Only filter for inference requests with more than 2 text content items
+    if (this.requestType === 'inference' && contentArray.length > 2) {
+      return contentArray.slice(1, -1)
+    }
+    return contentArray
+  }
+
+  /**
+   * Extract user content from the last user message
+   * @returns The full user content without any filtering
    */
   getUserContent(): string {
-    // Find the last user message
-    const lastUserMessage = [...this.raw.messages].reverse().find(msg => msg.role === 'user')
-
-    if (!lastUserMessage) {
-      return ''
-    }
-
-    if (typeof lastUserMessage.content === 'string') {
-      return lastUserMessage.content
-    }
-
-    // Handle array content
-    const textContent = lastUserMessage.content
-      .filter(c => c.type === 'text')
-      .map(c => c.text)
-      .join('\n')
-
-    return textContent
+    return this.extractUserTextContent(false)
   }
 
   /**
-   * Extract user content for notifications (filters system reminders for inference requests)
+   * Extract user content for notifications.
+   * For inference requests, filters out system reminders (first and last text blocks).
+   * @returns The user content suitable for notifications
    */
   getUserContentForNotification(): string {
-    // Find the last user message
-    const lastUserMessage = [...this.raw.messages].reverse().find(msg => msg.role === 'user')
-
-    if (!lastUserMessage) {
-      return ''
-    }
-
-    if (typeof lastUserMessage.content === 'string') {
-      return lastUserMessage.content
-    }
-
-    // Handle array content
-    // For inference requests, ignore the first and last content items (system reminders)
-    let contentArray = lastUserMessage.content.filter(c => c.type === 'text')
-
-    // If this is an inference request and we have more than 2 text content items,
-    // skip the first and last ones (which are system reminders)
-    if (this.requestType === 'inference' && contentArray.length > 2) {
-      contentArray = contentArray.slice(1, -1)
-    }
-
-    const textContent = contentArray.map(c => c.text).join('\n')
-
-    return textContent
+    return this.extractUserTextContent(true)
   }
 
   /**
-   * Check if user content has changed from previous
+   * Check if user content has changed from previous content
+   * @param previousContent - The previous content to compare against
+   * @returns True if the content has changed
    */
   hasUserContentChanged(previousContent: string): boolean {
     const currentContent = this.getUserContentForNotification()
     return currentContent !== previousContent
   }
 
+  /**
+   * Determine the type of request based on content and system message count
+   * @returns The determined request type
+   */
   private determineRequestType(): RequestType {
     // Check if this is a quota query
     const userContent = this.getUserContent()
@@ -106,43 +141,22 @@ export class ProxyRequest {
     }
 
     // Determine request type based on system message count
-    // Requests with 0 or 1 system messages are considered "query_evaluation" (insignificant)
-    // Requests with 2 or more system messages are considered "inference" (significant)
+    const systemMessageCount = this.systemMessageCount
 
-    const systemMessageCount = this.countSystemMessages()
-
-    // Always log request type determination
-    // const systemFieldDisplay = this.raw.system
-    //   ? (Array.isArray(this.raw.system) ? `array[${this.raw.system.length}]` : `string(length: ${this.raw.system.length})`)
-    //   : 'none'
-
-    // const resultType = systemMessageCount <= 1 ? 'query_evaluation' : 'inference'
-
-    // logger.debug('Request type determination', {
-    //   requestId: this.requestId,
-    //   systemField: systemFieldDisplay,
-    //   systemMessagesInArray,
-    //   totalSystemMessages: systemMessageCount,
-    //   messageCount: this.raw.messages.length,
-    //   messageRoles: this.raw.messages.map(m => m.role),
-    //   resultType: resultType
-    // })
-
-    // If there are 0 or 1 system messages, it's a query evaluation (insignificant request)
-    if (systemMessageCount <= 1) {
+    // Requests with fewer than threshold system messages are query_evaluation
+    if (systemMessageCount < INFERENCE_SYSTEM_MESSAGE_THRESHOLD) {
       return 'query_evaluation'
     }
 
-    // If there are 2 or more system messages, it's an inference (significant request)
+    // Requests with threshold or more system messages are inference
     return 'inference'
   }
 
-  countSystemMessages(): number {
-    return countSystemMessages(this.raw)
-  }
-
   /**
-   * Create request headers for Claude API
+   * Create request headers for Claude API.
+   * Filters out x-api-key header and adds required Claude API headers.
+   * @param authHeaders - Authentication headers to include
+   * @returns Headers object ready for Claude API request
    */
   createHeaders(authHeaders: Record<string, string>): Record<string, string> {
     // Filter out x-api-key to ensure it's never sent to Claude
