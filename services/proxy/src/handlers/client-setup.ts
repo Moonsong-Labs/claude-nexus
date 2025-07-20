@@ -4,12 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { logger } from '../middleware/logger.js'
 import { createErrorResponse } from '../utils/error-response.js'
-import { 
-  CONTENT_TYPES, 
-  DEFAULT_CACHE_CONTROL, 
-  ERROR_MESSAGES, 
-  HTTP_STATUS 
-} from '../constants.js'
+import { CONTENT_TYPES, DEFAULT_CACHE_CONTROL, ERROR_MESSAGES, HTTP_STATUS } from '../constants.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -50,8 +45,14 @@ export async function handleClientSetup(c: Context): Promise<Response> {
 }
 
 function getContentType(filename: string): string {
-  if (filename.endsWith('.json')) return CONTENT_TYPES.JSON
-  if (filename.endsWith('.js')) return CONTENT_TYPES.JAVASCRIPT
-  if (filename.endsWith('.sh')) return CONTENT_TYPES.SHELL
+  if (filename.endsWith('.json')) {
+    return CONTENT_TYPES.JSON
+  }
+  if (filename.endsWith('.js')) {
+    return CONTENT_TYPES.JAVASCRIPT
+  }
+  if (filename.endsWith('.sh')) {
+    return CONTENT_TYPES.SHELL
+  }
   return CONTENT_TYPES.PLAIN
 }

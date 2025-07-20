@@ -55,14 +55,15 @@ class MockAuthenticationService extends AuthenticationService {
 
   setMockKey(domain: string, key: string | null): void {
     if (key) {
-      this.mockKeys.set(domain, key)
+      this.mockKeys.set(domain.toLowerCase(), key)
     } else {
-      this.mockKeys.delete(domain)
+      this.mockKeys.delete(domain.toLowerCase())
     }
   }
 
   async getClientApiKey(domain: string): Promise<string | null> {
-    return this.mockKeys.get(domain) || null
+    // Normalize domain to lowercase for lookup, simulating real-world behavior
+    return this.mockKeys.get(domain.toLowerCase()) || null
   }
 }
 
@@ -124,6 +125,41 @@ describe('Client Authentication Middleware', () => {
       expect(res.status).toBe(HTTP_STATUS.OK)
       const body = await res.json()
       expect(body).toEqual({ success: true })
+    })
+
+    it('should treat domain names as case-insensitive', async () => {
+      const testKey = TEST_API_KEYS.VALID
+      // MockAuthenticationService normalizes to lowercase in getClientApiKey
+      mockAuthService.setMockKey(TEST_DOMAINS.EXAMPLE, testKey)
+
+      // Request with uppercase domain
+      const res = await app.request(TEST_ENDPOINTS.TEST, {
+        headers: {
+          [AUTH_HEADERS.HOST]: 'Example.COM',
+          [AUTH_HEADERS.AUTHORIZATION]: `Bearer ${testKey}`,
+        },
+      })
+
+      expect(res.status).toBe(HTTP_STATUS.OK)
+      const body = await res.json()
+      expect(body).toEqual({ success: true })
+    })
+
+    it('should handle mixed case domains consistently', async () => {
+      const testKey = TEST_API_KEYS.VALID
+      mockAuthService.setMockKey('mixed.case.com', testKey)
+
+      const domains = ['mixed.case.com', 'MIXED.CASE.COM', 'MiXeD.cAsE.cOm']
+
+      for (const domain of domains) {
+        const res = await app.request(TEST_ENDPOINTS.TEST, {
+          headers: {
+            [AUTH_HEADERS.HOST]: domain,
+            [AUTH_HEADERS.AUTHORIZATION]: `Bearer ${testKey}`,
+          },
+        })
+        expect(res.status).toBe(HTTP_STATUS.OK)
+      }
     })
 
     it('should isolate API keys per domain', async () => {
@@ -224,16 +260,18 @@ describe('Client Authentication Middleware', () => {
 
       // Test various malformed headers
       const malformedHeaders = [
-        TEST_API_KEYS.VALID, // Missing "Bearer" prefix
-        `Basic ${TEST_API_KEYS.VALID}`, // Wrong scheme
-        'Bearer', // Missing token
-        'Bearer  ', // Empty token (just spaces)
-        // Note: "bearer" (lowercase) is accepted due to case-insensitive regex
+        { header: TEST_API_KEYS.VALID, desc: 'Missing Bearer prefix' },
+        { header: `Basic ${TEST_API_KEYS.VALID}`, desc: 'Wrong scheme' },
+        { header: 'Bearer', desc: 'Missing token' },
+        { header: 'Bearer ', desc: 'Missing token with space' },
+        { header: 'Bearer  ', desc: 'Empty token (just spaces)' },
+        // Note: Multiple spaces and tabs are accepted by the regex \s+
       ]
 
-      for (const authHeader of malformedHeaders) {
-        const res = await makeAuthRequest(TEST_ENDPOINTS.TEST, TEST_DOMAINS.EXAMPLE, authHeader)
+      for (const { header } of malformedHeaders) {
+        const res = await makeAuthRequest(TEST_ENDPOINTS.TEST, TEST_DOMAINS.EXAMPLE, header)
         expect(res.status).toBe(HTTP_STATUS.UNAUTHORIZED)
+        expect(res.headers.get(AUTH_HEADERS.WWW_AUTHENTICATE)).toBe(`Bearer realm="${AUTH_REALM}"`)
       }
     })
 
@@ -252,6 +290,86 @@ describe('Client Authentication Middleware', () => {
         const res = await makeAuthRequest(TEST_ENDPOINTS.TEST, TEST_DOMAINS.EXAMPLE, authHeader)
         expect(res.status).toBe(HTTP_STATUS.OK)
       }
+    })
+
+    it('should accept Bearer token with various whitespace separators', async () => {
+      mockAuthService.setMockKey(TEST_DOMAINS.EXAMPLE, TEST_API_KEYS.VALID)
+
+      // The middleware regex \s+ accepts any whitespace including tabs and multiple spaces
+      const validFormats = [
+        `Bearer ${TEST_API_KEYS.VALID}`,
+        `Bearer  ${TEST_API_KEYS.VALID}`, // Multiple spaces
+        `Bearer\t${TEST_API_KEYS.VALID}`, // Tab
+        `Bearer\t\t${TEST_API_KEYS.VALID}`, // Multiple tabs
+        `Bearer \t ${TEST_API_KEYS.VALID}`, // Mixed whitespace
+      ]
+
+      for (const authHeader of validFormats) {
+        const res = await makeAuthRequest(TEST_ENDPOINTS.TEST, TEST_DOMAINS.EXAMPLE, authHeader)
+        expect(res.status).toBe(HTTP_STATUS.OK)
+      }
+    })
+  })
+
+  /**
+   * Edge case tests
+   * Tests for boundary conditions and unusual inputs
+   */
+  describe('Edge Cases', () => {
+    it('should reject requests if the configured API key is an empty string', async () => {
+      mockAuthService.setMockKey(TEST_DOMAINS.EXAMPLE, '')
+
+      const res = await makeAuthRequest(TEST_ENDPOINTS.TEST, TEST_DOMAINS.EXAMPLE, 'Bearer ')
+
+      expect(res.status).toBe(HTTP_STATUS.UNAUTHORIZED)
+    })
+
+    it('should handle very long API keys', async () => {
+      const longKey = TEST_API_KEYS.VALID + 'a'.repeat(1000)
+      mockAuthService.setMockKey(TEST_DOMAINS.EXAMPLE, longKey)
+
+      const res = await makeAuthRequest(
+        TEST_ENDPOINTS.TEST,
+        TEST_DOMAINS.EXAMPLE,
+        `Bearer ${longKey}`
+      )
+
+      expect(res.status).toBe(HTTP_STATUS.OK)
+    })
+
+    it('should handle API keys with special characters', async () => {
+      const specialKey = 'cnp_live_!@#$%^&*()_+-=[]{}|;:,.<>?'
+      mockAuthService.setMockKey(TEST_DOMAINS.EXAMPLE, specialKey)
+
+      const res = await makeAuthRequest(
+        TEST_ENDPOINTS.TEST,
+        TEST_DOMAINS.EXAMPLE,
+        `Bearer ${specialKey}`
+      )
+
+      expect(res.status).toBe(HTTP_STATUS.OK)
+    })
+
+    it('should handle internationalized domain names (Punycode)', async () => {
+      const punycodeDomain = 'xn--6qq79v.com' // Punycode for "你好.com"
+      const testKey = TEST_API_KEYS.VALID
+
+      mockAuthService.setMockKey(punycodeDomain, testKey)
+
+      const res = await makeAuthRequest(TEST_ENDPOINTS.TEST, punycodeDomain, `Bearer ${testKey}`)
+
+      expect(res.status).toBe(HTTP_STATUS.OK)
+    })
+
+    it('should handle emoji domains in Punycode', async () => {
+      const punycodeDomain = 'xn--i-7iq.ws' // Punycode for "❤️.ws"
+      const testKey = TEST_API_KEYS.VALID
+
+      mockAuthService.setMockKey(punycodeDomain, testKey)
+
+      const res = await makeAuthRequest(TEST_ENDPOINTS.TEST, punycodeDomain, `Bearer ${testKey}`)
+
+      expect(res.status).toBe(HTTP_STATUS.OK)
     })
   })
 
@@ -315,6 +433,37 @@ describe('Client Authentication Middleware', () => {
         )
         expect(res.status).toBe(HTTP_STATUS.UNAUTHORIZED)
       }
+    })
+
+    it('should ignore X-Forwarded-Host and rely only on Host header', async () => {
+      const testKey = TEST_API_KEYS.SECURE
+      mockAuthService.setMockKey(TEST_DOMAINS.EXAMPLE, testKey)
+
+      const res = await app.request(TEST_ENDPOINTS.TEST, {
+        headers: {
+          [AUTH_HEADERS.HOST]: TEST_DOMAINS.EXAMPLE,
+          'X-Forwarded-Host': 'malicious-actor.com',
+          [AUTH_HEADERS.AUTHORIZATION]: `Bearer ${testKey}`,
+        },
+      })
+
+      // If X-Forwarded-Host were used, auth would fail. A 200 proves it was ignored
+      expect(res.status).toBe(HTTP_STATUS.OK)
+    })
+
+    it('should ignore X-Original-Host header', async () => {
+      const testKey = TEST_API_KEYS.SECURE
+      mockAuthService.setMockKey(TEST_DOMAINS.EXAMPLE, testKey)
+
+      const res = await app.request(TEST_ENDPOINTS.TEST, {
+        headers: {
+          [AUTH_HEADERS.HOST]: TEST_DOMAINS.EXAMPLE,
+          'X-Original-Host': 'attacker.com',
+          [AUTH_HEADERS.AUTHORIZATION]: `Bearer ${testKey}`,
+        },
+      })
+
+      expect(res.status).toBe(HTTP_STATUS.OK)
     })
   })
 
@@ -410,6 +559,38 @@ describe('Path Traversal Protection', () => {
     // Verify these don't throw errors (won't have keys in test environment)
     for (const domain of validDomains) {
       await expect(authService.getClientApiKey(domain)).resolves.toBeDefined()
+    }
+  })
+
+  it('should allow valid domain names that contain dot sequences', async () => {
+    const authService = new AuthenticationService()
+    // These domains contain '..' but are valid subdomain structures
+    const validDomainsWithDots = ['sub..domain.com', 'a..b.com', 'example..com', 'test...com']
+
+    for (const domain of validDomainsWithDots) {
+      // We expect it not to find a key, but it shouldn't be rejected as a traversal attempt
+      const result = await authService.getClientApiKey(domain)
+      expect(result).toBeNull()
+    }
+  })
+
+  it('should reject domains with null bytes', async () => {
+    const authService = new AuthenticationService()
+    const maliciousDomains = ['example.com\x00.malicious', 'example.com\0', '\x00example.com']
+
+    for (const domain of maliciousDomains) {
+      const result = await authService.getClientApiKey(domain)
+      expect(result).toBeNull()
+    }
+  })
+
+  it('should handle domains with URL encoding attempts', async () => {
+    const authService = new AuthenticationService()
+    const encodedDomains = ['example%2Ecom', 'example%2e%2e%2fcom', '%2e%2e%2fetc%2fpasswd']
+
+    for (const domain of encodedDomains) {
+      const result = await authService.getClientApiKey(domain)
+      expect(result).toBeNull()
     }
   })
 })

@@ -12,11 +12,7 @@ import { HTTP_STATUS } from '../constants.js'
 import { createErrorResponse } from '../utils/error-response.js'
 import { handleZodError } from '../utils/zod-error-handler.js'
 import { auditLog } from '../utils/audit-log.js'
-import type {
-  AnalysisCreatedResponse,
-  AnalysisResponse,
-  AnalysisErrorResponse
-} from '../types/analysis-responses.js'
+import type { AnalysisCreatedResponse, AnalysisResponse } from '../types/analysis-responses.js'
 
 // Request schemas
 const createAnalysisSchema = z.object({
@@ -25,9 +21,11 @@ const createAnalysisSchema = z.object({
   customPrompt: z.string().optional(),
 })
 
-const regenerateAnalysisBodySchema = z.object({
-  customPrompt: z.string().optional(),
-}).optional()
+const regenerateAnalysisBodySchema = z
+  .object({
+    customPrompt: z.string().optional(),
+  })
+  .optional()
 
 const getAnalysisParamsSchema = conversationBranchParamsSchema
 
@@ -44,7 +42,7 @@ export const analysisRoutes: AnalysisRouteHandler = new Hono()
 
 /**
  * POST /api/analyses - Create a new analysis request
- * 
+ *
  * @body {conversationId: string, branchId: string, customPrompt?: string}
  * @returns {AnalysisCreatedResponse} Analysis creation status
  */
@@ -138,7 +136,9 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
 
     // Handle Zod validation errors
     const zodResponse = handleZodError(error, c)
-    if (zodResponse) return zodResponse
+    if (zodResponse) {
+      return zodResponse
+    }
 
     return createErrorResponse(
       c,
@@ -150,7 +150,7 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
 
 /**
  * GET /api/analyses/:conversationId/:branchId - Get analysis status/result
- * 
+ *
  * @param {string} conversationId - UUID of the conversation
  * @param {string} branchId - Branch identifier
  * @returns {AnalysisResponse} Analysis data and status
@@ -232,19 +232,17 @@ analysisRoutes.get('/:conversationId/:branchId', rateLimitAnalysisRetrieval(), a
 
     // Handle Zod validation errors
     const zodResponse = handleZodError(error, c)
-    if (zodResponse) return zodResponse
+    if (zodResponse) {
+      return zodResponse
+    }
 
-    return createErrorResponse(
-      c,
-      'Failed to retrieve analysis',
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    )
+    return createErrorResponse(c, 'Failed to retrieve analysis', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 })
 
 /**
  * POST /api/analyses/:conversationId/:branchId/regenerate - Force regeneration
- * 
+ *
  * @param {string} conversationId - UUID of the conversation
  * @param {string} branchId - Branch identifier
  * @body {customPrompt?: string} Optional custom prompt for analysis
@@ -273,7 +271,7 @@ analysisRoutes.post(
         const body = await c.req.json()
         const parsed = regenerateAnalysisBodySchema.parse(body)
         customPrompt = parsed?.customPrompt
-      } catch (error) {
+      } catch (_error) {
         // No body or invalid JSON is acceptable for this endpoint
         logger.debug('No body provided for regenerate request', { requestId })
       }
@@ -338,7 +336,9 @@ analysisRoutes.post(
 
       // Handle Zod validation errors
       const zodResponse = handleZodError(error, c)
-      if (zodResponse) return zodResponse
+      if (zodResponse) {
+        return zodResponse
+      }
 
       return createErrorResponse(
         c,
