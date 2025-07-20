@@ -1,18 +1,33 @@
-import { ConversationGraph, GraphLayout, LayoutNode, LayoutEdge } from './conversation-graph.js'
+import {
+  ConversationGraph,
+  GraphLayout,
+  LayoutNode,
+  LayoutEdge,
+  ConversationNode,
+} from './conversation-graph.js'
+
+// Layout dimensions for graph nodes
+const LAYOUT_DIMENSIONS = {
+  NODE_WIDTH: 160, // Width of each node in pixels
+  NODE_HEIGHT: 32, // Height of each node in pixels
+  HORIZONTAL_SPACING: 180, // Horizontal space between branches
+  VERTICAL_SPACING: 80, // Vertical space between parent and child nodes
+} as const
 
 /**
- * Simple layout algorithm for conversation graphs
- * Arranges nodes in a tree-like structure with branches
+ * Calculates the layout for a conversation graph using a tree-like structure.
+ * Positions nodes hierarchically with support for branches, ensuring no overlapping
+ * by assigning different horizontal lanes to different branches.
+ *
+ * @param graph - The conversation graph containing nodes and edges to layout
+ * @returns GraphLayout with positioned nodes and edges
  */
 export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
-  const nodeWidth = 160
-  const nodeHeight = 32
-  const horizontalSpacing = 180
-  const verticalSpacing = 80
+  const { NODE_WIDTH, NODE_HEIGHT, HORIZONTAL_SPACING, VERTICAL_SPACING } = LAYOUT_DIMENSIONS
 
   // Build parent-child relationships
   const childrenMap = new Map<string | undefined, string[]>()
-  const nodeMap = new Map<string, (typeof graph.nodes)[0]>()
+  const nodeMap = new Map<string, ConversationNode>()
 
   graph.nodes.forEach(node => {
     nodeMap.set(node.id, node)
@@ -32,7 +47,7 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
   const layoutNodes: LayoutNode[] = []
   const visitedNodes = new Set<string>()
 
-  function positionNode(nodeId: string, x: number, y: number, _parentBranch?: string): number {
+  function positionNode(nodeId: string, x: number, y: number): number {
     if (visitedNodes.has(nodeId)) {
       return x
     }
@@ -53,8 +68,8 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
       id: node.id,
       x,
       y,
-      width: nodeWidth,
-      height: nodeHeight,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
       branchId: node.branchId,
       timestamp: node.timestamp,
       label: node.label,
@@ -75,7 +90,7 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
     const children = childrenMap.get(nodeId) || []
     let childX = x
 
-    children.forEach((childId, _index) => {
+    children.forEach(childId => {
       const child = nodeMap.get(childId)
       if (!child) {
         return
@@ -87,11 +102,11 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
         const parentLane = branchLanes.get(node.branchId) || 0
         const laneDiff = childLane - parentLane
         // Always offset branches to the right to keep them visible
-        childX = x + Math.abs(laneDiff) * horizontalSpacing
+        childX = x + Math.abs(laneDiff) * HORIZONTAL_SPACING
       }
 
-      const nextY = y + verticalSpacing
-      childX = positionNode(childId, childX, nextY, node.branchId)
+      const nextY = y + VERTICAL_SPACING
+      childX = positionNode(childId, childX, nextY)
     })
 
     return Math.max(x, childX)
@@ -100,12 +115,12 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
   // Position all trees
   let currentX = 0
   roots.forEach(rootId => {
-    currentX = positionNode(rootId, currentX, 0) + horizontalSpacing
+    currentX = positionNode(rootId, currentX, 0) + HORIZONTAL_SPACING
   })
 
   // Create edges
   const layoutEdges: LayoutEdge[] = []
-  graph.edges.forEach((edge, idx) => {
+  graph.edges.forEach(edge => {
     const sourceNode = layoutNodes.find(n => n.id === edge.source)
     const targetNode = layoutNodes.find(n => n.id === edge.target)
 
@@ -117,7 +132,7 @@ export function calculateSimpleLayout(graph: ConversationGraph): GraphLayout {
       const endY = targetNode.y
 
       layoutEdges.push({
-        id: `e${idx}`,
+        id: `${edge.source}-${edge.target}`,
         source: edge.source,
         target: edge.target,
         sections: [
