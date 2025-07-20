@@ -5,7 +5,6 @@ import { tokenTracker } from './tokenTracker.js'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
 import { TokenUsageService } from './TokenUsageService.js'
 import { logger } from '../middleware/logger'
-import { broadcastConversation, broadcastMetrics } from '../dashboard/sse.js'
 
 export interface MetricsConfig {
   enableTokenTracking: boolean
@@ -150,35 +149,6 @@ export class MetricsService {
         stored: request.requestType === 'inference' && this.config.enableStorage,
       },
     })
-
-    // Broadcast to dashboard
-    try {
-      // Broadcast conversation update
-      broadcastConversation({
-        id: context.requestId,
-        domain: context.host,
-        model: request.model,
-        tokens: metrics.inputTokens + metrics.outputTokens,
-        timestamp: new Date().toISOString(),
-      })
-
-      // Broadcast metrics update
-      const stats = tokenTracker.getStats()
-      const domainStats = stats[context.host]
-      if (domainStats) {
-        broadcastMetrics({
-          domain: context.host,
-          requests: domainStats.requestCount,
-          tokens: domainStats.inputTokens + domainStats.outputTokens,
-          activeUsers: Object.keys(stats).length,
-        })
-      }
-    } catch (e) {
-      // Don't fail request if broadcast fails
-      logger.debug('Failed to broadcast metrics', {
-        metadata: { error: e instanceof Error ? e.message : String(e) },
-      })
-    }
   }
 
   /**
