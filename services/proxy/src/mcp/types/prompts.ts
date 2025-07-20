@@ -2,19 +2,36 @@
  * Prompt-specific types for MCP server
  */
 
-// File format types for YAML prompts
+/**
+ * Format for YAML prompt files used by the MCP server.
+ * These files are loaded from the filesystem and served via the MCP protocol.
+ */
 export interface YamlPromptFormat {
+  /**
+   * The name of the prompt as displayed in the MCP client.
+   * Note: In practice, this is overridden by the filename (without extension).
+   * For example, a file named 'feature.yaml' will be available as '/feature'.
+   */
   name: string
-  description?: string
-  template: string
-}
 
-// Sync status for file-based sync
-export interface SyncStatus {
-  repository: string
-  branch: string
-  lastSyncAt?: Date
-  lastCommitSha?: string
-  lastError?: string
-  syncStatus: 'pending' | 'syncing' | 'success' | 'error' | 'never_synced'
+  /**
+   * Optional description of the prompt's purpose and usage.
+   * This helps users understand when and how to use the prompt.
+   */
+  description?: string
+
+  /**
+   * The Handlebars template string that defines the prompt.
+   * Supports variables using {{variable}} syntax and conditionals
+   * using {{#if condition}}...{{/if}} blocks.
+   *
+   * @example
+   * ```
+   * You are {{role}}.
+   * {{#if context}}
+   * Context: {{context}}
+   * {{/if}}
+   * ```
+   */
+  template: string
 }
