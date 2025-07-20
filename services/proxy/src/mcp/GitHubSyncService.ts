@@ -5,9 +5,14 @@
 import { Octokit } from '@octokit/rest'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { config, getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
+import { config } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger.js'
 import type { PromptRegistryService } from './PromptRegistryService.js'
+
+// Constants
+const SYNC_INFO_FILENAME = 'sync-info.json'
+const ALLOWED_PROMPT_EXTENSIONS = ['.yaml', '.yml'] as const
+const SERVICE_NAME = 'GitHubSyncService'
 
 interface SyncInfo {
   repository: string
@@ -16,6 +21,11 @@ interface SyncInfo {
   lastSyncAt: string
   syncStatus: 'success' | 'error'
   lastError?: string
+}
+
+interface PromptFile {
+  filename: string
+  content: string
 }
 
 export class GitHubSyncService {
@@ -46,7 +56,39 @@ export class GitHubSyncService {
     this.path = config.mcp.github.path.replace(/\/$/, '')
 
     this.promptsDir = path.resolve(promptsDir)
-    this.syncInfoPath = path.join(path.dirname(this.promptsDir), 'sync-info.json')
+    this.syncInfoPath = path.join(path.dirname(this.promptsDir), SYNC_INFO_FILENAME)
+  }
+
+  /**
+   * Helper method to log errors consistently
+   */
+  private logError(message: string, error: unknown, metadata?: Record<string, unknown>): void {
+    logger.error(message, {
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        code: error instanceof Error && 'code' in error ? (error as any).code : undefined,
+      },
+      metadata: {
+        service: SERVICE_NAME,
+        ...metadata,
+      },
+    })
+  }
+
+  /**
+   * Validates if a file is a valid prompt file
+   */
+  private isValidPromptFile(filename: string): boolean {
+    const ext = path.extname(filename).toLowerCase()
+    return ALLOWED_PROMPT_EXTENSIONS.includes(ext as any)
+  }
+
+  /**
+   * Checks if filename contains path traversal characters
+   */
+  private hasPathTraversalChars(filename: string): boolean {
+    return filename.includes('/') || filename.includes('\\')
   }
 
   async syncRepository(): Promise<void> {
@@ -103,11 +145,7 @@ export class GitHubSyncService {
       const validFilenames = new Set<string>()
       for (const prompt of prompts) {
         const safeFilename = path.basename(prompt.filename)
-        if (
-          !safeFilename.includes('/') &&
-          !safeFilename.includes('\\') &&
-          (safeFilename.endsWith('.yaml') || safeFilename.endsWith('.yml'))
-        ) {
+        if (this.isValidPromptFile(safeFilename) && !this.hasPathTraversalChars(safeFilename)) {
           validFilenames.add(safeFilename)
         }
       }
@@ -126,27 +164,22 @@ export class GitHubSyncService {
           // Sanitize filename to prevent path traversal attacks
           const safeFilename = path.basename(prompt.filename)
 
-          // Additional validation to ensure no directory separators
-          if (safeFilename.includes('/') || safeFilename.includes('\\')) {
-            logger.warn(`Skipping file with invalid characters in name: ${prompt.filename}`)
+          // Validate file for security and format
+          if (!this.isValidPromptFile(safeFilename)) {
+            logger.warn(`Skipping non-YAML file: ${prompt.filename}`)
             continue
           }
 
-          // Only allow .yaml or .yml files
-          if (!safeFilename.endsWith('.yaml') && !safeFilename.endsWith('.yml')) {
-            logger.warn(`Skipping non-YAML file: ${prompt.filename}`)
+          if (this.hasPathTraversalChars(safeFilename)) {
+            logger.warn(`Skipping file with invalid characters in name: ${prompt.filename}`)
             continue
           }
 
           await fs.writeFile(path.join(this.promptsDir, safeFilename), prompt.content, 'utf-8')
           successCount++
         } catch (error) {
-          logger.error(`Failed to write prompt ${prompt.filename}`, {
-            error: {
-              message: getErrorMessage(error),
-              stack: getErrorStack(error),
-              code: getErrorCode(error),
-            },
+          this.logError(`Failed to write prompt ${prompt.filename}`, error, {
+            filename: prompt.filename,
           })
         }
       }
@@ -176,12 +209,10 @@ export class GitHubSyncService {
         )
       }
     } catch (error) {
-      logger.error('GitHub sync failed', {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: getErrorCode(error),
-        },
+      this.logError('GitHub sync failed', error, {
+        owner: this.owner,
+        repo: this.repo,
+        branch: this.branch,
       })
 
       await this.updateSyncInfo({
@@ -193,12 +224,13 @@ export class GitHubSyncService {
         lastError: error instanceof Error ? error.message : 'Unknown error',
       })
 
+      // Still throw to maintain backward compatibility with SyncScheduler
       throw error
     }
   }
 
-  private async fetchPrompts(): Promise<Array<{ filename: string; content: string }>> {
-    const prompts: Array<{ filename: string; content: string }> = []
+  private async fetchPrompts(): Promise<PromptFile[]> {
+    const prompts: PromptFile[] = []
 
     try {
       // List contents of the prompts directory
@@ -230,8 +262,7 @@ export class GitHubSyncService {
         }
 
         // Only process YAML files
-        const ext = item.name.split('.').pop()?.toLowerCase()
-        if (!['yaml', 'yml'].includes(ext || '')) {
+        if (!this.isValidPromptFile(item.name)) {
           continue
         }
 
@@ -252,25 +283,15 @@ export class GitHubSyncService {
             })
           }
         } catch (error) {
-          logger.error(`Failed to fetch file ${item.path}`, {
-            error: {
-              message: getErrorMessage(error),
-              stack: getErrorStack(error),
-              code: getErrorCode(error),
-            },
-            metadata: {
-              filePath: item.path,
-            },
+          this.logError(`Failed to fetch file ${item.path}`, error, {
+            filePath: item.path,
           })
         }
       }
     } catch (error) {
-      logger.error('Error fetching prompts from GitHub', {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: getErrorCode(error),
-        },
+      this.logError('Error fetching prompts from GitHub', error, {
+        path: this.path,
+        ref: this.branch,
       })
       throw error
     }
@@ -291,13 +312,7 @@ export class GitHubSyncService {
     try {
       await fs.writeFile(this.syncInfoPath, JSON.stringify(info, null, 2), 'utf-8')
     } catch (error) {
-      logger.error('Error updating sync info', {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: getErrorCode(error),
-        },
-      })
+      this.logError('Error updating sync info', error)
     }
   }
 
