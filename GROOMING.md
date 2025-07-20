@@ -30,6 +30,15 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ## Recent Grooming Activities
 
+### 2025-07-20
+
+- **services/dashboard/public/message-selection.js**: Removed unused JavaScript file
+  - File was not referenced anywhere in the codebase
+  - Message selection functionality already implemented inline in request-details.ts
+  - Created documentation for preserved feature ideas: message range selection and shift+click
+  - Documented in `docs/03-Operations/feature-ideas/message-range-selection.md`
+  - Rationale: Removing dead code improves maintainability and reduces confusion
+
 ### 2025-01-20
 
 - **services/proxy/tests/domain-extractor.test.ts**: Refactored domain extractor tests for improved maintainability and coverage
