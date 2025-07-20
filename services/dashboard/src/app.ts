@@ -1,10 +1,8 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-// Remove static file serving - will inline CSS instead
 import { container } from './container.js'
 import { loggingMiddleware, logger } from './middleware/logger.js'
 import { requestIdMiddleware, getErrorMessage, getStatusCode } from '@claude-nexus/shared'
-// Use the new API-based dashboard routes
 import { dashboardRoutes } from './routes/dashboard-api.js'
 import { conversationDetailRoutes } from './routes/conversation-detail.js'
 import { dashboardAuth } from './middleware/auth.js'
@@ -13,12 +11,31 @@ import { analysisRoutes } from './routes/analysis-api.js'
 import { analysisPartialsRoutes } from './routes/partials/analysis.js'
 import { analyticsPartialRoutes } from './routes/partials/analytics.js'
 import { analyticsConversationPartialRoutes } from './routes/partials/analytics-conversation.js'
+import { mcpProxyRoutes } from './routes/mcp-proxy.js'
+import type { ProxyApiClient } from './services/api-client.js'
+
+// Constants
+const HEALTH_CHECK_TIMEOUT_MS = 5000 // 5 seconds
+
+// Type definitions
+type AppVariables = {
+  apiClient: ProxyApiClient
+}
 
 /**
- * Create and configure the Dashboard application
+ * Creates and configures the dashboard web application.
+ *
+ * This function sets up:
+ * - Global middleware (CORS, request ID generation, logging)
+ * - Health check endpoint with proxy API connectivity check
+ * - API endpoints for dashboard data (requests, stats, conversations)
+ * - Dashboard HTML routes with authentication
+ * - Proxy routes for Spark and MCP integrations
+ *
+ * @returns Configured Hono application instance
  */
-export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClient: unknown } }>> {
-  const app = new Hono<{ Variables: { apiClient: unknown } }>()
+export async function createDashboardApp(): Promise<Hono<{ Variables: AppVariables }>> {
+  const app = new Hono<{ Variables: AppVariables }>()
 
   // Centralized error handler
   app.onError((err, c) => {
@@ -50,7 +67,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
   app.use('*', requestIdMiddleware()) // Generate request ID first
   app.use('*', loggingMiddleware()) // Then use it for logging
 
-  // Health check
+  /**
+   * Health check endpoint
+   * Returns service status and checks proxy API connectivity
+   */
   app.get('/health', async c => {
     const apiClient = container.getApiClient()
     const health: Record<string, unknown> = {
@@ -60,15 +80,22 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
       timestamp: new Date().toISOString(),
     }
 
-    // Check proxy API connection
+    // Check proxy API connection with timeout
     try {
-      // Try to fetch stats with a short timeout
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 5000)
+      const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS)
 
-      await apiClient.getStats()
+      // Note: getStats() doesn't currently support signal, but we handle the timeout
+      await Promise.race([
+        apiClient.getStats(),
+        new Promise((_, reject) => {
+          controller.signal.addEventListener('abort', () =>
+            reject(new Error('Health check timeout'))
+          )
+        }),
+      ])
+
       clearTimeout(timeout)
-
       health.proxyApi = 'connected'
     } catch (error) {
       health.status = 'unhealthy'
@@ -79,7 +106,11 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     return c.json(health, health.status === 'healthy' ? 200 : 503)
   })
 
-  // API endpoints for dashboard data
+  /**
+   * Get requests by domain
+   * @query domain - Optional domain filter
+   * @query limit - Maximum number of results (default: 100)
+   */
   app.get('/api/requests', async c => {
     const storageService = container.getStorageService()
     const domain = c.req.query('domain')
@@ -98,6 +129,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     }
   })
 
+  /**
+   * Get detailed information for a specific request
+   * @param requestId - Unique request identifier
+   */
   app.get('/api/requests/:requestId', async c => {
     const storageService = container.getStorageService()
     const requestId = c.req.param('requestId')
@@ -117,6 +152,11 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     }
   })
 
+  /**
+   * Get storage statistics
+   * @query domain - Optional domain filter
+   * @query since - Optional date filter (ISO 8601 format)
+   */
   app.get('/api/storage-stats', async c => {
     const storageService = container.getStorageService()
     const domain = c.req.query('domain')
@@ -134,6 +174,12 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     }
   })
 
+  /**
+   * Get conversations with optional filtering
+   * @query domain - Optional domain filter
+   * @query limit - Maximum number of results (default: 50)
+   * @query excludeSubtasks - Whether to exclude subtask conversations (default: false)
+   */
   app.get('/api/conversations', async c => {
     const storageService = container.getStorageService()
     const domain = c.req.query('domain')
@@ -157,6 +203,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
     }
   })
 
+  /**
+   * Get subtasks for a specific request
+   * @param requestId - Parent request identifier
+   */
   app.get('/api/requests/:requestId/subtasks', async c => {
     const storageService = container.getStorageService()
     const requestId = c.req.param('requestId')
@@ -177,37 +227,36 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
   // Apply auth middleware to all dashboard routes
   app.use('/*', dashboardAuth)
 
-  // Pass API client to dashboard routes instead of database pool
+  // Provide API client to all routes via context
   app.use('/*', async (c, next) => {
     c.set('apiClient', container.getApiClient())
     return next()
   })
 
-  // Mount dashboard routes at /dashboard
+  // Mount dashboard routes
   app.route('/dashboard', dashboardRoutes)
   app.route('/dashboard', conversationDetailRoutes)
   app.route('/dashboard/api', sparkProxyRoutes)
+  app.route('/dashboard/api', mcpProxyRoutes)
 
   // Mount analysis API routes
   app.route('/api', analysisRoutes)
 
-  // Mount analysis partials routes
+  // Mount partials routes
   app.route('/partials/analysis', analysisPartialsRoutes)
-
-  // Mount analytics partials routes
   app.route('/', analyticsPartialRoutes)
   app.route('/', analyticsConversationPartialRoutes)
 
-  // Import and mount MCP proxy routes
-  const { mcpProxyRoutes } = await import('./routes/mcp-proxy.js')
-  app.route('/dashboard/api', mcpProxyRoutes)
-
-  // Root redirect to dashboard
+  /**
+   * Root endpoint - redirects to dashboard
+   */
   app.get('/', c => {
     return c.redirect('/dashboard')
   })
 
-  // Root API info endpoint
+  /**
+   * API info endpoint - lists available API endpoints
+   */
   app.get('/api', c => {
     return c.json({
       service: 'claude-nexus-dashboard',
@@ -217,6 +266,8 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
         health: '/health',
         requests: '/api/requests',
         stats: '/api/storage-stats',
+        conversations: '/api/conversations',
+        subtasks: '/api/requests/:requestId/subtasks',
       },
     })
   })
