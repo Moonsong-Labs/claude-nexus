@@ -1,42 +1,52 @@
-# Configuration Guide
+# Configuration Quick Start
 
-This guide covers all configuration options for Claude Nexus Proxy.
+This guide helps you quickly configure Claude Nexus Proxy. For a complete reference of all environment variables, see the [Environment Variables Reference](../06-Reference/environment-vars.md).
 
-## Environment Variables
+## Essential Configuration
 
-### Core Configuration
+To get started, you need to configure these essential settings:
 
-| Variable            | Required | Default | Description                             |
-| ------------------- | -------- | ------- | --------------------------------------- |
-| `DATABASE_URL`      | Yes      | -       | PostgreSQL connection string            |
-| `DASHBOARD_API_KEY` | Yes      | -       | Authentication key for dashboard access |
+### 1. Database Connection
 
-### Proxy Service
+```bash
+DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
+```
 
-| Variable               | Required | Default       | Description                                 |
-| ---------------------- | -------- | ------------- | ------------------------------------------- |
-| `PORT`                 | No       | 3000          | Proxy service port                          |
-| `STORAGE_ENABLED`      | No       | false         | Enable request/response storage             |
-| `DEBUG`                | No       | false         | Enable debug logging (masks sensitive data) |
-| `ENABLE_CLIENT_AUTH`   | No       | true          | Require client API key authentication       |
-| `CREDENTIALS_DIR`      | No       | ./credentials | Directory for domain credential files       |
-| `SLACK_WEBHOOK_URL`    | No       | -             | Slack webhook for notifications             |
-| `COLLECT_TEST_SAMPLES` | No       | false         | Collect request samples for testing         |
-| `TEST_SAMPLES_DIR`     | No       | test-samples  | Directory for test samples                  |
+### 2. Dashboard Authentication
 
-### Dashboard Service
+```bash
+# Generate a secure key
+DASHBOARD_API_KEY=$(openssl rand -hex 32)
+```
 
-| Variable                  | Required | Default | Description                         |
-| ------------------------- | -------- | ------- | ----------------------------------- |
-| `DASHBOARD_PORT`          | No       | 3001    | Dashboard service port              |
-| `DASHBOARD_CACHE_TTL`     | No       | 30      | Cache TTL in seconds (0 to disable) |
-| `SLOW_QUERY_THRESHOLD_MS` | No       | 5000    | Threshold for logging slow queries  |
+### 3. Create a Basic .env File
 
-## Domain Credentials
+```bash
+# Essential configuration
+DATABASE_URL=postgresql://localhost:5432/claude_nexus
+DASHBOARD_API_KEY=your-secure-dashboard-key
 
-Domain-specific credentials are stored in JSON files in the credentials directory.
+# Enable storage (recommended)
+STORAGE_ENABLED=true
 
-### API Key Authentication
+# Service ports (defaults shown)
+PROXY_PORT=3000
+DASHBOARD_PORT=3001
+```
+
+## Setting Up Domain Credentials
+
+Each domain needs its own credential file in the `credentials/` directory:
+
+### 1. Generate a Secure Client API Key
+
+```bash
+bun run scripts/auth/generate-api-key.ts
+```
+
+### 2. Create Credential File
+
+Create `credentials/yourdomain.com.credentials.json`:
 
 ```json
 {
@@ -47,230 +57,116 @@ Domain-specific credentials are stored in JSON files in the credentials director
 }
 ```
 
-### OAuth Authentication
+**Important:**
 
-```json
-{
-  "type": "oauth",
-  "accountId": "acc_unique_identifier",
-  "oauth": {
-    "accessToken": "...",
-    "refreshToken": "...",
-    "expiresAt": 1735689599000,
-    "scopes": ["org:create_api_key", "user:profile", "user:inference"],
-    "isMax": true
-  }
-}
-```
+- The filename must match the domain used in API requests
+- `accountId` is used for tracking token usage per account
+- `client_api_key` authenticates clients to your proxy
+- `api_key` is your Claude API key
 
-### File Naming Convention
+For OAuth setup and other authentication methods, see the [Authentication Guide](../02-User-Guide/authentication.md).
 
-- Pattern: `<domain>.credentials.json`
-- Example: `example.com.credentials.json`
-- The domain must match the Host header in requests
+## Database Setup
 
-## Database Configuration
-
-### Connection Options
-
-The `DATABASE_URL` supports standard PostgreSQL connection strings:
+### Initialize the Database
 
 ```bash
-# Standard format
-postgresql://username:password@host:port/database
+# Create the database
+createdb claude_nexus
 
-# With SSL
-postgresql://username:password@host:port/database?sslmode=require
+# Run the initial schema
+psql claude_nexus < scripts/init-database.sql
 
-# With connection pooling
-postgresql://username:password@host:port/database?pool_max=20
+# Run migrations (if upgrading)
+for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 ```
 
-### Schema Migration
+For advanced database configuration and migration details, see the [Database Guide](../03-Operations/database.md).
 
-Run migrations to set up the database schema:
+## Docker Quick Start
+
+### Using Docker Compose
 
 ```bash
-# Run token usage migration (required for account-based tracking)
-bun run db:migrate:token-usage
+# Clone the repository
+git clone https://github.com/your-org/claude-nexus-proxy.git
+cd claude-nexus-proxy
 
-# Other available migrations
-bun run db:migrate:init
-bun run db:migrate:conversations
-bun run db:migrate:optimize
+# Create .env file with your configuration
+cp .env.example .env
+
+# Start all services
+./docker-up.sh up -d
+
+# View logs
+./docker-up.sh logs -f
 ```
 
-## Security Configuration
+### Production Deployment
 
-### Client Authentication
+For production environments, ensure you:
 
-When `ENABLE_CLIENT_AUTH=true` (default):
+1. Use strong authentication keys
+2. Enable HTTPS (via reverse proxy)
+3. Configure proper database backups
+4. Set appropriate resource limits
 
-- Clients must provide a Bearer token matching the domain's `client_api_key`
-- Generate secure keys: `bun run auth:generate-key`
+See the [Docker Deployment Guide](../03-Operations/deployment/docker.md) for detailed instructions.
 
-To disable client authentication (not recommended for production):
+## Next Steps
+
+After basic configuration:
+
+1. **Set up authentication** - See the [Authentication Guide](../02-User-Guide/authentication.md)
+2. **Configure monitoring** - Enable Slack notifications and metrics
+3. **Deploy to production** - Follow the [Deployment Guide](../03-Operations/deployment/)
+4. **Enable advanced features** - AI analysis, MCP server, etc.
+
+## Common Configuration Scenarios
+
+### Development Environment
 
 ```bash
-ENABLE_CLIENT_AUTH=false
-```
-
-### OAuth Token Management
-
-OAuth tokens are automatically refreshed 1 minute before expiry. Manual management:
-
-```bash
-# Check OAuth status
-bun run auth:oauth-status
-
-# Refresh all tokens
-bun run auth:oauth-refresh
-
-# Refresh specific domain
-bun run scripts/auth/oauth-refresh.ts example.com
-```
-
-## Performance Tuning
-
-### Database Performance
-
-```bash
-# Optimize conversation queries
-SLOW_QUERY_THRESHOLD_MS=1000  # Log queries slower than 1s
-
-# Dashboard caching
-DASHBOARD_CACHE_TTL=60  # Cache for 60 seconds
-DASHBOARD_CACHE_TTL=0   # Disable caching
-```
-
-### Storage Performance
-
-```bash
-# Batch processing for storage
-STORAGE_BATCH_SIZE=100      # Process 100 records at a time
-STORAGE_BATCH_INTERVAL=5000 # Process every 5 seconds
-```
-
-## Debug Configuration
-
-### Debug Logging
-
-When `DEBUG=true`:
-
-- Logs full request/response bodies (with masking)
-- Shows streaming chunks
-- Displays authentication flow
-- Masks sensitive patterns: `sk-ant-****`, `Bearer ****`
-
-### Test Sample Collection
-
-For development and testing:
-
-```bash
-COLLECT_TEST_SAMPLES=true
-TEST_SAMPLES_DIR=./test-samples
-```
-
-Samples are organized by request type:
-
-- `inference_streaming_opus.json`
-- `quota_evaluation_non_streaming.json`
-- etc.
-
-## Docker Configuration
-
-### Environment File
-
-Create `.env` file for Docker deployment:
-
-```env
-# Database
-DATABASE_URL=postgresql://postgres:password@db:5432/claude_nexus
-
-# Authentication
-DASHBOARD_API_KEY=your-secure-key
-
-# Features
-STORAGE_ENABLED=true
-DEBUG=false
-
-# Networking
-PROXY_PORT=3000
-DASHBOARD_PORT=3001
-```
-
-### Docker Compose Override
-
-For custom configuration, create `docker-compose.override.yml`:
-
-```yaml
-version: '3.8'
-services:
-  proxy:
-    environment:
-      - DEBUG=true
-      - STORAGE_ENABLED=true
-  dashboard:
-    environment:
-      - DASHBOARD_CACHE_TTL=0
-```
-
-## Monitoring Configuration
-
-### Slack Notifications
-
-Configure Slack webhook for error notifications:
-
-```bash
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-```
-
-Notifications are sent for:
-
-- Proxy startup/shutdown
-- Critical errors
-- OAuth token refresh failures
-
-### Metrics Collection
-
-Token usage metrics are automatically collected and available at:
-
-- `/token-stats` - Raw statistics endpoint
-- Dashboard analytics view
-
-## Example Configurations
-
-### Development Setup
-
-```bash
-# .env.development
+# Minimal setup for local development
 DATABASE_URL=postgresql://localhost:5432/claude_nexus_dev
 DASHBOARD_API_KEY=dev-key
 DEBUG=true
 STORAGE_ENABLED=true
 ENABLE_CLIENT_AUTH=false
-COLLECT_TEST_SAMPLES=true
 ```
 
-### Production Setup
+### Production with All Features
 
 ```bash
-# .env.production
+# Full-featured production setup
 DATABASE_URL=postgresql://prod-db:5432/claude_nexus
-DASHBOARD_API_KEY=secure-random-key
+DASHBOARD_API_KEY=$(openssl rand -hex 32)
 STORAGE_ENABLED=true
-ENABLE_CLIENT_AUTH=true
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
-DASHBOARD_CACHE_TTL=300
-SLOW_QUERY_THRESHOLD_MS=2000
+
+# Enable AI analysis
+AI_WORKER_ENABLED=true
+GEMINI_API_KEY=your-gemini-key
+
+# Enable MCP server
+MCP_ENABLED=true
+MCP_PROMPTS_DIR=./prompts
 ```
 
-### High-Performance Setup
+## Troubleshooting
 
-```bash
-# .env.performance
-DATABASE_URL=postgresql://db:5432/claude_nexus?pool_max=50
-STORAGE_ENABLED=false  # Disable storage for lower latency
-DASHBOARD_CACHE_TTL=600  # 10-minute cache
-DEBUG=false
-```
+Common issues:
+
+- **Database connection fails** - Check DATABASE_URL format and network access
+- **Dashboard auth fails** - Ensure DASHBOARD_API_KEY matches in requests
+- **Domain not found** - Verify credential filename matches request domain
+
+For detailed troubleshooting, see the [Common Issues Guide](../05-Troubleshooting/common-issues.md).
+
+## Complete Reference
+
+For all available configuration options, see:
+
+- [Environment Variables Reference](../06-Reference/environment-vars.md) - Complete list of all variables
+- [Security Configuration](../03-Operations/security.md) - Security best practices
+- [Performance Tuning](../05-Troubleshooting/performance.md) - Optimization guidelines
