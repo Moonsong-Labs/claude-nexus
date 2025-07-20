@@ -32,7 +32,7 @@ const SERVER_CLOSE_TIMEOUT = 5000 // 5 seconds
  */
 function loadEnvironment(args: string[]): void {
   const __dirname = dirname(fileURLToPath(import.meta.url))
-  
+
   // Check for --env-file argument first
   const envFileIndex = args.findIndex(arg => arg === '-e' || arg === '--env-file')
   if (envFileIndex !== -1 && args[envFileIndex + 1]) {
@@ -50,7 +50,7 @@ function loadEnvironment(args: string[]): void {
       process.exit(1)
     }
   }
-  
+
   // Default paths to check
   const envPaths = [
     join(process.cwd(), '.env'),
@@ -59,12 +59,12 @@ function loadEnvironment(args: string[]): void {
     join(__dirname, '..', '..', '..', '.env'),
     join(__dirname, '..', '..', '..', '.env.local'),
   ]
-  
+
   if (process.env.DEBUG) {
     console.log(`Current working directory: ${process.cwd()}`)
     console.log(`Checking for .env files in:`, envPaths)
   }
-  
+
   for (const envPath of envPaths) {
     if (existsSync(envPath)) {
       const result = dotenvConfig({ path: envPath })
@@ -84,14 +84,14 @@ function getPackageVersion(): string {
   if (cachedVersion) {
     return cachedVersion
   }
-  
+
   const __dirname = dirname(fileURLToPath(import.meta.url))
   const possiblePaths = [
     join(__dirname, '..', 'package.json'),
     join(__dirname, 'package.json'),
     join(__dirname, '..', '..', 'package.json'),
   ]
-  
+
   for (const packagePath of possiblePaths) {
     try {
       const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'))
@@ -102,7 +102,7 @@ function getPackageVersion(): string {
       // Continue to next path
     }
   }
-  
+
   cachedVersion = 'unknown'
   return 'unknown'
 }
@@ -161,17 +161,17 @@ function parseCliArguments(args: string[]): CliOptions {
     showHelp: false,
     showVersion: false,
   }
-  
+
   if (args.includes('-v') || args.includes('--version')) {
     options.showVersion = true
     return options
   }
-  
+
   if (args.includes('-h') || args.includes('--help')) {
     options.showHelp = true
     return options
   }
-  
+
   const portIndex = args.findIndex(arg => arg === '-p' || arg === '--port')
   if (portIndex !== -1 && args[portIndex + 1]) {
     const port = parseInt(args[portIndex + 1], 10)
@@ -181,33 +181,37 @@ function parseCliArguments(args: string[]): CliOptions {
     }
     options.port = port
   }
-  
+
   const hostIndex = args.findIndex(arg => arg === '-H' || arg === '--host')
   if (hostIndex !== -1 && args[hostIndex + 1]) {
     options.hostname = args[hostIndex + 1]
   }
-  
+
   return options
 }
 
 /**
  * Setup graceful shutdown handlers
  */
-function setupShutdownHandlers(server: ReturnType<typeof serve>, credentialManager: CredentialManager, analysisWorker: AnalysisWorker | null): void {
+function setupShutdownHandlers(
+  server: ReturnType<typeof serve>,
+  credentialManager: CredentialManager,
+  analysisWorker: AnalysisWorker | null
+): void {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} received, shutting down gracefully...`)
-    
+
     // Set a hard timeout to force exit if graceful shutdown hangs
     const forceExitTimeout = setTimeout(() => {
       console.error('Graceful shutdown timeout - forcing exit')
       process.exit(1)
     }, FORCE_EXIT_TIMEOUT)
-    
+
     try {
       // Print final token stats
       console.log('\nFinal token statistics:')
       tokenTracker.printStats()
-      
+
       // Close server with timeout
       let serverClosed = false
       const serverCloseTimeout = setTimeout(() => {
@@ -216,29 +220,29 @@ function setupShutdownHandlers(server: ReturnType<typeof serve>, credentialManag
           process.exit(0)
         }
       }, SERVER_CLOSE_TIMEOUT)
-      
+
       server.close(() => {
         serverClosed = true
         clearTimeout(serverCloseTimeout)
         console.log('Server closed')
       })
-      
+
       // Close rate limit stores
       closeRateLimitStores()
-      
+
       // Stop credential manager cleanup
       credentialManager.stopPeriodicCleanup()
-      
+
       // Stop analysis worker
       if (analysisWorker) {
         console.log('Stopping AI Analysis Worker...')
         await analysisWorker.stop()
         console.log('AI Analysis Worker stopped')
       }
-      
+
       // Clean up container resources
       await container.cleanup()
-      
+
       clearTimeout(forceExitTimeout)
       process.exit(0)
     } catch (error) {
@@ -247,7 +251,7 @@ function setupShutdownHandlers(server: ReturnType<typeof serve>, credentialManag
       process.exit(1)
     }
   }
-  
+
   process.on('SIGINT', () => shutdown('SIGINT'))
   process.on('SIGTERM', () => shutdown('SIGTERM'))
   process.on('SIGQUIT', () => shutdown('SIGQUIT'))
@@ -258,36 +262,42 @@ function setupShutdownHandlers(server: ReturnType<typeof serve>, credentialManag
  */
 async function configureServer(port: number, hostname: string): Promise<ReturnType<typeof serve>> {
   const app = await createProxyApp()
-  
+
   const server = serve({
     port,
     hostname,
     fetch: app.fetch,
   })
-  
+
   // Configure server timeout
   const serverTimeout = config.server.timeout
-  if (server && 'timeout' in server && typeof (server as unknown as {timeout: unknown}).timeout === 'number') {
-    ;(server as unknown as {timeout: number; headersTimeout?: number}).timeout = serverTimeout
+  if (
+    server &&
+    'timeout' in server &&
+    typeof (server as unknown as { timeout: unknown }).timeout === 'number'
+  ) {
+    ;(server as unknown as { timeout: number; headersTimeout?: number }).timeout = serverTimeout
     if ('headersTimeout' in server) {
-      ;(server as unknown as {headersTimeout: number}).headersTimeout = serverTimeout
+      ;(server as unknown as { headersTimeout: number }).headersTimeout = serverTimeout
     }
-    console.log(`\n⏱️  Server timeout: ${serverTimeout}ms (${Math.floor(serverTimeout / 60000)} minutes)`)
+    console.log(
+      `\n⏱️  Server timeout: ${serverTimeout}ms (${Math.floor(serverTimeout / 60000)} minutes)`
+    )
   } else {
     console.log(`\n⏱️  Note: Server timeout configuration not applied (using framework defaults)`)
   }
-  
+
   console.log(`\n✅ Server started successfully`)
   console.log(`🌐 Listening on http://${hostname}:${port}`)
   console.log(`📊 Token stats: http://${hostname}:${port}/token-stats`)
   console.log(`🔐 OAuth metrics: http://${hostname}:${port}/oauth-metrics`)
-  
+
   // Show network interfaces
   try {
     const os = await import('os')
     const interfaces = os.networkInterfaces()
     const addresses = []
-    
+
     for (const name in interfaces) {
       for (const iface of interfaces[name] || []) {
         if (iface.family === 'IPv4' && !iface.internal) {
@@ -295,7 +305,7 @@ async function configureServer(port: number, hostname: string): Promise<ReturnTy
         }
       }
     }
-    
+
     if (addresses.length > 0) {
       console.log('\nNetwork interfaces:')
       addresses.forEach(addr => console.log(`  ${addr}`))
@@ -303,7 +313,7 @@ async function configureServer(port: number, hostname: string): Promise<ReturnTy
   } catch {
     // Ignore network interface errors
   }
-  
+
   console.log('\nPress Ctrl+C to stop the server')
   return server
 }
@@ -315,14 +325,14 @@ function printStartupBanner(): void {
   console.log(`Claude Nexus Proxy Service v${getPackageVersion()}`)
   console.log('Mode: passthrough (direct proxy to Claude API)')
   console.log('Target: Claude API (https://api.anthropic.com)')
-  
+
   // Credential directory
   console.log(`✓ Credential directory: ${process.env.CREDENTIALS_DIR || 'credentials (default)'}`)
-  
+
   if (process.env.TELEMETRY_ENDPOINT) {
     console.log(`✓ Telemetry: ${process.env.TELEMETRY_ENDPOINT}`)
   }
-  
+
   // Slack configuration
   if (process.env.SLACK_WEBHOOK_URL) {
     console.log('\nSlack Integration:')
@@ -335,14 +345,14 @@ function printStartupBanner(): void {
     }
     console.log(`  - Enabled: ${process.env.SLACK_ENABLED !== 'false' ? 'Yes' : 'No'}`)
   }
-  
+
   // Storage configuration
   if (process.env.STORAGE_ENABLED === 'true' && (process.env.DATABASE_URL || process.env.DB_HOST)) {
     console.log('\nStorage:')
     console.log(`  - Enabled: Yes`)
     console.log(`  - Database: ${process.env.DATABASE_URL ? 'URL configured' : 'Host configured'}`)
   }
-  
+
   // Spark API configuration
   console.log('\nSpark API:')
   if (process.env.SPARK_API_KEY) {
@@ -353,7 +363,7 @@ function printStartupBanner(): void {
     console.log('  - Enabled: No')
     console.log('  - Reason: SPARK_API_KEY not set')
   }
-  
+
   // AI Analysis configuration
   console.log('\nAI Analysis:')
   if (process.env.AI_WORKER_ENABLED === 'true') {
@@ -377,65 +387,75 @@ function printStartupBanner(): void {
 async function main(): Promise<void> {
   // Parse command line arguments
   const args = process.argv.slice(2)
-  
+
   // Load environment configuration
   loadEnvironment(args)
-  
+
   // Parse CLI options
   const options = parseCliArguments(args)
-  
+
   // Handle version and help flags
   if (options.showVersion) {
     console.log(getPackageVersion())
     process.exit(0)
   }
-  
+
   if (options.showHelp) {
     showHelp()
     process.exit(0)
   }
-  
+
   let analysisWorker: AnalysisWorker | null = null
   let credentialManager: CredentialManager | null = null
-  
+
   try {
     printStartupBanner()
-    
+
     // Check all credentials at startup
     console.log('\nChecking credentials...')
     const credentialService = new CredentialStatusService()
     const credentialStatuses = await credentialService.checkAllCredentials()
-    
+
     if (credentialStatuses.length > 0) {
       const statusLines = credentialService.formatStatusForLogging(credentialStatuses)
       statusLines.forEach(line => console.log(line))
     } else {
       console.log('  No credential files found')
     }
-    
+
     // Start credential manager periodic cleanup
     credentialManager = new CredentialManager()
     credentialManager.startPeriodicCleanup()
-    
+
     // Start token usage tracking
     tokenTracker.startReporting(TOKEN_REPORTING_INTERVAL)
-    
+
     // Start AI Analysis Worker
     try {
       analysisWorker = startAnalysisWorker()
-      console.log('✓ AI Analysis Worker started')
+      if (analysisWorker) {
+        console.log('✓ AI Analysis Worker started')
+      } else {
+        console.log('✓ AI Analysis Worker is disabled')
+      }
     } catch (error) {
-      console.log('✗ AI Analysis Worker not started:', error instanceof Error ? error.message : String(error))
+      console.log(
+        '✗ AI Analysis Worker not started:',
+        error instanceof Error ? error.message : String(error)
+      )
       // Non-fatal - continue without analysis worker
     }
-    
+
     // Create and configure server
     const server = await configureServer(options.port, options.hostname)
-    
+
     // Setup shutdown handlers
     setupShutdownHandlers(server, credentialManager, analysisWorker)
   } catch (error) {
-    console.error('❌ Failed to start server:', error instanceof Error ? error.message : String(error))
+    console.error(
+      '❌ Failed to start server:',
+      error instanceof Error ? error.message : String(error)
+    )
     process.exit(1)
   }
 }
