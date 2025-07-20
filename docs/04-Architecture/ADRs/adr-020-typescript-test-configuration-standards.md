@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-During the file grooming sprint (July 20, 2025), we identified inconsistencies in TypeScript test configuration files across the monorepo. Specifically, `services/proxy/tsconfig.test.json` was missing standard configuration options that other test configurations included:
+During the file grooming sprint (July 20, 2025), we identified inconsistencies in TypeScript test configuration files across the monorepo. Both `services/proxy/tsconfig.test.json` and `services/dashboard/tsconfig.test.json` were missing standard configuration options:
 
 - Missing `compilerOptions` with `noEmit: true`
 - Empty `exclude` array instead of properly excluding directories
@@ -33,7 +33,7 @@ We standardized all `tsconfig.test.json` files to follow TypeScript best practic
 
 ## Implementation
 
-Updated `services/proxy/tsconfig.test.json` to:
+Updated both `services/proxy/tsconfig.test.json` and `services/dashboard/tsconfig.test.json` to:
 
 ```json
 {
