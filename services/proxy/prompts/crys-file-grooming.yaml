@@ -1,4 +1,4 @@
-name: Production file  grooming
+name: Production file grooming
 description: Will look at a specific file and groom it for code quality for production readiness
 template: |
   <instructions>
@@ -13,18 +13,18 @@ template: |
      - Removing dead code
      - Improving naming conventions
      - Enhancing documentation and comments
-  6. Validate with Gemini and O3 on the plan
+  5. Validate with Gemini and O3 on the plan
   6. Implement the changes in the current branch
   7. Test the changes to ensure functionality remains intact
-  8. Document any changes made, including rationale for deletions or modifications, includiong ADRs
+  8. Document any changes made, including rationale for deletions or modifications, including ADRs
   9. Commit the changes with a clear message explaining the improvements
   10. Push the changes to the remote repository
   </instructions>
 
   <important>
-  * When having doubt with best practice, search through perplexify tools
+  * When having doubts about best practices, use Perplexity AI or similar tools for research
   * If the file involves a lot of refactoring, consider finding a simpler solution for now.
-  * Focus on the given file and limit changes to other file to those strictly necessary for the file to work properly.
+  * Focus on the given file and limit changes to other files to those strictly necessary for the file to work properly.
   </important>
 
   <examples>
