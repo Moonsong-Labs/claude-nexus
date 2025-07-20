@@ -1,5 +1,38 @@
 import { logger } from '../middleware/logger'
-import { TimeoutError, UpstreamError } from '@claude-nexus/shared'
+import { TimeoutError, UpstreamError, RateLimitError } from '@claude-nexus/shared'
+
+/**
+ * Generic retry utility with exponential backoff.
+ *
+ * For application-specific retry logic (e.g., Claude API specific errors),
+ * compose your own retry condition:
+ *
+ * ```typescript
+ * function isMyAppRetryableError(error: unknown): boolean {
+ *   return isRetryableError(error) ||
+ *     (error instanceof Error && error.message.includes('my_specific_error'))
+ * }
+ *
+ * await retryWithBackoff(myApiCall, { retryCondition: isMyAppRetryableError })
+ * ```
+ */
+
+// Error type with HTTP details
+export interface HttpError extends Error {
+  statusCode?: number
+  response?: {
+    headers?: Record<string, string | string[] | undefined>
+  }
+}
+
+// Type guard for HTTP errors
+export function isHttpError(error: unknown): error is HttpError {
+  return (
+    error instanceof Error &&
+    (('statusCode' in error && typeof error.statusCode === 'number') ||
+      ('response' in error && typeof error.response === 'object' && error.response !== null))
+  )
+}
 
 // Retry configuration
 export interface RetryConfig {
@@ -9,7 +42,7 @@ export interface RetryConfig {
   factor: number
   jitter: boolean
   timeout?: number
-  retryCondition?: (error: Error) => boolean
+  retryCondition?: (error: unknown) => boolean
 }
 
 // Default retry configuration
@@ -23,45 +56,43 @@ export const defaultRetryConfig: RetryConfig = {
   retryCondition: isRetryableError,
 }
 
-// Check if error is retryable
-export function isRetryableError(error: Error): boolean {
-  // Network errors
-  if (
-    error.message.includes('ECONNREFUSED') ||
-    error.message.includes('ETIMEDOUT') ||
-    error.message.includes('ENOTFOUND') ||
-    error.message.includes('ENETUNREACH') ||
-    error.message.includes('ECONNRESET') ||
-    error.message.includes('EPIPE')
-  ) {
-    return true
-  }
+// Retryable error constants
+const RETRYABLE_NETWORK_ERRORS = [
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'ENETUNREACH',
+  'ECONNRESET',
+  'EPIPE',
+]
 
-  // Timeout errors
-  if (error instanceof TimeoutError) {
-    return true
-  }
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 504]
 
-  // Upstream errors (5xx)
-  if (error instanceof UpstreamError) {
-    return true
-  }
+// Check if error is a network error
+export function isNetworkError(error: Error): boolean {
+  return RETRYABLE_NETWORK_ERRORS.some(errCode => error.message.includes(errCode))
+}
 
-  // HTTP status codes
-  if ('statusCode' in error) {
-    const status = (error as any).statusCode
-    // Retry on 429 (rate limit), 502 (bad gateway), 503 (service unavailable), 504 (gateway timeout)
-    if (status === 429 || status === 502 || status === 503 || status === 504) {
-      return true
-    }
+// Check if error has retryable HTTP status
+export function isRetryableHttpError(error: unknown): boolean {
+  if (isHttpError(error) && error.statusCode) {
+    return RETRYABLE_STATUS_CODES.includes(error.statusCode)
   }
-
-  // Claude API specific errors
-  if (error.message.includes('overloaded_error') || error.message.includes('rate_limit_error')) {
-    return true
-  }
-
   return false
+}
+
+// Check if error is retryable (generic implementation)
+export function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false
+  }
+  return (
+    error instanceof TimeoutError ||
+    error instanceof UpstreamError ||
+    error instanceof RateLimitError ||
+    isNetworkError(error) ||
+    isRetryableHttpError(error)
+  )
 }
 
 // Calculate delay with exponential backoff
@@ -82,6 +113,29 @@ export function calculateDelay(attempt: number, config: RetryConfig): number {
 // Sleep helper
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+// Retry with exponential backoff
+// Helper to extract retry-after header
+export function getRetryAfter(error: unknown): number | null {
+  if (isHttpError(error) && error.response?.headers) {
+    const retryAfter = error.response.headers['retry-after']
+    if (typeof retryAfter === 'string') {
+      // Parse as seconds
+      const seconds = parseInt(retryAfter, 10)
+      if (!isNaN(seconds)) {
+        return seconds * 1000 // Convert to milliseconds
+      }
+
+      // Parse as HTTP date
+      const date = new Date(retryAfter)
+      if (!isNaN(date.getTime())) {
+        return Math.max(0, date.getTime() - Date.now())
+      }
+    }
+  }
+
+  return null
 }
 
 // Retry with exponential backoff
@@ -124,7 +178,7 @@ export async function retryWithBackoff<T>(
       lastError = error as Error
 
       // Check if we should retry
-      const shouldRetry = finalConfig.retryCondition!(error as Error)
+      const shouldRetry = finalConfig.retryCondition ? finalConfig.retryCondition(error) : false
       const isLastAttempt = attempt === finalConfig.maxAttempts
 
       if (!shouldRetry || isLastAttempt) {
@@ -141,8 +195,22 @@ export async function retryWithBackoff<T>(
         throw error
       }
 
-      // Calculate delay
-      const delay = calculateDelay(attempt, finalConfig)
+      // Calculate delay, respecting retry-after header if present
+      let delay = calculateDelay(attempt, finalConfig)
+      const retryAfterMs = getRetryAfter(error)
+
+      if (retryAfterMs !== null) {
+        // Respect server's requested delay, but ensure minimum delay
+        delay = Math.max(delay, retryAfterMs)
+        logger.info('Using retry-after header delay', {
+          requestId: context?.requestId,
+          metadata: {
+            operation: context?.operation,
+            retryAfterMs,
+            calculatedDelay: delay,
+          },
+        })
+      }
 
       logger.info('Retrying after error', {
         requestId: context?.requestId,
@@ -189,68 +257,15 @@ export const retryConfigs = {
     timeout: 610000, // 10 minutes + 10 seconds (allows one full 10-minute attempt)
   },
 
-  // Specific for Claude API rate limits
+  // Rate limit specific configuration
   rateLimit: {
     maxAttempts: 5,
     initialDelay: 5000, // Start with 5 seconds
     maxDelay: 60000, // Max 1 minute
     factor: 1.5, // Slower backoff
     jitter: true,
-    retryCondition: (error: Error) => {
-      return (
-        error.message.includes('rate_limit') ||
-        ('statusCode' in error && (error as any).statusCode === 429)
-      )
+    retryCondition: (error: unknown) => {
+      return error instanceof RateLimitError || (isHttpError(error) && error.statusCode === 429)
     },
   },
-}
-
-// Helper to extract retry-after header
-export function getRetryAfter(error: any): number | null {
-  if (error.response?.headers) {
-    const retryAfter = error.response.headers['retry-after']
-    if (retryAfter) {
-      // Parse as seconds
-      const seconds = parseInt(retryAfter)
-      if (!isNaN(seconds)) {
-        return seconds * 1000 // Convert to milliseconds
-      }
-
-      // Parse as HTTP date
-      const date = new Date(retryAfter)
-      if (!isNaN(date.getTime())) {
-        return Math.max(0, date.getTime() - Date.now())
-      }
-    }
-  }
-
-  return null
-}
-
-// Create a retry wrapper with rate limit awareness
-export function createRateLimitAwareRetry(
-  baseConfig: Partial<RetryConfig> = {}
-): <T>(fn: () => Promise<T>, context?: any) => Promise<T> {
-  return async function retryWrapper<T>(fn: () => Promise<T>, context?: any): Promise<T> {
-    const config = { ...retryConfigs.standard, ...baseConfig }
-
-    // Override retry condition to respect retry-after
-    const originalCondition = config.retryCondition!
-    config.retryCondition = (error: Error) => {
-      if (!originalCondition(error)) {
-        return false
-      }
-
-      // Check for retry-after header
-      const retryAfter = getRetryAfter(error)
-      if (retryAfter !== null) {
-        // Adjust initial delay based on retry-after
-        config.initialDelay = Math.max(config.initialDelay, retryAfter)
-      }
-
-      return true
-    }
-
-    return retryWithBackoff(fn, config, context)
-  }
 }

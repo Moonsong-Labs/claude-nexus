@@ -1,16 +1,34 @@
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { AuthResult } from './AuthenticationService'
-import { UpstreamError, TimeoutError, getErrorMessage } from '@claude-nexus/shared'
+import { UpstreamError, TimeoutError, getErrorMessage, isClaudeError } from '@claude-nexus/shared'
 import { ClaudeMessagesResponse, ClaudeStreamEvent } from '../types/claude'
-import { isClaudeError } from '@claude-nexus/shared/validators'
 import { logger } from '../middleware/logger'
 import { claudeApiCircuitBreaker } from '../utils/circuit-breaker'
-import { retryWithBackoff, retryConfigs } from '../utils/retry'
+import { retryWithBackoff, retryConfigs, isRetryableError } from '../utils/retry'
 
 export interface ClaudeApiConfig {
   baseUrl: string
   timeout: number
+}
+
+/**
+ * Claude API specific retry condition
+ */
+function isClaudeRetryableError(error: unknown): boolean {
+  if (isRetryableError(error)) {
+    return true
+  }
+
+  // Claude-specific error messages
+  if (
+    error instanceof Error &&
+    (error.message.includes('overloaded_error') || error.message.includes('rate_limit_error'))
+  ) {
+    return true
+  }
+
+  return false
 }
 
 /**
@@ -37,7 +55,7 @@ export class ClaudeApiClient {
       // Use retry logic for transient failures
       return retryWithBackoff(
         async () => this.makeRequest(url, request, headers),
-        retryConfigs.standard,
+        { ...retryConfigs.standard, retryCondition: isClaudeRetryableError },
         { requestId: request.requestId, operation: 'claude_api_call' }
       )
     })
@@ -68,7 +86,7 @@ export class ClaudeApiClient {
       if (!response.ok) {
         const errorBody = await response.text()
         let errorMessage = `Claude API error: ${response.status}`
-        let parsedError: any
+        let parsedError: unknown
 
         try {
           parsedError = JSON.parse(errorBody)
