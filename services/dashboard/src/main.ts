@@ -6,32 +6,41 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config as dotenvConfig } from 'dotenv'
 
-// Load .env file from multiple possible locations BEFORE importing anything else
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const envPaths = [
-  join(process.cwd(), '.env'),
-  join(process.cwd(), '.env.local'),
-  join(dirname(process.argv[1] || ''), '.env'),
-  // Check parent directories for monorepo setup
-  join(__dirname, '..', '..', '..', '.env'), // Root directory
-  join(__dirname, '..', '..', '.env'), // Services directory
-  join(__dirname, '..', '.env'), // Dashboard directory
-]
+// Constants
+const DEFAULT_PORT = 3001
+const DEFAULT_HOST = '0.0.0.0'
 
-for (const envPath of envPaths) {
-  if (existsSync(envPath)) {
-    const result = dotenvConfig({ path: envPath })
-    if (!result.error) {
-      console.log(`Loaded configuration from ${envPath}`)
-      break
+// ES Module-safe __dirname
+const __dirname = dirname(fileURLToPath(import.meta.url))
+// Load environment configuration
+function loadEnvironmentConfig(): void {
+  const envPaths = [
+    join(process.cwd(), '.env'),
+    join(process.cwd(), '.env.local'),
+    join(dirname(process.argv[1] || ''), '.env'),
+    // Check parent directories for monorepo setup
+    join(__dirname, '..', '..', '..', '.env'), // Root directory
+    join(__dirname, '..', '..', '.env'), // Services directory
+    join(__dirname, '..', '.env'), // Dashboard directory
+  ]
+
+  for (const envPath of envPaths) {
+    if (existsSync(envPath)) {
+      const result = dotenvConfig({ path: envPath })
+      if (!result.error) {
+        console.log(`Loaded configuration from ${envPath}`)
+        break
+      }
     }
   }
 }
 
+// Load environment configuration before importing other modules
+loadEnvironmentConfig()
+
 // Now import other modules after env is loaded
 import { serve } from '@hono/node-server'
 import { createDashboardApp } from './app.js'
-import { container } from './container.js'
 
 // Parse command line arguments
 const args = process.argv.slice(2)
@@ -57,9 +66,6 @@ if (envFileIndex !== -1 && args[envFileIndex + 1]) {
 // Get package version
 function getPackageVersion(): string {
   try {
-    const __filename = fileURLToPath(import.meta.url)
-    const __dirname = dirname(__filename)
-
     // Try multiple possible paths for package.json
     const possiblePaths = [
       join(__dirname, '..', 'package.json'), // Development
@@ -90,13 +96,13 @@ Usage: claude-nexus-dashboard [options]
 Options:
   -v, --version              Show version number
   -h, --help                 Show this help message
-  -p, --port PORT            Set server port (default: 3001)
-  -H, --host HOST            Set server hostname (default: 0.0.0.0)
+  -p, --port PORT            Set server port (default: ${DEFAULT_PORT})
+  -H, --host HOST            Set server hostname (default: ${DEFAULT_HOST})
   -e, --env-file FILE        Load environment from specific file
 
 Environment Variables:
-  PORT                        Server port (default: 3001)
-  HOST                        Server hostname (default: 0.0.0.0)
+  PORT                        Server port (default: ${DEFAULT_PORT})
+  HOST                        Server hostname (default: ${DEFAULT_HOST})
   DASHBOARD_API_KEY           API key for dashboard access (required)
   DATABASE_URL                PostgreSQL connection string (required)
   PROXY_API_URL               URL of the proxy service for real-time updates (optional)
@@ -126,8 +132,8 @@ if (args.includes('-h') || args.includes('--help')) {
 }
 
 // Parse command line options
-let port = parseInt(process.env.PORT || '3001', 10)
-let hostname = process.env.HOST || '0.0.0.0'
+let port = parseInt(process.env.PORT || String(DEFAULT_PORT), 10)
+let hostname = process.env.HOST || DEFAULT_HOST
 
 const portIndex = args.findIndex(arg => arg === '-p' || arg === '--port')
 if (portIndex !== -1 && args[portIndex + 1]) {
@@ -173,7 +179,7 @@ async function main() {
     const app = await createDashboardApp()
 
     // Start the server
-    const server = serve({
+    serve({
       port: port,
       hostname: hostname,
       fetch: app.fetch,
@@ -201,34 +207,20 @@ async function main() {
         console.log('\nNetwork interfaces:')
         addresses.forEach(addr => console.log(`  ${addr}`))
       }
-    } catch {
-      // Ignore if we can't get network interfaces
+    } catch (error) {
+      // Log the error instead of silently ignoring it
+      console.warn('Could not determine network interfaces:', error)
     }
 
     console.log('\nPress Ctrl+C to stop the server')
 
-    // Handle graceful shutdown
-    const _shutdown = async (signal: string) => {
-      console.log(`\n${signal} received, shutting down gracefully...`)
-
-      // Close server
-      server.close(() => {
-        console.log('Server closed')
-      })
-
-      // Clean up container resources
-      await container.cleanup()
-
-      process.exit(0)
-    }
-
-    // Signal handlers - commented out due to bundling issues
-    // TODO: Fix process.on not working after bundling
-    // process.on('SIGINT', () => shutdown('SIGINT'))
-    // process.on('SIGTERM', () => shutdown('SIGTERM'))
-    // process.on('SIGQUIT', () => shutdown('SIGQUIT'))
-  } catch (error: any) {
-    console.error('❌ Failed to start server:', error.message)
+    // Note: Signal handlers (process.on) are not implemented here as they don't work
+    // reliably with Bun's bundling system. The process will exit immediately on signal.
+  } catch (error) {
+    console.error(
+      '❌ Failed to start server:',
+      error instanceof Error ? error.message : String(error)
+    )
     process.exit(1)
   }
 }
