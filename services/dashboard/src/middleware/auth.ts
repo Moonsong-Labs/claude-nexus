@@ -1,5 +1,6 @@
 import { Context, Next } from 'hono'
 import { getCookie } from 'hono/cookie'
+import { AUTH_COOKIE_NAME } from '../constants/auth.js'
 
 /**
  * Dashboard authentication middleware
@@ -31,7 +32,7 @@ export const dashboardAuth = async (c: Context, next: Next) => {
   }
 
   // Check cookie authentication
-  const authCookie = getCookie(c, 'dashboard_auth')
+  const authCookie = getCookie(c, AUTH_COOKIE_NAME)
   if (authCookie === dashboardKey) {
     return next()
   }
