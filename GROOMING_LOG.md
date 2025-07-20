@@ -683,3 +683,54 @@ This aligns with the project's goal of removing dead/unused code and maintaining
 - Plan aligns with industry best practices for code quality
 
 This refactoring improves code quality while maintaining full functionality and test coverage.
+
+# Grooming Log
+
+## 2025-01-20: conversation.ts Refactoring
+
+### File: `services/dashboard/src/types/conversation.ts`
+
+#### Changes Made:
+
+1. **Removed unused `ApiRequest` interface**
+   - This type was not imported by any file in the dashboard
+   - `storage/reader.ts` defines its own `ApiRequest` and is marked for removal in Phase 3
+   - Removing reduces duplication and confusion
+
+2. **Improved type safety**
+   - Replaced `any` types with more specific types:
+     - `error?: string  < /dev/null |  null` (was `any`)
+     - `body?: ClaudeMessagesRequest` (was `any`)
+     - `last_message?: ClaudeMessage` (was `any`)
+     - `response_body?: ClaudeMessagesResponse` (was `any`)
+     - `task_tool_invocation?: unknown[]` (was `any`)
+   - Imported proper types from `@claude-nexus/shared` package
+
+3. **Added comprehensive JSDoc documentation**
+   - Added file-level documentation explaining the purpose and naming conventions
+   - Documented every interface with its purpose
+   - Documented every property with clear descriptions
+   - Explained the snake_case naming convention (matches database schema)
+
+4. **Maintained backward compatibility**
+   - No breaking changes to existing interfaces
+   - Properties remain optional where they were before
+   - Snake_case naming preserved to match database schema
+
+#### Rationale:
+
+This grooming was done as part of the production readiness sprint. The goal was to improve code quality without disrupting the 8+ files that depend on these types. A pragmatic approach was taken based on AI recommendations:
+
+- Gemini suggested creating a larger refactor to consolidate types into shared packages
+- O3 recommended a surgical approach for immediate improvements
+- The surgical approach was chosen to minimize risk while still improving quality
+
+#### Future Work:
+
+A larger refactoring effort to consolidate duplicate types (like `ConversationSummary` in `api-client.types.ts`) should be scheduled for a future sprint after Phase 3 when `storage/reader.ts` is removed.
+
+#### Testing:
+
+- TypeScript compilation passes (`bun run build` succeeds)
+- No new type errors introduced (existing errors are unrelated to these changes)
+- All consuming files continue to work correctly
