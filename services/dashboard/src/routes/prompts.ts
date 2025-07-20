@@ -7,6 +7,17 @@ import { html } from 'hono/html'
 import { layout } from '../layout/index.js'
 import { ProxyApiClient } from '../services/api-client.js'
 import { csrfProtection } from '../middleware/csrf.js'
+import { escapeHtml } from '../utils/html.js'
+import { promptsStyles } from '../styles/prompts.js'
+import { promptsSyncScript } from '../scripts/prompts-sync.js'
+import type {
+  McpPrompt,
+  McpPromptsResponse,
+  McpSyncStatus,
+  PROMPTS_PAGE_SIZE,
+} from '../types/mcp-prompts.js'
+
+const PAGE_SIZE: typeof PROMPTS_PAGE_SIZE = 20
 
 const promptsRoute = new Hono<{
   Variables: {
@@ -40,16 +51,17 @@ promptsRoute.get('/', async c => {
 
   try {
     // Fetch prompts
-    const { prompts, total } = await apiClient.get<{ prompts: any[]; total: number }>(
-      `/api/mcp/prompts?page=${page}&limit=20${search ? `&search=${encodeURIComponent(search)}` : ''}${domain ? `&domain=${domain}` : ''}`
+    const { prompts, total } = await apiClient.get<McpPromptsResponse>(
+      `/api/mcp/prompts?page=${page}&limit=${PAGE_SIZE}${search ? `&search=${encodeURIComponent(search)}` : ''}${domain ? `&domain=${domain}` : ''}`
     )
 
     // Fetch sync status
-    let syncStatus = null
+    let syncStatus: McpSyncStatus | null = null
     try {
-      syncStatus = await apiClient.get<any>('/api/mcp/sync/status')
-    } catch (_error) {
-      // Sync status fetch failed, continue without it
+      syncStatus = await apiClient.get<McpSyncStatus>('/api/mcp/sync/status')
+    } catch (error) {
+      // Log error but continue without sync status
+      console.error('Failed to fetch sync status:', error)
     }
 
     const content = html`
@@ -76,7 +88,9 @@ promptsRoute.get('/', async c => {
                       `
                     : ''}
                   ${syncStatus.last_error
-                    ? html` <span class="error-message">${syncStatus.last_error}</span> `
+                    ? html`
+                        <span class="error-message">${escapeHtml(syncStatus.last_error)}</span>
+                      `
                     : ''}
                 </div>
                 <button
@@ -88,6 +102,11 @@ promptsRoute.get('/', async c => {
                   ${syncStatus.sync_status === 'syncing' ? 'Syncing...' : 'Sync Now'}
                 </button>
               </div>
+              <div
+                id="sync-error"
+                class="error-message"
+                style="display: none; margin-top: 1rem;"
+              ></div>
             `
           : ''}
 
@@ -98,7 +117,7 @@ promptsRoute.get('/', async c => {
               type="text"
               name="search"
               placeholder="Search prompts..."
-              value="${search || ''}"
+              value="${escapeHtml(search || '')}"
               class="search-input"
             />
             <button type="submit" class="btn btn-secondary">Search</button>
@@ -109,17 +128,19 @@ promptsRoute.get('/', async c => {
         <div class="prompts-grid">
           ${prompts.length > 0
             ? prompts.map(
-                (prompt: any) => html`
+                (prompt: McpPrompt) => html`
                   <div class="prompt-card">
-                    <h3 class="prompt-name">${prompt.name}</h3>
+                    <h3 class="prompt-name">${escapeHtml(prompt.name)}</h3>
                     ${prompt.description
-                      ? html` <p class="prompt-description">${prompt.description}</p> `
+                      ? html` <p class="prompt-description">${escapeHtml(prompt.description)}</p> `
                       : ''}
                     <div class="prompt-meta">
-                      <span class="prompt-id">${prompt.promptId}</span>
+                      <span class="prompt-id">${escapeHtml(prompt.promptId)}</span>
                     </div>
                     <div class="prompt-actions">
-                      <a href="/dashboard/prompts/${prompt.promptId}" class="btn btn-small"
+                      <a
+                        href="/dashboard/prompts/${encodeURIComponent(prompt.promptId)}"
+                        class="btn btn-small"
                         >View Details</a
                       >
                     </div>
@@ -139,23 +160,27 @@ promptsRoute.get('/', async c => {
         </div>
 
         <!-- Pagination -->
-        ${total > 20
+        ${total > PAGE_SIZE
           ? html`
               <div class="pagination">
                 ${page > 1
                   ? html`
                       <a
-                        href="?page=${page - 1}${search ? `&search=${search}` : ''}"
+                        href="?page=${page - 1}${search
+                          ? `&search=${encodeURIComponent(search)}`
+                          : ''}"
                         class="btn btn-secondary"
                         >Previous</a
                       >
                     `
                   : ''}
-                <span>Page ${page} of ${Math.ceil(total / 20)}</span>
-                ${page < Math.ceil(total / 20)
+                <span>Page ${page} of ${Math.ceil(total / PAGE_SIZE)}</span>
+                ${page < Math.ceil(total / PAGE_SIZE)
                   ? html`
                       <a
-                        href="?page=${page + 1}${search ? `&search=${search}` : ''}"
+                        href="?page=${page + 1}${search
+                          ? `&search=${encodeURIComponent(search)}`
+                          : ''}"
                         class="btn btn-secondary"
                         >Next</a
                       >
@@ -167,247 +192,11 @@ promptsRoute.get('/', async c => {
       </div>
 
       <style>
-        .header-section {
-          margin-bottom: 2rem;
-        }
-
-        .subtitle {
-          color: #6b7280;
-          margin-top: 0.5rem;
-        }
-
-        .sync-status {
-          background-color: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 0.5rem;
-          padding: 1.5rem;
-          margin-bottom: 1.5rem;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .sync-status.error {
-          background-color: #fee2e2;
-        }
-
-        .sync-status.syncing {
-          background-color: #dbeafe;
-        }
-
-        .sync-status.success {
-          background-color: #d1fae5;
-        }
-
-        .sync-info {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-
-        .status-label {
-          font-weight: 600;
-        }
-
-        .status-value {
-          text-transform: capitalize;
-        }
-
-        .status-value.error {
-          color: #dc2626;
-        }
-
-        .status-value.syncing {
-          color: #2563eb;
-        }
-
-        .status-value.success {
-          color: #059669;
-        }
-
-        .sync-time {
-          color: #6b7280;
-          font-size: 0.875rem;
-        }
-
-        .error-message {
-          color: #dc2626;
-          font-size: 0.875rem;
-        }
-
-        .search-container {
-          background-color: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 0.5rem;
-          padding: 1.5rem;
-          margin-bottom: 1.5rem;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .search-form {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          max-width: 400px;
-        }
-
-        .search-input {
-          padding: 0.5rem 1rem;
-          border: 1px solid #d1d5db;
-          border-radius: 0.375rem;
-          flex: 1;
-          min-width: 200px;
-        }
-
-        .prompts-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-          gap: 1.5rem;
-          margin-bottom: 2rem;
-        }
-
-        .prompt-card {
-          background-color: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 0.5rem;
-          padding: 1.5rem;
-          transition: box-shadow 0.2s;
-        }
-
-        .prompt-card:hover {
-          box-shadow:
-            0 4px 6px -1px rgba(0, 0, 0, 0.1),
-            0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .prompt-name {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin: 0 0 0.5rem 0;
-          color: #1f2937;
-        }
-
-        .prompt-description {
-          color: #6b7280;
-          margin: 0.5rem 0;
-          line-height: 1.5;
-        }
-
-        .prompt-meta {
-          display: flex;
-          gap: 1rem;
-          margin: 1rem 0;
-          font-size: 0.875rem;
-          color: #6b7280;
-        }
-
-        .prompt-id {
-          font-family: monospace;
-          background-color: #f3f4f6;
-          padding: 0.125rem 0.5rem;
-          border-radius: 0.25rem;
-        }
-
-        .prompt-args {
-          background-color: #dbeafe;
-          color: #1e40af;
-          padding: 0.125rem 0.5rem;
-          border-radius: 0.25rem;
-        }
-
-        .prompt-actions {
-          margin-top: 1rem;
-        }
-
-        .btn {
-          display: inline-block;
-          padding: 0.5rem 1rem;
-          border-radius: 0.375rem;
-          text-decoration: none;
-          transition: background-color 0.2s;
-          cursor: pointer;
-          border: none;
-        }
-
-        .btn-primary {
-          background-color: #3b82f6;
-          color: white;
-        }
-
-        .btn-primary:hover {
-          background-color: #2563eb;
-        }
-
-        .btn-primary:disabled {
-          background-color: #9ca3af;
-          cursor: not-allowed;
-        }
-
-        .btn-secondary {
-          background-color: #6b7280;
-          color: white;
-        }
-
-        .btn-secondary:hover {
-          background-color: #4b5563;
-        }
-
-        .btn-small {
-          padding: 0.25rem 0.75rem;
-          font-size: 0.875rem;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 3rem;
-          color: #6b7280;
-        }
-
-        .pagination {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 1rem;
-          margin-top: 2rem;
-        }
+        ${promptsStyles}
       </style>
 
       <script>
-        async function triggerSync() {
-          const button = document.getElementById('sync-button')
-          button.disabled = true
-          button.textContent = 'Syncing...'
-
-          try {
-            // Get CSRF token from meta tag
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
-
-            const response = await fetch('/dashboard/api/mcp/sync', {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: {
-                'X-CSRF-Token': csrfToken || '',
-              },
-            })
-
-            if (response.ok) {
-              // Reload page after a short delay to show updated status
-              setTimeout(() => {
-                window.location.reload()
-              }, 1000)
-            } else {
-              const error = await response.json()
-              alert('Sync failed: ' + (error.error || 'Unknown error'))
-              button.disabled = false
-              button.textContent = 'Sync Now'
-            }
-          } catch (error) {
-            alert('Sync failed: ' + error.message)
-            button.disabled = false
-            button.textContent = 'Sync Now'
-          }
-        }
+        ${promptsSyncScript}
       </script>
     `
 
@@ -420,7 +209,7 @@ promptsRoute.get('/', async c => {
         html`
           <div class="error-container">
             <h2>Error Loading Prompts</h2>
-            <p>${error instanceof Error ? error.message : 'Unknown error'}</p>
+            <p>${escapeHtml(error instanceof Error ? error.message : 'Unknown error')}</p>
             <a href="/dashboard" class="btn btn-primary">Back to Dashboard</a>
           </div>
         `,
