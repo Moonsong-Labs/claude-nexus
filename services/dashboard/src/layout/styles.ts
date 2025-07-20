@@ -1237,4 +1237,35 @@ export const dashboardStyles = `
     background: transparent !important;
     color: var(--code-text) !important;
   }
+
+  /* Refactored requests page styles */
+  .ml-2 {
+    margin-left: 0.5rem;
+  }
+
+  .refresh-btn {
+    float: right;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+  }
+
+  select {
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  select:hover {
+    border-color: var(--btn-primary-bg);
+  }
+
+  select:focus {
+    outline: none;
+    border-color: var(--btn-primary-bg);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
 `

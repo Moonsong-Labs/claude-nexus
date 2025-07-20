@@ -2,7 +2,7 @@ import { logger } from '../middleware/logger.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 import { HttpError } from '../errors/HttpError.js'
 
-interface StatsResponse {
+export interface StatsResponse {
   totalRequests: number
   totalTokens: number
   totalInputTokens: number
@@ -14,7 +14,7 @@ interface StatsResponse {
   requestsByType: Record<string, number>
 }
 
-interface RequestSummary {
+export interface RequestSummary {
   requestId: string
   domain: string
   model: string
@@ -29,7 +29,7 @@ interface RequestSummary {
   conversationId?: string
 }
 
-interface RequestsResponse {
+export interface RequestsResponse {
   requests: RequestSummary[]
   pagination: {
     total: number
@@ -39,7 +39,7 @@ interface RequestsResponse {
   }
 }
 
-interface RequestDetails extends RequestSummary {
+export interface RequestDetails extends RequestSummary {
   requestBody: unknown
   responseBody: unknown
   streamingChunks: Array<{
@@ -59,7 +59,7 @@ interface RequestDetails extends RequestSummary {
   streaming?: boolean
 }
 
-interface DomainsResponse {
+export interface DomainsResponse {
   domains: Array<{
     domain: string
     requestCount: number
