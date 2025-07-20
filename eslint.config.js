@@ -13,7 +13,6 @@ export default tseslint.config(
       'docker/**',
       'test-*.js',
       'test-*.mjs',
-      '**/preload.js',
       '**/tests/**',
     ],
   },

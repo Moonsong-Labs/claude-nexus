@@ -32,6 +32,17 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Deleted services/dashboard/preload.js**: Removed dead code file
+  - File was a CommonJS script for loading .env files before ES modules
+  - Not used anywhere in the codebase (no imports or references)
+  - Dashboard's main.ts already contains comprehensive environment loading logic
+  - Project has migrated to ES modules (package.json has "type": "module")
+  - Was listed in eslint ignore patterns as legacy file
+  - Validated deletion with Gemini-2.5-flash and O3-mini (both confirmed removal)
+  - Removed reference from eslint.config.js ignore list
+  - Dashboard starts successfully without the file
+  - Rationale: Dead code elimination following clean code principles
+
 - **Deleted services/dashboard/src/types/storage-service.ts**: Removed unused interface file
   - File contained `StorageServiceEnhancements` interface that was never used in codebase
   - `getConversationById` method already implemented in storage reader
