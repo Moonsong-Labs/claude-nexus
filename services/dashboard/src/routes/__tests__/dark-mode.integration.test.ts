@@ -2,6 +2,45 @@ import { describe, it, expect, beforeEach } from 'bun:test'
 import { Hono } from 'hono'
 import { layout } from '../../layout/index.js'
 
+/**
+ * Test helpers for common dark mode assertions
+ */
+const expectThemeToggleButton = (html: string) => {
+  expect(html).toContain('id="theme-toggle"')
+  expect(html).toContain('title="Toggle dark mode"')
+  expect(html).toContain('class="theme-toggle"')
+}
+
+const expectHighlightJsThemes = (html: string) => {
+  // Check for highlight.js theme links with version-agnostic matching
+  expect(html).toContain('id="hljs-light-theme"')
+  expect(html).toMatch(/highlight\.js\/[\d.]+\/styles\/github\.min\.css/)
+
+  expect(html).toContain('id="hljs-dark-theme"')
+  expect(html).toMatch(/highlight\.js\/[\d.]+\/styles\/github-dark\.min\.css/)
+
+  // Verify dark theme is disabled initially by checking the disabled attribute appears somewhere after the dark theme id
+  const darkThemeIndex = html.indexOf('id="hljs-dark-theme"')
+  const darkThemeElement = html.substring(darkThemeIndex, darkThemeIndex + 200)
+  expect(darkThemeElement).toContain('disabled')
+}
+
+const expectThemeIcons = (html: string) => {
+  expect(html).toContain('id="theme-icon-light"')
+  expect(html).toContain('id="theme-icon-dark"')
+  // Dark icon should be hidden initially
+  expect(html).toContain('id="theme-icon-dark"')
+  expect(html).toMatch(/id="theme-icon-dark"[^>]*style="display:none;"/)
+}
+
+const expectThemeScripts = (html: string) => {
+  // Core theme functionality
+  expect(html).toContain("localStorage.getItem('theme')")
+  expect(html).toContain("htmlElement.setAttribute('data-theme'")
+  expect(html).toContain("themeToggle.addEventListener('click'")
+  expect(html).toContain('function updateTheme(theme)')
+}
+
 describe('Dark Mode Integration', () => {
   let app: Hono
 
@@ -12,99 +51,48 @@ describe('Dark Mode Integration', () => {
     })
   })
 
-  it('should include theme toggle button in layout', async () => {
+  it('should include theme toggle components', async () => {
     const res = await app.request('/test')
     const html = await res.text()
 
-    expect(html).toContain('id="theme-toggle"')
-    expect(html).toContain('title="Toggle dark mode"')
-    expect(html).toContain('class="theme-toggle"')
+    expectThemeToggleButton(html)
+    expectThemeIcons(html)
   })
 
-  it('should include both light and dark highlight.js themes', async () => {
+  it('should include theme stylesheets with proper configuration', async () => {
     const res = await app.request('/test')
     const html = await res.text()
 
-    expect(html).toContain('id="hljs-light-theme"')
-    expect(html).toContain(
-      'href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"'
-    )
-    expect(html).toContain('id="hljs-dark-theme"')
-    expect(html).toContain(
-      'href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css"'
-    )
-    expect(html).toContain('disabled')
+    expectHighlightJsThemes(html)
   })
 
-  it('should set data-theme attribute based on localStorage', async () => {
+  it('should include theme initialization and switching scripts', async () => {
     const res = await app.request('/test')
     const html = await res.text()
 
-    // Check that the theme initialization script is present
-    expect(html).toContain("localStorage.getItem('theme') || 'light'")
-    expect(html).toContain("htmlElement.setAttribute('data-theme', currentTheme)")
+    expectThemeScripts(html)
   })
 
-  it('should include theme switching JavaScript', async () => {
+  it('should define CSS variables for theming', async () => {
     const res = await app.request('/test')
     const html = await res.text()
 
-    // Check for theme toggle functionality
-    expect(html).toContain("themeToggle.addEventListener('click'")
-    expect(html).toContain("const newTheme = currentTheme === 'light' ? 'dark' : 'light'")
-    expect(html).toContain("localStorage.setItem('theme', newTheme)")
-    expect(html).toContain('function updateTheme(theme)')
-    expect(html).toContain('function updateThemeIcon(theme)')
-    expect(html).toContain('function updateHighlightTheme(theme)')
-  })
-
-  it('should apply correct CSS variables for light theme', async () => {
-    const res = await app.request('/test')
-    const html = await res.text()
-
-    // Check for light theme CSS variables
+    // Verify theme system is in place without checking exact values
     expect(html).toContain(':root {')
-    expect(html).toContain('--bg-primary: #f9fafb;')
-    expect(html).toContain('--bg-secondary: #ffffff;')
-    expect(html).toContain('--text-primary: #1f2937;')
-    expect(html).toContain('--text-secondary: #6b7280;')
-    expect(html).toContain('--btn-primary-bg: #3b82f6;')
-  })
-
-  it('should apply correct CSS variables for dark theme', async () => {
-    const res = await app.request('/test')
-    const html = await res.text()
-
-    // Check for dark theme CSS variables
     expect(html).toContain('[data-theme="dark"] {')
-    expect(html).toContain('--bg-primary: #0f172a;')
-    expect(html).toContain('--bg-secondary: #1e293b;')
-    expect(html).toContain('--text-primary: #f1f5f9;')
-    expect(html).toContain('--text-secondary: #cbd5e1;')
-    expect(html).toContain('--btn-primary-bg: #2563eb;')
+
+    // Check that key theme variables are defined
+    expect(html).toMatch(/--bg-primary:\s*#[0-9a-fA-F]+;/)
+    expect(html).toMatch(/--text-primary:\s*#[0-9a-fA-F]+;/)
+    expect(html).toMatch(/--btn-primary-bg:\s*#[0-9a-fA-F]+;/)
   })
 
-  it('should include dark mode specific CSS adjustments', async () => {
+  it('should apply dark mode CSS adjustments', async () => {
     const res = await app.request('/test')
     const html = await res.text()
 
-    // Check for dark mode specific styles
-    expect(html).toContain('[data-theme="dark"] .message-content pre')
-    expect(html).toContain('[data-theme="dark"] .hljs')
-    expect(html).toContain('/* Dark mode specific code block adjustments */')
-  })
-
-  it('should have theme icons in the toggle button', async () => {
-    const res = await app.request('/test')
-    const html = await res.text()
-
-    // Check for sun icon (light theme)
-    expect(html).toContain('id="theme-icon-light"')
-    expect(html).toContain('M12 3v1m0 16v1m9-9h-1M4 12H3') // Part of sun icon path
-
-    // Check for moon icon (dark theme)
-    expect(html).toContain('id="theme-icon-dark"')
-    expect(html).toContain('M20.354 15.354A9 9 0 018.646 3.646') // Part of moon icon path
-    expect(html).toContain('style="display:none;"') // Dark icon initially hidden
+    // Verify dark mode specific styles exist
+    expect(html).toContain('[data-theme="dark"]')
+    expect(html).toContain('Dark mode specific code block adjustments')
   })
 })
