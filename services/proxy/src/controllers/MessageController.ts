@@ -1,6 +1,6 @@
 import { Context } from 'hono'
 import { ProxyService } from '../services/ProxyService'
-import { RequestContext } from '../domain/value-objects/RequestContext'
+import { RequestContextFactory } from '../domain/factories/RequestContextFactory'
 import { getRequestLogger } from '../middleware/logger'
 import { ClaudeMessagesRequest, ClaudeMessage } from '../types/claude'
 import { HonoVariables, HonoBindings } from '@claude-nexus/shared'
@@ -15,9 +15,11 @@ export class MessageController {
   /**
    * Handle POST /v1/messages
    */
-  async handle(c: Context<{ Variables: HonoVariables; Bindings: HonoBindings }>): Promise<Response> {
+  async handle(
+    c: Context<{ Variables: HonoVariables; Bindings: HonoBindings }>
+  ): Promise<Response> {
     const logger = getRequestLogger(c)
-    const requestContext = RequestContext.fromHono(c)
+    const requestContext = RequestContextFactory.fromHono(c)
 
     // Get validated body from middleware
     const body: ClaudeMessagesRequest = c.get('validatedBody') || (await c.req.json())
@@ -33,13 +35,13 @@ export class MessageController {
     })
 
     // Delegate to service - errors bubble up to global handler
-    return await this.proxyService.handleRequest(body, requestContext)
+    return await this.proxyService.handleRequest(body, requestContext, c)
   }
 
   /**
    * Handle OPTIONS /v1/messages (CORS preflight)
    */
-  async handleOptions(c: Context): Promise<Response> {
+  async handleOptions(_c: Context): Promise<Response> {
     return new Response('', {
       status: 204,
       headers: {

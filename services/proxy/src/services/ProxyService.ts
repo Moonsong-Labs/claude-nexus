@@ -1,3 +1,4 @@
+import { Context } from 'hono'
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
@@ -29,7 +30,8 @@ export class ProxyService {
    */
   async handleRequest(
     rawRequest: ClaudeMessagesRequest,
-    context: RequestContext
+    context: RequestContext,
+    honoContext?: Context
   ): Promise<Response> {
     const log = {
       debug: (message: string, metadata?: Record<string, any>) => {
@@ -64,9 +66,9 @@ export class ProxyService {
 
     // Collect test sample if enabled
     let sampleId: string | undefined
-    if (context.honoContext) {
+    if (honoContext) {
       sampleId = await testSampleCollector.collectSample(
-        context.honoContext,
+        honoContext,
         rawRequest,
         request.requestType
       )

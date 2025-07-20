@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, mock } from 'bun:test'
 import { MetricsService } from '../src/services/MetricsService'
 import { ProxyRequest } from '../src/domain/entities/ProxyRequest'
 import { ProxyResponse } from '../src/domain/entities/ProxyResponse'
-import { RequestContext } from '../src/domain/value-objects/RequestContext'
+import { RequestContextFactory } from '../src/domain/factories/RequestContextFactory'
 import { StorageAdapter } from '../src/storage/StorageAdapter'
 
 describe('MetricsService', () => {
@@ -65,7 +65,7 @@ describe('MetricsService', () => {
         },
       })
 
-      const context = new RequestContext({
+      const context = RequestContextFactory.forTesting({
         method: 'POST',
         path: '/v1/messages',
         headers: {},
@@ -115,7 +115,7 @@ describe('MetricsService', () => {
         },
       })
 
-      const context = new RequestContext({
+      const context = RequestContextFactory.forTesting({
         method: 'POST',
         path: '/v1/messages',
         headers: {},
@@ -159,7 +159,7 @@ describe('MetricsService', () => {
         },
       })
 
-      const context = new RequestContext({
+      const context = RequestContextFactory.forTesting({
         method: 'POST',
         path: '/v1/messages',
         headers: {},
