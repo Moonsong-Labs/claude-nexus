@@ -9,8 +9,11 @@ import {
   type ConversationAnalysisJob,
 } from './db.js'
 import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
-import { getErrorMessage, getErrorStack } from '@claude-nexus/shared/utils/errors'
+import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared/utils/errors'
 import { logger } from '../../middleware/logger.js'
+
+// Constants
+const SHUTDOWN_TIMEOUT_MS = 30000 // 30 seconds
 
 export class AnalysisWorker {
   private geminiService: GeminiService
@@ -27,6 +30,24 @@ export class AnalysisWorker {
     this.pollInterval = AI_WORKER_CONFIG.POLL_INTERVAL_MS
     this.maxConcurrentJobs = AI_WORKER_CONFIG.MAX_CONCURRENT_JOBS
     this.jobTimeoutMinutes = AI_WORKER_CONFIG.JOB_TIMEOUT_MINUTES
+  }
+
+  private logWorkerError(error: unknown, context: string, jobId?: number) {
+    const errorInfo = {
+      message: getErrorMessage(error),
+      stack: getErrorStack(error),
+      code: getErrorCode(error),
+    }
+
+    const metadata: Record<string, any> = { worker: 'analysis-worker' }
+    if (jobId !== undefined) {
+      metadata.jobId = jobId
+    }
+
+    logger.error(context, {
+      error: errorInfo,
+      metadata,
+    })
   }
 
   start() {
@@ -58,7 +79,7 @@ export class AnalysisWorker {
       this.timer = null
     }
 
-    const timeout = 30000
+    const timeout = SHUTDOWN_TIMEOUT_MS
     const startTime = Date.now()
 
     if (this.activeJobs.length > 0) {
@@ -95,14 +116,7 @@ export class AnalysisWorker {
       await this.processPendingJobs()
       await this.handleStuckJobs()
     } catch (error) {
-      logger.error('Error in worker cycle', {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: error instanceof Error && 'code' in error ? (error as any).code : undefined,
-        },
-        metadata: { worker: 'analysis-worker' },
-      })
+      this.logWorkerError(error, 'Error in worker cycle')
     } finally {
       if (this.isRunning) {
         this.timer = setTimeout(() => this.runCycle(), this.pollInterval)
@@ -201,7 +215,7 @@ export class AnalysisWorker {
         analysis.content,
         analysis.data,
         analysis.rawResponse,
-        this.geminiService['modelName'] || 'gemini-2.0-flash-exp',
+        this.geminiService.modelName || 'gemini-2.0-flash-exp',
         analysis.promptTokens,
         analysis.completionTokens,
         processingDuration
@@ -218,18 +232,20 @@ export class AnalysisWorker {
       })
     } catch (error) {
       const processingDuration = Date.now() - startTime
+
+      // Log error with additional context
+      const metadata: Record<string, any> = { worker: 'analysis-worker' }
+      metadata.jobId = job.id
+      metadata.conversationId = job.conversation_id
+      metadata.durationMs = processingDuration
+
       logger.error(`Job ${job.id} failed`, {
         error: {
           message: getErrorMessage(error),
           stack: getErrorStack(error),
-          code: error instanceof Error && 'code' in error ? (error as any).code : undefined,
+          code: getErrorCode(error),
         },
-        metadata: {
-          worker: 'analysis-worker',
-          jobId: job.id,
-          conversationId: job.conversation_id,
-          durationMs: processingDuration,
-        },
+        metadata,
       })
 
       await failJob(job, error as Error)
@@ -276,14 +292,7 @@ export class AnalysisWorker {
         })
       }
     } catch (error) {
-      logger.error('Error handling stuck jobs', {
-        error: {
-          message: getErrorMessage(error),
-          stack: getErrorStack(error),
-          code: error instanceof Error && 'code' in error ? (error as any).code : undefined,
-        },
-        metadata: { worker: 'analysis-worker' },
-      })
+      this.logWorkerError(error, 'Error handling stuck jobs')
     }
   }
 }

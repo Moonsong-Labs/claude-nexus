@@ -30,7 +30,7 @@ export interface GeminiApiResponse {
 
 export class GeminiService {
   private apiKey: string
-  private modelName: string
+  private _modelName: string
   private baseUrl: string
 
   constructor() {
@@ -44,8 +44,12 @@ export class GeminiService {
       throw new Error('GEMINI_API_KEY appears to be invalid format')
     }
 
-    this.modelName = GEMINI_CONFIG.MODEL_NAME
+    this._modelName = GEMINI_CONFIG.MODEL_NAME
     this.baseUrl = GEMINI_CONFIG.API_URL
+  }
+
+  get modelName(): string {
+    return this._modelName
   }
 
   async analyzeConversation(
@@ -201,7 +205,7 @@ export class GeminiService {
   }
 
   private async callGeminiApi(contents: GeminiContent[]): Promise<GeminiApiResponse> {
-    const url = `${this.baseUrl}/${this.modelName}:generateContent`
+    const url = `${this.baseUrl}/${this._modelName}:generateContent`
 
     // Apply spotlighting technique to separate system instructions from user content
     const wrappedContents = this.applySpotlighting(contents)
