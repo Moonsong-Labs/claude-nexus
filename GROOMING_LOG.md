@@ -1,5 +1,50 @@
 # Grooming Log
 
+## 2025-01-20: Logger Middleware Refactoring
+
+### File: `services/dashboard/src/middleware/logger.ts`
+
+#### Action: REFACTORED
+
+#### Changes Made:
+
+1. **Improved environment consistency**:
+   - Replaced direct `NODE_ENV` check with project's `IS_PRODUCTION` constant
+   - Now supports both NODE_ENV and BUN_ENV for better runtime compatibility
+
+2. **Enhanced type safety**:
+   - Added public `getLevel()` method to avoid private property access via bracket notation
+   - Fixed type safety issue in line 190 where private config was accessed improperly
+
+3. **Improved error handling**:
+   - Refactored `getRequestLogger().error()` method to better handle optional Error parameter
+   - Now supports both signatures: (message, error, metadata) and (message, metadata)
+
+4. **Added comprehensive documentation**:
+   - Added JSDoc comments to all public methods and interfaces
+   - Documented middleware purpose and behavior
+   - Added parameter descriptions for better IDE support
+
+#### Rationale:
+
+1. **Consistency**: Using project standards (IS_PRODUCTION) improves codebase cohesion
+2. **Type safety**: Proper access patterns prevent TypeScript bypass and runtime errors
+3. **Developer experience**: Better documentation and flexible error handling
+4. **Future migration**: Changes are minimal to ease eventual migration to shared logger
+
+#### Impact:
+
+- **Functionality**: No breaking changes, all existing code continues to work
+- **Type safety**: Improved compile-time checking and IDE support
+- **Maintainability**: Better documentation for future developers
+- **Performance**: No performance impact
+
+#### Notes:
+
+- Deferred migration to shared logger module per project guidance to keep changes focused
+- The shared logger module has a TODO comment specifically for consolidating proxy/dashboard loggers
+- Future work should consider unifying logger implementations to reduce duplication
+
 ## 2025-01-20: CSRF Middleware Refactoring
 
 ### File: `services/dashboard/src/middleware/csrf.ts`

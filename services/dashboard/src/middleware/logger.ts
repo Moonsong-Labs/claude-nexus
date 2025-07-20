@@ -1,7 +1,10 @@
 import { Context, Next } from 'hono'
 import { getErrorMessage, getErrorStack, getErrorCode } from '@claude-nexus/shared'
+import { IS_PRODUCTION } from '../constants/auth.js'
 
-// Log levels
+/**
+ * Log levels for the application logger
+ */
 export enum LogLevel {
   DEBUG = 'debug',
   INFO = 'info',
@@ -9,7 +12,9 @@ export enum LogLevel {
   ERROR = 'error',
 }
 
-// Structured log entry
+/**
+ * Structured log entry with all possible fields
+ */
 interface LogEntry {
   timestamp: string
   level: LogLevel
@@ -27,25 +32,33 @@ interface LogEntry {
   params?: Record<string, unknown>
 }
 
-// Logger configuration
+/**
+ * Logger configuration options
+ */
 interface LoggerConfig {
   level: LogLevel
   prettyPrint: boolean
   maskSensitiveData: boolean
 }
 
+/**
+ * Logger class for structured logging with sensitive data masking
+ */
 class Logger {
   private config: LoggerConfig
 
   constructor(config: Partial<LoggerConfig> = {}) {
     this.config = {
       level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
-      prettyPrint: process.env.NODE_ENV !== 'production',
+      prettyPrint: !IS_PRODUCTION,
       maskSensitiveData: true,
       ...config,
     }
   }
 
+  /**
+   * Check if a message at the given level should be logged
+   */
   private shouldLog(level: LogLevel): boolean {
     const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR]
     const currentLevelIndex = levels.indexOf(this.config.level)
@@ -53,6 +66,9 @@ class Logger {
     return messageLevelIndex >= currentLevelIndex
   }
 
+  /**
+   * Mask sensitive data in log entries
+   */
   private maskSensitive(obj: unknown): unknown {
     if (!this.config.maskSensitiveData) {
       return obj
@@ -100,6 +116,9 @@ class Logger {
     return obj
   }
 
+  /**
+   * Format log entry for output
+   */
   private formatLog(entry: LogEntry): string {
     const masked = this.maskSensitive(entry) as LogEntry
 
@@ -116,6 +135,16 @@ class Logger {
     return JSON.stringify(masked)
   }
 
+  /**
+   * Get the current log level
+   */
+  getLevel(): LogLevel {
+    return this.config.level
+  }
+
+  /**
+   * Log a message at the specified level
+   */
   log(level: LogLevel, message: string, context: Partial<LogEntry> = {}) {
     if (!this.shouldLog(level)) {
       return
@@ -162,10 +191,15 @@ class Logger {
   }
 }
 
-// Global logger instance
+/**
+ * Global logger instance for the dashboard service
+ */
 export const logger = new Logger()
 
-// Logging middleware
+/**
+ * Express/Hono middleware for request/response logging
+ * Automatically logs incoming requests and their responses with timing information
+ */
 export function loggingMiddleware() {
   return async (c: Context, next: Next) => {
     // Get request ID from context (set by request-id middleware)
@@ -187,7 +221,7 @@ export function loggingMiddleware() {
       metadata: {
         userAgent,
         ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
-        headers: logger['config'].level === LogLevel.DEBUG ? c.req.header() : undefined,
+        headers: logger.getLevel() === LogLevel.DEBUG ? c.req.header() : undefined,
       },
     })
 
@@ -229,7 +263,13 @@ export function loggingMiddleware() {
   }
 }
 
-// Helper to get logger with request context
+/**
+ * Get a logger instance with request-specific context
+ * Automatically includes requestId and domain in all log entries
+ *
+ * @param c - Hono context object
+ * @returns Logger methods with request context
+ */
 export function getRequestLogger(c: Context): {
   debug: (message: string, metadata?: Record<string, unknown>) => void
   info: (message: string, metadata?: Record<string, unknown>) => void
@@ -249,18 +289,26 @@ export function getRequestLogger(c: Context): {
     warn: (message: string, metadata?: Record<string, unknown>) => {
       logger.warn(message, { requestId, domain, metadata })
     },
-    error: (message: string, error?: Error, metadata?: Record<string, unknown>) => {
+    error: (
+      message: string,
+      errorOrMetadata?: Error | Record<string, unknown>,
+      metadata?: Record<string, unknown>
+    ) => {
+      const isError = errorOrMetadata instanceof Error
+      const actualError = isError ? errorOrMetadata : undefined
+      const actualMetadata = isError ? metadata : errorOrMetadata
+
       logger.error(message, {
         requestId,
         domain,
-        error: error
+        error: actualError
           ? {
-              message: error.message,
-              stack: error.stack,
-              code: getErrorCode(error),
+              message: actualError.message,
+              stack: actualError.stack,
+              code: getErrorCode(actualError),
             }
           : undefined,
-        metadata,
+        metadata: actualMetadata,
       })
     },
   }
