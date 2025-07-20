@@ -1,24 +1,39 @@
 import { UpstreamError, TimeoutError } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 
-// Circuit breaker states
+/**
+ * Circuit breaker states following the circuit breaker pattern
+ */
 enum CircuitState {
-  CLOSED = 'CLOSED', // Normal operation
-  OPEN = 'OPEN', // Failing, reject all requests
-  HALF_OPEN = 'HALF_OPEN', // Testing if service recovered
+  /** Normal operation - requests pass through */
+  CLOSED = 'CLOSED',
+  /** Failing state - all requests are rejected */
+  OPEN = 'OPEN',
+  /** Testing state - limited requests allowed to test recovery */
+  HALF_OPEN = 'HALF_OPEN',
 }
 
-// Circuit breaker configuration
+/**
+ * Configuration options for the circuit breaker
+ */
 interface CircuitBreakerConfig {
-  failureThreshold: number // Number of failures to open circuit
-  successThreshold: number // Number of successes to close circuit
-  timeout: number // Time to wait before half-open (ms)
-  volumeThreshold: number // Minimum requests before opening
-  errorThresholdPercentage: number // Error percentage to open
-  rollingWindowSize: number // Time window for stats (ms)
+  /** Number of consecutive failures to open circuit */
+  failureThreshold: number
+  /** Number of consecutive successes to close circuit from half-open */
+  successThreshold: number
+  /** Time to wait before transitioning from open to half-open (ms) */
+  timeout: number
+  /** Minimum requests in window before circuit can open */
+  volumeThreshold: number
+  /** Error percentage threshold to open circuit */
+  errorThresholdPercentage: number
+  /** Time window for calculating error rate (ms) */
+  rollingWindowSize: number
 }
 
-// Request outcome
+/**
+ * Represents the outcome of a request through the circuit breaker
+ */
 interface RequestOutcome {
   success: boolean
   timestamp: number
@@ -26,6 +41,19 @@ interface RequestOutcome {
   error?: Error
 }
 
+/**
+ * Circuit breaker implementation for protecting against cascading failures
+ *
+ * @example
+ * ```typescript
+ * const breaker = new CircuitBreaker('api-service');
+ * try {
+ *   const result = await breaker.execute(() => apiCall());
+ * } catch (error) {
+ *   // Handle error or circuit open
+ * }
+ * ```
+ */
 export class CircuitBreaker {
   private state: CircuitState = CircuitState.CLOSED
   private failures: number = 0
@@ -34,18 +62,56 @@ export class CircuitBreaker {
   private nextAttempt: number = 0
   private outcomes: RequestOutcome[] = []
 
+  private static readonly DEFAULT_CONFIG: CircuitBreakerConfig = {
+    failureThreshold: 5,
+    successThreshold: 2,
+    timeout: 60000, // 1 minute
+    volumeThreshold: 10,
+    errorThresholdPercentage: 50,
+    rollingWindowSize: 60000, // 1 minute
+  }
+
   constructor(
     private name: string,
-    private config: CircuitBreakerConfig = {
-      failureThreshold: 5,
-      successThreshold: 2,
-      timeout: 60000, // 1 minute
-      volumeThreshold: 10,
-      errorThresholdPercentage: 50,
-      rollingWindowSize: 60000, // 1 minute
-    }
-  ) {}
+    config: Partial<CircuitBreakerConfig> = {}
+  ) {
+    this.config = this.validateConfig({ ...CircuitBreaker.DEFAULT_CONFIG, ...config })
+  }
 
+  private readonly config: CircuitBreakerConfig
+
+  /**
+   * Validates and returns a complete configuration
+   */
+  private validateConfig(config: CircuitBreakerConfig): CircuitBreakerConfig {
+    if (config.failureThreshold < 1) {
+      throw new Error('failureThreshold must be at least 1')
+    }
+    if (config.successThreshold < 1) {
+      throw new Error('successThreshold must be at least 1')
+    }
+    if (config.timeout < 0) {
+      throw new Error('timeout must be non-negative')
+    }
+    if (config.volumeThreshold < 0) {
+      throw new Error('volumeThreshold must be non-negative')
+    }
+    if (config.errorThresholdPercentage < 0 || config.errorThresholdPercentage > 100) {
+      throw new Error('errorThresholdPercentage must be between 0 and 100')
+    }
+    if (config.rollingWindowSize < 1) {
+      throw new Error('rollingWindowSize must be at least 1')
+    }
+    return config
+  }
+
+  /**
+   * Executes a function through the circuit breaker
+   * @param fn - The async function to execute
+   * @returns The result of the function
+   * @throws {UpstreamError} When circuit is open
+   * @throws The original error from the function
+   */
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     if (this.state === CircuitState.OPEN) {
       if (Date.now() < this.nextAttempt) {
@@ -78,6 +144,9 @@ export class CircuitBreaker {
     }
   }
 
+  /**
+   * Handles successful request completion
+   */
   private onSuccess(duration: number): void {
     this.recordOutcome({ success: true, timestamp: Date.now(), duration })
 
@@ -95,6 +164,9 @@ export class CircuitBreaker {
     }
   }
 
+  /**
+   * Handles failed request completion
+   */
   private onFailure(error: Error, duration: number): void {
     this.recordOutcome({
       success: false,
@@ -133,6 +205,9 @@ export class CircuitBreaker {
     }
   }
 
+  /**
+   * Determines if the circuit should transition to open state
+   */
   private shouldOpen(): boolean {
     // Not enough requests to make a decision
     if (this.getRecentOutcomes().length < this.config.volumeThreshold) {
@@ -153,6 +228,9 @@ export class CircuitBreaker {
     return false
   }
 
+  /**
+   * Records request outcome and maintains rolling window
+   */
   private recordOutcome(outcome: RequestOutcome): void {
     this.outcomes.push(outcome)
 
@@ -161,11 +239,17 @@ export class CircuitBreaker {
     this.outcomes = this.outcomes.filter(o => o.timestamp > cutoff)
   }
 
+  /**
+   * Gets outcomes within the rolling window
+   */
   private getRecentOutcomes(): RequestOutcome[] {
     const cutoff = Date.now() - this.config.rollingWindowSize
     return this.outcomes.filter(o => o.timestamp > cutoff)
   }
 
+  /**
+   * Calculates current error rate as a percentage
+   */
   private getErrorRate(): number {
     const recent = this.getRecentOutcomes()
     if (recent.length === 0) {
@@ -176,6 +260,9 @@ export class CircuitBreaker {
     return (errors / recent.length) * 100
   }
 
+  /**
+   * Gets recent error messages for debugging
+   */
   private getRecentErrors(): string[] {
     return this.getRecentOutcomes()
       .filter(o => !o.success && o.error)
@@ -183,6 +270,10 @@ export class CircuitBreaker {
       .map(o => o.error!.message)
   }
 
+  /**
+   * Gets the current status of the circuit breaker
+   * @returns Circuit breaker status information
+   */
   getStatus(): {
     state: CircuitState
     failures: number
@@ -199,7 +290,10 @@ export class CircuitBreaker {
     }
   }
 
-  // Force circuit to close (for testing or manual intervention)
+  /**
+   * Manually resets the circuit breaker to closed state
+   * Use with caution - intended for testing or manual intervention
+   */
   reset(): void {
     this.state = CircuitState.CLOSED
     this.failures = 0
@@ -209,21 +303,30 @@ export class CircuitBreaker {
   }
 }
 
-// Global circuit breakers
+/**
+ * Global registry of circuit breakers
+ */
 const circuitBreakers = new Map<string, CircuitBreaker>()
 
-// Get or create circuit breaker
+/**
+ * Gets or creates a circuit breaker instance
+ * @param name - Unique name for the circuit breaker
+ * @param config - Optional configuration overrides
+ * @returns Circuit breaker instance
+ */
 export function getCircuitBreaker(
   name: string,
   config?: Partial<CircuitBreakerConfig>
 ): CircuitBreaker {
   if (!circuitBreakers.has(name)) {
-    circuitBreakers.set(name, new CircuitBreaker(name, config as any))
+    circuitBreakers.set(name, new CircuitBreaker(name, config))
   }
   return circuitBreakers.get(name)!
 }
 
-// Circuit breaker for Claude API
+/**
+ * Pre-configured circuit breaker for Claude API calls
+ */
 export const claudeApiCircuitBreaker = getCircuitBreaker('claude-api', {
   failureThreshold: 5,
   successThreshold: 3,
@@ -233,22 +336,35 @@ export const claudeApiCircuitBreaker = getCircuitBreaker('claude-api', {
   rollingWindowSize: 60000, // 1 minute
 })
 
-// Helper to check if error should trip circuit
+/**
+ * Type guard to check if an error has a status code
+ */
+function hasStatusCode(error: unknown): error is Error & { statusCode: number } {
+  return (
+    error instanceof Error && 'statusCode' in error && typeof (error as any).statusCode === 'number'
+  )
+}
+
+/**
+ * Determines if an error should cause the circuit breaker to trip
+ * @param error - The error to check
+ * @returns true if the error should trip the circuit, false otherwise
+ */
 export function isCircuitBreakerError(error: Error): boolean {
-  // Don't trip on client errors
-  if (error instanceof Error && 'statusCode' in error) {
-    const statusCode = (error as any).statusCode
+  // Don't trip on client errors (4xx)
+  if (hasStatusCode(error)) {
+    const statusCode = error.statusCode
     if (statusCode >= 400 && statusCode < 500) {
       return false // Client error, don't trip circuit
     }
   }
 
-  // Trip on timeouts, network errors, 5xx errors
-  return (
-    error instanceof TimeoutError ||
-    error instanceof UpstreamError ||
-    error.message.includes('ECONNREFUSED') ||
-    error.message.includes('ETIMEDOUT') ||
-    error.message.includes('ENETUNREACH')
-  )
+  // Trip on timeouts and upstream errors
+  if (error instanceof TimeoutError || error instanceof UpstreamError) {
+    return true
+  }
+
+  // Trip on network errors
+  const networkErrors = ['ECONNREFUSED', 'ETIMEDOUT', 'ENETUNREACH']
+  return networkErrors.some(errType => error.message.includes(errType))
 }
