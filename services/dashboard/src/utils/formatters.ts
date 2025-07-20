@@ -2,31 +2,51 @@
  * Shared formatting utilities for the dashboard
  */
 
+// Constants for number formatting
+const MILLION = 1_000_000
+const THOUSAND = 1_000
+
+// Constants for time formatting
+const MS_PER_SECOND = 1_000
+const MS_PER_MINUTE = 60_000
+const MS_PER_HOUR = 3_600_000
+const MS_PER_DAY = 86_400_000
+
 /**
  * Format a number with K/M suffixes
+ * @example formatNumber(1500) // "1.5K"
+ * @example formatNumber(2500000) // "2.5M"
+ * @example formatNumber(999) // "999"
  */
 export function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
+  if (!num) {
+    return '0'
   }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
+  if (num >= MILLION) {
+    return `${(num / MILLION).toFixed(1)}M`
+  }
+  if (num >= THOUSAND) {
+    return `${(num / THOUSAND).toFixed(1)}K`
   }
   return num.toString()
 }
 
 /**
  * Format duration in human readable format
+ * @example formatDuration(5000) // "5s"
+ * @example formatDuration(125000) // "2m 5s"
+ * @example formatDuration(3725000) // "1h 2m"
+ * @example formatDuration(90725000) // "1d 1h"
  */
 export function formatDuration(ms: number): string {
   if (!ms || ms < 0) {
     return 'N/A'
   }
 
-  const seconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
+  const seconds = Math.floor(ms / MS_PER_SECOND)
+  const minutes = Math.floor(ms / MS_PER_MINUTE)
+  const hours = Math.floor(ms / MS_PER_HOUR)
+  const days = Math.floor(ms / MS_PER_DAY)
 
   if (days > 0) {
     return `${days}d ${hours % 24}h`
@@ -37,45 +57,31 @@ export function formatDuration(ms: number): string {
   if (minutes > 0) {
     return `${minutes}m ${seconds % 60}s`
   }
-  if (ms < 1000) {
+  if (ms < MS_PER_SECOND) {
     return `${ms}ms`
   }
   return `${seconds}s`
 }
 
 /**
- * Format timestamp for display
- */
-export function formatTimestamp(date: Date | string): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date
-
-  if (!dateObj || isNaN(dateObj.getTime())) {
-    return ''
-  }
-
-  const hours = dateObj.getHours().toString().padStart(2, '0')
-  const minutes = dateObj.getMinutes().toString().padStart(2, '0')
-  const seconds = dateObj.getSeconds().toString().padStart(2, '0')
-
-  return `${hours}:${minutes}:${seconds}`
-}
-
-/**
  * Format timestamp as relative time (e.g., "5m ago")
+ * @example formatRelativeTime(new Date(Date.now() - 5000)) // "Just now"
+ * @example formatRelativeTime(new Date(Date.now() - 300000)) // "5m ago"
+ * @example formatRelativeTime(new Date(Date.now() - 7200000)) // "2h ago"
  */
 export function formatRelativeTime(timestamp: string | Date): string {
   const date = new Date(timestamp)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
 
-  if (diff < 60000) {
+  if (diff < MS_PER_MINUTE) {
     return 'Just now'
   }
-  if (diff < 3600000) {
-    return `${Math.floor(diff / 60000)}m ago`
+  if (diff < MS_PER_HOUR) {
+    return `${Math.floor(diff / MS_PER_MINUTE)}m ago`
   }
-  if (diff < 86400000) {
-    return `${Math.floor(diff / 3600000)}h ago`
+  if (diff < MS_PER_DAY) {
+    return `${Math.floor(diff / MS_PER_HOUR)}h ago`
   }
 
   return date.toLocaleString()
@@ -83,6 +89,9 @@ export function formatRelativeTime(timestamp: string | Date): string {
 
 /**
  * Escape HTML to prevent XSS
+ * @example escapeHtml('<script>alert("XSS")</script>') // "&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;"
+ * @example escapeHtml("It's a test") // "It&#039;s a test"
+ * @example escapeHtml(null) // ""
  */
 export function escapeHtml(text: string | null | undefined): string {
   if (!text) {
@@ -99,6 +108,7 @@ export function escapeHtml(text: string | null | undefined): string {
 
 /**
  * Escape an array of strings for safe HTML rendering
+ * @example escapeHtmlArray(['<b>Bold</b>', 'Normal']) // ["&lt;b&gt;Bold&lt;/b&gt;", "Normal"]
  */
 export function escapeHtmlArray(items: readonly string[]): string[] {
   return items.map(item => escapeHtml(item))

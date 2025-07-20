@@ -32,6 +32,18 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Refactored services/dashboard/src/utils/formatters.ts**: Improved code quality and maintainability
+  - Removed unused `formatTimestamp` function that was not imported anywhere
+  - Extracted constants for magic numbers (MILLION, THOUSAND, MS_PER_SECOND, etc.)
+  - Added comprehensive JSDoc examples for all functions
+  - Consolidated duplicate `formatNumber` function from analytics.ts into shared utility
+  - Added null check to `formatNumber` to match removed duplicate's behavior
+  - Note: Did not consolidate `formatNumber` from chart-helpers.ts as it serves different purpose (locale formatting)
+  - Validated refactoring plan with Gemini-2.5-pro (9/10 confidence)
+  - All formatters tested and working correctly
+  - Build succeeds despite unrelated TypeScript errors in other files
+  - Rationale: Improves code maintainability, removes dead code, follows DRY principle
+
 - **Deleted services/dashboard/src/utils/html.ts**: Removed duplicate HTML escaping utilities
   - File contained `escapeHtml`, `escapeHtmlArray`, and `safeHtml` functions
   - `escapeHtml` was duplicated in `formatters.ts` with slightly different implementation

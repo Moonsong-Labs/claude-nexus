@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 import { ProxyApiClient } from '../../services/api-client.js'
 import { getErrorMessage } from '@claude-nexus/shared'
+import { formatNumber } from '../../utils/formatters.js'
 
 export const analyticsPartialRoutes = new Hono<{
   Variables: {
@@ -40,21 +41,6 @@ type AccountData = {
 }
 
 // Helper functions
-/**
- * Formats a number for display with K/M suffixes
- */
-function formatNumber(num: number): string {
-  if (!num) {
-    return '0'
-  }
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  }
-  return num.toString()
-}
 
 /**
  * Escapes HTML special characters to prevent XSS
