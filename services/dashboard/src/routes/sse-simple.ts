@@ -22,11 +22,32 @@ export async function handleSSE(c: Context) {
 
   const stream = new ReadableStream({
     start(controller) {
+      // Check connection limit
+      if (!connections.has(domain)) {
+        connections.set(domain, new Set())
+      }
+      const domainConnections = connections.get(domain)!
+      if (domainConnections.size >= MAX_CONNECTIONS_PER_DOMAIN) {
+        logger.warn('SSE connection limit reached', { domain, limit: MAX_CONNECTIONS_PER_DOMAIN })
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: 'error',
+              message: 'Connection limit reached',
+              timestamp: new Date().toISOString(),
+            })}\n\n`
+          )
+        )
+        controller.close()
+        return
+      }
+
       // Send initial connection message
       controller.enqueue(
         encoder.encode(
           `data: ${JSON.stringify({
             type: 'connected',
+            connectionId,
             timestamp: new Date().toISOString(),
           })}\n\n`
         )
@@ -36,15 +57,17 @@ export async function handleSSE(c: Context) {
       send = (data: string) => {
         try {
           controller.enqueue(encoder.encode(`data: ${data}\n\n`))
-        } catch (_e) {
-          // Connection closed
+        } catch (error) {
+          logger.debug('SSE write failed', { connectionId, error })
         }
       }
 
-      if (!connections.has(domain)) {
-        connections.set(domain, new Set())
-      }
-      connections.get(domain)!.add(send)
+      domainConnections.add(send)
+      logger.info('SSE connection established', {
+        connectionId,
+        domain,
+        activeConnections: domainConnections.size,
+      })
 
       // Heartbeat to keep connection alive
       intervalId = setInterval(() => {

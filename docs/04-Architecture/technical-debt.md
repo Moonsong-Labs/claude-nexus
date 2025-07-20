@@ -179,7 +179,43 @@ setInterval(() => {
 - Automated migration runner
 - Rollback capability
 
-### 8. API Response Caching
+### 8. Incomplete SSE Implementation
+
+**Location**: `services/dashboard/src/routes/sse.ts`, `services/dashboard/src/routes/sse-simple.ts`
+
+**Issue**: Server-Sent Events (SSE) implementation exists but is not integrated:
+
+- SSE handlers are implemented but not registered in app routes
+- Broadcast functions exist but are never called from the proxy service
+- Feature is documented in multiple places as providing "real-time updates"
+
+**Impact**:
+
+- Documentation promises a feature that doesn't work
+- Dashboard lacks real-time monitoring capabilities
+- User confusion and potential trust issues
+
+**Remediation**:
+
+1. Register SSE route in `app.ts`:
+
+   ```typescript
+   app.get('/sse', dashboardAuth, handleSSE)
+   ```
+
+2. Implement proxy-to-dashboard communication:
+   - Option A: Redis Pub/Sub for multi-instance support
+   - Option B: In-memory event bus for single-instance
+   - Option C: Message queue (RabbitMQ, etc.) for reliability
+
+3. Call broadcast functions from proxy service on relevant events:
+   - New requests
+   - Token usage updates
+   - Error events
+
+**Consensus**: Both Gemini-2.5-pro and O3-mini strongly recommend completing this feature (9/10 confidence) as it provides high user value and aligns with industry best practices for monitoring dashboards.
+
+### 9. API Response Caching
 
 **Location**: API routes
 
