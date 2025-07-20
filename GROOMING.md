@@ -39,6 +39,13 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
   - Documented in `docs/03-Operations/feature-ideas/message-range-selection.md`
   - Rationale: Removing dead code improves maintainability and reduces confusion
 
+- **services/dashboard/public/styles.css**: Removed obsolete CSS file and empty public directory
+  - Dashboard uses inline CSS from `src/layout/styles.ts`, not static CSS files
+  - Static file serving was explicitly removed per `app.ts` comment
+  - No references to this file found anywhere in the codebase
+  - Validated with Gemini-2.5-flash and O3-mini who confirmed deletion as best practice
+  - Rationale: Removing unused files reduces confusion and aligns with the dashboard's inline CSS architecture
+
 ### 2025-01-20
 
 - **services/proxy/tests/domain-extractor.test.ts**: Refactored domain extractor tests for improved maintainability and coverage
