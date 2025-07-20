@@ -1,12 +1,35 @@
-import { Context, Next } from 'hono'
-import { ValidationError } from '@claude-nexus/shared'
-import { validateClaudeRequest } from '@claude-nexus/shared/validators'
-import { getRequestLogger } from './logger'
-import { maskSensitiveData, truncateString } from '@claude-nexus/shared/utils/validation'
+/**
+ * @module validation
+ * @description Request validation middleware for the Claude API proxy.
+ * 
+ * This middleware performs minimal validation to protect the proxy infrastructure
+ * while delegating detailed business logic validation to the upstream Claude API.
+ */
 
-// Request size limits
-const MAX_REQUEST_SIZE = 10 * 1024 * 1024 // 10MB
-// Validation middleware
+import { Context, Next } from 'hono'
+import { ValidationError, config } from '@claude-nexus/shared'
+import { ClaudeMessagesRequestSchema } from '@claude-nexus/shared/validators'
+import { getRequestLogger } from './logger'
+
+/**
+ * Creates a validation middleware that validates requests to Claude API endpoints.
+ * 
+ * @returns {Function} Hono middleware function
+ * 
+ * @example
+ * ```typescript
+ * app.use('/v1/*', validationMiddleware())
+ * ```
+ * 
+ * @description
+ * This middleware performs the following validations:
+ * - Checks Content-Type is application/json
+ * - Validates request size doesn't exceed configured limit
+ * - Parses and validates JSON body
+ * - Performs minimal schema validation on Claude API requests
+ * 
+ * The validated and typed request body is attached to the context for downstream use.
+ */
 export function validationMiddleware() {
   return async (c: Context, next: Next) => {
     const path = c.req.path
@@ -20,15 +43,23 @@ export function validationMiddleware() {
     // Check Content-Type
     const contentType = c.req.header('content-type')
     if (!contentType?.includes('application/json')) {
-      logger.warn('Invalid content type', { contentType })
+      logger.warn('Invalid content type', { 
+        contentType,
+        metadata: { component: 'validationMiddleware', validationStep: 'contentType' }
+      })
       throw new ValidationError('Content-Type must be application/json')
     }
 
     // Check request size
     const contentLength = parseInt(c.req.header('content-length') || '0')
-    if (contentLength > MAX_REQUEST_SIZE) {
-      logger.warn('Request too large', { contentLength, limit: MAX_REQUEST_SIZE })
-      throw new ValidationError(`Request size exceeds limit of ${MAX_REQUEST_SIZE} bytes`)
+    const maxRequestSize = config.validation.maxRequestSize
+    if (contentLength > maxRequestSize) {
+      logger.warn('Request too large', { 
+        contentLength, 
+        limit: maxRequestSize,
+        metadata: { component: 'validationMiddleware', validationStep: 'size' }
+      })
+      throw new ValidationError(`Request size exceeds limit of ${maxRequestSize} bytes`)
     }
 
     // Parse and validate request body
@@ -38,29 +69,33 @@ export function validationMiddleware() {
     } catch (error) {
       logger.warn('Invalid JSON body', {
         error: error instanceof Error ? { message: error.message } : { message: String(error) },
+        metadata: { component: 'validationMiddleware', validationStep: 'jsonParsing' }
       })
       throw new ValidationError('Invalid JSON in request body')
     }
 
-    // Basic Claude request validation
-    if (!validateClaudeRequest(body)) {
-      logger.warn('Invalid Claude request format', { body })
+    // Validate request against Claude Messages API schema
+    const result = ClaudeMessagesRequestSchema.safeParse(body)
+    
+    if (!result.success) {
+      // Log detailed validation errors for internal debugging
+      logger.warn('Invalid Claude request format', {
+        error: 'Zod validation failed',
+        issues: result.error.flatten(),
+        metadata: { component: 'validationMiddleware', validationStep: 'schema' }
+      })
+      // Return generic error to client
       throw new ValidationError('Invalid request format for Claude API')
     }
 
-    // Claude API will handle detailed validation
+    // Claude API will handle detailed validation of content
 
-    // Attach validated body to context
-    c.set('validatedBody', body)
+    // Attach the fully-typed, validated body to context
+    c.set('validatedBody', result.data)
 
-    logger.debug('Request validation passed')
+    logger.debug('Request validation passed', {
+      metadata: { component: 'validationMiddleware' }
+    })
     await next()
   }
-}
-
-// Helper to sanitize error messages for client
-export function sanitizeErrorMessage(message: string): string {
-  // First truncate to prevent ReDoS, then mask sensitive data
-  const truncatedMessage = truncateString(message, 1000)
-  return maskSensitiveData(truncatedMessage)
 }

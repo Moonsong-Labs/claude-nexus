@@ -150,3 +150,28 @@ export function getStatusCode(error: unknown): number {
   }
   return DEFAULT_ERROR_STATUS_CODE
 }
+
+/**
+ * Sanitize error messages for safe client exposure.
+ * 
+ * This function truncates messages to prevent ReDoS attacks and masks
+ * sensitive data like API keys before returning error messages to clients.
+ * 
+ * @param {string} message - Raw error message
+ * @returns {string} Sanitized error message safe for client exposure
+ * @example
+ * ```typescript
+ * catch (error) {
+ *   const clientMessage = sanitizeErrorMessage(error.message)
+ *   res.status(400).json({ error: clientMessage })
+ * }
+ * ```
+ */
+export function sanitizeErrorMessage(message: string): string {
+  // Import at function level to avoid circular dependencies
+  const { truncateString, maskSensitiveData } = require('./validation')
+  
+  // First truncate to prevent ReDoS, then mask sensitive data
+  const truncatedMessage = truncateString(message, 1000)
+  return maskSensitiveData(truncatedMessage)
+}
