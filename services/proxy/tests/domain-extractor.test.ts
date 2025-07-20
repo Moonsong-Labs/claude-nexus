@@ -108,6 +108,28 @@ describe('Domain Extractor Middleware', () => {
       expect(body.error.code).toBe('bad_request')
       expect(body.error.message).toBe('Host header is required')
     })
+
+    it('should return 400 when host header contains invalid characters', async () => {
+      const invalidHosts = [
+        'example.com/path',
+        'example.com;injection',
+        'example.com<script>',
+        'example.com>redirect',
+        'example.com@attacker.com',
+        'example.com#fragment',
+      ]
+
+      for (const host of invalidHosts) {
+        const res = await app.request('/test', {
+          headers: { host },
+        })
+
+        expect(res.status).toBe(400)
+        const body = await res.json()
+        expect(body.error.code).toBe('bad_request')
+        expect(body.error.message).toBe('Invalid host header format')
+      }
+    })
   })
 
   describe('IP addresses', () => {

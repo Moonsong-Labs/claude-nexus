@@ -32,6 +32,20 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-01-20
 
+- **services/proxy/src/middleware/domain-extractor.ts**: Refactored domain extraction middleware for improved code quality and security
+  - Removed unnecessary else block after early return for cleaner code flow
+  - Added IPv6 support alongside existing IPv4 detection
+  - Replaced manual JSON error responses with standardized `createErrorResponse` utility
+  - Added explicit return type annotation for better type safety
+  - Extracted regex patterns as named constants for clarity and reusability
+  - Implemented Host header validation to prevent injection attacks
+  - Added helper functions (`isValidHostHeader`, `extractDomain`) for better code organization
+  - Enhanced inline documentation explaining port preservation logic
+  - Added comprehensive test coverage for Host header validation
+  - Rationale: This middleware is critical infrastructure used globally across all routes. The refactoring improves security posture, maintainability, and consistency while preserving all existing behavior
+
+### 2025-01-20
+
 - **services/proxy/src/routes/health.ts**: Refactored health check endpoints for production readiness
   - Added proper TypeScript interfaces replacing `any` types
   - Implemented comprehensive error logging for database failures
