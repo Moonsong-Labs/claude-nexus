@@ -21,7 +21,7 @@ bun run format
 bun run dev
 
 # Build for production
-bun run build:production
+bun run build
 ```
 
 ## Overview
@@ -48,6 +48,16 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
   - `getConversationById` method already implemented in storage reader
   - `getConversationSummariesPaginated` method not implemented or needed
   - Validated deletion with Gemini-2.5-pro (9/10 confidence)
+
+- **Cleaned up services/dashboard/package.json**: Simplified scripts and added missing dependency
+  - Added explicit `@claude-nexus/shared` dependency (was used but not declared)
+  - Removed redundant scripts: `dev:direct`, `dev:watch` (duplicates of `dev`)
+  - Removed redundant scripts: `build:check` (duplicate of `build:production`)
+  - Kept `build:production` as alias for backward compatibility (used by Docker and root scripts)
+  - Removed `NODE_ENV=production` from `start:prod` (handled by wrapper)
+  - Validated refactoring plan with Gemini-2.5-pro (9/10 confidence)
+  - All build commands and dev server tested successfully
+  - Rationale: Explicit dependencies and simplified scripts improve maintainability
   - Build and tests pass after deletion
   - Rationale: Dead code elimination following clean code principles
 
