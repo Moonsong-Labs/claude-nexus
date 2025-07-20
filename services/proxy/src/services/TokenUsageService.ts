@@ -1,5 +1,11 @@
-import { Pool } from 'pg'
+import { Pool, QueryResult } from 'pg'
 import { logger } from '../middleware/logger.js'
+
+// Constants
+const DEFAULT_WINDOW_HOURS = 5
+const DEFAULT_DAYS = 30
+const MAX_DAYS = 365
+const MAX_WINDOW_HOURS = 720 // 30 days
 
 export interface TokenUsageData {
   accountId: string
@@ -40,38 +46,61 @@ export interface DailyUsage {
 }
 
 /**
- * Service for tracking and querying token usage
- * Provides persistent storage and efficient querying of token usage data
+ * Service for querying token usage from api_requests table
+ * Provides read-only access to aggregated token usage data
  */
 export class TokenUsageService {
   constructor(private pool: Pool) {}
 
   /**
-   * Record token usage for a request
-   * Note: Token usage is now tracked directly in api_requests table
-   * This method is kept for backward compatibility but does nothing
-   */
-  async recordUsage(_data: TokenUsageData): Promise<void> {
-    // Token usage is now tracked directly in api_requests table
-    // No separate recording needed
-  }
-
-  /**
    * Get token usage for a sliding window (e.g., 5 hours)
+   * @param accountId - The account ID to query usage for
+   * @param windowHours - Number of hours to look back (default: 5, max: 720)
+   * @param domain - Optional domain filter
+   * @param model - Optional model filter
+   * @returns Token usage data for the specified window
    */
   async getUsageWindow(
     accountId: string,
-    windowHours: number = 5,
+    windowHours: number = DEFAULT_WINDOW_HOURS,
     domain?: string,
     model?: string
   ): Promise<TokenUsageWindow> {
+    // Validate inputs
+    if (!accountId || typeof accountId !== 'string') {
+      throw new Error('Invalid accountId')
+    }
+    if (windowHours <= 0 || windowHours > MAX_WINDOW_HOURS) {
+      throw new Error(`windowHours must be between 1 and ${MAX_WINDOW_HOURS}`)
+    }
+
     try {
-      let query = `
+      // Build query with proper parameterization
+      const conditions: string[] = [
+        'account_id = $1',
+        "timestamp >= NOW() - ($2 * INTERVAL '1 hour')",
+        'timestamp < NOW()',
+      ]
+      const values: (string | number)[] = [accountId, windowHours]
+      let paramIndex = 3
+
+      if (domain) {
+        conditions.push(`domain = $${paramIndex}`)
+        values.push(domain)
+        paramIndex++
+      }
+
+      if (model) {
+        conditions.push(`model = $${paramIndex}`)
+        values.push(model)
+      }
+
+      const query = `
         SELECT 
           $1::varchar as account_id,
-          COALESCE($2::varchar, 'all') as domain,
-          COALESCE($3::varchar, 'all') as model,
-          NOW() - ($4 * INTERVAL '1 hour') as window_start,
+          COALESCE(${domain ? `$${values.indexOf(domain) + 1}` : "'all'"}::varchar, 'all') as domain,
+          COALESCE(${model ? `$${values.indexOf(model) + 1}` : "'all'"}::varchar, 'all') as model,
+          NOW() - ($2 * INTERVAL '1 hour') as window_start,
           NOW() as window_end,
           COALESCE(SUM(input_tokens), 0) as total_input_tokens,
           COALESCE(SUM(output_tokens), 0) as total_output_tokens,
@@ -80,20 +109,8 @@ export class TokenUsageService {
           COALESCE(SUM(cache_creation_input_tokens), 0) as cache_creation_input_tokens,
           COALESCE(SUM(cache_read_input_tokens), 0) as cache_read_input_tokens
         FROM api_requests
-        WHERE account_id = $1
-          AND timestamp >= NOW() - ($4 * INTERVAL '1 hour')
-          AND timestamp < NOW()
+        WHERE ${conditions.join(' AND ')}
       `
-
-      const values: any[] = [accountId, domain || '', model || '', windowHours]
-
-      if (domain) {
-        query += ` AND domain = $2`
-      }
-
-      if (model) {
-        query += ` AND model = $3`
-      }
 
       const result = await this.pool.query(query, values)
 
@@ -142,43 +159,33 @@ export class TokenUsageService {
 
   /**
    * Get daily usage statistics
+   * @param accountId - The account ID to query usage for
+   * @param days - Number of days to look back (default: 30, max: 365)
+   * @param domain - Optional domain filter
+   * @returns Array of daily usage statistics
    */
   async getDailyUsage(
     accountId: string,
-    days: number = 30,
+    days: number = DEFAULT_DAYS,
     domain?: string
   ): Promise<DailyUsage[]> {
+    // Validate inputs
+    if (!accountId || typeof accountId !== 'string') {
+      throw new Error('Invalid accountId')
+    }
+    if (days <= 0 || days > MAX_DAYS) {
+      throw new Error(`days must be between 1 and ${MAX_DAYS}`)
+    }
+
     try {
-      let query = `
-        SELECT 
-          DATE(timestamp AT TIME ZONE 'UTC') as date,
-          account_id,
-          domain,
-          model,
-          SUM(input_tokens) as total_input_tokens,
-          SUM(output_tokens) as total_output_tokens,
-          SUM(input_tokens + output_tokens) as total_tokens,
-          COUNT(*) as total_requests
-        FROM api_requests
-        WHERE account_id = $1
-          AND timestamp >= NOW() - ($2 * INTERVAL '1 day')
-      `
+      const result = await this.getDailyUsageQuery(
+        accountId,
+        days,
+        domain,
+        false // include model in grouping
+      )
 
-      const values: any[] = [accountId, days]
-
-      if (domain) {
-        query += ` AND domain = $3`
-        values.push(domain)
-      }
-
-      query += `
-        GROUP BY date, account_id, domain, model
-        ORDER BY date DESC, domain, model
-      `
-
-      const result = await this.pool.query(query, values)
-
-      return result.rows.map(row => ({
+      return result.rows.map((row: any) => ({
         date: row.date.toISOString().split('T')[0],
         accountId: row.account_id,
         domain: row.domain,
@@ -202,42 +209,33 @@ export class TokenUsageService {
 
   /**
    * Get aggregated daily usage (across all models)
+   * @param accountId - The account ID to query usage for
+   * @param days - Number of days to look back (default: 30, max: 365)
+   * @param domain - Optional domain filter
+   * @returns Array of aggregated daily usage statistics
    */
   async getAggregatedDailyUsage(
     accountId: string,
-    days: number = 30,
+    days: number = DEFAULT_DAYS,
     domain?: string
   ): Promise<DailyUsage[]> {
+    // Validate inputs
+    if (!accountId || typeof accountId !== 'string') {
+      throw new Error('Invalid accountId')
+    }
+    if (days <= 0 || days > MAX_DAYS) {
+      throw new Error(`days must be between 1 and ${MAX_DAYS}`)
+    }
+
     try {
-      let query = `
-        SELECT 
-          DATE(timestamp AT TIME ZONE 'UTC') as date,
-          account_id,
-          domain,
-          SUM(input_tokens) as total_input_tokens,
-          SUM(output_tokens) as total_output_tokens,
-          SUM(input_tokens + output_tokens) as total_tokens,
-          COUNT(*) as total_requests
-        FROM api_requests
-        WHERE account_id = $1
-          AND timestamp >= NOW() - ($2 * INTERVAL '1 day')
-      `
+      const result = await this.getDailyUsageQuery(
+        accountId,
+        days,
+        domain,
+        true // aggregate across models
+      )
 
-      const values: any[] = [accountId, days]
-
-      if (domain) {
-        query += ` AND domain = $3`
-        values.push(domain)
-      }
-
-      query += `
-        GROUP BY date, account_id, domain
-        ORDER BY date DESC, domain
-      `
-
-      const result = await this.pool.query(query, values)
-
-      return result.rows.map(row => ({
+      return result.rows.map((row: any) => ({
         date: row.date.toISOString().split('T')[0],
         accountId: row.account_id,
         domain: row.domain,
@@ -259,10 +257,44 @@ export class TokenUsageService {
   }
 
   /**
-   * Initialize and ensure partitions exist
-   * Note: No longer needed as we use api_requests table
+   * Shared query logic for daily usage statistics
+   * @private
    */
-  async ensurePartitions(): Promise<void> {
-    // No longer needed - using api_requests table
+  private async getDailyUsageQuery(
+    accountId: string,
+    days: number,
+    domain: string | undefined,
+    aggregateModels: boolean
+  ): Promise<QueryResult> {
+    const conditions: string[] = ['account_id = $1', "timestamp >= NOW() - ($2 * INTERVAL '1 day')"]
+    const values: (string | number)[] = [accountId, days]
+
+    if (domain) {
+      conditions.push('domain = $3')
+      values.push(domain)
+    }
+
+    const groupBy = aggregateModels ? 'date, account_id, domain' : 'date, account_id, domain, model'
+
+    const selectModel = aggregateModels ? '' : 'model,'
+    const orderBy = aggregateModels ? 'date DESC, domain' : 'date DESC, domain, model'
+
+    const query = `
+      SELECT 
+        DATE(timestamp AT TIME ZONE 'UTC') as date,
+        account_id,
+        domain,
+        ${selectModel}
+        SUM(input_tokens) as total_input_tokens,
+        SUM(output_tokens) as total_output_tokens,
+        SUM(input_tokens + output_tokens) as total_tokens,
+        COUNT(*) as total_requests
+      FROM api_requests
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY ${groupBy}
+      ORDER BY ${orderBy}
+    `
+
+    return this.pool.query(query, values)
   }
 }

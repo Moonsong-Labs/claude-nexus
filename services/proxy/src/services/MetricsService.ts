@@ -75,21 +75,7 @@ export class MetricsService {
         metrics.toolCallCount
       )
 
-      // Also track in persistent storage if available
-      if (this.tokenUsageService && accountId) {
-        await this.tokenUsageService.recordUsage({
-          accountId,
-          domain: context.host,
-          model: request.model,
-          requestType: request.requestType,
-          inputTokens: metrics.inputTokens,
-          outputTokens: metrics.outputTokens,
-          totalTokens: metrics.inputTokens + metrics.outputTokens,
-          cacheCreationInputTokens: metrics.cacheCreationInputTokens || 0,
-          cacheReadInputTokens: metrics.cacheReadInputTokens || 0,
-          requestCount: 1,
-        })
-      }
+      // Token usage is now tracked directly in api_requests table
     }
 
     // Store in database
