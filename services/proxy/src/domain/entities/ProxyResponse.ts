@@ -2,6 +2,26 @@ import { ClaudeMessagesResponse, ClaudeStreamEvent } from '../../types/claude'
 import { hasToolUse } from '@claude-nexus/shared'
 import { logger } from '../../middleware/logger'
 
+// Constants
+const DEFAULT_MAX_LINES = 20
+const DEFAULT_MAX_LENGTH = 3000
+const INVALID_TOOL_INDEX = -1
+
+// Extended usage interface to properly type fullUsageData
+interface ClaudeUsageExtended {
+  input_tokens: number
+  output_tokens: number
+  cache_creation_input_tokens?: number
+  cache_read_input_tokens?: number
+}
+
+// Tool call interface for better type safety
+interface ToolCall {
+  name: string
+  id?: string
+  input?: Record<string, unknown>
+}
+
 /**
  * Domain entity representing a proxy response
  * Encapsulates response processing logic
@@ -13,9 +33,9 @@ export class ProxyResponse {
   private _cacheReadInputTokens: number = 0
   private _toolCallCount: number = 0
   private _content: string = ''
-  private _fullUsageData: any = null
-  private _toolCalls: Array<{ name: string; id?: string; input?: any }> = []
-  private _currentToolIndex: number = -1
+  private _fullUsageData: ClaudeUsageExtended | null = null
+  private _toolCalls: ToolCall[] = []
+  private _currentToolIndex: number = INVALID_TOOL_INDEX
   private _toolInputAccumulator: string = ''
 
   constructor(
@@ -43,7 +63,7 @@ export class ProxyResponse {
     return this._content
   }
 
-  get toolCalls(): Array<{ name: string; id?: string; input?: any }> {
+  get toolCalls(): ToolCall[] {
     return this._toolCalls
   }
 
@@ -55,7 +75,7 @@ export class ProxyResponse {
     return this._cacheReadInputTokens
   }
 
-  get fullUsageData(): any {
+  get fullUsageData(): ClaudeUsageExtended | null {
     return this._fullUsageData
   }
 
@@ -63,11 +83,10 @@ export class ProxyResponse {
    * Process a non-streaming response
    */
   processResponse(response: ClaudeMessagesResponse): void {
-    this._inputTokens = response.usage?.input_tokens || 0
-    this._outputTokens = response.usage?.output_tokens || 0
-    this._cacheCreationInputTokens = response.usage?.cache_creation_input_tokens || 0
-    this._cacheReadInputTokens = response.usage?.cache_read_input_tokens || 0
-    this._fullUsageData = response.usage || null
+    if (response.usage) {
+      this.updateTokensFromUsage(response.usage)
+      this._fullUsageData = response.usage as ClaudeUsageExtended
+    }
 
     logger.debug('Non-streaming response token usage', {
       requestId: this.requestId,
@@ -105,122 +124,171 @@ export class ProxyResponse {
   processStreamEvent(event: ClaudeStreamEvent): void {
     // Debug logging for token tracking
     if (event.type === 'message_start' || event.type === 'message_delta') {
-      logger.debug('Processing stream event with usage data', {
-        requestId: this.requestId,
-        metadata: {
-          eventType: event.type,
-          usage: event.type === 'message_start' ? event.message?.usage : event.usage,
-          currentTokens: {
-            input: this._inputTokens,
-            output: this._outputTokens,
-          },
-        },
-      })
+      this.logTokenTracking(event)
     }
 
     switch (event.type) {
       case 'message_start':
-        if (event.message?.usage) {
-          this._inputTokens = event.message.usage.input_tokens || 0
-          this._outputTokens = event.message.usage.output_tokens || 0
-          this._cacheCreationInputTokens = event.message.usage.cache_creation_input_tokens || 0
-          this._cacheReadInputTokens = event.message.usage.cache_read_input_tokens || 0
-          this._fullUsageData = event.message.usage
-
-          logger.debug('message_start usage data', {
-            requestId: this.requestId,
-            metadata: {
-              usage: event.message.usage,
-              inputTokens: this._inputTokens,
-              outputTokens: this._outputTokens,
-              cacheCreationInputTokens: this._cacheCreationInputTokens,
-              cacheReadInputTokens: this._cacheReadInputTokens,
-            },
-          })
-        } else {
-          logger.warn('message_start event missing usage data', {
-            requestId: this.requestId,
-            metadata: {
-              event: JSON.stringify(event),
-            },
-          })
-        }
+        this.handleMessageStart(event)
         break
 
       case 'message_delta':
-        if (event.usage) {
-          this._outputTokens = event.usage.output_tokens || this._outputTokens
-          // Update cache tokens if provided
-          if (event.usage.cache_creation_input_tokens !== undefined) {
-            this._cacheCreationInputTokens = event.usage.cache_creation_input_tokens
-          }
-          if (event.usage.cache_read_input_tokens !== undefined) {
-            this._cacheReadInputTokens = event.usage.cache_read_input_tokens
-          }
-          // Store the latest usage data
-          this._fullUsageData = { ...this._fullUsageData, ...event.usage }
-
-          logger.debug('message_delta usage update', {
-            requestId: this.requestId,
-            metadata: {
-              usage: event.usage,
-              outputTokens: this._outputTokens,
-              cacheTokens: {
-                creation: this._cacheCreationInputTokens,
-                read: this._cacheReadInputTokens,
-              },
-            },
-          })
-        }
+        this.handleMessageDelta(event)
         break
 
       case 'content_block_start':
-        if (event.content_block?.type === 'tool_use') {
-          this._toolCallCount++
-          this._currentToolIndex = this._toolCalls.length
-          this._toolInputAccumulator = ''
-          this._toolCalls.push({
-            name: event.content_block.name || 'unknown',
-            id: event.content_block.id,
-            input: event.content_block.input || {},
-          })
-        }
+        this.handleContentBlockStart(event)
         break
 
       case 'content_block_delta':
-        if (event.delta?.type === 'text_delta' && event.delta.text) {
-          this._content += event.delta.text
-        } else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
-          // Accumulate tool input JSON
-          this._toolInputAccumulator += event.delta.partial_json
-        }
+        this.handleContentBlockDelta(event)
         break
 
       case 'content_block_stop':
-        // Parse accumulated tool input when block stops
-        if (this._currentToolIndex >= 0 && this._toolInputAccumulator) {
-          try {
-            const parsedInput = JSON.parse(this._toolInputAccumulator)
-            this._toolCalls[this._currentToolIndex].input = parsedInput
-          } catch (e) {
-            logger.warn('Failed to parse tool input JSON', {
-              requestId: this.requestId,
-              metadata: {
-                toolIndex: this._currentToolIndex,
-                accumulator: this._toolInputAccumulator,
-                error: e instanceof Error ? e.message : String(e),
-              },
-            })
-          }
-          this._currentToolIndex = -1
-          this._toolInputAccumulator = ''
-        }
+        this.handleContentBlockStop()
         break
 
       case 'message_stop':
         // Final event in streaming response
         break
     }
+  }
+
+  /**
+   * Log token tracking for debugging
+   */
+  private logTokenTracking(event: ClaudeStreamEvent): void {
+    logger.debug('Processing stream event with usage data', {
+      requestId: this.requestId,
+      metadata: {
+        eventType: event.type,
+        usage: event.type === 'message_start' ? event.message?.usage : event.usage,
+        currentTokens: {
+          input: this._inputTokens,
+          output: this._outputTokens,
+        },
+      },
+    })
+  }
+
+  /**
+   * Handle message_start event
+   */
+  private handleMessageStart(event: ClaudeStreamEvent): void {
+    if (event.message?.usage) {
+      this.updateTokensFromUsage(event.message.usage)
+      this._fullUsageData = event.message.usage as ClaudeUsageExtended
+
+      logger.debug('message_start usage data', {
+        requestId: this.requestId,
+        metadata: {
+          usage: event.message.usage,
+          inputTokens: this._inputTokens,
+          outputTokens: this._outputTokens,
+          cacheCreationInputTokens: this._cacheCreationInputTokens,
+          cacheReadInputTokens: this._cacheReadInputTokens,
+        },
+      })
+    } else {
+      logger.warn('message_start event missing usage data', {
+        requestId: this.requestId,
+        metadata: {
+          event: JSON.stringify(event),
+        },
+      })
+    }
+  }
+
+  /**
+   * Handle message_delta event
+   */
+  private handleMessageDelta(event: ClaudeStreamEvent): void {
+    if (event.usage) {
+      this._outputTokens = event.usage.output_tokens || this._outputTokens
+      // Update cache tokens if provided
+      if (event.usage.cache_creation_input_tokens !== undefined) {
+        this._cacheCreationInputTokens = event.usage.cache_creation_input_tokens
+      }
+      if (event.usage.cache_read_input_tokens !== undefined) {
+        this._cacheReadInputTokens = event.usage.cache_read_input_tokens
+      }
+      // Store the latest usage data
+      this._fullUsageData = { ...this._fullUsageData, ...event.usage } as ClaudeUsageExtended
+
+      logger.debug('message_delta usage update', {
+        requestId: this.requestId,
+        metadata: {
+          usage: event.usage,
+          outputTokens: this._outputTokens,
+          cacheTokens: {
+            creation: this._cacheCreationInputTokens,
+            read: this._cacheReadInputTokens,
+          },
+        },
+      })
+    }
+  }
+
+  /**
+   * Handle content_block_start event
+   */
+  private handleContentBlockStart(event: ClaudeStreamEvent): void {
+    if (event.content_block?.type === 'tool_use') {
+      this._toolCallCount++
+      this._currentToolIndex = this._toolCalls.length
+      this._toolInputAccumulator = ''
+      this._toolCalls.push({
+        name: event.content_block.name || 'unknown',
+        id: event.content_block.id,
+        input: event.content_block.input || {},
+      })
+    }
+  }
+
+  /**
+   * Handle content_block_delta event
+   */
+  private handleContentBlockDelta(event: ClaudeStreamEvent): void {
+    if (event.delta?.type === 'text_delta' && event.delta.text) {
+      this._content += event.delta.text
+    } else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
+      // Accumulate tool input JSON
+      this._toolInputAccumulator += event.delta.partial_json
+    }
+  }
+
+  /**
+   * Handle content_block_stop event
+   */
+  private handleContentBlockStop(): void {
+    // Parse accumulated tool input when block stops
+    if (this._currentToolIndex >= 0 && this._toolInputAccumulator) {
+      try {
+        const parsedInput = JSON.parse(this._toolInputAccumulator) as Record<string, unknown>
+        this._toolCalls[this._currentToolIndex].input = parsedInput
+      } catch (e) {
+        logger.warn('Failed to parse tool input JSON', {
+          requestId: this.requestId,
+          metadata: {
+            toolIndex: this._currentToolIndex,
+            accumulator: this._toolInputAccumulator,
+            error: e instanceof Error ? e.message : String(e),
+          },
+        })
+      }
+      this._currentToolIndex = INVALID_TOOL_INDEX
+      this._toolInputAccumulator = ''
+    }
+  }
+
+  /**
+   * Update tokens from usage data
+   */
+  private updateTokensFromUsage(usage: any): void {
+    this._inputTokens = usage.input_tokens || 0
+    this._outputTokens = usage.output_tokens || 0
+    this._cacheCreationInputTokens = usage.cache_creation_input_tokens || 0
+    this._cacheReadInputTokens = usage.cache_read_input_tokens || 0
   }
 
   /**
@@ -242,7 +310,10 @@ export class ProxyResponse {
   /**
    * Get truncated content for notifications
    */
-  getTruncatedContent(maxLines: number = 20, maxLength: number = 3000): string {
+  getTruncatedContent(
+    maxLines: number = DEFAULT_MAX_LINES,
+    maxLength: number = DEFAULT_MAX_LENGTH
+  ): string {
     if (!this._content) {
       return ''
     }
