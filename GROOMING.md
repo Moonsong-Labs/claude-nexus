@@ -97,7 +97,16 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
   - Functions like mockLocalStorage, extractCSSVariables, createMockElement were never used
   - Validated deletion with Gemini-2.5-pro (10/10) and O3-mini (10/10) who both strongly endorsed removal
   - Tests continue to pass after deletion
-  - Rationale: Dead code elimination is a fundamental clean code practice. The file added no value and could cause confusion
+
+- **Deleted services/dashboard/run-dev.sh**: Removed redundant development script
+  - Script duplicated functionality already in package.json's "dev" script: `bun --watch src/main.ts`
+  - Bun automatically loads .env files, making manual environment loading redundant
+  - File was not referenced anywhere in the codebase
+  - Only dashboard had this script - proxy service doesn't have equivalent, showing inconsistency
+  - Project uses npm scripts consistently for all other dev commands
+  - Validated deletion with Gemini-2.5-pro (9/10 confidence)
+  - Dashboard dev command (`bun run dev`) continues to work correctly after deletion
+  - Rationale: Dead code elimination, enforces project consistency, removes anti-pattern
 
 - **Refactored services/dashboard/src/layout/index.ts**: Improved code organization and maintainability
   - Extracted theme toggle JavaScript to new file `layout/theme-toggle.ts` for better separation of concerns
