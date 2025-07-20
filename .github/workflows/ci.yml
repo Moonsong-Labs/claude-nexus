@@ -6,10 +6,15 @@ on:
   pull_request:
     branches: [main]
 
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
+jobs:
+  # Initial setup job to install dependencies once and cache them
+  setup:
+    name: Setup Dependencies
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,61 +24,181 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        id: bun-cache
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            */*/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
 
-      - name: Check code formatting
-        run: bun run format:check
+      - name: Install dependencies
+        if: steps.bun-cache.outputs.cache-hit != 'true'
+        run: bun install --frozen-lockfile
 
       - name: Build shared package
         run: bun run build:shared
 
-      - name: Build proxy service
-        run: bun run build:proxy
+      - name: Cache shared build
+        uses: actions/cache@v4
+        with:
+          path: packages/shared/dist
+          key: ${{ runner.os }}-shared-${{ github.sha }}
 
-      - name: Build dashboard service
-        run: bun run build:dashboard
+  # Quality checks run in parallel
+  quality:
+    name: Code Quality Checks
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        check: [format, lint, typecheck]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            */*/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+
+      - name: Restore shared build
+        uses: actions/cache@v4
+        with:
+          path: packages/shared/dist
+          key: ${{ runner.os }}-shared-${{ github.sha }}
+
+      - name: Run ${{ matrix.check }}
+        run: |
+          if [ "${{ matrix.check }}" = "format" ]; then
+            bun run format:check
+          elif [ "${{ matrix.check }}" = "lint" ]; then
+            bun run lint
+          elif [ "${{ matrix.check }}" = "typecheck" ]; then
+            bun run typecheck
+          fi
+
+  # Build jobs run after quality checks
+  build:
+    name: Build Services
+    needs: [setup, quality]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [proxy, dashboard]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            */*/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+
+      - name: Restore shared build
+        uses: actions/cache@v4
+        with:
+          path: packages/shared/dist
+          key: ${{ runner.os }}-shared-${{ github.sha }}
+
+      - name: Build ${{ matrix.service }}
+        run: bun run build:${{ matrix.service }}
+
+      - name: Verify build output
+        run: |
+          if [ -d "services/${{ matrix.service }}/dist" ]; then
+            echo "✅ ${{ matrix.service }} build successful"
+          else
+            echo "❌ ${{ matrix.service }} build failed - dist directory not found"
+            exit 1
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-build
+          path: services/${{ matrix.service }}/dist
+
+  # Test job runs after build
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            */*/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+
+      - name: Restore shared build
+        uses: actions/cache@v4
+        with:
+          path: packages/shared/dist
+          key: ${{ runner.os }}-shared-${{ github.sha }}
 
       - name: Run tests
         run: bun run test:ci
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/test-results
+            **/coverage
+
+  # Docker build only on main branch pushes
+  docker:
+    name: Build Docker Images
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build Docker images
         run: |
           cd docker
           ./build-images.sh
 
-      - name: Verify production builds
-        run: |
-          echo "Checking proxy production build..."
-          if [ -d "services/proxy/dist" ]; then
-            echo "✅ Proxy build successful"
-          else
-            echo "❌ Proxy build failed - dist directory not found"
-            exit 1
-          fi
-
-          echo "Checking dashboard production build..."
-          if [ -d "services/dashboard/dist" ]; then
-            echo "✅ Dashboard build successful"
-          else
-            echo "❌ Dashboard build failed - dist directory not found"
-            exit 1
-          fi
-
-  lint:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Run linting
-        run: bun run lint
+      - name: List Docker images
+        run: docker images | grep -E "(proxy|dashboard)"
