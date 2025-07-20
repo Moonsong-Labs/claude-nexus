@@ -113,7 +113,7 @@ describe('Subtask Linking Integration', () => {
           }
         ]
       })
-      await writer.markTaskToolInvocations(parentRequestId, taskInvocations)
+      await writer.storeTaskToolInvocations(parentRequestId, taskInvocations)
 
       // Create a subtask that should match the Task invocation
       const subtaskRequestId = randomUUID()
@@ -253,7 +253,7 @@ describe('Subtask Linking Integration', () => {
           }
         ]
       })
-      await writer.markTaskToolInvocations(parentRequestId, taskInvocations)
+      await writer.storeTaskToolInvocations(parentRequestId, taskInvocations)
 
       // Create a subtask now (outside the 30-second window)
       const subtaskRequestId = randomUUID()

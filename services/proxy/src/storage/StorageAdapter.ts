@@ -466,7 +466,7 @@ export class StorageAdapter implements IStorageAdapter {
       }
 
       // Mark the request as having task invocations in the database
-      await this.writer.markTaskToolInvocations(uuid, taskInvocations)
+      await this.writer.storeTaskToolInvocations(uuid, taskInvocations)
 
       // Task invocations are now tracked in the database
       // Linking will happen when new conversations are stored via SQL query

@@ -307,7 +307,7 @@ describe('Sub-task Database Logic', () => {
     })
   })
 
-  describe('markTaskToolInvocations', () => {
+  describe('storeTaskToolInvocations', () => {
     it('should update task_tool_invocation field', async () => {
       const requestId = 'request-with-task'
       const taskInvocations = [
@@ -326,7 +326,7 @@ describe('Sub-task Database Logic', () => {
         rowCount: 1,
       })
 
-      await writer.markTaskToolInvocations(requestId, taskInvocations)
+      await writer.storeTaskToolInvocations(requestId, taskInvocations)
 
       expect(mockPool.query).toHaveBeenCalledTimes(1)
 

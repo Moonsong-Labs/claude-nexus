@@ -4,6 +4,9 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../middleware/logger.js'
 
+/**
+ * Represents an API request to be stored in the database
+ */
 interface StorageRequest {
   requestId: string
   domain: string
@@ -12,7 +15,7 @@ interface StorageRequest {
   method: string
   path: string
   headers: Record<string, string>
-  body: any
+  body: any // TODO: Phase 2 - Replace with proper ClaudeMessagesRequest type
   apiKey: string
   model: string
   requestType?: string
@@ -24,28 +27,34 @@ interface StorageRequest {
   messageCount?: number
   parentTaskRequestId?: string
   isSubtask?: boolean
-  taskToolInvocation?: any
+  taskToolInvocation?: any // Stored as JSONB in database
   parentRequestId?: string // Parent request in conversation chain
 }
 
+/**
+ * Represents an API response to be stored in the database
+ */
 interface StorageResponse {
   requestId: string
   statusCode: number
   headers: Record<string, string>
-  body?: any
+  body?: any // TODO: Phase 2 - Replace with proper ClaudeMessagesResponse type
   streaming: boolean
   inputTokens?: number
   outputTokens?: number
   totalTokens?: number
   cacheCreationInputTokens?: number
   cacheReadInputTokens?: number
-  usageData?: any
+  usageData?: any // TODO: Phase 2 - Replace with proper usage data type
   firstTokenMs?: number
   durationMs: number
   error?: string
   toolCallCount?: number
 }
 
+/**
+ * Represents a streaming response chunk to be stored
+ */
 interface StreamingChunk {
   requestId: string
   chunkIndex: number
@@ -55,11 +64,63 @@ interface StreamingChunk {
 }
 
 /**
+ * Represents a Task tool invocation
+ */
+interface TaskToolInvocation {
+  id: string
+  name: string
+  input: {
+    prompt?: string
+    description?: string
+    [key: string]: unknown
+  }
+}
+
+/**
+ * Database row result for parent request queries
+ */
+interface ParentRequestRow {
+  request_id: string
+  conversation_id: string
+  branch_id: string
+  current_message_hash: string
+  system_hash: string | null
+}
+
+/**
+ * Database row result for request details queries
+ */
+interface RequestDetailsRow {
+  request_id: string
+  conversation_id: string
+  branch_id: string
+  current_message_hash?: string
+  system_hash?: string
+}
+
+/**
  * Storage writer service for persisting requests to the database
- * Write-only operations for the proxy service
+ *
+ * @remarks
+ * This class provides write-only operations for the proxy service.
+ * It handles:
+ * - Request and response storage with sensitive data masking
+ * - Streaming chunk batching for efficient writes
+ * - Sub-task detection and conversation linking
+ * - Database schema initialization
+ *
+ * All methods log errors but do not throw exceptions (for now).
+ * This will be changed in a future refactoring phase.
+ *
+ * @example
+ * ```typescript
+ * const writer = new StorageWriter(pool)
+ * await writer.storeRequest(requestData)
+ * await writer.storeResponse(responseData)
+ * ```
  */
 export class StorageWriter {
-  private batchQueue: any[] = []
+  private batchQueue: StreamingChunk[] = []
   private batchTimer?: NodeJS.Timeout
   private readonly BATCH_SIZE = 100
   private readonly BATCH_INTERVAL = 1000 // 1 second
@@ -69,7 +130,17 @@ export class StorageWriter {
   }
 
   /**
-   * Store a request (write-only)
+   * Stores an API request in the database
+   *
+   * @param request - The request data to store
+   * @throws Never throws - errors are logged but not propagated (for now)
+   *
+   * @remarks
+   * This method performs the following:
+   * - Masks sensitive headers before storage
+   * - Detects and links sub-tasks to parent tasks
+   * - Associates requests with conversations
+   * - Stores task tool invocations if present
    */
   async storeRequest(request: StorageRequest): Promise<void> {
     try {
@@ -90,14 +161,17 @@ export class StorageWriter {
         if (existingConv.rows.length > 0 && existingConv.rows[0].is_subtask) {
           parentTaskRequestId = existingConv.rows[0].parent_task_request_id
           isSubtask = true
-          // Continuing sub-task conversation
         }
-      } else if (!request.parentMessageHash && request.body?.messages?.length > 0) {
+      } else if (
+        !request.parentMessageHash &&
+        request.body?.messages &&
+        Array.isArray(request.body.messages) &&
+        request.body.messages.length > 0
+      ) {
         // Only check for sub-task matching if this is the first message in a conversation
-        const firstMessage = request.body.messages[0]
+        const firstMessage = (request.body.messages as Array<Record<string, unknown>>)[0]
         if (firstMessage?.role === 'user') {
           const userContent = this.extractUserMessageContent(firstMessage)
-          // Extracted user content for sub-task matching
           if (userContent) {
             const match = await this.findMatchingTaskInvocation(userContent, request.timestamp)
             if (match) {
@@ -173,7 +247,17 @@ export class StorageWriter {
   }
 
   /**
-   * Store a response (write-only)
+   * Stores an API response in the database
+   *
+   * @param response - The response data to store
+   * @throws Never throws - errors are logged but not propagated (for now)
+   *
+   * @remarks
+   * Updates the existing request record with response data including:
+   * - Status code and headers
+   * - Token usage metrics
+   * - Response timing information
+   * - Error details if the request failed
    */
   async storeResponse(response: StorageResponse): Promise<void> {
     try {
@@ -226,7 +310,13 @@ export class StorageWriter {
   }
 
   /**
-   * Store streaming chunks (batch operation)
+   * Stores a streaming response chunk in the batch queue
+   *
+   * @param chunk - The streaming chunk to store
+   *
+   * @remarks
+   * Chunks are batched for efficient database insertion.
+   * Automatic flush occurs when batch size is reached.
    */
   async storeStreamingChunk(chunk: StreamingChunk): Promise<void> {
     this.batchQueue.push(chunk)
@@ -291,8 +381,14 @@ export class StorageWriter {
   }
 
   /**
-   * Find parent requests based on criteria
-   * Used by ConversationLinker
+   * Finds parent requests based on various criteria
+   *
+   * @param criteria - Search criteria for finding parent requests
+   * @returns Array of matching parent requests
+   *
+   * @remarks
+   * Used by ConversationLinker to establish conversation chains.
+   * Results are limited to 100 rows and ordered by timestamp descending.
    */
   async findParentRequests(criteria: {
     domain: string
@@ -303,18 +399,10 @@ export class StorageWriter {
     excludeRequestId?: string
     beforeTimestamp?: Date
     conversationId?: string
-  }): Promise<
-    Array<{
-      request_id: string
-      conversation_id: string
-      branch_id: string
-      current_message_hash: string
-      system_hash: string | null
-    }>
-  > {
+  }): Promise<ParentRequestRow[]> {
     try {
       const conditions: string[] = ['domain = $1']
-      const values: any[] = [criteria.domain]
+      const values: (string | number | Date | null)[] = [criteria.domain]
       let paramCount = 1
 
       if (criteria.currentMessageHash) {
@@ -386,21 +474,25 @@ export class StorageWriter {
   }
 
   /**
-   * Find parent request by searching response content
-   * Used for compact conversation detection
+   * Finds parent request by searching response content
+   *
+   * @param domain - The domain to search within
+   * @param summaryContent - The summary content to search for
+   * @param afterTimestamp - Only consider requests after this timestamp
+   * @param beforeTimestamp - Only consider requests before this timestamp (optional)
+   * @returns The matching parent request or null if not found
+   *
+   * @remarks
+   * Used for compact conversation detection when conversations are
+   * summarized and continued. Searches for matching response content
+   * in the first text block of inference requests.
    */
   async findParentByResponseContent(
     domain: string,
     summaryContent: string,
     afterTimestamp: Date,
     beforeTimestamp?: Date
-  ): Promise<{
-    request_id: string
-    conversation_id: string
-    branch_id: string
-    current_message_hash: string
-    system_hash: string | null
-  } | null> {
+  ): Promise<ParentRequestRow | null> {
     try {
       // Clean up the summary content for better matching
       const cleanSummary = summaryContent
@@ -462,10 +554,16 @@ export class StorageWriter {
   }
 
   /**
-   * Find conversation ID by parent message hash
-   * When multiple conversations have the same parent hash, pick the one with fewer requests
+   * Finds conversation ID by parent message hash
+   *
    * @param parentHash - The parent message hash to search for
-   * @param beforeTimestamp - Timestamp to only consider conversations before this time
+   * @param beforeTimestamp - Only consider conversations before this timestamp
+   * @returns The conversation ID or null if not found
+   *
+   * @remarks
+   * When multiple conversations have the same parent hash (branching),
+   * this method selects the conversation with the fewest requests.
+   * This heuristic helps maintain conversation continuity.
    */
   async findConversationByParentHash(
     parentHash: string,
@@ -540,13 +638,21 @@ export class StorageWriter {
   }
 
   /**
-   * Hash API key for storage
+   * Hashes an API key for secure storage
+   *
+   * @param apiKey - The API key to hash
+   * @returns SHA-256 hash of the API key with salt
+   *
+   * @remarks
+   * Uses SHA-256 with a configurable salt. The salt should be
+   * set via API_KEY_SALT environment variable in production.
    */
   private hashApiKey(apiKey: string): string {
     if (!apiKey) {
       return ''
     }
     // Use SHA-256 with a salt for secure hashing
+    // TODO: Phase 3 - Remove default salt and require API_KEY_SALT in production
     const salt = process.env.API_KEY_SALT || 'claude-nexus-proxy-default-salt'
     return createHash('sha256')
       .update(apiKey + salt)
@@ -554,7 +660,14 @@ export class StorageWriter {
   }
 
   /**
-   * Mask sensitive headers
+   * Masks sensitive headers for secure storage
+   *
+   * @param headers - The headers to mask
+   * @returns Headers with sensitive values masked
+   *
+   * @remarks
+   * Masks authorization and x-api-key headers by showing only
+   * the last 6 characters. Short values are fully masked.
    */
   private maskSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
     const masked = { ...headers }
@@ -577,21 +690,28 @@ export class StorageWriter {
   }
 
   /**
-   * Find Task tool invocations in a response
+   * Finds Task tool invocations in a response body
+   *
+   * @param responseBody - The response body to search
+   * @returns Array of Task tool invocations found
+   *
+   * @remarks
+   * Searches for tool_use content blocks with name="Task".
+   * Used to detect when a request spawns sub-tasks.
    */
-  findTaskToolInvocations(responseBody: any): Array<{ id: string; name: string; input: any }> {
-    const taskInvocations: Array<{ id: string; name: string; input: any }> = []
+  findTaskToolInvocations(responseBody: Record<string, unknown>): TaskToolInvocation[] {
+    const taskInvocations: TaskToolInvocation[] = []
 
     if (!responseBody || !responseBody.content || !Array.isArray(responseBody.content)) {
       return taskInvocations
     }
 
-    for (const content of responseBody.content) {
+    for (const content of responseBody.content as Array<Record<string, unknown>>) {
       if (content.type === 'tool_use' && content.name === 'Task') {
         taskInvocations.push({
-          id: content.id,
-          name: content.name,
-          input: content.input,
+          id: content.id as string,
+          name: content.name as string,
+          input: content.input as TaskToolInvocation['input'],
         })
       }
     }
@@ -600,9 +720,19 @@ export class StorageWriter {
   }
 
   /**
-   * Mark requests that have Task tool invocations
+   * Stores task tool invocations for a request
+   *
+   * @param requestId - The request ID to update
+   * @param taskInvocations - The task invocations to store
+   *
+   * @remarks
+   * Updates the request record with task invocation data.
+   * This enables sub-task detection and linking.
    */
-  async markTaskToolInvocations(requestId: string, taskInvocations: any[]): Promise<void> {
+  async storeTaskToolInvocations(
+    requestId: string,
+    taskInvocations: TaskToolInvocation[]
+  ): Promise<void> {
     if (taskInvocations.length === 0) {
       return
     }
@@ -617,14 +747,14 @@ export class StorageWriter {
 
       await this.pool.query(query, [requestId, JSON.stringify(taskInvocations)])
 
-      logger.info('Marked request with Task tool invocations', {
+      logger.info('Stored task tool invocations', {
         requestId,
         metadata: {
           taskCount: taskInvocations.length,
         },
       })
     } catch (error) {
-      logger.error('Failed to mark task tool invocations', {
+      logger.error('Failed to store task tool invocations', {
         requestId,
         metadata: {
           error: error instanceof Error ? error.message : String(error),
@@ -634,9 +764,16 @@ export class StorageWriter {
   }
 
   /**
-   * Extract user message content from various message formats
+   * Extracts user message content from various message formats
+   *
+   * @param message - The message object to extract content from
+   * @returns The extracted text content or null
+   *
+   * @remarks
+   * Handles both string and array content formats.
+   * Skips system reminder messages when extracting content.
    */
-  private extractUserMessageContent(message: any): string | null {
+  private extractUserMessageContent(message: Record<string, unknown>): string | null {
     if (!message || message.role !== 'user') {
       return null
     }
@@ -671,17 +808,24 @@ export class StorageWriter {
   }
 
   /**
-   * Find a matching Task invocation in the last 60 seconds
+   * Finds a matching Task invocation for sub-task detection
+   *
+   * @param userContent - The user message content to match
+   * @param timestamp - The timestamp of the potential sub-task
+   * @returns The matching parent task or null
+   *
+   * @remarks
+   * Searches for Task invocations within a 12-hour window.
+   * Matches by exact prompt or description content.
+   * TODO: Consider reducing the time window for better performance.
    */
   async findMatchingTaskInvocation(
     userContent: string,
     timestamp: Date
   ): Promise<{ request_id: string; timestamp: Date } | null> {
     try {
-      // Looking for matching Task invocation
-
-      // Look for Task invocations in the last 30 seconds
-      // Using 30-second window to match migration script for consistency
+      // Look for Task invocations within time window
+      // TODO: Consider reducing from 12-hour window for better performance
       const query = `
         SELECT request_id, timestamp
         FROM api_requests
@@ -703,11 +847,8 @@ export class StorageWriter {
       ])
 
       if (result.rows.length > 0) {
-        // Found matching Task invocation
         return result.rows[0]
       }
-
-      // No matching Task invocation found
 
       return null
     } catch (error) {
@@ -722,15 +863,16 @@ export class StorageWriter {
   }
 
   /**
-   * Get request details for linking
+   * Gets request details for conversation linking
+   *
+   * @param requestId - The request ID to look up
+   * @returns Request details or null if not found
+   *
+   * @remarks
+   * Used by ConversationLinker to retrieve request metadata
+   * for establishing conversation relationships.
    */
-  async getRequestDetails(requestId: string): Promise<{
-    request_id: string
-    conversation_id: string
-    branch_id: string
-    current_message_hash?: string
-    system_hash?: string
-  } | null> {
+  async getRequestDetails(requestId: string): Promise<RequestDetailsRow | null> {
     try {
       const query = `
         SELECT request_id, conversation_id, branch_id, current_message_hash, system_hash
@@ -758,9 +900,15 @@ export class StorageWriter {
   }
 
   /**
-   * Get the maximum subtask sequence number for a conversation
+   * Gets the maximum subtask sequence number for a conversation
+   *
    * @param conversationId - The conversation ID to search for
-   * @param beforeTimestamp - Timestamp to only consider subtasks before this time
+   * @param beforeTimestamp - Only consider subtasks before this timestamp
+   * @returns The maximum sequence number found (0 if none)
+   *
+   * @remarks
+   * Used to generate sequential subtask branch names like
+   * subtask_1, subtask_2, etc. within a conversation.
    */
   async getMaxSubtaskSequence(conversationId: string, beforeTimestamp: Date): Promise<number> {
     const query = `
@@ -779,7 +927,11 @@ export class StorageWriter {
   }
 
   /**
-   * Cleanup
+   * Cleans up resources and flushes pending operations
+   *
+   * @remarks
+   * Should be called before shutting down to ensure
+   * all batched chunks are written to the database.
    */
   async cleanup(): Promise<void> {
     if (this.batchTimer) {
@@ -790,7 +942,18 @@ export class StorageWriter {
 }
 
 /**
- * Initialize database schema
+ * Initializes the database schema if it doesn't exist
+ *
+ * @param pool - PostgreSQL connection pool
+ * @throws Error if schema initialization fails
+ *
+ * @remarks
+ * This function:
+ * - Checks if required tables exist
+ * - Creates schema from init-database.sql if needed
+ * - Verifies all required tables are present
+ *
+ * Should be called once during application startup.
  */
 export async function initializeDatabase(pool: Pool): Promise<void> {
   try {
