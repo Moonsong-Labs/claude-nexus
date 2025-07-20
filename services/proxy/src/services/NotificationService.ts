@@ -2,13 +2,123 @@ import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { AuthResult, AuthenticationService } from './AuthenticationService'
-import { sendToSlack, initializeDomainSlack, MessageInfo } from './slack.js'
+import { sendToSlack, initializeDomainSlack, MessageInfo } from './slack'
+import { IncomingWebhook } from '@slack/webhook'
 import { logger } from '../middleware/logger'
 
 export interface NotificationConfig {
   enabled: boolean
   maxLines: number
   maxLength: number
+}
+
+// Types for tool inputs
+interface Todo {
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+interface ToolInput {
+  file_path?: string
+  command?: string
+  pattern?: string
+  path?: string
+  todos?: Todo[]
+  query?: string
+  url?: string
+  prompt?: string
+  description?: string
+}
+
+// Constants
+const TRUNCATION_LIMITS = {
+  BASH_COMMAND: 50,
+  GREP_PATTERN: 30,
+  WEB_SEARCH_QUERY: 40,
+  GENERIC_TEXT: 40,
+} as const
+
+// Helper functions
+const getShortPath = (filePath: string | undefined): string => {
+  if (!filePath) {
+    return ''
+  }
+  const pathParts = filePath.split('/')
+  return pathParts.slice(-2).join('/')
+}
+
+const truncate = (str: string | undefined, maxLength: number): string => {
+  if (!str) {
+    return ''
+  }
+  return str.length > maxLength ? str.substring(0, maxLength) + '...' : str
+}
+
+// Tool formatters
+const toolFormatters: Record<string, (input: ToolInput) => string> = {
+  Read: input => (input.file_path ? `Reading file: ${getShortPath(input.file_path)}` : ''),
+  Write: input => (input.file_path ? `Writing file: ${getShortPath(input.file_path)}` : ''),
+  Edit: input => (input.file_path ? `Editing file: ${getShortPath(input.file_path)}` : ''),
+  MultiEdit: input => (input.file_path ? `Editing file: ${getShortPath(input.file_path)}` : ''),
+  Bash: input =>
+    input.command ? `Running: \`${truncate(input.command, TRUNCATION_LIMITS.BASH_COMMAND)}\`` : '',
+  Grep: input =>
+    input.pattern
+      ? `Searching for: "${truncate(input.pattern, TRUNCATION_LIMITS.GREP_PATTERN)}"`
+      : '',
+  Glob: input => (input.pattern ? `Finding files: ${input.pattern}` : ''),
+  LS: input => (input.path ? `Listing: ${getShortPath(input.path)}/` : ''),
+  TodoRead: () => 'Checking task list',
+  TodoWrite: input => {
+    if (!input.todos || !Array.isArray(input.todos)) {
+      return ''
+    }
+    const todos = input.todos
+    const pending = todos.filter(t => t.status === 'pending').length
+    const inProgress = todos.filter(t => t.status === 'in_progress').length
+    const completed = todos.filter(t => t.status === 'completed').length
+
+    const statusParts = []
+    if (pending > 0) {
+      statusParts.push(`${pending} pending`)
+    }
+    if (inProgress > 0) {
+      statusParts.push(`${inProgress} in progress`)
+    }
+    if (completed > 0) {
+      statusParts.push(`${completed} completed`)
+    }
+
+    if (statusParts.length > 0) {
+      return `Tasks: ${statusParts.join(', ')}`
+    }
+    return `Managing ${todos.length} task${todos.length !== 1 ? 's' : ''}`
+  },
+  WebSearch: input =>
+    input.query
+      ? `Searching web: "${truncate(input.query, TRUNCATION_LIMITS.WEB_SEARCH_QUERY)}"`
+      : '',
+  WebFetch: input => {
+    if (!input.url) {
+      return ''
+    }
+    try {
+      const url = new URL(input.url)
+      return `Fetching: ${url.hostname}`
+    } catch {
+      return 'Fetching URL'
+    }
+  },
+}
+
+// Default formatter for unknown tools
+const defaultToolFormatter = (input: ToolInput): string => {
+  if (input.prompt && typeof input.prompt === 'string') {
+    return truncate(input.prompt, TRUNCATION_LIMITS.GENERIC_TEXT)
+  }
+  if (input.description && typeof input.description === 'string') {
+    return truncate(input.description, TRUNCATION_LIMITS.GENERIC_TEXT)
+  }
+  return ''
 }
 
 /**
@@ -28,12 +138,20 @@ export class NotificationService {
     }
   ) {}
 
+  /**
+   * Set the authentication service for domain-specific configurations
+   * @param authService - The authentication service instance
+   */
   setAuthService(authService: AuthenticationService) {
     this.authService = authService
   }
 
   /**
    * Send notification for a request/response pair
+   * @param request - The proxy request
+   * @param response - The proxy response
+   * @param context - The request context
+   * @param auth - The authentication result
    */
   async notify(
     request: ProxyRequest,
@@ -41,184 +159,13 @@ export class NotificationService {
     context: RequestContext,
     auth: AuthResult
   ): Promise<void> {
-    if (!this.config.enabled) {
-      return
-    }
-
-    // Only send notifications for inference requests
-    if (request.requestType !== 'inference') {
+    if (!this.shouldSendNotification(request, context)) {
       return
     }
 
     try {
-      // Get Slack config for the domain
-      const slackConfig = this.authService
-        ? await this.authService.getSlackConfig(context.host)
-        : undefined
-
-      // Initialize Slack for the domain
-      const domainWebhook = slackConfig ? initializeDomainSlack(slackConfig) : null
-
-      // Check if user message changed
-      const userContent = request.getUserContentForNotification()
-      const previousContent = this.getPreviousMessage(context.host)
-      const userMessageChanged = userContent !== previousContent
-
-      if (userContent) {
-        this.setPreviousMessage(context.host, userContent)
-      }
-
-      // Only send notifications when user message changes
-      if (!userMessageChanged) {
-        return
-      }
-
-      // Prepare the conversation message
-      let conversationMessage = ''
-
-      // Add user message
-      if (userContent) {
-        conversationMessage += `:bust_in_silhouette: User: ${userContent}\n`
-      }
-
-      // Add assistant response
-      const assistantContent = response.getTruncatedContent(
-        this.config.maxLines,
-        this.config.maxLength
-      )
-      if (assistantContent) {
-        conversationMessage += `:robot_face: Claude: ${assistantContent}\n`
-      }
-
-      // Add tool calls if any
-      const toolCalls = response.toolCalls
-      if (toolCalls.length > 0) {
-        for (const tool of toolCalls) {
-          let toolMessage = `    :wrench: ${tool.name}`
-
-          // Add human-friendly description based on tool name and input
-          if (tool.input) {
-            switch (tool.name) {
-              case 'Read':
-                if (tool.input.file_path) {
-                  const pathParts = tool.input.file_path.split('/')
-                  const fileName = pathParts.slice(-2).join('/')
-                  toolMessage += ` - Reading file: ${fileName}`
-                }
-                break
-              case 'Write':
-                if (tool.input.file_path) {
-                  const pathParts = tool.input.file_path.split('/')
-                  const fileName = pathParts.slice(-2).join('/')
-                  toolMessage += ` - Writing file: ${fileName}`
-                }
-                break
-              case 'Edit':
-              case 'MultiEdit':
-                if (tool.input.file_path) {
-                  const pathParts = tool.input.file_path.split('/')
-                  const fileName = pathParts.slice(-2).join('/')
-                  toolMessage += ` - Editing file: ${fileName}`
-                }
-                break
-              case 'Bash':
-                if (tool.input.command) {
-                  const cmd =
-                    tool.input.command.length > 50
-                      ? tool.input.command.substring(0, 50) + '...'
-                      : tool.input.command
-                  toolMessage += ` - Running: \`${cmd}\``
-                }
-                break
-              case 'Grep':
-                if (tool.input.pattern) {
-                  const pattern =
-                    tool.input.pattern.length > 30
-                      ? tool.input.pattern.substring(0, 30) + '...'
-                      : tool.input.pattern
-                  toolMessage += ` - Searching for: "${pattern}"`
-                }
-                break
-              case 'Glob':
-                if (tool.input.pattern) {
-                  toolMessage += ` - Finding files: ${tool.input.pattern}`
-                }
-                break
-              case 'LS':
-                if (tool.input.path) {
-                  const pathParts = tool.input.path.split('/')
-                  const dirName = pathParts.slice(-2).join('/')
-                  toolMessage += ` - Listing: ${dirName}/`
-                }
-                break
-              case 'TodoWrite':
-                if (tool.input.todos && Array.isArray(tool.input.todos)) {
-                  const todos = tool.input.todos
-                  const pending = todos.filter((t: any) => t.status === 'pending').length
-                  const inProgress = todos.filter((t: any) => t.status === 'in_progress').length
-                  const completed = todos.filter((t: any) => t.status === 'completed').length
-
-                  const statusParts = []
-                  if (pending > 0) {
-                    statusParts.push(`${pending} pending`)
-                  }
-                  if (inProgress > 0) {
-                    statusParts.push(`${inProgress} in progress`)
-                  }
-                  if (completed > 0) {
-                    statusParts.push(`${completed} completed`)
-                  }
-
-                  if (statusParts.length > 0) {
-                    toolMessage += ` - Tasks: ${statusParts.join(', ')}`
-                  } else {
-                    toolMessage += ` - Managing ${todos.length} task${todos.length !== 1 ? 's' : ''}`
-                  }
-                }
-                break
-              case 'TodoRead':
-                toolMessage += ` - Checking task list`
-                break
-              case 'WebSearch':
-                if (tool.input.query) {
-                  const query =
-                    tool.input.query.length > 40
-                      ? tool.input.query.substring(0, 40) + '...'
-                      : tool.input.query
-                  toolMessage += ` - Searching web: "${query}"`
-                }
-                break
-              case 'WebFetch':
-                if (tool.input.url) {
-                  try {
-                    const url = new URL(tool.input.url)
-                    toolMessage += ` - Fetching: ${url.hostname}`
-                  } catch {
-                    toolMessage += ` - Fetching URL`
-                  }
-                }
-                break
-              default:
-                // For other tools, check if there's a prompt or description
-                if (tool.input.prompt && typeof tool.input.prompt === 'string') {
-                  const prompt =
-                    tool.input.prompt.length > 40
-                      ? tool.input.prompt.substring(0, 40) + '...'
-                      : tool.input.prompt
-                  toolMessage += ` - ${prompt}`
-                } else if (tool.input.description && typeof tool.input.description === 'string') {
-                  const desc =
-                    tool.input.description.length > 40
-                      ? tool.input.description.substring(0, 40) + '...'
-                      : tool.input.description
-                  toolMessage += ` - ${desc}`
-                }
-            }
-          }
-
-          conversationMessage += `${toolMessage}\n`
-        }
-      }
+      const domainWebhook = await this.getDomainWebhook(context.host)
+      const conversationMessage = this.buildConversationMessage(request, response)
 
       // Send the conversation to Slack
       await sendToSlack(
@@ -240,13 +187,80 @@ export class NotificationService {
       logger.error('Failed to send notification', {
         requestId: context.requestId,
         domain: context.host,
-        error: error instanceof Error ? { message: error.message } : { message: String(error) },
+        error:
+          error instanceof Error
+            ? { message: error.message, stack: error.stack }
+            : { message: String(error) },
       })
     }
   }
 
   /**
+   * Check if notification should be sent
+   */
+  private shouldSendNotification(request: ProxyRequest, context: RequestContext): boolean {
+    if (!this.config.enabled || request.requestType !== 'inference') {
+      return false
+    }
+
+    // Check if user message changed
+    const userContent = request.getUserContentForNotification()
+    const previousContent = this.getPreviousMessage(context.host)
+    const userMessageChanged = userContent !== previousContent
+
+    if (userContent) {
+      this.setPreviousMessage(context.host, userContent)
+    }
+
+    return userMessageChanged
+  }
+
+  /**
+   * Get domain-specific Slack webhook
+   */
+  private async getDomainWebhook(host: string): Promise<IncomingWebhook | null> {
+    const slackConfig = this.authService ? await this.authService.getSlackConfig(host) : undefined
+    return slackConfig ? initializeDomainSlack(slackConfig) : null
+  }
+
+  /**
+   * Build conversation message for notification
+   */
+  private buildConversationMessage(request: ProxyRequest, response: ProxyResponse): string {
+    let conversationMessage = ''
+
+    // Add user message
+    const userContent = request.getUserContentForNotification()
+    if (userContent) {
+      conversationMessage += `:bust_in_silhouette: User: ${userContent}\n`
+    }
+
+    // Add assistant response
+    const assistantContent = response.getTruncatedContent(
+      this.config.maxLines,
+      this.config.maxLength
+    )
+    if (assistantContent) {
+      conversationMessage += `:robot_face: Claude: ${assistantContent}\n`
+    }
+
+    // Add tool calls if any
+    const toolCalls = response.toolCalls
+    if (toolCalls.length > 0) {
+      for (const tool of toolCalls) {
+        const formatter = toolFormatters[tool.name] || defaultToolFormatter
+        const details = tool.input ? formatter(tool.input as ToolInput) : ''
+        conversationMessage += `    :wrench: ${tool.name}${details ? ` - ${details}` : ''}\n`
+      }
+    }
+
+    return conversationMessage
+  }
+
+  /**
    * Send error notification
+   * @param error - The error to notify about
+   * @param context - The request context
    */
   async notifyError(error: Error, context: RequestContext): Promise<void> {
     if (!this.config.enabled) {
@@ -254,11 +268,7 @@ export class NotificationService {
     }
 
     try {
-      // Get Slack config for the domain
-      const slackConfig = this.authService
-        ? await this.authService.getSlackConfig(context.host)
-        : undefined
-      const domainWebhook = slackConfig ? initializeDomainSlack(slackConfig) : null
+      const domainWebhook = await this.getDomainWebhook(context.host)
 
       await sendToSlack(
         {
@@ -277,57 +287,25 @@ export class NotificationService {
     } catch (notifyError) {
       logger.error('Failed to send error notification', {
         requestId: context.requestId,
+        domain: context.host,
         metadata: {
-          originalError: error.message,
-          notifyError: notifyError instanceof Error ? notifyError.message : String(notifyError),
+          originalError: {
+            message: error.message,
+            type: error.constructor.name,
+          },
+          notifyError:
+            notifyError instanceof Error
+              ? { message: notifyError.message, stack: notifyError.stack }
+              : { message: String(notifyError) },
         },
       })
     }
   }
 
   /**
-   * Build notification payload
-   */
-  private buildNotification(
-    request: ProxyRequest,
-    response: ProxyResponse,
-    context: RequestContext,
-    auth: AuthResult,
-    userMessageChanged: boolean
-  ) {
-    const metrics = response.getMetrics()
-
-    // Build metadata
-    const metadata = {
-      domain: context.host,
-      model: request.model,
-      streaming: request.isStreaming ? 'Yes' : 'No',
-      inputTokens: metrics.inputTokens,
-      outputTokens: metrics.outputTokens,
-      totalTokens: metrics.totalTokens,
-      toolCalls: metrics.toolCallCount,
-      requestType: request.requestType,
-      apiKeyInfo: auth.type === 'api_key' ? auth.key.substring(0, 10) + '****' : 'OAuth',
-      processingTime: `${context.getElapsedTime()}ms`,
-    }
-
-    // Prepare content
-    const userContent = userMessageChanged ? request.getUserContent() : undefined
-    const assistantContent = response.getTruncatedContent(
-      this.config.maxLines,
-      this.config.maxLength
-    )
-
-    return {
-      message: userMessageChanged ? 'New conversation' : 'Continued conversation',
-      userContent,
-      assistantContent,
-      metadata,
-    }
-  }
-
-  /**
    * Get previous message for a domain
+   * @param domain - The domain to get the previous message for
+   * @returns The previous message or empty string
    */
   private getPreviousMessage(domain: string): string {
     return this.previousMessages.get(domain) || ''
@@ -335,6 +313,8 @@ export class NotificationService {
 
   /**
    * Set previous message for a domain
+   * @param domain - The domain to set the message for
+   * @param message - The message content to store
    */
   private setPreviousMessage(domain: string, message: string): void {
     // Implement cache size limit
