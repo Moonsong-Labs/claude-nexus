@@ -40,6 +40,20 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
   const { container } = await import('../container.js')
   const storageService = container.getStorageService()
 
+  if (!storageService) {
+    const { layout } = await import('../layout/index.js')
+    return c.html(
+      layout(
+        'Error',
+        html`
+          <div class="error-banner"><strong>Error:</strong> Storage service not available.</div>
+        `,
+        '',
+        c
+      )
+    )
+  }
+
   try {
     // Get the specific conversation by ID - optimized query
     const conversation = await storageService.getConversationById(conversationId)
@@ -546,6 +560,10 @@ conversationDetailRoutes.get('/conversation/:id/messages', async c => {
   // Get storage service from container
   const { container } = await import('../container.js')
   const storageService = container.getStorageService()
+
+  if (!storageService) {
+    return c.html(html`<div class="error-banner">Storage service not available</div>`)
+  }
 
   try {
     const conversation = await storageService.getConversationById(conversationId)

@@ -112,6 +112,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: AppVariabl
    */
   app.get('/api/requests', async c => {
     const storageService = container.getStorageService()
+    if (!storageService) {
+      return c.json({ error: 'Storage service not available' }, 503)
+    }
+
     const domain = c.req.query('domain')
     const limit = parseInt(c.req.query('limit') || '100')
 
@@ -134,6 +138,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: AppVariabl
    */
   app.get('/api/requests/:requestId', async c => {
     const storageService = container.getStorageService()
+    if (!storageService) {
+      return c.json({ error: 'Storage service not available' }, 503)
+    }
+
     const requestId = c.req.param('requestId')
 
     try {
@@ -158,6 +166,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: AppVariabl
    */
   app.get('/api/storage-stats', async c => {
     const storageService = container.getStorageService()
+    if (!storageService) {
+      return c.json({ error: 'Storage service not available' }, 503)
+    }
+
     const domain = c.req.query('domain')
     const since = c.req.query('since')
 
@@ -181,6 +193,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: AppVariabl
    */
   app.get('/api/conversations', async c => {
     const storageService = container.getStorageService()
+    if (!storageService) {
+      return c.json({ error: 'Storage service not available' }, 503)
+    }
+
     const domain = c.req.query('domain')
     const limit = parseInt(c.req.query('limit') || '50')
     const excludeSubtasks = c.req.query('excludeSubtasks') === 'true'
@@ -208,6 +224,10 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: AppVariabl
    */
   app.get('/api/requests/:requestId/subtasks', async c => {
     const storageService = container.getStorageService()
+    if (!storageService) {
+      return c.json({ error: 'Storage service not available' }, 503)
+    }
+
     const requestId = c.req.param('requestId')
 
     try {

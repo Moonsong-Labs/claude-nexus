@@ -27,6 +27,17 @@ requestDetailsRoutes.get('/request/:id', async c => {
   const { container } = await import('../container.js')
   const storageService = container.getStorageService()
 
+  if (!storageService) {
+    return c.html(
+      layout(
+        'Error',
+        html`
+          <div class="error-banner"><strong>Error:</strong> Storage service not available.</div>
+        `
+      )
+    )
+  }
+
   try {
     const requestDetails = await storageService.getRequestDetails(requestId)
 
