@@ -1,6 +1,7 @@
 {
   "name": "@claude-nexus/dashboard",
   "version": "2.0.0",
+  "private": true,
   "description": "Claude Nexus Dashboard Service - Web UI for monitoring and analytics",
   "type": "module",
   "main": "dist/main.js",
