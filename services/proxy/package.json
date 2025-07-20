@@ -2,25 +2,36 @@
   "name": "@claude-nexus/proxy",
   "version": "2.0.0",
   "description": "Claude Nexus Proxy Service - API proxy for Claude with telemetry and multi-subscription support",
+  "private": true,
   "type": "module",
   "main": "dist/main.js",
   "bin": {
     "claude-nexus-proxy": "./dist/main.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moonsong-labs/claude-nexus-proxy.git",
+    "directory": "services/proxy"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/main.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
   "scripts": {
     "dev": "bun run src/main.ts",
     "dev:watch": "bun --watch src/main.ts",
     "build": "bun scripts/build-production.ts",
-    "build:production": "bun scripts/build-production.ts",
-    "build:check": "bun run build:production",
-    "start": "bun dist/index.js",
-    "start:prod": "NODE_ENV=production bun dist/index.js",
+    "start": "bun dist/main.js",
+    "start:prod": "NODE_ENV=production bun dist/main.js",
     "typecheck": "tsc --build",
     "lint": "eslint src/**/*.ts",
     "test": "bun test",
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@claude-nexus/shared": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "@modelcontextprotocol/sdk": "^1.15.0",
     "@octokit/rest": "^22.0.0",
@@ -42,6 +53,7 @@
     "@types/js-yaml": "^4.0.9"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.0.0",
+    "bun": ">=1.0.0"
   }
 }
