@@ -71,6 +71,7 @@
         "claude-nexus-proxy": "./dist/main.js",
       },
       "dependencies": {
+        "@claude-nexus/shared": "workspace:*",
         "@hono/node-server": "^1.13.7",
         "@modelcontextprotocol/sdk": "^1.15.0",
         "@octokit/rest": "^22.0.0",
