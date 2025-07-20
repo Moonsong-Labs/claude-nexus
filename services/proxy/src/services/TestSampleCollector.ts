@@ -1,11 +1,14 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { ClaudeMessagesRequest } from '../types/claude'
 import { Context } from 'hono'
 import { config } from '@claude-nexus/shared/config'
 import { getRequestLogger } from '../middleware/logger'
 
-interface TestSample {
+/**
+ * Structure of a collected test sample containing request and response data
+ */
+export interface TestSample {
   timestamp: string
   method: string
   path: string
@@ -32,6 +35,29 @@ interface TestSample {
   }
 }
 
+// Regular expressions for sensitive data patterns
+const SENSITIVE_PATTERNS = {
+  ANTHROPIC_API_KEY: /sk-ant-[a-zA-Z0-9-]+/g,
+  BEARER_TOKEN: /Bearer [a-zA-Z0-9-._~+/]+/g,
+  EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+  CREDIT_CARD: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g,
+  SSN: /\b\d{3}-\d{2}-\d{4}\b/g,
+} as const
+
+// Replacement values for masked sensitive data
+const MASKED_VALUES = {
+  ANTHROPIC_API_KEY: 'sk-ant-****',
+  BEARER_TOKEN: 'Bearer ****',
+  EMAIL: '****@****.com',
+  CREDIT_CARD: '****-****-****-****',
+  SSN: '***-**-****',
+} as const
+
+/**
+ * Collects anonymized API request/response samples for testing purposes.
+ * Samples are saved to disk when COLLECT_TEST_SAMPLES environment variable is set to true.
+ * All sensitive data (API keys, tokens, emails, etc.) is automatically masked.
+ */
 export class TestSampleCollector {
   private readonly samplesDir: string
   private readonly enabled: boolean
@@ -44,6 +70,13 @@ export class TestSampleCollector {
     this.pendingSamples = new Map()
   }
 
+  /**
+   * Collects a request sample and prepares it for storage
+   * @param context - Hono context containing request information
+   * @param validatedBody - The validated Claude API request body
+   * @param requestType - Type of request (query_evaluation, inference, or quota)
+   * @returns Sample ID if collection is enabled and successful, undefined otherwise
+   */
   async collectSample(
     context: Context,
     validatedBody: ClaudeMessagesRequest,
@@ -98,6 +131,13 @@ export class TestSampleCollector {
     }
   }
 
+  /**
+   * Updates a previously collected sample with response data
+   * @param sampleId - The ID of the sample to update
+   * @param response - The HTTP response object
+   * @param responseBody - The parsed response body
+   * @param metadata - Optional metadata about the response (tokens, tool calls, etc.)
+   */
   async updateSampleWithResponse(
     sampleId: string,
     response: Response,
@@ -140,11 +180,10 @@ export class TestSampleCollector {
       // Clean up from pending samples
       this.pendingSamples.delete(sampleId)
 
-      // Log completion (using import from logger module directly since we don't have context here)
-      // This is a debug message for test sample collection, not critical
-    } catch (error) {
-      // Log error without context (this is for test sample collection, not critical path)
-      console.error('Failed to update test sample with response', error)
+      // Successfully updated test sample
+    } catch {
+      // Failed to update test sample - not critical for main flow
+      // Silently ignore to avoid polluting logs
     }
   }
 
@@ -158,42 +197,32 @@ export class TestSampleCollector {
 
     // Sanitize content in the response
     if (sanitized.content && Array.isArray(sanitized.content)) {
-      sanitized.content = sanitized.content.map((block: any) => {
-        if (block.type === 'text' && typeof block.text === 'string') {
-          return {
-            ...block,
-            text: this.removeSensitiveContent(block.text),
-          }
-        }
-        return block
-      })
+      sanitized.content = this.sanitizeContentArray(sanitized.content)
     }
 
     return sanitized
   }
 
+  private sanitizeContentArray(content: any[]): any[] {
+    return content.map((block: any) => {
+      if (block.type === 'text' && typeof block.text === 'string') {
+        return {
+          ...block,
+          text: this.removeSensitiveContent(block.text),
+        }
+      }
+      return block
+    })
+  }
+
   private determineSampleType(body: ClaudeMessagesRequest, requestType: string): string {
-    const parts: string[] = []
+    const parts = [
+      requestType,
+      ...(body.stream ? ['streaming'] : []),
+      ...(body.tools?.length ? ['with_tools'] : []),
+      ...(body.system ? ['with_system'] : []),
+    ]
 
-    // Add request type
-    parts.push(requestType)
-
-    // Add streaming indicator
-    if (body.stream) {
-      parts.push('streaming')
-    }
-
-    // Add tools indicator
-    if (body.tools && body.tools.length > 0) {
-      parts.push('with_tools')
-    }
-
-    // Add system message indicator
-    if (body.system) {
-      parts.push('with_system')
-    }
-
-    // Add model family
     const modelFamily = this.getModelFamily(body.model)
     if (modelFamily) {
       parts.push(modelFamily)
@@ -260,15 +289,7 @@ export class TestSampleCollector {
           // Handle content blocks
           return {
             ...msg,
-            content: msg.content.map((block: any) => {
-              if (block.type === 'text' && typeof block.text === 'string') {
-                return {
-                  ...block,
-                  text: this.removeSensitiveContent(block.text),
-                }
-              }
-              return block
-            }),
+            content: this.sanitizeContentArray(msg.content),
           }
         }
         return msg
@@ -280,15 +301,7 @@ export class TestSampleCollector {
         sanitized.system = this.removeSensitiveContent(sanitized.system)
       } else if (Array.isArray(sanitized.system)) {
         // Handle system as array of content blocks
-        sanitized.system = sanitized.system.map((block: any) => {
-          if (block.type === 'text' && typeof block.text === 'string') {
-            return {
-              ...block,
-              text: this.removeSensitiveContent(block.text),
-            }
-          }
-          return block
-        })
+        sanitized.system = this.sanitizeContentArray(sanitized.system)
       }
     }
 
@@ -296,13 +309,14 @@ export class TestSampleCollector {
   }
 
   private removeSensitiveContent(content: string): string {
-    // Mask common sensitive patterns
-    return content
-      .replace(/sk-ant-[a-zA-Z0-9-]+/g, 'sk-ant-****')
-      .replace(/Bearer [a-zA-Z0-9-._~+/]+/g, 'Bearer ****')
-      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '****@****.com')
-      .replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, '****-****-****-****') // Credit cards
-      .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '***-**-****') // SSN
+    let sanitized = content
+
+    // Apply all sensitive pattern replacements
+    Object.entries(SENSITIVE_PATTERNS).forEach(([key, pattern]) => {
+      sanitized = sanitized.replace(pattern, MASKED_VALUES[key as keyof typeof MASKED_VALUES])
+    })
+
+    return sanitized
   }
 
   private maskSensitiveValue(value: string): string {
@@ -324,36 +338,6 @@ export class TestSampleCollector {
     })
 
     return params
-  }
-
-  // Get collected samples (useful for testing)
-  async getCollectedSamples(): Promise<string[]> {
-    if (!this.enabled) {
-      return []
-    }
-
-    try {
-      const files = await fs.readdir(this.samplesDir)
-      return files.filter(f => f.endsWith('.json'))
-    } catch {
-      return []
-    }
-  }
-
-  // Clear all samples (useful for cleanup)
-  async clearSamples(): Promise<void> {
-    if (!this.enabled) {
-      return
-    }
-
-    try {
-      const files = await fs.readdir(this.samplesDir)
-      await Promise.all(
-        files.filter(f => f.endsWith('.json')).map(f => fs.unlink(path.join(this.samplesDir, f)))
-      )
-    } catch {
-      // Ignore errors
-    }
   }
 }
 
