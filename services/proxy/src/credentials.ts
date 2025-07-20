@@ -19,7 +19,6 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import * as process from 'process'
-import { randomBytes, createHash } from 'crypto'
 import { container } from './container.js'
 import type { RefreshMetrics } from './services/CredentialManager.js'
 
@@ -52,20 +51,38 @@ export interface DomainCredentialMapping {
   [domain: string]: string // domain -> credential file path
 }
 
-// Default OAuth client ID - can be overridden via CLAUDE_OAUTH_CLIENT_ID env var
-const DEFAULT_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
-
-// OAuth configuration - matching Claude CLI
-const OAUTH_CONFIG = {
-  clientId: process.env.CLAUDE_OAUTH_CLIENT_ID || DEFAULT_OAUTH_CLIENT_ID,
-  authorizationUrl: 'https://claude.ai/oauth/authorize',
-  tokenUrl: 'https://console.anthropic.com/v1/oauth/token',
-  redirectUri: 'https://console.anthropic.com/oauth/code/callback',
-  scopes: ['org:create_api_key', 'user:profile', 'user:inference'],
-  apiKeyEndpoint: 'https://api.anthropic.com/api/oauth/claude_cli/create_api_key',
-  profileEndpoint: 'https://api.anthropic.com/api/claude_cli_profile',
-  betaHeader: 'oauth-2025-04-20',
+// OAuth error response type
+interface OAuthErrorResponse {
+  error?: string
+  error_description?: string
+  error_uri?: string
 }
+
+// OAuth token response type
+interface OAuthTokenResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+  refresh_token?: string
+  scope?: string
+  is_max?: boolean
+}
+
+// Error type with additional OAuth properties
+interface OAuthError extends Error {
+  status?: number
+  errorCode?: string
+  errorDescription?: string
+}
+
+// OAuth configuration constants
+const DEFAULT_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
+const OAUTH_BETA_HEADER = 'oauth-2025-04-20'
+const TOKEN_REFRESH_BUFFER_MS = 60000 // Refresh 1 minute before expiry
+
+// File system constants
+const KEY_PREVIEW_LENGTH = 10
+const DEFAULT_CREDENTIALS_DIR = 'credentials'
 
 // Helper functions for cache management - delegate to the container's credential manager
 function getCachedCredential(key: string): ClaudeCredentials | null {
@@ -76,42 +93,48 @@ function setCachedCredential(key: string, credential: ClaudeCredentials): void {
   container.getCredentialManager().setCachedCredential(key, credential)
 }
 
-// PKCE helper functions
-function base64URLEncode(buffer: Buffer): string {
-  return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+/**
+ * Resolve a file path consistently across the codebase
+ * @param filePath - The path to resolve
+ * @returns The resolved absolute path
+ */
+function resolvePath(filePath: string): string {
+  if (filePath.startsWith('~')) {
+    return join(homedir(), filePath.slice(1))
+  } else if (filePath.startsWith('/') || filePath.includes(':')) {
+    return filePath
+  } else {
+    return join(process.cwd(), filePath)
+  }
 }
 
-function generateCodeVerifier(): string {
-  return base64URLEncode(randomBytes(32))
-}
-
-function generateCodeChallenge(verifier: string): string {
-  return base64URLEncode(createHash('sha256').update(verifier).digest())
-}
 
 /**
  * Get credential file path for a domain
+ * 
+ * Resolves the credential file path for a given domain using the naming convention:
+ * <domain>.credentials.json
+ * 
+ * @param domain - The domain to look up (e.g., 'example.com')
+ * @param credentialsDir - Directory containing credential files (defaults to './credentials')
+ * @returns Full path to the credential file if it exists, null otherwise
+ * @example
+ * getCredentialFileForDomain('api.example.com', './credentials')
+ * // Returns: '/path/to/project/credentials/api.example.com.credentials.json'
  */
 export function getCredentialFileForDomain(
   domain: string,
   credentialsDir: string | undefined
 ): string | null {
   if (!credentialsDir) {
-    credentialsDir = 'credentials' // Default to 'credentials' folder in current directory
+    credentialsDir = DEFAULT_CREDENTIALS_DIR
   }
 
   // Construct the credential filename: <domain>.credentials.json
   const filename = `${domain}.credentials.json`
 
   // Resolve the credentials directory path
-  let dirPath: string
-  if (credentialsDir.startsWith('~')) {
-    dirPath = join(homedir(), credentialsDir.slice(1))
-  } else if (credentialsDir.startsWith('/') || credentialsDir.includes(':')) {
-    dirPath = credentialsDir
-  } else {
-    dirPath = join(process.cwd(), credentialsDir)
-  }
+  const dirPath = resolvePath(credentialsDir)
 
   const filePath = join(dirPath, filename)
 
@@ -125,6 +148,18 @@ export function getCredentialFileForDomain(
 
 /**
  * Load credentials from a JSON file
+ * 
+ * Supports both file-based and in-memory credentials:
+ * - File paths: Loads from disk with caching
+ * - memory:* paths: Returns from in-memory cache only
+ * 
+ * Validates credential structure and warns about missing accountId.
+ * 
+ * @param filePath - Path to credential file (supports ~, absolute, and relative paths)
+ * @returns Parsed credentials or null if invalid/not found
+ * @example
+ * loadCredentials('~/credentials/domain.credentials.json')
+ * loadCredentials('memory:test-creds')
  */
 export function loadCredentials(filePath: string): ClaudeCredentials | null {
   // Check cache first
@@ -139,19 +174,7 @@ export function loadCredentials(filePath: string): ClaudeCredentials | null {
   }
 
   try {
-    // Resolve path:
-    // - If starts with ~, expand to home directory
-    // - If absolute path (starts with / or contains :), use as-is
-    // - Otherwise, treat as relative to current working directory
-    let fullPath: string
-
-    if (filePath.startsWith('~')) {
-      fullPath = join(homedir(), filePath.slice(1))
-    } else if (filePath.startsWith('/') || filePath.includes(':')) {
-      fullPath = filePath
-    } else {
-      fullPath = join(process.cwd(), filePath)
-    }
+    const fullPath = resolvePath(filePath)
 
     if (!existsSync(fullPath)) {
       console.error(`Credential file not found: ${fullPath}`)
@@ -205,21 +228,13 @@ async function saveOAuthCredentials(filePath: string, credentials: ClaudeCredent
     setCachedCredential(filePath, credentials)
 
     // Save to file using same path resolution logic
-    let fullPath: string
-
-    if (filePath.startsWith('~')) {
-      fullPath = join(homedir(), filePath.slice(1))
-    } else if (filePath.startsWith('/') || filePath.includes(':')) {
-      fullPath = filePath
-    } else {
-      fullPath = join(process.cwd(), filePath)
-    }
+    const fullPath = resolvePath(filePath)
 
     // Ensure directory exists
     mkdirSync(dirname(fullPath), { recursive: true })
 
     // Load existing file to preserve non-OAuth fields
-    let existingData: any = {}
+    let existingData: Partial<ClaudeCredentials> = {}
     try {
       if (existsSync(fullPath)) {
         const content = readFileSync(fullPath, 'utf-8')
@@ -248,6 +263,13 @@ async function saveOAuthCredentials(filePath: string, credentials: ClaudeCredent
 
 /**
  * Refresh OAuth access token
+ * 
+ * Exchanges a refresh token for a new access token following OAuth 2.0 spec.
+ * Includes Anthropic-specific beta header for OAuth support.
+ * 
+ * @param refreshToken - The OAuth refresh token
+ * @returns New OAuth credentials with updated access token
+ * @throws OAuthError with status and error details on failure
  */
 export async function refreshToken(refreshToken: string): Promise<OAuthCredentials> {
   const TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token'
@@ -257,7 +279,7 @@ export async function refreshToken(refreshToken: string): Promise<OAuthCredentia
     const response = await fetch(TOKEN_URL, {
       headers: {
         'Content-Type': 'application/json',
-        'anthropic-beta': OAUTH_CONFIG.betaHeader,
+        'anthropic-beta': OAUTH_BETA_HEADER,
       },
       method: 'POST',
       body: JSON.stringify({
@@ -268,18 +290,18 @@ export async function refreshToken(refreshToken: string): Promise<OAuthCredentia
     })
 
     if (response.ok) {
-      const payload = (await response.json()) as any
+      const payload = (await response.json()) as OAuthTokenResponse
       return {
         accessToken: payload.access_token,
         refreshToken: payload.refresh_token || refreshToken, // Keep old refresh token if not provided
         expiresAt: Date.now() + payload.expires_in * 1000, // Convert to timestamp
-        scopes: payload.scope ? payload.scope.split(' ') : OAUTH_CONFIG.scopes,
+        scopes: payload.scope ? payload.scope.split(' ') : ['org:create_api_key', 'user:profile', 'user:inference'],
         isMax: payload.is_max || true,
       }
     }
 
     const errorText = await response.text()
-    let errorData: any = {}
+    let errorData: OAuthErrorResponse = {}
     try {
       errorData = JSON.parse(errorText)
     } catch {
@@ -296,14 +318,14 @@ export async function refreshToken(refreshToken: string): Promise<OAuthCredentia
       errorData.error_description ||
         errorData.error ||
         `Failed to refresh token: ${response.status} ${response.statusText}`
-    ) as any
+    ) as OAuthError
     error.status = response.status
     error.errorCode = errorData.error
     error.errorDescription = errorData.error_description
     throw error
   } catch (error) {
     // Re-throw if already an Error with details
-    if (error instanceof Error && (error as any).status) {
+    if (error instanceof Error && (error as OAuthError).status) {
       throw error
     }
     // Wrap network errors
@@ -316,7 +338,21 @@ export async function refreshToken(refreshToken: string): Promise<OAuthCredentia
 
 /**
  * Get API key or access token from credentials
- * Handles OAuth token refresh automatically
+ * 
+ * This function handles both API key and OAuth credential types:
+ * - For API keys: Returns the key directly
+ * - For OAuth: Checks token expiration and refreshes automatically if needed
+ * 
+ * The OAuth refresh mechanism includes:
+ * - Automatic refresh 1 minute before token expiry
+ * - Concurrent refresh prevention (single instance)
+ * - Failed refresh cooldown (5 seconds)
+ * - Atomic credential file updates
+ * 
+ * @param credentialPath - Path to the credential file (absolute or relative)
+ * @param debug - Enable debug logging for OAuth operations
+ * @returns The API key or access token, or null if unavailable
+ * @throws Never throws - returns null on any error
  */
 export async function getApiKey(
   credentialPath: string | null,
@@ -336,11 +372,29 @@ export async function getApiKey(
   }
 
   if (credentials.type === 'oauth' && credentials.oauth) {
-    try {
-      const oauth = credentials.oauth
+    return handleOAuthCredentials(credentialPath, credentials, debug)
+  }
 
-      // Check if token needs refresh (refresh 1 minute before expiry)
-      if (oauth.expiresAt && Date.now() >= oauth.expiresAt - 60000) {
+  return null
+}
+
+/**
+ * Handle OAuth credentials with automatic token refresh
+ * @internal
+ */
+async function handleOAuthCredentials(
+  credentialPath: string,
+  credentials: ClaudeCredentials,
+  debug: boolean
+): Promise<string | null> {
+  try {
+    const oauth = credentials.oauth
+    if (!oauth) {
+      return null
+    }
+
+    // Check if token needs refresh (refresh 1 minute before expiry)
+    if (oauth.expiresAt && Date.now() >= oauth.expiresAt - TOKEN_REFRESH_BUFFER_MS) {
         if (debug) {
           console.log(`OAuth token expired for ${credentialPath}, checking refresh...`)
         }
@@ -415,21 +469,25 @@ export async function getApiKey(
                 `Failed to save credentials: ${saveError instanceof Error ? saveError.message : String(saveError)}`
               )
             }
-          } catch (refreshError: any) {
+          } catch (refreshError) {
             container.getCredentialManager().updateMetrics('failure')
 
             console.error(
               `Failed to refresh OAuth token for ${credentialPath}:`,
-              refreshError.message
+              refreshError instanceof Error ? refreshError.message : String(refreshError)
             )
 
             // Cache the failure to prevent thundering herd
             container
               .getCredentialManager()
-              .recordFailedRefresh(credentialPath, refreshError.message || 'Unknown error')
+              .recordFailedRefresh(
+                credentialPath,
+                refreshError instanceof Error ? refreshError.message : 'Unknown error'
+              )
 
             // Check for specific error codes
-            if (refreshError.errorCode === 'invalid_grant' || refreshError.status === 400) {
+            const oauthError = refreshError as OAuthError
+            if (oauthError.errorCode === 'invalid_grant' || oauthError.status === 400) {
               console.error('Refresh token is invalid or expired. Re-authentication required.')
               console.error(`Please run: bun run scripts/oauth-login.ts ${credentialPath}`)
             }
@@ -447,18 +505,26 @@ export async function getApiKey(
         return refreshPromise
       }
 
-      return oauth.accessToken || null
-    } catch (err) {
-      console.error(`Failed to refresh OAuth token for ${credentialPath}:`, err)
-      return null
-    }
+    return oauth.accessToken || null
+  } catch (err) {
+    console.error(`Failed to refresh OAuth token for ${credentialPath}:`, err)
+    return null
   }
-
-  return null
 }
 
 /**
  * Get masked credential info for logging
+ * 
+ * Returns a safe representation of credentials for logging purposes:
+ * - API keys: Shows last 10 characters only
+ * - OAuth: Shows client ID
+ * - Invalid/missing: Shows status
+ * 
+ * @param credentialPath - Path to credential file
+ * @returns Masked credential identifier safe for logs
+ * @example
+ * getMaskedCredentialInfo('/path/to/creds.json')
+ * // Returns: 'api_key:...abc123def' or 'oauth:client-id-here'
  */
 export function getMaskedCredentialInfo(credentialPath: string | null): string {
   if (!credentialPath) {
@@ -476,14 +542,14 @@ export function getMaskedCredentialInfo(credentialPath: string | null): string {
 
   if (credentials.type === 'api_key' && credentials.api_key) {
     const key = credentials.api_key
-    if (key.length <= 10) {
+    if (key.length <= KEY_PREVIEW_LENGTH) {
       return `api_key:${key}`
     }
-    return `api_key:...${key.slice(-10)}`
+    return `api_key:...${key.slice(-KEY_PREVIEW_LENGTH)}`
   }
 
   if (credentials.type === 'oauth' && credentials.oauth) {
-    return `oauth:${OAUTH_CONFIG.clientId}`
+    return `oauth:${process.env.CLAUDE_OAUTH_CLIENT_ID || DEFAULT_OAUTH_CLIENT_ID}`
   }
 
   return `unknown:${credentialPath}`
@@ -580,219 +646,12 @@ export async function getAuthorizationHeaderForDomain(
 
   // Add beta header for OAuth requests
   if (credentials.type === 'oauth') {
-    headers['anthropic-beta'] = OAUTH_CONFIG.betaHeader
+    headers['anthropic-beta'] = OAUTH_BETA_HEADER
   }
 
   return headers
 }
 
-/**
- * Generate OAuth authorization URL
- */
-function generateAuthorizationUrl(): {
-  url: string
-  verifier: string
-} {
-  const codeVerifier = generateCodeVerifier()
-  const codeChallenge = generateCodeChallenge(codeVerifier)
-
-  const authUrl = new URL(OAUTH_CONFIG.authorizationUrl)
-  authUrl.searchParams.set('code', 'true')
-  authUrl.searchParams.set('client_id', OAUTH_CONFIG.clientId)
-  authUrl.searchParams.set('response_type', 'code')
-  authUrl.searchParams.set('redirect_uri', OAUTH_CONFIG.redirectUri)
-  authUrl.searchParams.set('scope', OAUTH_CONFIG.scopes.join(' '))
-  authUrl.searchParams.set('code_challenge', codeChallenge)
-  authUrl.searchParams.set('code_challenge_method', 'S256')
-  authUrl.searchParams.set('state', codeVerifier) // Store verifier in state
-
-  return {
-    url: authUrl.toString(),
-    verifier: codeVerifier,
-  }
-}
-
-/**
- * Wait for user to complete OAuth flow and get code
- */
-async function waitForAuthorizationCode(): Promise<string> {
-  const readline = await import('readline')
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  })
-
-  return new Promise((resolve, reject) => {
-    rl.question('\nEnter the authorization code: ', code => {
-      rl.close()
-
-      if (!code || code.trim().length === 0) {
-        reject(new Error('No authorization code provided'))
-        return
-      }
-
-      resolve(code.trim())
-    })
-  })
-}
-
-/**
- * Exchange authorization code for tokens
- *
- * Note: Anthropic's OAuth implementation returns the authorization code in a
- * non-standard format: "code#state" instead of separate query parameters.
- * This deviates from RFC 6749 but matches their actual implementation.
- */
-async function exchangeCodeForTokens(
-  codeWithState: string,
-  codeVerifier: string
-): Promise<OAuthCredentials> {
-  try {
-    // Split the code#state format (Anthropic-specific format)
-    const [code, state] = codeWithState.split('#')
-
-    if (!code || !state) {
-      throw new Error('Invalid authorization code format. Expected format: code#state')
-    }
-
-    const response = await fetch(OAUTH_CONFIG.tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        code,
-        state,
-        grant_type: 'authorization_code',
-        client_id: OAUTH_CONFIG.clientId,
-        redirect_uri: OAUTH_CONFIG.redirectUri,
-        code_verifier: codeVerifier,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Failed to exchange code for tokens:', response.status, errorText)
-      throw new Error(`Failed to exchange code: ${response.status}`)
-    }
-
-    const data = (await response.json()) as any
-
-    return {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresAt: Date.now() + data.expires_in * 1000,
-      scopes: data.scope ? data.scope.split(' ') : OAUTH_CONFIG.scopes,
-      isMax: data.is_max || true,
-    }
-  } catch (err: any) {
-    console.error('Failed to exchange code for tokens:', err.message)
-    throw err
-  }
-}
-
-/**
- * Create API key using OAuth token
- */
-async function createApiKey(accessToken: string): Promise<string> {
-  try {
-    const response = await fetch(OAUTH_CONFIG.apiKeyEndpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'anthropic-beta': OAUTH_CONFIG.betaHeader,
-      },
-      body: JSON.stringify({
-        expiresAt: null,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Failed to create API key:', response.status, errorText)
-      throw new Error(`Failed to create API key: ${response.status}`)
-    }
-
-    const data = (await response.json()) as any
-    return data.key
-  } catch (err: any) {
-    console.error('Failed to create API key:', err.message)
-    throw err
-  }
-}
-
-/**
- * Perform OAuth login flow for a specific credential file
- * This allows setting up OAuth credentials for different domains
- */
-export async function performOAuthLogin(
-  credentialPath: string,
-  createApiKeyFile: boolean = true
-): Promise<void> {
-  try {
-    console.log('Starting OAuth login flow...')
-
-    // Generate authorization URL
-    const { url, verifier } = generateAuthorizationUrl()
-
-    console.log('\nPlease visit the following URL to authorize:')
-    console.log(url)
-    console.log('\nAfter authorizing, you will see an authorization code.')
-    console.log('Copy the entire code (it should contain a # character).')
-
-    // Wait for user to complete authorization
-    const code = await waitForAuthorizationCode()
-
-    // Exchange code for tokens
-    console.log('Exchanging authorization code for tokens...')
-    const oauthCreds = await exchangeCodeForTokens(code, verifier)
-
-    // Create credentials object
-    const credentials: ClaudeCredentials = {
-      type: 'oauth',
-      oauth: oauthCreds,
-    }
-
-    // Save OAuth credentials
-    await saveOAuthCredentials(credentialPath, credentials)
-
-    console.log(`OAuth credentials saved to: ${credentialPath}`)
-
-    // Optionally create an API key
-    if (createApiKeyFile) {
-      console.log('Creating API key from OAuth token...')
-      const apiKey = await createApiKey(oauthCreds.accessToken)
-
-      // Save as API key credential
-      const apiKeyCredentials: ClaudeCredentials = {
-        type: 'api_key',
-        api_key: apiKey,
-      }
-
-      const apiKeyPath = credentialPath.replace('.json', '-apikey.json')
-
-      // Resolve full path before saving
-      let fullPath: string
-      if (apiKeyPath.startsWith('~')) {
-        fullPath = join(homedir(), apiKeyPath.slice(1))
-      } else if (apiKeyPath.startsWith('/') || apiKeyPath.includes(':')) {
-        fullPath = apiKeyPath
-      } else {
-        fullPath = join(process.cwd(), apiKeyPath)
-      }
-
-      mkdirSync(dirname(fullPath), { recursive: true })
-      writeFileSync(fullPath, JSON.stringify(apiKeyCredentials, null, 2))
-      setCachedCredential(apiKeyPath, apiKeyCredentials)
-
-      console.log(`API key saved to: ${apiKeyPath}`)
-    }
-  } catch (err) {
-    console.error('OAuth login failed:', err)
-    throw err
-  }
-}
 
 /**
  * Add in-memory credentials for testing or temporary use

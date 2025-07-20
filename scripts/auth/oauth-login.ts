@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { performOAuthLogin } from '../../services/proxy/src/credentials'
+import { performOAuthLogin } from '../../services/proxy/src/oauth-utilities'
 import { resolve, dirname } from 'path'
 import { mkdirSync } from 'fs'
 
