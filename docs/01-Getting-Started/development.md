@@ -1,290 +1,213 @@
 # Development Guide
 
-This guide covers setting up and developing Claude Nexus Proxy.
+This guide covers day-to-day development workflows for Claude Nexus Proxy.
 
-## Prerequisites
+> **Prerequisites**: See [Installation Guide](./installation.md) for initial setup.
 
-- [Bun](https://bun.sh) v1.0 or later
-- PostgreSQL 12+
-- Git
-
-## Initial Setup
-
-### 1. Clone and Install
+## Quick Start
 
 ```bash
-git clone https://github.com/yourusername/claude-nexus-proxy.git
-cd claude-nexus-proxy
-bun install
-```
-
-### 2. Database Setup
-
-```bash
-# Create database
-createdb claude_nexus_dev
-
-# Set connection string
-export DATABASE_URL=postgresql://localhost/claude_nexus_dev
-
-# Run migrations
-bun run db:migrate
-```
-
-### 3. Environment Configuration
-
-Create `.env` file:
-
-```bash
-# Required
-DATABASE_URL=postgresql://localhost/claude_nexus_dev
-DASHBOARD_API_KEY=dev-dashboard-key
-
-# Optional
-DEBUG=true
-STORAGE_ENABLED=true
-ENABLE_CLIENT_AUTH=false  # Easier for development
-```
-
-### 4. Start Development Servers
-
-```bash
-# Start both services
+# Start both services (proxy on :3000, dashboard on :3001)
 bun run dev
 
-# Or start individually
-bun run dev:proxy      # Port 3000
-bun run dev:dashboard  # Port 3001
-```
-
-## Project Structure
-
-```
-claude-nexus-proxy/
-├── packages/
-│   └── shared/          # Shared types and utilities
-├── services/
-│   ├── proxy/          # Proxy API service
-│   └── dashboard/      # Dashboard web service
-├── scripts/            # Utility scripts
-│   ├── db/            # Database scripts
-│   ├── auth/          # Authentication scripts
-│   ├── dev/           # Development helpers
-│   └── test/          # Test scripts
-└── docker/            # Docker configurations
+# Start individually
+bun run dev:proxy
+bun run dev:dashboard
 ```
 
 ## Development Workflow
 
-### Type Safety
+### 1. Pre-commit Hooks
 
-Always run type checking before committing:
+Git hooks are automatically installed via Husky:
 
 ```bash
+# Hooks run automatically on commit
+git commit -m "feat: your message"
+
+# Skip hooks if needed (use sparingly)
+git commit -m "fix: emergency" --no-verify
+```
+
+**What runs on commit:**
+
+- ESLint fixes for TypeScript/JavaScript
+- Prettier formatting
+- Note: Type checking runs in CI, not pre-commit (for performance)
+
+### 2. Type Safety
+
+Always check types before pushing:
+
+```bash
+# Check all packages
 bun run typecheck
-```
 
-Fix any type errors - the build will fail if types don't check.
-
-### Code Formatting
-
-Format code with Prettier:
-
-```bash
-bun run format        # Format all files
-bun run format:check  # Check formatting
-```
-
-### Making Changes
-
-1. **Shared Types** - Edit in `packages/shared/src/`
-2. **Proxy Logic** - Edit in `services/proxy/src/`
-3. **Dashboard UI** - Edit in `services/dashboard/src/`
-
-After changing shared types:
-
-```bash
+# After changing shared types
 bun run build:shared
 ```
 
-### Testing
+The project uses TypeScript Project References for proper monorepo type checking (see ADR-013).
 
-Run tests:
-
-```bash
-bun test
-```
-
-Test specific functionality:
+### 3. Testing
 
 ```bash
-# Run tests
+# Run all tests
 bun test
+
+# Test specific package
+cd packages/shared && bun test
+
+# Test specific file
+bun test conversation-linker.test.ts
+
+# Collect test samples (for test development)
+COLLECT_TEST_SAMPLES=true bun run dev:proxy
 ```
 
 ## Common Development Tasks
 
-### Adding a New API Endpoint
-
-1. **Define Types** in `packages/shared/src/types/`:
-
-```typescript
-export interface MyNewEndpoint {
-  request: { ... }
-  response: { ... }
-}
-```
-
-2. **Implement in Proxy** `services/proxy/src/routes/`:
-
-```typescript
-app.post('/my-endpoint', async c => {
-  // Implementation
-})
-```
-
-3. **Add to Dashboard** if needed
-
 ### Working with Database
 
 ```bash
-# Analyze conversation structure
-bun run db:analyze-conversations
+# Run migrations
+for file in scripts/db/migrations/*.ts; do bun run "$file"; done
+
+# Analyze conversations
+bun run scripts/db/analyze-conversations.ts
 
 # Rebuild conversation data
-bun run db:rebuild-conversations
+bun run scripts/db/rebuild-conversations.ts
 
-# Create backup before changes
-bun run db:backup
+# Check SQL performance
+DEBUG_SQL=true SLOW_QUERY_THRESHOLD_MS=100 bun run dev
 ```
 
 ### Managing Credentials
 
 ```bash
-# Generate API key for testing
-bun run auth:generate-key
+# Generate secure API key
+bun run scripts/auth/generate-api-key.ts
 
 # Check OAuth status
-bun run auth:oauth-status
-```
+bun run scripts/auth/check-oauth-status.ts
 
-## Debugging
-
-### Enable Debug Logging
-
-```bash
-DEBUG=true bun run dev:proxy
-```
-
-This shows:
-
-- Full request/response bodies (masked)
-- Streaming chunks
-- Authentication flow
-- Database queries
-
-### Common Issues
-
-1. **Port Already in Use**
-
-```bash
-lsof -i :3000  # Find process using port
-kill -9 <PID>  # Kill process
-```
-
-2. **Database Connection Failed**
-
-- Check PostgreSQL is running
-- Verify DATABASE_URL
-- Check database exists
-
-3. **Type Errors**
-
-```bash
-bun run build:shared  # Rebuild shared types
-bun run typecheck     # See all errors
-```
-
-## Testing with Claude API
-
-### Using Test Credentials
-
-Create test domain credentials:
-
-```bash
+# Create test credentials
 cat > credentials/test.local.credentials.json << EOF
 {
   "type": "api_key",
-  "api_key": "sk-ant-..."
+  "accountId": "test_account",
+  "api_key": "sk-ant-...",
+  "client_api_key": "cnp_test_..."
 }
 EOF
 ```
 
-### Making Test Requests
+### Debugging
 
 ```bash
-# Non-streaming
+# Enable comprehensive debug logging
+DEBUG=true bun run dev:proxy
+
+# SQL debugging only
+DEBUG_SQL=true bun run dev:proxy
+
+# Test with curl
 curl -X POST http://localhost:3000/v1/messages \
   -H "Host: test.local" \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-3-sonnet-20240229",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "max_tokens": 100
-  }'
-
-# Streaming
-curl -X POST http://localhost:3000/v1/messages \
-  -H "Host: test.local" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-3-sonnet-20240229",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "stream": true
-  }'
+  -H "Authorization: Bearer cnp_test_..." \
+  -d '{"model": "claude-3-sonnet-20240229", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
-## Performance Optimization
+### AI Worker Development
 
-### Database Queries
-
-Monitor slow queries:
+Enable the AI analysis worker:
 
 ```bash
-SLOW_QUERY_THRESHOLD_MS=100 bun run dev:dashboard
+# In .env
+AI_WORKER_ENABLED=true
+GEMINI_API_KEY=your-key
+
+# Check worker configuration
+bun run scripts/check-ai-worker-config.ts
+
+# Monitor analysis jobs
+bun run scripts/check-analysis-jobs.ts
 ```
 
-### Caching
+## Project Structure
 
-Disable dashboard cache during development:
+- `packages/shared/` - Shared types and utilities
+- `services/proxy/` - Proxy API service
+- `services/dashboard/` - Dashboard web service
+- `scripts/` - Utility scripts (auth, db, dev)
+- `docs/ADRs/` - Architecture Decision Records
+
+## Making Changes
+
+### 1. Update Shared Types
+
+Edit in `packages/shared/src/types/`, then:
 
 ```bash
-DASHBOARD_CACHE_TTL=0 bun run dev:dashboard
+bun run build:shared
 ```
 
-## Contributing
+### 2. Add New Features
 
-### Before Submitting PR
+1. Define types in `packages/shared`
+2. Implement in appropriate service
+3. Add tests
+4. Update relevant documentation
 
-1. **Type Check**: `bun run typecheck`
-2. **Format Code**: `bun run format`
-3. **Test Changes**: `bun test`
-4. **Update Docs**: If adding features
+### 3. Database Changes
 
-### Commit Messages
+1. Create migration in `scripts/db/migrations/`
+2. Follow naming: `XXX-description.ts`
+3. Test migration locally
+4. Document in ADR if architectural change
 
-Follow conventional commits:
+## Troubleshooting
 
-- `feat:` New features
-- `fix:` Bug fixes
-- `docs:` Documentation
-- `refactor:` Code refactoring
-- `test:` Test additions/changes
-- `chore:` Maintenance tasks
+### Port Already in Use
 
-## Resources
+```bash
+lsof -i :3000
+kill -9 <PID>
+```
 
-- [Bun Documentation](https://bun.sh/docs)
-- [Hono Framework](https://hono.dev)
-- [Claude API Reference](https://docs.anthropic.com/claude/reference)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+### Type Errors After Changes
+
+```bash
+# Rebuild shared types
+bun run build:shared
+
+# Clean and reinstall
+rm -rf node_modules
+bun install
+```
+
+### Database Issues
+
+```bash
+# Check connection
+psql $DATABASE_URL -c "SELECT 1"
+
+# Verify schema
+psql $DATABASE_URL -c "\dt"
+```
+
+## Contributing Guidelines
+
+1. **Before PR**: Run `bun run typecheck` and `bun test`
+2. **Commit format**: Use conventional commits (feat:, fix:, docs:, etc.)
+3. **Documentation**: Update docs for new features
+4. **ADRs**: Create ADR for architectural decisions
+
+## Additional Resources
+
+- [CLAUDE.md](../../CLAUDE.md) - AI assistant instructions
+- [Configuration Guide](./configuration.md) - Environment variables
+- [Docker Deployment](../03-Operations/deployment/docker.md) - Container setup
+- [Architecture ADRs](../04-Architecture/ADRs/) - Technical decisions
