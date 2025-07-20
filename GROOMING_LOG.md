@@ -1,5 +1,52 @@
 # Grooming Log
 
+## 2025-01-20: HttpError Class Refactoring
+
+### File: `services/dashboard/src/errors/HttpError.ts`
+
+#### Action: REFACTORED
+
+#### Changes Made:
+
+1. **Added generic type support**:
+   - Made the class generic `HttpError<T = unknown>` to preserve type information
+   - Maintains backward compatibility with default `unknown` type
+   - Enables typed error data for better type safety
+
+2. **Simplified error message extraction**:
+   - Replaced complex nested if conditions with array of extractors pattern
+   - Moved extractors inline to avoid 'this' binding issues
+   - Each extractor handles one error format, improving readability
+
+3. **Added common HTTP error factory methods**:
+   - `BadRequest()`, `Unauthorized()`, `Forbidden()`, `NotFound()`, `InternalServerError()`
+   - Each supports custom message and typed data
+   - Improves developer experience with semantic error creation
+
+4. **Added JSON serialization support**:
+   - Implemented `toJSON()` method for proper error serialization
+   - Excludes stack trace in production for security
+   - Enables consistent error logging and API responses
+
+5. **Improved code organization**:
+   - Better separation of concerns
+   - Clear documentation for each method
+   - Consistent code style with the rest of the codebase
+
+#### Rationale:
+
+1. **Type safety**: Generic support prevents loss of type information when handling typed error responses
+2. **Maintainability**: Simplified extraction logic is easier to test and extend
+3. **Developer experience**: Factory methods reduce boilerplate and magic numbers
+4. **Security**: Proper serialization prevents accidental exposure of sensitive data
+
+#### Impact:
+
+- **Type safety**: Better TypeScript support for error handling throughout the application
+- **Code quality**: Cleaner, more maintainable error handling code
+- **Developer productivity**: Easier to create and handle specific HTTP errors
+- **API consistency**: Standardized error serialization format
+
 ## 2025-01-20: Spark Proxy Routes Refactoring
 
 ### File: `services/dashboard/src/routes/spark-proxy.ts`
