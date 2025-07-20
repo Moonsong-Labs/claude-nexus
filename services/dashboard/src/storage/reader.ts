@@ -3,6 +3,9 @@ import NodeCache from 'node-cache'
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 
+// TODO: These interfaces should be moved to @claude-nexus/shared/types
+// However, since this file is marked for removal in Phase 3,
+// we're keeping them here to minimize migration complexity
 interface ApiRequest {
   request_id: string
   domain: string
@@ -59,10 +62,24 @@ interface StorageStats {
 /**
  * Storage reader service for retrieving data from the database
  * Read-only operations for the dashboard service
+ *
+ * @deprecated This class will be removed in Phase 3 when the dashboard
+ * transitions to using only API calls. New features should use the ProxyApiClient
+ * instead. See container.ts for migration notes.
+ *
+ * Note: This is a monolithic class handling all database read operations.
+ * For maintainability, use specific methods directly rather than adding new ones.
  */
 export class StorageReader {
   private cache: NodeCache
   private readonly SLOW_QUERY_THRESHOLD_MS: number
+
+  /**
+   * Generate type-safe cache keys
+   */
+  private getCacheKey(type: string, ...params: (string | number | boolean | undefined)[]): string {
+    return [type, ...params.map(p => p ?? 'all')].join(':')
+  }
 
   constructor(private pool: Pool) {
     // Cache TTL from environment or default to 30 seconds
@@ -114,7 +131,7 @@ export class StorageReader {
    * Get requests by domain
    */
   async getRequestsByDomain(domain: string, limit: number = 100): Promise<ApiRequest[]> {
-    const cacheKey = `requests:${domain}:${limit}`
+    const cacheKey = this.getCacheKey('requests', domain, limit)
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
 
     // Only use cache if TTL > 0
@@ -179,7 +196,7 @@ export class StorageReader {
    * Get request details including body and chunks
    */
   async getRequestDetails(requestId: string): Promise<RequestDetails> {
-    const cacheKey = `details:${requestId}`
+    const cacheKey = this.getCacheKey('details', requestId)
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
 
     // Only use cache if TTL > 0
@@ -266,7 +283,7 @@ export class StorageReader {
    * Get aggregated statistics
    */
   async getStats(domain?: string, since?: Date): Promise<StorageStats> {
-    const cacheKey = `stats:${domain || 'all'}:${since?.toISOString() || 'all'}`
+    const cacheKey = this.getCacheKey('stats', domain, since?.toISOString())
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
 
     // Only use cache if TTL > 0
@@ -380,7 +397,7 @@ export class StorageReader {
       requests: ApiRequest[]
     }[]
   > {
-    const cacheKey = `conversations:${domain || 'all'}:${limit}`
+    const cacheKey = this.getCacheKey('conversations', domain, limit)
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
 
     // Only use cache if TTL > 0
@@ -393,6 +410,11 @@ export class StorageReader {
 
     try {
       // First get unique conversations with branch information
+      // This query aggregates conversation-level metadata:
+      // - Groups API requests by conversation_id
+      // - Counts requests and messages per conversation
+      // - Collects all unique branch IDs within each conversation
+      // - Orders by most recent activity (MAX timestamp)
       const conversationQuery = domain
         ? `SELECT 
              conversation_id,
@@ -542,7 +564,7 @@ export class StorageReader {
     branches: string[]
     requests: ApiRequest[]
   } | null> {
-    const cacheKey = `conversation:${conversationId}`
+    const cacheKey = this.getCacheKey('conversation', conversationId)
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
 
     // Only use cache if TTL > 0
@@ -583,6 +605,11 @@ export class StorageReader {
 
       // Now get all requests for this conversation with optimized last_message and response_body
       // Only fetch full body for the last request per branch (for metrics calculation)
+      //
+      // Performance optimization: Uses a CTE with ROW_NUMBER() to rank requests within each branch
+      // - This allows us to fetch full request body only for the most recent request per branch
+      // - Reduces memory usage for conversations with many requests
+      // - The 'rn = 1' check identifies the latest request in each branch
       const requestsQuery = `
         WITH ranked_requests AS (
           SELECT 
@@ -680,7 +707,7 @@ export class StorageReader {
     limit: number = 100,
     excludeSubtasks: boolean = false
   ): Promise<any[]> {
-    const cacheKey = `conversation-summaries:${domain || 'all'}:${limit}:${excludeSubtasks}`
+    const cacheKey = this.getCacheKey('conversation-summaries', domain, limit, excludeSubtasks)
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
 
     // Only use cache if TTL > 0
@@ -862,6 +889,8 @@ export class StorageReader {
           error: getErrorMessage(error),
         },
       })
+      // Return empty array for consistency with other read operations
+      // This prevents UI crashes when database queries fail
       return []
     }
   }
@@ -874,7 +903,7 @@ export class StorageReader {
     limit: number = 50,
     excludeSubtasks: boolean = false
   ): Promise<any[]> {
-    const cacheKey = `conversations:${domain || 'all'}:${limit}:${excludeSubtasks}`
+    const cacheKey = this.getCacheKey('conversations', domain, limit, excludeSubtasks)
     const cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL || '30')
 
     if (cacheTTL > 0) {
@@ -940,6 +969,8 @@ export class StorageReader {
           error: getErrorMessage(error),
         },
       })
+      // Return empty array for consistency with other read operations
+      // This prevents UI crashes when database queries fail
       return []
     }
   }

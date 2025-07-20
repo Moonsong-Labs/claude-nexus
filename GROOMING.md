@@ -32,6 +32,16 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-20
 
+- **Minimal refactoring of services/dashboard/src/storage/reader.ts**: Applied targeted improvements to deprecated file
+  - Added @deprecated JSDoc annotation with clear migration guidance to ProxyApiClient
+  - Extracted type-safe cache key generation utility (`getCacheKey`) to replace error-prone string concatenation
+  - Added comprehensive documentation to complex SQL queries explaining their purpose and performance optimizations
+  - Added TODO comment for type interfaces that should ideally be in shared package
+  - Added consistent error handling comments explaining why methods return empty arrays
+  - Rationale: Applied minimal refactoring approach as recommended by AI models (Gemini-2.5-flash and o3-mini) since file is marked for removal in Phase 3
+  - Key decision: Avoided major structural changes (splitting class, extracting SQL, adding streaming) to minimize risk for deprecated code
+  - All existing functionality preserved and tested - dashboard starts successfully
+
 - **Refactored services/dashboard/src/utils/formatters.ts**: Improved code quality and maintainability
   - Removed unused `formatTimestamp` function that was not imported anywhere
   - Extracted constants for magic numbers (MILLION, THOUSAND, MS_PER_SECOND, etc.)
