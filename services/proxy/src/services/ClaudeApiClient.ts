@@ -2,10 +2,13 @@ import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { AuthResult } from './AuthenticationService'
 import { UpstreamError, TimeoutError, getErrorMessage, isClaudeError } from '@claude-nexus/shared'
-import { ClaudeMessagesResponse, ClaudeStreamEvent } from '../types/claude'
+import { ClaudeMessagesResponse, ClaudeStreamEvent, ClaudeErrorResponse } from '../types/claude'
 import { logger } from '../middleware/logger'
 import { claudeApiCircuitBreaker } from '../utils/circuit-breaker'
 import { retryWithBackoff, retryConfigs, isRetryableError } from '../utils/retry'
+// Constants for SSE protocol
+const SSE_DATA_PREFIX = 'data: '
+const SSE_DONE_SIGNAL = '[DONE]'
 
 export interface ClaudeApiConfig {
   baseUrl: string
@@ -45,6 +48,11 @@ export class ClaudeApiClient {
 
   /**
    * Forward a request to Claude API
+   * @param request - The proxy request to forward
+   * @param auth - Authentication result containing headers
+   * @returns Response from Claude API
+   * @throws UpstreamError - If Claude API returns an error
+   * @throws TimeoutError - If request times out
    */
   async forward(request: ProxyRequest, auth: AuthResult): Promise<Response> {
     const url = `${this.config.baseUrl}/v1/messages`
@@ -63,6 +71,12 @@ export class ClaudeApiClient {
 
   /**
    * Make the actual HTTP request
+   * @param url - The Claude API endpoint URL
+   * @param request - The proxy request containing the body
+   * @param headers - HTTP headers to send
+   * @returns Raw response from Claude API
+   * @throws UpstreamError - For API errors
+   * @throws TimeoutError - For timeout errors
    */
   private async makeRequest(
     url: string,
@@ -96,7 +110,7 @@ export class ClaudeApiClient {
         } catch {
           // Use text error if not JSON
           errorMessage = errorBody || errorMessage
-          parsedError = { error: { message: errorBody, type: 'api_error' } }
+          parsedError = { error: { message: errorBody, type: 'api_error' } } as ClaudeErrorResponse
         }
 
         throw new UpstreamError(
@@ -128,6 +142,9 @@ export class ClaudeApiClient {
 
   /**
    * Process a non-streaming response
+   * @param response - Raw response from Claude API
+   * @param proxyResponse - Proxy response object to update with token usage
+   * @returns Parsed Claude API response
    */
   async processResponse(
     response: Response,
@@ -152,6 +169,10 @@ export class ClaudeApiClient {
 
   /**
    * Process a streaming response
+   * @param response - Raw streaming response from Claude API
+   * @param proxyResponse - Proxy response object to update with streaming events
+   * @yields Server-sent event strings to forward to the client
+   * @throws Error - If response body is not available
    */
   async *processStreamingResponse(
     response: Response,
@@ -181,28 +202,30 @@ export class ClaudeApiClient {
             continue
           }
 
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
+          if (line.startsWith(SSE_DATA_PREFIX)) {
+            const data = line.slice(SSE_DATA_PREFIX.length)
 
-            if (data === '[DONE]') {
-              yield 'data: [DONE]\n\n'
+            if (data === SSE_DONE_SIGNAL) {
+              yield this.formatSSEData(SSE_DONE_SIGNAL)
               continue
             }
 
             try {
               const event = JSON.parse(data) as ClaudeStreamEvent
               proxyResponse.processStreamEvent(event)
-              yield `data: ${data}\n\n`
+              yield this.formatSSEData(data)
             } catch (error) {
               logger.warn('Failed to parse streaming event', {
                 requestId: proxyResponse.requestId,
                 error: getErrorMessage(error),
                 metadata: {
                   data,
+                  lineContent: line,
+                  eventType: 'parse_error',
                 },
               })
               // Still forward the data even if we can't parse it
-              yield `data: ${data}\n\n`
+              yield this.formatSSEData(data)
             }
           } else {
             // Forward non-data lines as-is (like event: types)
@@ -218,5 +241,14 @@ export class ClaudeApiClient {
     } finally {
       reader.releaseLock()
     }
+  }
+
+  /**
+   * Format a server-sent event data line
+   * @param data - The data to format
+   * @returns Formatted SSE data line with newlines
+   */
+  private formatSSEData(data: string): string {
+    return `${SSE_DATA_PREFIX}${data}\n\n`
   }
 }
