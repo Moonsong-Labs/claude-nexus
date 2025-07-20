@@ -1,5 +1,43 @@
 # Grooming Log
 
+## 2025-01-20: Claude PR Assistant Workflow Removal
+
+### File: `.github/workflows/claude.yml`
+
+#### Action: DELETED
+
+#### Rationale:
+
+This workflow file posed significant security and maintenance risks:
+
+1. **Security Vulnerability**: Used untrusted external Docker image `ghcr.io/kiyo-e/claude-code-proxy:latest`
+2. **Configuration Errors**: Incorrectly used `GITHUB_TOKEN` as `anthropic_api_key`
+3. **Undocumented**: Not mentioned in ADR-008 (CI/CD Strategy) or any project documentation
+4. **Non-functional**: Would fail due to invalid permissions and API key misconfiguration
+5. **Architectural Mismatch**: Project IS a Claude proxy, making another proxy redundant
+
+#### Validation:
+
+- Analyzed with Gemini-2.5-pro: 10/10 confidence for removal
+- Consensus: Unanimous agreement that file presents security risk with zero value
+
+#### Impact:
+
+- Eliminates critical security vulnerability from untrusted Docker image
+- Reduces technical debt and maintenance burden
+- Aligns CI/CD with documented strategy in ADR-008
+- Improves security posture of the repository
+
+#### Alternative:
+
+If PR assistance is needed in the future, it should be:
+
+- Properly designed and documented in an ADR
+- Use official/trusted actions only
+- Follow established security best practices
+
+---
+
 ## 2025-01-20: Logger Middleware Refactoring
 
 ### File: `services/dashboard/src/middleware/logger.ts`
