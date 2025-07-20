@@ -734,3 +734,47 @@ A larger refactoring effort to consolidate duplicate types (like `ConversationSu
 - TypeScript compilation passes (`bun run build` succeeds)
 - No new type errors introduced (existing errors are unrelated to these changes)
 - All consuming files continue to work correctly
+
+## 2025-01-20: services/dashboard/scripts/build-production.ts
+
+### Summary
+
+Refactored the production build script to improve cross-platform compatibility, maintainability, and code quality.
+
+### Issues Found
+
+1. Used Linux-specific commands (`stat -c%s`, `du -sh`) that would fail on macOS
+2. Hardcoded version '2.0.0' instead of reading from package.json
+3. Lacked documentation explaining its purpose and differences from build-bun.ts
+4. Verbose entry wrapper code with unnecessary imports
+5. No TypeScript type annotations despite being a .ts file
+6. Poor error handling with minimal context
+
+### Changes Made
+
+1. **Added comprehensive documentation header** - Explains the script's purpose, features, and usage
+2. **Fixed cross-platform compatibility** - Replaced Linux-specific commands with Node.js fs methods
+3. **Dynamic version import** - Now reads version from package.json instead of hardcoding
+4. **Simplified entry wrapper** - Removed unnecessary imports and boilerplate
+5. **Improved error handling** - Added detailed error messages with stack traces
+6. **Better code organization** - Added proper imports and type safety where applicable
+
+### Key Improvements
+
+- **Platform Independence**: Script now works on Linux, macOS, and Windows
+- **Maintainability**: Version is no longer hardcoded, reducing maintenance burden
+- **Documentation**: Clear explanation of why this script exists alongside build-bun.ts
+- **Error Context**: Better error messages help with debugging build failures
+- **Code Quality**: Follows project conventions and best practices
+
+### Testing
+
+- Verified build completes successfully with `DOCKER_BUILD=true bun run build:production`
+- Confirmed output sizes are reported correctly
+- Ensured all original functionality remains intact
+
+### Impact
+
+- No breaking changes - fully backward compatible
+- Improves developer experience on non-Linux platforms
+- Makes the build process more maintainable
