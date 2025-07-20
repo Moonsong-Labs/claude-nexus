@@ -1,3 +1,6 @@
+import type { Pool } from 'pg'
+import type { KVNamespace, DurableObjectNamespace, Queue } from '@cloudflare/workers-types'
+
 // Minimal interfaces to avoid circular dependencies while providing type hints
 interface MinimalCredential {
   type: 'api_key' | 'oauth'
@@ -10,14 +13,8 @@ interface MinimalCredential {
     scopes: string[]
     isMax: boolean
   }
-  slack?: Record<string, any>
+  slack?: Record<string, unknown>
   client_api_key?: string
-}
-
-interface MinimalPool {
-  query: (...args: any[]) => Promise<any>
-  connect: () => Promise<any>
-  end: () => Promise<void>
 }
 
 /**
@@ -37,7 +34,7 @@ interface MinimalPool {
  * const pool = c.get('pool')
  * ```
  */
-export type HonoVariables = {
+export type HonoVariables<ValidatedBody = unknown> = {
   /**
    * Unique identifier for the current request
    * Generated in request middleware for tracing and logging
@@ -63,10 +60,11 @@ export type HonoVariables = {
 
   // Request/Response data
   /**
-   * Validated and parsed request body
-   * @see ClaudeMessagesRequest for the expected shape
+   * Validated and parsed request body.
+   * The specific type is determined by the validation middleware for a given route.
+   * @see ClaudeMessagesRequest for one possible shape
    */
-  validatedBody?: any
+  validatedBody?: ValidatedBody
 
   // Metrics
   /**
@@ -111,7 +109,7 @@ export type HonoVariables = {
    * PostgreSQL connection pool instance
    * @see pg.Pool from 'pg' package for full type
    */
-  pool?: MinimalPool
+  pool?: Pool
 }
 
 /**
@@ -130,39 +128,303 @@ export type HonoVariables = {
  * ```
  */
 export type HonoBindings = {
-  // Environment variables
+  // === DATABASE ===
   /**
    * PostgreSQL connection string
    * @example 'postgresql://user:pass@localhost:5432/dbname'
    */
   DATABASE_URL?: string
 
+  // === AUTHENTICATION & SECURITY ===
+  /**
+   * Dashboard authentication key
+   */
+  DASHBOARD_API_KEY?: string
+  /**
+   * Enable client API key authentication (default: true)
+   */
+  ENABLE_CLIENT_AUTH?: string
+  /**
+   * Directory containing domain credential files
+   */
+  CREDENTIALS_DIR?: string
+  /**
+   * Salt for hashing API keys in database
+   * @default 'claude-nexus-proxy-default-salt'
+   */
+  API_KEY_SALT?: string
+  /**
+   * OAuth Client ID for Claude API
+   */
+  CLAUDE_OAUTH_CLIENT_ID?: string
+
+  // === STORAGE & DATABASE ===
+  /**
+   * Enable request/response storage
+   * @default 'false'
+   */
+  STORAGE_ENABLED?: string
+  /**
+   * Interval for cleaning up orphaned request ID mappings in ms
+   * @default '300000' (5 minutes)
+   */
+  STORAGE_ADAPTER_CLEANUP_MS?: string
+  /**
+   * Retention time for request ID mappings in ms
+   * @default '3600000' (1 hour)
+   */
+  STORAGE_ADAPTER_RETENTION_MS?: string
+  /**
+   * Host for database connection (alternative to DATABASE_URL)
+   */
+  DB_HOST?: string
+
+  // === PERFORMANCE & TIMEOUTS ===
+  /**
+   * Timeout for Claude API requests in milliseconds
+   * @default '600000' (10 minutes)
+   */
+  CLAUDE_API_TIMEOUT?: string
+  /**
+   * Server-level timeout in milliseconds
+   * @default '660000' (11 minutes)
+   */
+  PROXY_SERVER_TIMEOUT?: string
+  /**
+   * Dashboard cache TTL in seconds
+   * @default '30' (set to '0' to disable)
+   */
+  DASHBOARD_CACHE_TTL?: string
+  /**
+   * Threshold for logging slow SQL queries in ms
+   * @default '5000'
+   */
+  SLOW_QUERY_THRESHOLD_MS?: string
+
+  // === DEBUGGING & DEVELOPMENT ===
+  /**
+   * Enable comprehensive debug logging ('true' enables)
+   */
+  DEBUG?: string
+  /**
+   * Enable SQL query logging
+   * @default 'false'
+   */
+  DEBUG_SQL?: string
+  /**
+   * Collect request samples for testing
+   * @default 'false'
+   */
+  COLLECT_TEST_SAMPLES?: string
+  /**
+   * Directory for test samples
+   * @default 'test-samples'
+   */
+  TEST_SAMPLES_DIR?: string
+  /**
+   * Log level (debug, info, warn, error)
+   * @default 'info'
+   */
+  LOG_LEVEL?: string
+  /**
+   * Node environment (development, production)
+   */
+  NODE_ENV?: string
+
+  // === INTEGRATIONS ===
   /**
    * Slack webhook URL for notifications
    */
   SLACK_WEBHOOK_URL?: string
-
   /**
-   * Debug mode flag ('true' enables verbose logging)
+   * Slack channel for notifications
    */
-  DEBUG?: string
-
-  // Cloudflare bindings (if deployed to Workers)
+  SLACK_CHANNEL?: string
   /**
-   * Cloudflare KV namespace binding
-   * Only available when deployed to Cloudflare Workers
+   * Slack username for notifications
    */
-  KV?: any
-
+  SLACK_USERNAME?: string
   /**
-   * Cloudflare Durable Objects namespace binding
-   * Only available when deployed to Cloudflare Workers
+   * Enable Slack notifications
+   * @default 'true' (when SLACK_WEBHOOK_URL is set)
    */
-  DO?: any
-
+  SLACK_ENABLED?: string
   /**
-   * Cloudflare Queue binding
-   * Only available when deployed to Cloudflare Workers
+   * Spark API base URL for recommendation feedback
+   * @default 'http://localhost:8000'
    */
-  QUEUE?: any
+  SPARK_API_URL?: string
+  /**
+   * API key for authenticating with Spark API
+   */
+  SPARK_API_KEY?: string
+  /**
+   * Telemetry endpoint URL
+   */
+  TELEMETRY_ENDPOINT?: string
+
+  // === AI ANALYSIS WORKER ===
+  /**
+   * Enable the AI analysis background worker
+   * @default 'false'
+   */
+  AI_WORKER_ENABLED?: string
+  /**
+   * Worker polling interval in ms
+   * @default '5000'
+   */
+  AI_WORKER_POLL_INTERVAL_MS?: string
+  /**
+   * Maximum concurrent analysis jobs
+   * @default '3'
+   */
+  AI_WORKER_MAX_CONCURRENT_JOBS?: string
+  /**
+   * Job timeout in minutes
+   * @default '5'
+   */
+  AI_WORKER_JOB_TIMEOUT_MINUTES?: string
+  /**
+   * Maximum retry attempts for failed jobs
+   * @default '3'
+   */
+  AI_ANALYSIS_MAX_RETRIES?: string
+  /**
+   * Gemini API request timeout in ms
+   * @default '60000'
+   */
+  AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS?: string
+  /**
+   * Google Gemini API key for AI analysis
+   */
+  GEMINI_API_KEY?: string
+  /**
+   * Gemini API base URL
+   * @default 'https://generativelanguage.googleapis.com/v1beta/models'
+   */
+  GEMINI_API_URL?: string
+  /**
+   * Gemini model to use
+   * @default 'gemini-2.0-flash-exp'
+   */
+  GEMINI_MODEL_NAME?: string
+  /**
+   * Override calculated token limit
+   */
+  AI_MAX_PROMPT_TOKENS?: string
+  /**
+   * Messages to keep from conversation start
+   */
+  AI_HEAD_MESSAGES?: string
+  /**
+   * Messages to keep from conversation end
+   */
+  AI_TAIL_MESSAGES?: string
+  /**
+   * Target token count for input message truncation
+   * @default '8192'
+   */
+  AI_ANALYSIS_INPUT_TRUNCATION_TARGET_TOKENS?: string
+  /**
+   * Tokens from conversation start
+   * @default '1000'
+   */
+  AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS?: string
+  /**
+   * Tokens from conversation end
+   * @default '4000'
+   */
+  AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS?: string
+
+  // === MCP SERVER ===
+  /**
+   * Enable Model Context Protocol server
+   * @default 'false'
+   */
+  MCP_ENABLED?: string
+  /**
+   * Directory containing prompt YAML files
+   * @default './prompts'
+   */
+  MCP_PROMPTS_DIR?: string
+  /**
+   * Enable hot-reloading of prompt files
+   * @default 'true'
+   */
+  MCP_WATCH_FILES?: string
+  /**
+   * GitHub organization/user for prompt sync
+   */
+  MCP_GITHUB_OWNER?: string
+  /**
+   * GitHub repository name for prompts
+   */
+  MCP_GITHUB_REPO?: string
+  /**
+   * Git branch to sync from
+   * @default 'main'
+   */
+  MCP_GITHUB_BRANCH?: string
+  /**
+   * GitHub personal access token
+   */
+  MCP_GITHUB_TOKEN?: string
+  /**
+   * Path within repository
+   * @default 'prompts/'
+   */
+  MCP_GITHUB_PATH?: string
+  /**
+   * Sync interval in seconds
+   * @default '300'
+   */
+  MCP_SYNC_INTERVAL?: string
+  /**
+   * MCP cache TTL in seconds
+   */
+  MCP_CACHE_TTL?: string
+  /**
+   * MCP cache size
+   */
+  MCP_CACHE_SIZE?: string
+
+  // === SERVER CONFIGURATION ===
+  /**
+   * Server port
+   * @default '3000' for proxy, '3001' for dashboard
+   */
+  PORT?: string
+  /**
+   * Server hostname
+   * @default '0.0.0.0'
+   */
+  HOST?: string
+  /**
+   * Package version (from npm_package_version)
+   */
+  npm_package_version?: string
+  /**
+   * Proxy API URL for dashboard
+   * @default 'http://localhost:3000/'
+   */
+  PROXY_API_URL?: string
+
+  // === CLOUDFLARE BINDINGS ===
+  // Only available when deployed to Cloudflare Workers
+  /**
+   * Cloudflare KV namespace binding.
+   * Only available when deployed to Cloudflare Workers.
+   */
+  KV?: KVNamespace
+  /**
+   * Cloudflare Durable Objects namespace binding.
+   * Only available when deployed to Cloudflare Workers.
+   */
+  DO?: DurableObjectNamespace
+  /**
+   * Cloudflare Queue binding.
+   * Only available when deployed to Cloudflare Workers.
+   * @generic T - The message type for the queue
+   */
+  QUEUE?: Queue<unknown>
 }

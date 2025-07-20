@@ -38,7 +38,10 @@
     "nanoid": "^5.1.5",
     "zod": "^3.25.72"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250719.0",
+    "@types/pg": "^8.15.4"
+  },
   "peerDependencies": {
     "hono": "^4.0.0"
   },
