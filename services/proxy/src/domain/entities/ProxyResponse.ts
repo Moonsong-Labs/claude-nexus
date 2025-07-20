@@ -1,5 +1,4 @@
-import { ClaudeMessagesResponse, ClaudeStreamEvent } from '../../types/claude'
-import { hasToolUse } from '@claude-nexus/shared'
+import { ClaudeMessagesResponse, ClaudeStreamEvent, hasToolUse } from '@claude-nexus/shared'
 import { logger } from '../../middleware/logger'
 
 // Constants

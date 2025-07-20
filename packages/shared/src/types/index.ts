@@ -6,5 +6,6 @@
  */
 export * from './claude'
 export * from './context'
+export * from './conversation'
 export * from './errors'
 export * from './ai-analysis'

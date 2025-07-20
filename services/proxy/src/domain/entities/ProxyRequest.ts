@@ -1,5 +1,4 @@
-import { ClaudeMessagesRequest } from '../../types/claude'
-import { countSystemMessages, ClaudeTextContent } from '@claude-nexus/shared'
+import { ClaudeMessagesRequest, countSystemMessages, ClaudeTextContent } from '@claude-nexus/shared'
 
 export type RequestType = 'query_evaluation' | 'inference' | 'quota'
 

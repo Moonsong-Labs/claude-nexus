@@ -36,6 +36,10 @@
         "nanoid": "^5.1.5",
         "zod": "^3.25.72",
       },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250719.0",
+        "@types/pg": "^8.15.4",
+      },
       "peerDependencies": {
         "hono": "^4.0.0",
       },
@@ -105,6 +109,8 @@
     "@claude-nexus/proxy": ["@claude-nexus/proxy@workspace:services/proxy"],
 
     "@claude-nexus/shared": ["@claude-nexus/shared@workspace:packages/shared"],
+
+    "@cloudflare/workers-types": ["@cloudflare/workers-types@4.20250719.0", "", {}, "sha512-tSc2FM2QPWA8ZmDniQXz+4qVKuf8zrwVwqlkXxxGBsQHxTpcukuMibYcYWxwonzbzK7YzSug+iena2F8gGOuOw=="],
 
     "@eslint-community/eslint-utils": ["@eslint-community/eslint-utils@4.7.0", "", { "dependencies": { "eslint-visitor-keys": "^3.4.3" }, "peerDependencies": { "eslint": "^6.0.0 || ^7.0.0 || >=8.0.0" } }, "sha512-dyybb3AcajC7uha6CvhdVRJqaKyn7w2YKqKyAN37NKYgZT36w+iRb0Dymmc5qEJ549c/S31cMMSFd75bteCpCw=="],
 

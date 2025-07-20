@@ -6,10 +6,13 @@ import { AuthenticationService, AuthResult } from './AuthenticationService'
 import { ClaudeApiClient } from './ClaudeApiClient'
 import { NotificationService } from './NotificationService'
 import { MetricsService } from './MetricsService'
-import { ClaudeMessagesRequest, ConversationData } from '../types/claude'
+import {
+  ClaudeMessagesRequest,
+  ConversationData,
+  generateConversationId,
+} from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
-import { generateConversationId } from '@claude-nexus/shared'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
 
 // Constants

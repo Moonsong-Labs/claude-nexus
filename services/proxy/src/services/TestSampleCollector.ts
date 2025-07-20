@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { ClaudeMessagesRequest } from '../types/claude'
+import { ClaudeMessagesRequest } from '@claude-nexus/shared'
 import { Context } from 'hono'
 import { config } from '@claude-nexus/shared/config'
 import { getRequestLogger } from '../middleware/logger'

@@ -133,6 +133,10 @@ export interface ClaudeMessagesRequest {
   top_p?: number
   tools?: ClaudeTool[]
   tool_choice?: ClaudeToolChoice
+  thinking?: {
+    budget_tokens?: number
+    [key: string]: any // Allow additional thinking fields
+  }
 }
 
 // ============================================================================
@@ -146,6 +150,8 @@ export interface ClaudeUsage {
   input_tokens: number
   output_tokens: number
   cache_tokens?: number // Tokens retrieved from cache
+  cache_creation_input_tokens?: number // Tokens used to create cache
+  cache_read_input_tokens?: number // Tokens read from cache
 }
 
 /**

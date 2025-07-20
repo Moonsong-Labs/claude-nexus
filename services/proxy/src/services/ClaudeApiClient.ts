@@ -1,8 +1,15 @@
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { AuthResult } from './AuthenticationService'
-import { UpstreamError, TimeoutError, getErrorMessage, isClaudeError } from '@claude-nexus/shared'
-import { ClaudeMessagesResponse, ClaudeStreamEvent, ClaudeErrorResponse } from '../types/claude'
+import {
+  UpstreamError,
+  TimeoutError,
+  getErrorMessage,
+  isClaudeError,
+  ClaudeMessagesResponse,
+  ClaudeStreamEvent,
+  ClaudeErrorResponse,
+} from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 import { claudeApiCircuitBreaker } from '../utils/circuit-breaker'
 import { retryWithBackoff, retryConfigs, isRetryableError } from '../utils/retry'

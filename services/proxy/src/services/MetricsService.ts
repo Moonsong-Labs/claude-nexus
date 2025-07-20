@@ -1,6 +1,7 @@
 import { ProxyRequest, RequestType } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
+import { ConversationData } from '@claude-nexus/shared'
 import { tokenTracker } from './tokenTracker.js'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
 import { TokenUsageService } from './TokenUsageService.js'
@@ -13,20 +14,6 @@ export interface MetricsConfig {
 
 // Request types that should not be stored in the database
 const NON_STORABLE_REQUEST_TYPES = new Set<RequestType>(['query_evaluation', 'quota'])
-
-/**
- * Conversation tracking data for linking messages
- */
-export interface ConversationData {
-  currentMessageHash: string
-  parentMessageHash: string | null
-  conversationId: string
-  systemHash: string | null
-  branchId?: string
-  parentRequestId?: string
-  parentTaskRequestId?: string
-  isSubtask?: boolean
-}
 
 /**
  * Parameters for tracking a request

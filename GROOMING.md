@@ -1736,3 +1736,49 @@ Gemini 2.5 Pro strongly validated the deletion with 10/10 confidence, citing:
 - No impact on functionality - the dashboard uses the same JSON viewer library but with its own configuration
 - Cleaner repository structure
 - Encourages development of proper automated tests for UI components
+
+### 2025-07-20 - Claude API Types Consolidation
+
+**Files Modified:**
+
+- Deleted: `services/proxy/src/types/claude.ts`
+- Created: `packages/shared/src/types/conversation.ts`
+- Updated: Multiple proxy service files to use shared types
+- Updated: `packages/shared/src/types/claude.ts` (added missing fields)
+- Updated: `packages/shared/src/types/index.ts` (exported conversation types)
+
+**Changes Made:**
+
+1. **Eliminated Type Duplication**
+   - Removed duplicate Claude API type definitions from proxy service
+   - All services now use types from `@claude-nexus/shared` package
+   - Ensures consistency across the monorepo
+
+2. **Created Dedicated Conversation Types**
+   - Moved `ConversationData` interface to new `conversation.ts` file
+   - Added comprehensive JSDoc documentation
+   - Removed duplicate definition from `MetricsService.ts`
+
+3. **Updated Shared Types**
+   - Added `thinking` field to `ClaudeMessagesRequest`
+   - Added cache token fields to `ClaudeUsage` interface
+   - Ensures shared types are complete and up-to-date
+
+4. **Fixed All Import Paths**
+   - Updated 7 files to import from `@claude-nexus/shared`
+   - Consistent import pattern across the proxy service
+
+**Rationale:**
+
+This refactoring addresses a critical anti-pattern in the monorepo where types were duplicated between packages. Following DRY principle and monorepo best practices:
+
+- Single source of truth for all Claude API types
+- Prevents type drift between services
+- Improves maintainability and reduces bugs
+- Aligns with TypeScript project reference architecture (ADR-013)
+
+**Validation:**
+
+- Gemini-2.5-pro: 10/10 confidence score - "textbook example of valuable refactoring"
+- Build and type checking pass successfully
+- No functionality changes, only improved code organization

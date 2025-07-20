@@ -2,8 +2,12 @@ import { Context } from 'hono'
 import { ProxyService } from '../services/ProxyService'
 import { RequestContextFactory } from '../domain/factories/RequestContextFactory'
 import { getRequestLogger } from '../middleware/logger'
-import { ClaudeMessagesRequest, ClaudeMessage } from '../types/claude'
-import { HonoVariables, HonoBindings } from '@claude-nexus/shared'
+import {
+  ClaudeMessagesRequest,
+  ClaudeMessage,
+  HonoVariables,
+  HonoBindings,
+} from '@claude-nexus/shared'
 
 /**
  * Controller for handling /v1/messages endpoint
