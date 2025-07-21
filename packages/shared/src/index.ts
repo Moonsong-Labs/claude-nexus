@@ -44,6 +44,19 @@ export {
 
 export { stripSystemReminder, containsSystemReminder } from './utils/system-reminder.js'
 
+// Export retry utilities
+export {
+  retryWithBackoff,
+  RetryConfig,
+  RetryLogger,
+  defaultRetryConfig,
+  isRetryableError,
+  calculateDelay,
+  retryConfigs,
+  getRetryAfter,
+  createRateLimitAwareRetry,
+} from './utils/retry.js'
+
 // Export model limits configuration
 export {
   MODEL_CONTEXT_RULES,
