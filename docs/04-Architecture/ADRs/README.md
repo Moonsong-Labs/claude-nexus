@@ -138,6 +138,11 @@ The following ADRs share duplicate numbers and should be renumbered in a future 
 | [ADR-048](./adr-048-adr-013-typescript-project-references-grooming.md) | ADR-013 TypeScript Project References Documentation Grooming | Accepted & Implemented | 2024-06-26 |
 | [ADR-049](./adr-049-adr-readme-grooming.md)                            | ADR README Grooming and Duplicate Number Resolution          | Accepted               | 2025-07-21 |
 | [ADR-050](./adr-050-adr-template-refactoring.md)                       | ADR Template Refactoring                                     | Accepted               | 2025-07-21 |
+| [ADR-051](./adr-051-mcp-documentation-consolidation.md)                | MCP Documentation Consolidation                              | Accepted               | 2025-07-21 |
+| [ADR-052](./adr-052-debugging-documentation-refactoring.md)            | Debugging Documentation Refactoring                          | Accepted               | 2025-07-21 |
+| [ADR-053](./adr-053-performance-documentation-refactoring.md)          | Performance Documentation Refactoring                        | Accepted               | 2025-07-21 |
+| [ADR-054](./adr-054-monitoring-documentation-refactoring.md)           | Monitoring Documentation Refactoring                         | Accepted               | 2025-07-21 |
+| [ADR-055](./adr-055-security-documentation-refactoring.md)             | Security Documentation Refactoring                           | Accepted               | 2025-07-21 |
 
 ## Important Notice: ADR Numbering
 
@@ -146,7 +151,7 @@ There is currently a numbering collision issue with ADRs 019-023, where multiple
 ## Creating a New ADR
 
 1. Copy the template from `template.md`
-2. Name it `adr-XXX-brief-description.md` where XXX is the next sequential number (currently 051)
+2. Name it `adr-XXX-brief-description.md` where XXX is the next sequential number (currently 056)
 3. Fill in all sections
 4. Update this README with the new ADR
 5. Submit PR for review

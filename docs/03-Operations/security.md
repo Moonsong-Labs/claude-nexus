@@ -1,6 +1,12 @@
 # Security Guide
 
-This guide covers security considerations and best practices for deploying Claude Nexus Proxy.
+This guide covers operational security considerations and best practices for deploying Claude Nexus Proxy in production.
+
+> **Related Documentation**:
+>
+> - [AI Analysis Security Guide](./ai-analysis-security.md) - Security for AI-powered features
+> - [ADR-004: Proxy Authentication](../04-Architecture/ADRs/adr-004-proxy-authentication.md) - Authentication architecture
+> - [Credential Templates](../../credentials/README.md) - Example credential configurations
 
 ## Authentication
 
@@ -16,11 +22,14 @@ The proxy supports multiple authentication layers:
 
 ```bash
 # Generate secure client API key
-bun run auth:generate-key
+bun run scripts/generate-api-key.ts
 # Output: cnp_live_1a2b3c4d5e6f...
 
-# Add to domain credentials
+# Add to domain credentials (see credentials/README.md for templates)
 {
+  "type": "api_key",
+  "accountId": "acc_unique_id",
+  "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_1a2b3c4d5e6f..."
 }
 ```
@@ -37,6 +46,8 @@ curl -H "Authorization: Bearer cnp_live_..." http://proxy/v1/messages
 ENABLE_CLIENT_AUTH=false  # NOT recommended for production
 ```
 
+> **Security Note**: See [CLAUDE.md](../../CLAUDE.md#authentication-flow) for implementation details
+
 ### OAuth Implementation
 
 OAuth tokens are automatically refreshed before expiry:
@@ -44,9 +55,15 @@ OAuth tokens are automatically refreshed before expiry:
 ```json
 {
   "type": "oauth",
-  "access_token": "...",
-  "refresh_token": "...",
-  "expires_at": "2024-12-31T23:59:59Z"
+  "accountId": "acc_unique_id",
+  "client_api_key": "cnp_live_...",
+  "oauth": {
+    "accessToken": "...",
+    "refreshToken": "...",
+    "expiresAt": 1234567890000,
+    "scopes": ["user:inference"],
+    "isMax": true
+  }
 }
 ```
 
@@ -75,6 +92,8 @@ chmod 700 credentials/
 
 3. **Encryption at Rest** - Consider encrypting the credentials directory
 
+4. **Template Files** - Use the provided credential templates in `credentials/` directory
+
 ### Credential Rotation
 
 Best practices for key rotation:
@@ -84,7 +103,9 @@ Best practices for key rotation:
 
 ```bash
 # Update credential file - proxy reloads automatically
-echo '{"client_api_key": "new_key"}' > credentials/domain.json
+# Copy from template and edit
+cp credentials/example-api-key.com.credentials.json credentials/domain.com.credentials.json
+# Edit with your actual values
 ```
 
 3. Monitor old key usage before removal
@@ -113,11 +134,18 @@ When `STORAGE_ENABLED=true`:
 -- Restrict database access
 REVOKE ALL ON DATABASE claude_nexus FROM PUBLIC;
 GRANT CONNECT ON DATABASE claude_nexus TO proxy_user;
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES TO proxy_user;
+GRANT SELECT, INSERT, UPDATE ON api_requests, streaming_chunks TO proxy_user;
 
 -- Use SSL connections
 DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
 ```
+
+### Environment Variable Security
+
+- Store sensitive values in `.env` files, never in code
+- Use `API_KEY_SALT` to hash API keys in database
+- Set appropriate `SLOW_QUERY_THRESHOLD_MS` for monitoring
+- Review all environment variables in [Environment Variables Reference](../06-Reference/environment-vars.md)
 
 ## Network Security
 
@@ -177,21 +205,25 @@ The proxy logs all requests with:
 1. **Failed Authentication Attempts**:
 
 ```sql
-SELECT COUNT(*), ip_address, domain
+SELECT COUNT(*), domain, DATE(timestamp)
 FROM api_requests
 WHERE response_status = 401
-GROUP BY ip_address, domain
-HAVING COUNT(*) > 10;
+GROUP BY domain, DATE(timestamp)
+HAVING COUNT(*) > 10
+ORDER BY DATE(timestamp) DESC;
 ```
 
 2. **Unusual Usage Patterns**:
 
 ```sql
--- Detect token usage spikes
-SELECT domain, DATE(timestamp), SUM(total_tokens)
+-- Detect token usage spikes by account
+SELECT account_id, domain, DATE(timestamp) as usage_date,
+       SUM(total_tokens) as daily_tokens
 FROM api_requests
-GROUP BY domain, DATE(timestamp)
-HAVING SUM(total_tokens) > average_daily_usage * 2;
+WHERE account_id IS NOT NULL
+GROUP BY account_id, domain, DATE(timestamp)
+ORDER BY daily_tokens DESC
+LIMIT 20;
 ```
 
 3. **Slack Alerts**:
@@ -200,16 +232,32 @@ HAVING SUM(total_tokens) > average_daily_usage * 2;
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ```
 
+## MCP Server Security
+
+When MCP server is enabled:
+
+1. **Authentication** - MCP uses the same client API keys
+2. **Prompt Validation** - File paths are validated against path traversal
+3. **GitHub Sync** - Use minimal scope tokens for `MCP_GITHUB_TOKEN`
+4. **Access Control** - MCP endpoints require valid authentication
+
+See [MCP Server Implementation](../04-Architecture/ADRs/adr-016-mcp-server-implementation.md) for details.
+
+## Dashboard Security
+
+> **Important**: The dashboard auth cookie is set with `httpOnly: false` to enable API calls. See [CLAUDE.md](../../CLAUDE.md#spark-tool-integration) for security trade-offs and alternatives.
+
 ## Security Checklist
 
 ### Pre-Deployment
 
-- [ ] Generate strong client API keys
+- [ ] Generate strong client API keys using `scripts/generate-api-key.ts`
 - [ ] Set secure `DASHBOARD_API_KEY`
-- [ ] Configure TLS/SSL
-- [ ] Set appropriate file permissions
-- [ ] Enable database SSL
+- [ ] Configure TLS/SSL termination
+- [ ] Set file permissions: `chmod 600 credentials/*.json`
+- [ ] Enable database SSL connections
 - [ ] Review firewall rules
+- [ ] Configure environment variables securely
 
 ### Post-Deployment
 
@@ -260,12 +308,14 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 
 ```bash
 # Rotate all keys
-bun run auth:generate-key
+bun run scripts/generate-api-key.ts
 
-# Check access logs
-SELECT * FROM api_requests
+# Check access logs by account
+SELECT request_id, account_id, domain, timestamp,
+       path, response_status
+FROM api_requests
 WHERE timestamp > 'suspected_breach_time'
-ORDER BY timestamp;
+ORDER BY timestamp DESC;
 ```
 
 2. **Investigation**:
@@ -280,18 +330,37 @@ ORDER BY timestamp;
 - Update client configurations
 - Monitor for continued activity
 
-## Security Updates
+## Threat Model
 
-Stay informed about security updates:
+Key threats and mitigations:
 
-1. Watch the repository for security advisories
-2. Update dependencies regularly:
+1. **API Key Exposure** - Use client API keys, rotate regularly
+2. **Token Exhaustion** - Monitor usage, set alerts
+3. **Data Leakage** - Mask sensitive data in logs
+4. **Injection Attacks** - Parameterized queries, input validation
+5. **MCP Prompt Injection** - Path validation, sandboxing
+
+## Dependency Management
 
 ```bash
+# Check for vulnerabilities
+bun audit
+
+# Update dependencies
 bun update
+
+# Review security advisories
+git log --grep="security" --oneline
 ```
 
-3. Monitor Claude API security announcements
+## Security Updates
+
+Stay informed:
+
+1. Watch repository for security advisories
+2. Monitor [Claude API announcements](https://www.anthropic.com/news)
+3. Review dependency updates regularly
+4. Subscribe to security mailing lists
 
 ## Compliance
 
@@ -302,3 +371,11 @@ For regulatory compliance:
 3. **Encryption** - Use TLS and encrypt at rest
 4. **Access Control** - Implement principle of least privilege
 5. **Data Retention** - Configure appropriate retention policies
+6. **AI Analysis** - Review [AI Analysis Security](./ai-analysis-security.md) for PII handling
+
+## References
+
+- [Authentication Guide](../02-User-Guide/authentication.md) - User-facing auth documentation
+- [Environment Variables](../06-Reference/environment-vars.md) - Complete configuration reference
+- [Database Guide](./database.md) - Database security and management
+- [Monitoring Guide](./monitoring.md) - Security monitoring setup
