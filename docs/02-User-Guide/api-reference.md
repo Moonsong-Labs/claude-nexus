@@ -9,6 +9,8 @@ http://localhost:3000  # Development
 https://api.yourdomain.com  # Production
 ```
 
+**Note:** All API endpoints (both proxy and dashboard) are served from the same base URL.
+
 ## Authentication
 
 ### Client to Proxy
@@ -144,24 +146,24 @@ GET /health
 
 ## Dashboard API
 
-### Base URL
-
-```
-http://localhost:3001  # Development
-https://dashboard.yourdomain.com  # Production
-```
-
 ### Authentication
 
-Include the dashboard API key in the Authorization header:
+The Dashboard API uses the following authentication headers (in order of preference):
 
 ```bash
+# Primary (recommended)
+X-Dashboard-Key: YOUR_DASHBOARD_KEY
+
+# Alternative options
+X-API-Key: YOUR_DASHBOARD_KEY
 Authorization: Bearer YOUR_DASHBOARD_KEY
 ```
 
 ### Endpoints
 
-#### List Requests
+#### Request & Conversation History
+
+##### List Requests
 
 ```http
 GET /api/requests?limit=50&offset=0&domain=example.com
@@ -199,7 +201,7 @@ GET /api/requests?limit=50&offset=0&domain=example.com
 }
 ```
 
-#### Get Request Details
+##### Get Request Details
 
 ```http
 GET /api/requests/:id
@@ -228,7 +230,7 @@ GET /api/requests/:id
 }
 ```
 
-#### List Conversations
+##### List Conversations
 
 ```http
 GET /api/conversations?domain=example.com&accountId=acc_123&limit=20
@@ -260,7 +262,7 @@ GET /api/conversations?domain=example.com&accountId=acc_123&limit=20
 }
 ```
 
-#### Get Conversation Details
+##### Get Conversation Details
 
 ```http
 GET /api/conversations/:id
@@ -377,7 +379,34 @@ Forces regeneration of an existing analysis.
 
 **Response:** Same as Get Analysis endpoint.
 
-#### Token Analytics
+#### Analytics & Usage
+
+##### List Active Domains
+
+```http
+GET /api/domains
+```
+
+Returns a list of domains that have made requests in the last 30 days.
+
+**Response:**
+
+```json
+{
+  "domains": [
+    {
+      "domain": "example.com",
+      "requestCount": 150
+    },
+    {
+      "domain": "test.example.com",
+      "requestCount": 75
+    }
+  ]
+}
+```
+
+##### Token Analytics
 
 ```http
 GET /api/analytics/tokens?period=day&days=7
@@ -408,7 +437,7 @@ GET /api/analytics/tokens?period=day&days=7
 }
 ```
 
-#### Token Usage - Current Window
+##### Token Usage - Current Window
 
 ```http
 GET /api/token-usage/current?accountId=acc_123&window=300
@@ -441,7 +470,7 @@ Get token usage for the current sliding window (default 5 hours).
 }
 ```
 
-#### Token Usage - Daily
+##### Token Usage - Daily
 
 ```http
 GET /api/token-usage/daily?accountId=acc_123&days=30&aggregate=true
@@ -472,89 +501,6 @@ Get daily token usage statistics.
     }
   ]
 }
-```
-
-#### Rate Limits Configuration
-
-```http
-GET /api/rate-limits?accountId=acc_123
-```
-
-Get rate limit configurations.
-
-**Query Parameters:**
-
-- `accountId` - Filter by account
-- `domain` - Filter by domain
-- `model` - Filter by model
-
-**Response:**
-
-```json
-{
-  "configs": [
-    {
-      "id": 1,
-      "accountId": "acc_123",
-      "domain": null,
-      "model": "claude-3-opus-20240229",
-      "windowMinutes": 300,
-      "tokenLimit": 140000,
-      "requestLimit": null,
-      "fallbackModel": "claude-3-haiku-20240307",
-      "enabled": true
-    }
-  ]
-}
-```
-
-#### Update Rate Limit
-
-```http
-POST /api/rate-limits/:id
-```
-
-Update a rate limit configuration.
-
-**Request:**
-
-```json
-{
-  "tokenLimit": 200000,
-  "fallbackModel": "claude-3-haiku-20240307",
-  "enabled": true
-}
-```
-
-**Response:**
-
-```json
-{
-  "config": {
-    "id": 1,
-    "tokenLimit": 200000,
-    "fallbackModel": "claude-3-haiku-20240307",
-    "enabled": true
-  }
-}
-```
-
-#### Server-Sent Events
-
-```http
-GET /sse
-```
-
-Streams real-time updates for requests.
-
-**Event Format:**
-
-```
-event: request
-data: {"request_id":"uuid","domain":"example.com","timestamp":"2024-01-15T10:00:00Z"}
-
-event: stats
-data: {"total_requests":1000,"active_domains":5}
 ```
 
 ## Error Responses
@@ -655,3 +601,18 @@ Maintain conversation context by including message history:
   ]
 }
 ```
+
+## Planned Features
+
+The following features are planned for future releases:
+
+### Rate Limiting API
+
+- `GET /api/rate-limits` - Configure and manage rate limits per account/domain
+- `POST /api/rate-limits/:id` - Update rate limit configurations
+
+### Server-Sent Events (SSE)
+
+- `GET /sse` - Real-time streaming of request updates and statistics
+
+These features are currently in the planning phase and not yet implemented.
