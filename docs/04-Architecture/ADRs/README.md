@@ -44,7 +44,6 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-008](./adr-008-cicd-strategy.md)                    | CI/CD Strategy with GitHub Actions  | Accepted   | 2024-06-25 |
 | [ADR-009](./adr-009-dashboard-architecture.md)           | Dashboard Architecture with HTMX    | Accepted   | 2024-06-25 |
 | [ADR-010](./adr-010-docker-cli-integration.md)           | Docker-Based Claude CLI Integration | Superseded | 2024-06-25 |
-| [ADR-011](./adr-011-future-decisions.md)                 | Future Architectural Decisions      | Proposed   | 2024-06-25 |
 | [ADR-012](./adr-012-database-schema-evolution.md)        | Database Schema Evolution Strategy  | Accepted   | 2025-06-26 |
 | [ADR-013](./adr-013-typescript-project-references.md)    | TypeScript Project References       | Accepted   | 2025-06-27 |
 | [ADR-014](./adr-014-sql-query-logging.md)                | SQL Query Logging                   | Accepted   | 2025-06-30 |
@@ -52,6 +51,7 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-016](./adr-016-ai-powered-conversation-analysis.md) | AI-Powered Conversation Analysis    | Accepted   | 2025-01-08 |
 | [ADR-019](./adr-019-remove-unused-type-definitions.md)   | Remove Unused Type Definitions      | Accepted   | 2025-01-20 |
 | [ADR-041](./adr-041-claude-cli-docker-image.md)          | Claude CLI Docker Image Addition    | Accepted   | 2025-01-21 |
+| [ADR-043](./adr-043-remove-future-decisions-adr.md)      | Remove Future Decisions ADR         | Accepted   | 2025-01-21 |
 
 ## Creating a New ADR
 

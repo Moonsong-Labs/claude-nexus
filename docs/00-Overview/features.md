@@ -286,7 +286,7 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 
 ## Planned Features
 
-Based on architectural decisions and roadmap (see ADR-011):
+Based on the technical debt register and project roadmap:
 
 - **Kubernetes Deployment**:
   - Helm charts for easy deployment

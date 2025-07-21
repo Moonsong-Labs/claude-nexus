@@ -35,7 +35,7 @@ We refactored the features.md file to:
    - Configuration options and environment variables
    - Performance characteristics where relevant
 4. **Remove Redundancy**: Focused on technical documentation while README.md serves as the entry point
-5. **Update Planned Features**: Reorganized with more realistic roadmap items and references to ADR-011
+5. **Update Planned Features**: Reorganized with more realistic roadmap items based on technical debt register
 6. **Remove Feature Comparison Table**: Eliminated as it provided little value
 
 ## Consequences
@@ -71,5 +71,5 @@ The refactoring followed industry best practices for documentation:
 
 - Gemini 2.5 Pro validation (10/10 confidence score)
 - Industry best practices for open-source documentation
-- ADR-011: Future Decisions (for planned features)
+- Technical Debt Register (for planned features)
 - ADR-022: Documentation Strategy
