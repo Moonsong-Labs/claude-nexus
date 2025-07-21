@@ -1,0 +1,39 @@
+{
+  "timestamp": "2025-06-17T08:27:21.091Z",
+  "method": "POST",
+  "path": "/v1/messages",
+  "headers": {
+    "accept": "application/json",
+    "accept-encoding": "gzip, deflate",
+    "anthropic-beta": "oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14",
+    "anthropic-version": "2023-06-01",
+    "authorization": "Bearer ****",
+    "content-length": "189",
+    "content-type": "application/json",
+    "host": "localhost:3000",
+    "user-agent": "claude-cli/1.0.25 (external, cli)"
+  },
+  "body": {
+    "model": "claude-3-5-haiku-20241022",
+    "max_tokens": 1,
+    "messages": [
+      {
+        "role": "user",
+        "content": "quota"
+      }
+    ],
+    "metadata": {
+      "user_id": "f6cb6695b510f05ce9257b8f67e259191e8c980708f762d624ae5b078488ef11"
+    }
+  },
+  "queryParams": {
+    "beta": "true"
+  },
+  "metadata": {
+    "requestType": "quota",
+    "isStreaming": false,
+    "hasTools": false,
+    "modelUsed": "claude-3-5-haiku-20241022",
+    "messageCount": 1
+  }
+}

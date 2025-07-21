@@ -1,19 +1,22 @@
 import { describe, it, expect } from 'bun:test'
-import { ProxyRequest } from '../../services/proxy/src/domain/entities/ProxyRequest'
-import { ClaudeMessagesRequest } from '../../services/proxy/src/types/claude'
+import { ProxyRequest } from '../src/domain/entities/ProxyRequest'
+import { ClaudeMessagesRequest } from '@claude-nexus/shared'
 
 // Load real test samples
-import quotaSample from '../fixtures/requests/quota_haiku.json'
-import queryEvaluationSample from '../fixtures/requests/query_evaluation_streaming_with_system_haiku.json'
-import inferenceSample from '../fixtures/requests/inference_streaming_with_tools_with_system_opus.json'
+import quotaSample from './fixtures/requests/quota_haiku.json'
+import queryEvaluationSample from './fixtures/requests/query_evaluation_streaming_with_system_haiku.json'
+import inferenceSample from './fixtures/requests/inference_streaming_with_tools_with_system_opus.json'
 
 describe('ProxyRequest - Request Type Identification', () => {
+  const TEST_DOMAIN = 'test.domain.com'
+  const TEST_REQUEST_ID = 'test-123'
+
   describe('quota requests', () => {
     it('should identify quota request when user content is exactly "quota"', () => {
       const request = new ProxyRequest(
         quotaSample.body as ClaudeMessagesRequest,
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('quota')
@@ -26,8 +29,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           messages: [{ role: 'user', content: 'QUOTA' }],
           max_tokens: 10,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('quota')
@@ -40,8 +43,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           messages: [{ role: 'user', content: '  quota  ' }],
           max_tokens: 10,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('quota')
@@ -52,8 +55,8 @@ describe('ProxyRequest - Request Type Identification', () => {
     it('should identify query_evaluation with 1 system message in field', () => {
       const request = new ProxyRequest(
         queryEvaluationSample.body as ClaudeMessagesRequest,
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('query_evaluation')
@@ -66,8 +69,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           messages: [{ role: 'user', content: 'What is 2+2?' }],
           max_tokens: 10,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('query_evaluation')
@@ -83,8 +86,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           ],
           max_tokens: 10,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('query_evaluation')
@@ -95,8 +98,8 @@ describe('ProxyRequest - Request Type Identification', () => {
     it('should identify inference with multiple system messages', () => {
       const request = new ProxyRequest(
         inferenceSample.body as ClaudeMessagesRequest,
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('inference')
@@ -113,8 +116,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           ],
           max_tokens: 100,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('inference')
@@ -131,8 +134,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           messages: [{ role: 'user', content: 'Hello' }],
           max_tokens: 100,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('inference')
@@ -148,8 +151,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           messages: [{ role: 'user', content: 'Hello' }],
           max_tokens: 100,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.systemMessageCount).toBe(1)
@@ -167,8 +170,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           messages: [{ role: 'user', content: 'Hello' }],
           max_tokens: 100,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.systemMessageCount).toBe(3)
@@ -188,8 +191,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           ],
           max_tokens: 100,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.systemMessageCount).toBe(3) // 1 from field + 2 from array
@@ -204,8 +207,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           messages: [],
           max_tokens: 10,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('query_evaluation')
@@ -223,8 +226,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           ],
           max_tokens: 10,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('quota')
@@ -248,8 +251,8 @@ describe('ProxyRequest - Request Type Identification', () => {
           ],
           max_tokens: 100,
         },
-        'test.domain.com',
-        'test-123'
+        TEST_DOMAIN,
+        TEST_REQUEST_ID
       )
 
       expect(request.requestType).toBe('query_evaluation')
