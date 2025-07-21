@@ -154,7 +154,6 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 ## Links
 
 - [Implementation Guide](../ai-analysis-implementation-guide.md) - Detailed implementation documentation
-- [Feature Plan](../feature-plan-ai-analysis.md)
 - [Database Schema Evolution ADR](./adr-012-database-schema-evolution.md)
 - [AI Analysis DB Refactoring](./adr-019-ai-analysis-db-refactoring.md)
 - [PR #75: Database Schema Implementation](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/75)
