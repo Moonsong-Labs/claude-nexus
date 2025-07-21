@@ -1,4 +1,4 @@
-# ADR-016: AI-Powered Conversation Analysis
+# ADR-018: AI-Powered Conversation Analysis
 
 ## Status
 
@@ -129,96 +129,34 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 ## Implementation Phases
 
 1. **Phase 1** (Completed): Database schema and basic API endpoints
-2. **Phase 2** (In Progress):
-   - API Design (Completed - Task 2)
-   - Prompt engineering (Completed - Task 4)
-   - Background worker implementation with Gemini integration (Completed - Task 3)
-3. **Phase 3**: Dashboard UI for viewing analyses
-4. **Phase 4**: Advanced features (custom prompts, comparison views)
-5. **Phase 5**: Consider extraction to dedicated microservice
+2. **Phase 2** (Completed): API endpoints, prompt engineering, background worker with Gemini
+3. **Phase 3** (Partially Complete): Dashboard UI with AI Analysis tab
+4. **Phase 4** (Future): Advanced features (custom prompts, comparison views)
+5. **Phase 5** (Future): Consider extraction to dedicated microservice
 
-### Phase 1 Details (Completed)
+### Implementation Summary
 
-- Database schema implemented (Migration 011)
-- Conversation analyses table with proper indexing
-- Support for status tracking, token usage, and retry logic
+**Phase 1 (Completed)**: Database schema with conversation analyses table (Migration 011)
 
-### Phase 2 - Task 2: API Design (Completed)
+**Phase 2 (Completed)**: Full background worker implementation with:
 
-- **Dashboard API Routes**: Implemented in `services/dashboard/src/routes/analysis-api.ts`
-- **Type Definitions**: Added to `packages/shared/src/types/ai-analysis.ts`
-- **Request Validation**: Using Zod schemas for type-safe validation
-- **Error Handling**: Consistent with existing dashboard patterns
-- **Authentication**: Integrated with global `dashboardAuth` middleware
+- API endpoints for creating and retrieving analyses
+- Gemini AI integration with smart conversation truncation
+- Robust error handling and retry logic
+- Management utilities for operations
 
-Key endpoints implemented:
+**Phase 3 (Partially Complete)**: Dashboard UI includes AI Analysis tab in conversation view
 
-- `POST /api/analyses` - Create analysis request with 409 conflict handling
-- `GET /api/analyses/:conversationId/:branchId` - Get analysis status/result
-- `POST /api/analyses/:conversationId/:branchId/regenerate` - Force regeneration
+**Phase 4 (Future)**: Advanced features like custom prompts and comparison views
 
-### Phase 2 - Task 4: Prompt Engineering (Completed)
-
-- **Tokenizer**: Using @lenml/tokenizer-gemini for local token counting
-- **Smart Truncation**: Tail-first priority with 855k token limit (5% safety margin)
-- **Prompt Structure**: Multi-turn format using Gemini's native content structure
-- **Response Validation**: Zod schema for runtime validation
-- **Configuration**: Comprehensive environment variable support for all ANALYSIS_PROMPT_CONFIG parameters
-
-Key files:
-
-- `packages/shared/src/types/ai-analysis.ts` - Analysis schema
-- `packages/shared/src/prompts/truncation.ts` - Smart truncation logic
-- `packages/shared/src/prompts/analysis/` - Versioned prompt templates
-
-### Phase 2 - Task 3: Background Worker (Completed)
-
-- **Worker Architecture**: In-process background worker with database polling
-- **Job Management**: PostgreSQL row-level locking with `FOR UPDATE SKIP LOCKED`
-- **Gemini Integration**: Direct API integration with security improvements
-- **Error Handling**:
-  - Exponential backoff with jitter for retries
-  - Automatic failure of jobs exceeding MAX_RETRIES
-  - Graceful handling of unparseable JSON responses
-  - Non-retryable error detection for schema validation failures
-- **Graceful Shutdown**: Proper lifecycle management with timeout controls
-- **Configuration**: Environment-based configuration for all worker parameters
-
-Key files:
-
-- `services/proxy/src/workers/ai-analysis/AnalysisWorker.ts` - Main worker class
-- `services/proxy/src/workers/ai-analysis/db.ts` - Database operations with `failJobsExceedingMaxRetries`
-- `services/proxy/src/workers/ai-analysis/GeminiService.ts` - Gemini API client with JSON fallback
-- `services/proxy/src/workers/ai-analysis/index.ts` - Worker lifecycle management
-
-### Phase 2 - Error Handling Improvements (Completed)
-
-- **JSON Parse Failures**: When the AI model returns unparseable JSON, the system now:
-  - Catches parse errors gracefully
-  - Stores the raw text response as `analysis_content`
-  - Sets `analysis_data` to null
-  - Displays the raw text in the UI instead of failing
-
-- **Maximum Retry Handling**: Jobs that exceed `AI_ANALYSIS_MAX_RETRIES`:
-  - Are automatically marked as failed during the worker's stuck job handling cycle
-  - Display error status in the UI with clear messaging
-  - No longer remain stuck in pending status indefinitely
-
-- **Schema Validation**: Updated retry prompts to match current data structure:
-  - Fixed `actionItems` schema from array of strings to array of objects
-  - Each action item now has `type`, `description`, and `priority` fields
-
-- **Utility Scripts**: Added management scripts for troubleshooting:
-  - `bun run ai:check-jobs` - Check analysis job statuses
-  - `bun run ai:check-content` - Inspect analysis content
-  - `bun run ai:reset-stuck` - Reset jobs with high retry counts
-  - `bun run ai:fail-exceeded` - Manually fail jobs exceeding retries
-  - `bun run ai:test-max-retry` - Create test jobs for max retry handling
+**Phase 5 (Future)**: Consider extraction to dedicated microservice
 
 ## Links
 
+- [Implementation Guide](../ai-analysis-implementation-guide.md) - Detailed implementation documentation
 - [Feature Plan](../feature-plan-ai-analysis.md)
 - [Database Schema Evolution ADR](./adr-012-database-schema-evolution.md)
+- [AI Analysis DB Refactoring](./adr-019-ai-analysis-db-refactoring.md)
 - [PR #75: Database Schema Implementation](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/75)
 
 ## Notes
@@ -230,5 +168,6 @@ Key files:
 
 ---
 
-Date: 2025-01-08
+Date: 2025-01-08  
+Updated: 2025-01-21  
 Authors: AI Development Team
