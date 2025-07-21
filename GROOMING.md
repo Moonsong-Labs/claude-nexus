@@ -2342,3 +2342,31 @@ Both Gemini 2.5 Pro and O3-mini unanimously validated the approach:
 **Rationale:**
 
 Dead code that isn't referenced anywhere adds maintenance burden and confusion. Test files already have their own data creation patterns that work well for their specific needs. Following YAGNI principle, unused comprehensive factories should be removed. The deletion simplifies the repository structure while maintaining all test functionality.
+
+### 2025-01-21 - Remove .vscode Directory
+
+**Files Groomed:**
+
+- `.vscode/settings.json` - Removed
+
+**Actions Taken:**
+
+- Removed entire .vscode directory from git tracking and filesystem
+- Directory was already in .gitignore but settings.json was tracked (inconsistency)
+
+**Analysis Findings:**
+
+- All formatter settings in .vscode/settings.json duplicated .prettierrc.json
+- typescript.tsdk pointed to node_modules but project uses Bun runtime
+- File/search exclusions were nice-to-have but not essential
+- Being in .gitignore showed intent not to track editor-specific files
+
+**Validation:**
+
+- Gemini-2.5-pro: Suggested keeping curated .vscode for VS Code DX
+- O3-mini: Recommended removal for cleaner, editor-agnostic approach
+- All formatting and linting tools (prettier, eslint) work correctly without .vscode
+- Pre-commit hooks continue to enforce code standards
+
+**Rationale:**
+For an open source project, avoiding editor-specific configurations promotes inclusivity and reduces maintenance burden. The project already enforces code standards through prettier/eslint configs and pre-commit hooks. Removing .vscode eliminates the git tracking inconsistency and keeps the repository cleaner. Developers can create their own .vscode settings locally if desired, which will be properly ignored by .gitignore.
