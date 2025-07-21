@@ -26,7 +26,7 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/claude-nexus-proxy.git
+git clone https://github.com/moonsong-labs/claude-nexus-proxy.git
 cd claude-nexus-proxy
 
 # Install dependencies
@@ -36,8 +36,8 @@ bun install
 cp .env.example .env
 # Edit .env with your settings
 
-# Initialize database
-bun run db:migrate:token-usage
+# Initialize database (run migrations)
+# See scripts/db/migrations/README.md for details
 
 # Start development servers
 bun run dev
@@ -51,13 +51,13 @@ Run Claude CLI connected to your local proxy:
 
 ```bash
 # Start the proxy and Claude CLI
-docker compose --profile dev --profile claude up -d
+./docker-up.sh --profile dev --profile claude up -d
 
 # Access Claude CLI
-docker compose exec claude-cli claude
+./docker-up.sh exec claude-cli claude
 
 # Or run a single command
-docker compose exec claude-cli claude "What is 2+2?"
+./docker-up.sh exec claude-cli claude "What is 2+2?"
 ```
 
 The Claude CLI will use Bearer token authentication to connect through the proxy.
@@ -68,10 +68,10 @@ After running Claude queries, you can view the proxy logs to debug issues:
 
 ```bash
 # View recent logs
-docker compose logs proxy
+./docker-up.sh logs proxy
 
 # Follow logs in real-time
-docker compose logs -f proxy
+./docker-up.sh logs -f proxy
 
 # Use the helper script for filtered views
 ./scripts/view-claude-logs.sh --help
@@ -101,7 +101,7 @@ DEBUG=false
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ```
 
-See the [Documentation](docs/README.md) for complete configuration options.
+See the [Configuration Guide](docs/01-Getting-Started/configuration.md) for complete configuration options.
 
 ### Domain Credentials
 
@@ -160,7 +160,7 @@ claude-nexus-proxy/
 └── scripts/             # Management utilities
 ```
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+See [System Architecture](docs/00-Overview/architecture.md) for detailed architecture documentation.
 
 ## Development
 
@@ -186,108 +186,52 @@ bun run ai:reset-stuck         # Reset jobs with high retry counts
 bun run ai:fail-exceeded       # Manually fail jobs exceeding retries
 ```
 
-See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.
+See [Development Guide](docs/01-Getting-Started/development.md) for development guidelines.
 
 ## Deployment
 
-### Environments
-
-Claude Nexus Proxy supports deployment to multiple environments:
-
-- **Production (`prod`)** - Live production services
-- **Staging (`staging`)** - Pre-production testing environment
-
-For AWS EC2 deployments, use the `manage-nexus-proxies.sh` script with environment filtering:
+### Docker
 
 ```bash
-# Deploy to production servers only
+# Run with pre-built images
+./docker-up.sh up -d
+
+# Build and run locally
+./docker-local.sh up -d --build
+```
+
+### Production Environments
+
+- **Production (`prod`)** - Live production services
+- **Staging (`staging`)** - Pre-production testing
+
+```bash
+# Deploy to production
 ./scripts/ops/manage-nexus-proxies.sh --env prod up
 
-# Check staging server status
+# Check staging status
 ./scripts/ops/manage-nexus-proxies.sh --env staging status
 ```
 
-See [AWS Infrastructure Guide](docs/03-Operations/deployment/aws-infrastructure.md) for detailed multi-environment setup.
-
-### Docker
-
-#### Using Pre-built Images (Default)
-
-```bash
-# Run with docker-compose using images from registry
-./docker-up.sh up -d
-```
-
-#### Using Locally Built Images
-
-```bash
-# Build and run with locally built images
-./docker-local.sh up -d --build
-
-# Or manually:
-cd docker
-docker compose -f docker-compose.local.yml --env-file ../.env up -d --build
-```
-
-#### Building Images Separately
-
-```bash
-# Build images individually
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy:local .
-docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
-```
-
-### Production
-
-See the [Deployment Guide](docs/03-Operations/deployment/) for production deployment options.
+See the [Deployment Guide](docs/03-Operations/deployment/) for detailed deployment options.
 
 ## Documentation
 
-Comprehensive documentation is available in the [docs](docs/) directory:
+Full documentation is available in the [docs](docs/) directory, organized by topic:
 
-### 📚 Getting Started
-
-- [Installation Guide](docs/01-Getting-Started/installation.md) - Local development setup
-- [Docker Deployment](docs/03-Operations/deployment/docker-compose.md) - Production deployment
-- [Configuration](docs/01-Getting-Started/configuration.md) - All configuration options
-
-### 🔧 User Guides
-
-- [API Reference](docs/02-User-Guide/api-reference.md) - Complete API documentation
-- [Authentication](docs/02-User-Guide/authentication.md) - Auth setup and troubleshooting
-- [Dashboard Guide](docs/02-User-Guide/dashboard-guide.md) - Using the monitoring dashboard
-- [Claude CLI](docs/02-User-Guide/claude-cli.md) - CLI integration guide
-
-### 🚀 Operations
-
-- [Deployment](docs/03-Operations/deployment/) - Docker and production deployment
-- [Security](docs/03-Operations/security.md) - Security best practices
-- [Monitoring](docs/03-Operations/monitoring.md) - Metrics and observability
-- [Backup & Recovery](docs/03-Operations/backup-recovery.md) - Data protection
-
-### 🏗️ Architecture
-
-- [System Architecture](docs/00-Overview/architecture.md) - High-level design
-- [Internals](docs/04-Architecture/internals.md) - Deep implementation details
-- [ADRs](docs/04-Architecture/ADRs/) - Architecture decision records
-
-### 🔍 Troubleshooting
-
-- [Common Issues](docs/05-Troubleshooting/common-issues.md) - FAQ and solutions
-- [Performance](docs/05-Troubleshooting/performance.md) - Performance optimization
-- [Debugging](docs/05-Troubleshooting/debugging.md) - Debug techniques
+- **[Getting Started](docs/01-Getting-Started/)** - Installation, configuration, and development
+- **[User Guide](docs/02-User-Guide/)** - API reference, authentication, and dashboard usage
+- **[Operations](docs/03-Operations/)** - Deployment, security, monitoring, and backups
+- **[Architecture](docs/04-Architecture/)** - System design, internals, and decision records
+- **[Troubleshooting](docs/05-Troubleshooting/)** - Common issues and debugging
 
 ## Contributing
 
 Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) first.
 
-## License
-
-[MIT License](LICENSE)
-
 ## Support
 
 - 📖 [Full Documentation](docs/README.md)
-- 🐛 [Issue Tracker](https://github.com/yourusername/claude-nexus-proxy/issues)
-- 💬 [Discussions](https://github.com/yourusername/claude-nexus-proxy/discussions)
+- 🐛 [Issue Tracker](https://github.com/moonsong-labs/claude-nexus-proxy/issues)
+- 💬 [Discussions](https://github.com/moonsong-labs/claude-nexus-proxy/discussions)
 - 📊 [Changelog](docs/06-Reference/changelog.md)
