@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted and Implemented
 
 ## Context
 
@@ -51,11 +51,14 @@ We will implement **TypeScript Project References** to properly handle the monor
 ```json
 // Root tsconfig.json
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true // Bun feature, safe with noEmit
   },
-  "files": [],
+  "files": [], // No source files at root
   "references": [
     { "path": "./packages/shared" },
     { "path": "./services/dashboard" },
@@ -67,14 +70,23 @@ We will implement **TypeScript Project References** to properly handle the monor
 2. **Enable declaration generation in all projects:**
 
 ```json
-// packages/shared/tsconfig.json and services/*/tsconfig.json
+// packages/shared/tsconfig.json example
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "outDir": "./dist",
+    "rootDir": "./src",
     "composite": true,
     "declaration": true,
     "declarationMap": true,
-    "outDir": "./dist"
-  }
+    "noEmit": false // Override base to allow emit for project references
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }
 ```
 
@@ -86,10 +98,13 @@ We will implement **TypeScript Project References** to properly handle the monor
   "scripts": {
     "typecheck": "tsc --build",
     "typecheck:proxy": "tsc --build services/proxy",
-    "typecheck:dashboard": "tsc --build services/dashboard"
+    "typecheck:dashboard": "tsc --build services/dashboard",
+    "build:shared": "tsc --build packages/shared"
   }
 }
 ```
+
+**Initial Setup Note**: After implementing project references, developers need to run `bun run build:shared` or `npx tsc --build` once to generate the initial declaration files. This is only required for the first build after switching to project references.
 
 ## Consequences
 
@@ -118,16 +133,18 @@ We will implement **TypeScript Project References** to properly handle the monor
 ## Links
 
 - [TypeScript Project References Documentation](https://www.typescriptlang.org/docs/handbook/project-references.html)
-- [Related Issue: Type Checking Errors](#28)
 - [ADR-001: Monorepo Structure](./adr-001-monorepo-structure.md)
+- [ADR-026: TypeScript Base Configuration Separation](./adr-026-tsconfig-base-separation.md)
 
 ## Notes
 
 This change maintains compatibility with Bun's runtime while leveraging TypeScript's built-in features for better monorepo support. The solution was recommended through a consensus workflow with multiple AI models, all of which strongly endorsed this approach over alternatives like removing type checking entirely.
 
-**Initial Setup Note**: After pulling this change, developers need to run `bun run build:shared` or `npx tsc --build` once to generate the initial declaration files. This is only required for the first build after switching to project references.
+## Amendments
+
+- **2025-07-21**: Document groomed to fix broken links, update code examples to match actual implementation, consolidate redundant information, and clarify implementation status. No architectural changes were made.
 
 ---
 
-Date: 2025-06-26
+Date: 2025-06-27  
 Authors: Claude Assistant, crystalin
