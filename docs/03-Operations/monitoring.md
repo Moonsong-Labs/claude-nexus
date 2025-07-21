@@ -1,22 +1,23 @@
 # Monitoring Guide
 
-Comprehensive monitoring ensures your Claude Nexus Proxy operates reliably and efficiently.
+_Last Updated: 2025-01-21_
+
+Monitor your Claude Nexus Proxy deployment for performance, reliability, and usage tracking.
 
 ## Overview
 
-The proxy provides multiple monitoring capabilities:
+The proxy provides built-in monitoring capabilities:
 
-- Real-time metrics and statistics
-- Token usage tracking
-- Performance monitoring
-- Error tracking and alerts
-- Database health checks
+- Health check endpoints
+- Token usage tracking and limits
+- Request/response metrics
+- AI analysis job monitoring
+- Error tracking with Slack alerts
+- SQL query performance monitoring
 
-## Built-in Monitoring
+## Health Checks
 
-### Health Endpoints
-
-Basic health checks:
+### Service Health Endpoints
 
 ```bash
 # Proxy health
@@ -28,487 +29,362 @@ curl http://localhost:3001/health
 # Returns: {"status":"ok","database":"connected"}
 ```
 
-### Token Statistics API
-
-Real-time token usage:
+### Token Statistics
 
 ```bash
-curl http://localhost:3000/token-stats
+# Get aggregated token usage statistics
+curl http://localhost:3000/token-stats?domain=example.com
 ```
 
-Response:
+## Dashboard API Endpoints
 
-```json
-{
-  "total_requests": 1234,
-  "total_tokens": {
-    "input": 50000,
-    "output": 45000,
-    "total": 95000
-  },
-  "by_domain": {
-    "example.com": {
-      "requests": 500,
-      "tokens": {...}
-    }
-  }
-}
-```
-
-### Dashboard Metrics
-
-Access via dashboard API:
+All dashboard API endpoints require authentication:
 
 ```bash
-# Current statistics
+# Set your dashboard API key
+export DASHBOARD_API_KEY="your-key-here"
+
+# Get current statistics
 curl http://localhost:3001/api/stats \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 
-# Token usage by account
-curl "http://localhost:3001/api/token-usage/current?window=300" \
+# Get current 5-hour window usage
+curl "http://localhost:3001/api/token-usage/current?accountId=acc_12345&window=300" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
+
+# Get daily usage history
+curl "http://localhost:3001/api/token-usage/daily?accountId=acc_12345&days=30" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
+
+# Get all accounts with usage
+curl http://localhost:3001/api/token-usage/accounts \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
 ## Performance Monitoring
 
-### Request Latency
+### SQL Query Performance
 
-Track response times:
+Enable SQL query logging to monitor database performance:
+
+```bash
+# Enable SQL query logging (in .env)
+DEBUG_SQL=true
+SLOW_QUERY_THRESHOLD_MS=5000  # Log queries slower than 5 seconds
+```
+
+Monitor slow queries in the logs:
+
+```bash
+# View slow queries using docker-up.sh
+./docker-up.sh logs proxy | grep "Slow SQL query"
+
+# Or in development
+bun run dev 2>&1 | grep "Slow SQL query"
+```
+
+### Database Metrics
+
+Monitor database health with these queries:
 
 ```sql
--- Average latency by hour
+-- Check active connections
+SELECT count(*) FROM pg_stat_activity WHERE state = 'active';
+
+-- Find long-running queries
 SELECT
-  date_trunc('hour', created_at) as hour,
-  AVG(response_time_ms) as avg_latency,
-  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_latency
-FROM api_requests
-WHERE created_at > NOW() - INTERVAL '24 hours'
-GROUP BY hour
-ORDER BY hour DESC;
-```
-
-### Slow Query Detection
-
-Configure threshold:
-
-```bash
-SLOW_QUERY_THRESHOLD_MS=5000
-```
-
-Monitor slow queries:
-
-```bash
-# View recent slow queries
-docker compose logs proxy | grep "Slow SQL query"
-```
-
-### Database Performance
-
-Key metrics to monitor:
-
-```sql
--- Connection count
-SELECT count(*) FROM pg_stat_activity;
-
--- Long-running queries
-SELECT pid, now() - pg_stat_activity.query_start AS duration, query
+  pid,
+  now() - query_start AS duration,
+  left(query, 80) AS query_preview
 FROM pg_stat_activity
-WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes';
+WHERE state = 'active'
+  AND now() - query_start > interval '1 minute'
+ORDER BY duration DESC;
 
--- Table sizes
+-- Table sizes and growth
 SELECT
-  schemaname,
   tablename,
-  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size,
+  n_live_tup AS row_count
 FROM pg_tables
+LEFT JOIN pg_stat_user_tables ON tablename = relname
 WHERE schemaname = 'public'
-ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
+LIMIT 10;
 ```
 
 ## Token Usage Monitoring
 
-### 5-Hour Window Tracking
+Track token usage to stay within Claude API limits:
 
-Monitor Claude API limits:
+### Current Window Usage
+
+The proxy tracks token usage in 5-hour rolling windows:
 
 ```bash
-# Check current window usage
+# Check current window usage for an account
 curl "http://localhost:3001/api/token-usage/current?accountId=acc_12345&window=300" \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
+
+# Response includes:
+# - tokens_used: Current window usage
+# - window_start/end: Time boundaries
+# - requests_count: Number of requests
 ```
 
-### Daily Usage Reports
-
-Historical analysis:
+### Historical Usage
 
 ```bash
-# Last 30 days aggregated
-curl "http://localhost:3001/api/token-usage/daily?accountId=acc_12345&aggregate=true" \
+# Get daily usage for the last 30 days
+curl "http://localhost:3001/api/token-usage/daily?accountId=acc_12345&days=30" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
+
+# Get time-series data (5-minute intervals)
+curl "http://localhost:3001/api/token-usage/time-series?accountId=acc_12345&hours=24" \
   -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
-### Usage Alerts
+### Setting Up Usage Alerts
 
-Set up alerts for high usage:
-
-```javascript
-// Example alert check
-async function checkTokenUsage() {
-  const usage = await getTokenUsage(accountId)
-  const percentage = (usage.tokens_used / usage.limit) * 100
-
-  if (percentage > 80) {
-    sendAlert(`Token usage at ${percentage}% for account ${accountId}`)
-  }
-}
-```
+Monitor usage programmatically using the API endpoints above. The dashboard displays visual alerts when usage exceeds 80% of typical limits.
 
 ## Error Monitoring
 
-### Error Rates
+### Error Tracking
 
-Track error frequency:
+Monitor errors through the dashboard or directly in the database:
 
 ```sql
--- Error rate by hour
+-- Recent errors by status code
+SELECT
+  status_code,
+  error_type,
+  COUNT(*) as error_count,
+  MAX(created_at) as last_occurrence
+FROM api_requests
+WHERE status_code >= 400
+  AND created_at > NOW() - INTERVAL '24 hours'
+GROUP BY status_code, error_type
+ORDER BY error_count DESC;
+
+-- Error rate trend
 SELECT
   date_trunc('hour', created_at) as hour,
   COUNT(*) FILTER (WHERE status_code >= 400) as errors,
-  COUNT(*) as total,
-  ROUND(COUNT(*) FILTER (WHERE status_code >= 400)::numeric / COUNT(*) * 100, 2) as error_rate
+  COUNT(*) as total_requests,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE status_code >= 400) / COUNT(*), 2) as error_percentage
 FROM api_requests
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY hour
 ORDER BY hour DESC;
 ```
 
-### Error Categories
+### Slack Notifications
 
-Analyze error types:
-
-```sql
--- Error breakdown
-SELECT
-  status_code,
-  error_type,
-  COUNT(*) as count,
-  ARRAY_AGG(DISTINCT domain) as affected_domains
-FROM api_requests
-WHERE status_code >= 400
-  AND created_at > NOW() - INTERVAL '24 hours'
-GROUP BY status_code, error_type
-ORDER BY count DESC;
-```
-
-### Error Alerts
-
-Configure Slack notifications:
+Configure automatic error alerts:
 
 ```bash
+# In .env file
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 ```
 
-## External Monitoring
+The proxy automatically sends Slack notifications for:
 
-### Prometheus Integration
+- Authentication failures
+- Rate limit errors
+- Unexpected errors (5xx status codes)
+- AI analysis job failures
 
-Export metrics for Prometheus:
+## AI Analysis Monitoring
 
-```javascript
-// Example metrics endpoint
-app.get('/metrics', (req, res) => {
-  const metrics = `
-# HELP claude_proxy_requests_total Total number of requests
-# TYPE claude_proxy_requests_total counter
-claude_proxy_requests_total{domain="${domain}"} ${requestCount}
+### Analysis Job Status
 
-# HELP claude_proxy_tokens_total Total tokens used
-# TYPE claude_proxy_tokens_total counter
-claude_proxy_tokens_total{type="input"} ${inputTokens}
-claude_proxy_tokens_total{type="output"} ${outputTokens}
-
-# HELP claude_proxy_response_time Response time in milliseconds
-# TYPE claude_proxy_response_time histogram
-claude_proxy_response_time_bucket{le="100"} ${bucket100}
-claude_proxy_response_time_bucket{le="500"} ${bucket500}
-claude_proxy_response_time_bucket{le="1000"} ${bucket1000}
-`
-  res.type('text/plain').send(metrics)
-})
-```
-
-### Grafana Dashboards
-
-Create dashboards for:
-
-- Request rate and latency
-- Token usage trends
-- Error rates and types
-- Database performance
-- Cost projections
-
-Example dashboard config:
-
-```json
-{
-  "dashboard": {
-    "title": "Claude Nexus Proxy",
-    "panels": [
-      {
-        "title": "Request Rate",
-        "targets": [
-          {
-            "expr": "rate(claude_proxy_requests_total[5m])"
-          }
-        ]
-      },
-      {
-        "title": "Token Usage",
-        "targets": [
-          {
-            "expr": "sum(claude_proxy_tokens_total) by (type)"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Uptime Monitoring
-
-External monitoring services:
-
-```yaml
-# UptimeRobot configuration
-monitors:
-  - name: 'Claude Proxy API'
-    url: 'https://proxy.example.com/health'
-    interval: 300
-
-  - name: 'Claude Dashboard'
-    url: 'https://dashboard.example.com/health'
-    interval: 300
-```
-
-## Log Aggregation
-
-### Structured Logging
-
-Enable JSON logging:
-
-```javascript
-// Structured log format
-logger.info({
-  event: 'api_request',
-  domain: req.hostname,
-  method: req.method,
-  path: req.path,
-  status: res.statusCode,
-  duration: responseTime,
-  tokens: {
-    input: inputTokens,
-    output: outputTokens,
-  },
-})
-```
-
-### Log Shipping
-
-Send logs to centralized system:
-
-```yaml
-# Filebeat configuration
-filebeat.inputs:
-  - type: container
-    paths:
-      - '/var/lib/docker/containers/*/*.log'
-    processors:
-      - add_docker_metadata: ~
-      - decode_json_fields:
-          fields: ['message']
-          target: ''
-
-output.elasticsearch:
-  hosts: ['elasticsearch:9200']
-```
-
-### Log Analysis
-
-Useful log queries:
+Monitor AI-powered conversation analysis jobs:
 
 ```bash
-# High token usage requests
-docker compose logs proxy | jq 'select(.tokens.total > 10000)'
+# Check analysis job status
+bun run scripts/check-analysis-jobs.ts
 
-# Slow requests
-docker compose logs proxy | jq 'select(.duration > 5000)'
+# Check AI worker configuration
+bun run scripts/check-ai-worker-config.ts
 
-# Error patterns
-docker compose logs proxy | grep ERROR | awk '{print $5}' | sort | uniq -c
+# View analysis content for a conversation
+bun run scripts/check-analysis-content.ts <conversationId> <branchId>
 ```
 
-## Alerting
+### Analysis API Endpoints
 
-### Alert Configuration
+```bash
+# Create analysis request
+curl -X POST http://localhost:3001/api/analyses \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversationId": "uuid-here",
+    "branchId": "main"
+  }'
 
-Set up alerts for:
-
-1. **High Error Rate**
-
-   ```
-   IF error_rate > 5% FOR 5 minutes
-   THEN alert "High error rate detected"
-   ```
-
-2. **Token Limit Approaching**
-
-   ```
-   IF token_usage_percentage > 80%
-   THEN alert "Token limit approaching for account X"
-   ```
-
-3. **Database Issues**
-
-   ```
-   IF database_connections > 90% of max
-   THEN alert "Database connection pool exhausted"
-   ```
-
-4. **Response Time Degradation**
-   ```
-   IF p95_latency > 10s FOR 10 minutes
-   THEN alert "Performance degradation detected"
-   ```
-
-### Alert Channels
-
-Configure multiple channels:
-
-```javascript
-// Alert manager configuration
-const alertChannels = {
-  slack: {
-    webhook: process.env.SLACK_WEBHOOK_URL,
-    channel: '#alerts',
-  },
-  email: {
-    smtp: process.env.SMTP_SERVER,
-    recipients: ['ops@example.com'],
-  },
-  pagerduty: {
-    serviceKey: process.env.PAGERDUTY_KEY,
-  },
-}
+# Check analysis status
+curl "http://localhost:3001/api/analyses/<conversationId>/<branchId>" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
-## Dashboard Monitoring
+### Worker Configuration
 
-### Real-time Updates
+Enable the AI analysis worker:
 
-Monitor SSE connections:
-
-```javascript
-// Track active dashboard connections
-let activeConnections = 0
-
-app.get('/api/sse', (req, res) => {
-  activeConnections++
-  console.log(`Active dashboard connections: ${activeConnections}`)
-
-  req.on('close', () => {
-    activeConnections--
-  })
-})
+```bash
+# In .env file
+AI_WORKER_ENABLED=true
+AI_WORKER_POLL_INTERVAL_MS=5000
+AI_WORKER_MAX_CONCURRENT_JOBS=3
 ```
 
-### Dashboard Performance
+## MCP Server Monitoring
 
-Monitor dashboard queries:
+### MCP Health Check
 
-```sql
--- Dashboard query performance
-SELECT
-  query,
-  calls,
-  mean_exec_time,
-  total_exec_time
-FROM pg_stat_statements
-WHERE query LIKE '%api_requests%'
-ORDER BY mean_exec_time DESC
-LIMIT 10;
+The MCP server status is included in the proxy health endpoint:
+
+```bash
+curl http://localhost:3000/health
+# Returns MCP status when MCP_ENABLED=true
 ```
+
+### MCP Configuration
+
+Monitor MCP prompt synchronization:
+
+```bash
+# Check MCP configuration
+grep "MCP_" .env
+
+# View prompt sync logs
+./docker-up.sh logs proxy | grep "MCP"
+```
+
+## Log Analysis
+
+### Viewing Logs
+
+Access logs using docker-up.sh:
+
+```bash
+# View all logs
+./docker-up.sh logs
+
+# View proxy logs only
+./docker-up.sh logs proxy
+
+# Follow logs in real-time
+./docker-up.sh logs -f proxy
+
+# View last 100 lines
+./docker-up.sh logs --tail 100 proxy
+```
+
+### Useful Log Filters
+
+```bash
+# Find high token usage requests
+./docker-up.sh logs proxy | grep "tokens" | grep -E "total.*[0-9]{5,}"
+
+# Find slow requests (>5s)
+./docker-up.sh logs proxy | grep "response_time_ms" | grep -E "[0-9]{4,}"
+
+# Track specific account
+./docker-up.sh logs proxy | grep "acc_12345"
+
+# Monitor errors
+./docker-up.sh logs proxy | grep -E "ERROR|error|failed"
+```
+
+### Debug Logging
+
+Enable detailed logging for troubleshooting:
+
+```bash
+# In .env file
+DEBUG=true           # Enable all debug logging
+DEBUG_SQL=true      # Enable SQL query logging only
+```
+
+## Monitoring Best Practices
+
+### Key Metrics to Track
+
+1. **Service Health**
+   - Both proxy and dashboard health endpoints
+   - Database connection status
+   - MCP server availability
+
+2. **Token Usage**
+   - Current 5-hour window usage per account
+   - Daily trends and projections
+   - Accounts approaching limits
+
+3. **Performance**
+   - SQL query execution times
+   - Request response times
+   - Database connection pool usage
+
+4. **Errors**
+   - Error rates by type and status code
+   - Authentication failures
+   - AI analysis job failures
+
+### Alert Thresholds
+
+Configure alerts based on your usage patterns:
+
+- **Token usage**: Alert at 80% of window limit
+- **Error rate**: Alert if >5% errors for 5 minutes
+- **Database connections**: Alert at 90% of pool size
+- **Response time**: Alert if p95 >10s for 10 minutes
+
+### Regular Monitoring Tasks
+
+1. **Daily**: Check token usage trends
+2. **Weekly**: Review error patterns and slow queries
+3. **Monthly**: Analyze database growth and performance
 
 ## Cost Monitoring
 
-### Token Cost Calculation
+### Token Usage by Model
 
-Track costs by model:
-
-```javascript
-const tokenCosts = {
-  'claude-3-opus-20240229': { input: 15, output: 75 }, // per million tokens
-  'claude-3-sonnet-20240229': { input: 3, output: 15 },
-  'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
-}
-
-function calculateCost(model, inputTokens, outputTokens) {
-  const costs = tokenCosts[model]
-  return {
-    input: (inputTokens / 1_000_000) * costs.input,
-    output: (outputTokens / 1_000_000) * costs.output,
-    total: (inputTokens / 1_000_000) * costs.input + (outputTokens / 1_000_000) * costs.output,
-  }
-}
-```
-
-### Budget Alerts
-
-Set up cost alerts:
+Track token usage across different models in the dashboard or via SQL:
 
 ```sql
--- Daily cost tracking
-WITH daily_costs AS (
-  SELECT
-    date_trunc('day', created_at) as day,
-    SUM(input_tokens * 0.000015 + output_tokens * 0.000075) as cost
-  FROM api_requests
-  WHERE model = 'claude-3-opus-20240229'
-  GROUP BY day
-)
+-- Token usage by model (last 30 days)
 SELECT
-  day,
-  cost,
-  SUM(cost) OVER (ORDER BY day) as cumulative_cost
-FROM daily_costs
+  model,
+  COUNT(*) as request_count,
+  SUM(input_tokens) as total_input_tokens,
+  SUM(output_tokens) as total_output_tokens,
+  SUM(total_tokens) as total_tokens
+FROM api_requests
+WHERE created_at > NOW() - INTERVAL '30 days'
+GROUP BY model
+ORDER BY total_tokens DESC;
+
+-- Daily token usage trend
+SELECT
+  date_trunc('day', created_at) as day,
+  SUM(total_tokens) as daily_tokens,
+  COUNT(*) as daily_requests
+FROM api_requests
+WHERE created_at > NOW() - INTERVAL '30 days'
+GROUP BY day
 ORDER BY day DESC;
 ```
 
-## Best Practices
+### Cost Estimation
 
-1. **Set Appropriate Thresholds**
-   - Start with conservative limits
-   - Adjust based on baseline metrics
-   - Document threshold reasoning
+For cost tracking, refer to [Anthropic's current pricing](https://www.anthropic.com/pricing) and multiply by your token usage. The dashboard displays token counts that can be used for cost calculations.
 
-2. **Regular Review**
-   - Weekly performance reviews
-   - Monthly cost analysis
-   - Quarterly capacity planning
+## Related Documentation
 
-3. **Automate Responses**
-   - Auto-scaling for high load
-   - Automatic backup triggers
-   - Self-healing mechanisms
-
-4. **Monitor Monitoring**
-   - Alert on monitoring failures
-   - Test alert channels regularly
-   - Backup monitoring systems
-
-## Next Steps
-
-- [Set up backups](./backup-recovery.md)
-- [Configure security](./security.md)
-- [Optimize performance](../05-Troubleshooting/performance.md)
-- [Review architecture](../04-Architecture/internals.md)
+- [Security Configuration](./security.md) - Secure your deployment
+- [Backup & Recovery](./backup-recovery.md) - Data protection strategies
+- [Database Operations](./database.md) - Database management
+- [Performance Optimization](../05-Troubleshooting/performance.md) - Improve response times
