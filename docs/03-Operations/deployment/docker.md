@@ -1,485 +1,245 @@
-# Deployment Guide
+# Docker Deployment Guide
 
-This guide covers deploying Claude Nexus Proxy to production environments.
+This guide covers deploying Claude Nexus Proxy using standalone Docker containers in production environments.
 
-## Deployment Options
+> **Note**:
+>
+> - For Docker Compose deployment, see [Docker Compose Guide](./docker-compose.md)
+> - For AWS EC2 deployment, see [AWS Infrastructure Guide](./aws-infrastructure.md)
+> - For operational procedures (monitoring, logging, troubleshooting), see [Operations Guide](../operations.md)
 
-> **Note**: For AWS EC2 deployment with staging/production environments, see [AWS Infrastructure Guide](./aws-infrastructure.md).
+## Overview
 
-### 1. Docker (Recommended)
+The project provides optimized Docker images for both the proxy and dashboard services. This guide focuses on building and running these services as standalone Docker containers.
 
-The project provides optimized Docker images for each service.
+## Building Docker Images
 
-#### Build Images
+### Using the Build Script (Recommended)
 
 ```bash
-# Build both images
+# Build both images with the latest tag
 ./docker/build-images.sh
 
-# Or build individually
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy .
-docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard .
+# Build with a specific version tag
+./docker/build-images.sh v1.2.3
 ```
 
-#### Run with Docker Compose
+The build script:
+
+- Builds optimized production images
+- Tags images appropriately
+- Shows build progress and image sizes
+- Provides next steps for running containers
+
+### Manual Build
 
 ```bash
-# Create .env file
-cp .env.example .env
-# Edit .env with production values
+# Build proxy image
+docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy:latest .
 
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
+# Build dashboard image
+docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:latest .
 ```
 
-#### Run Standalone Containers
+## Running Standalone Containers
+
+### Proxy Service
 
 ```bash
-# Run proxy
 docker run -d \
   --name claude-proxy \
+  --restart=always \
   -p 3000:3000 \
-  -e DATABASE_URL=$DATABASE_URL \
+  --env-file .env.prod \
   -v $(pwd)/credentials:/app/credentials:ro \
-  claude-nexus-proxy
+  --health-cmd "curl -f http://localhost:3000/health || exit 1" \
+  --health-interval 30s \
+  --health-timeout 3s \
+  --health-retries 3 \
+  claude-nexus-proxy:latest
+```
 
-# Run dashboard
+### Dashboard Service
+
+```bash
 docker run -d \
   --name claude-dashboard \
+  --restart=always \
   -p 3001:3001 \
-  -e DATABASE_URL=$DATABASE_URL \
-  -e DASHBOARD_API_KEY=$DASHBOARD_API_KEY \
-  claude-nexus-dashboard
+  --env-file .env.prod \
+  --health-cmd "curl -f http://localhost:3001/health || exit 1" \
+  --health-interval 30s \
+  --health-timeout 3s \
+  --health-retries 3 \
+  claude-nexus-dashboard:latest
 ```
 
-### 2. Bare Metal with Bun
+### Key Docker Run Options Explained
 
-#### Install Bun
-
-```bash
-curl -fsSL https://bun.sh/install | bash
-```
-
-#### Build for Production
-
-```bash
-# Install dependencies
-bun install --production
-
-# Build all services
-bun run build:production
-```
-
-#### Run with Process Manager
-
-Using PM2:
-
-```bash
-# Install PM2
-npm install -g pm2
-
-# Start services
-pm2 start services/proxy/dist/index.js --name proxy
-pm2 start services/dashboard/dist/index.js --name dashboard
-
-# Save configuration
-pm2 save
-pm2 startup
-```
-
-Using systemd:
-
-```ini
-# /etc/systemd/system/claude-proxy.service
-[Unit]
-Description=Claude Nexus Proxy
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=proxy
-WorkingDirectory=/opt/claude-nexus-proxy
-Environment="DATABASE_URL=postgresql://..."
-ExecStart=/usr/local/bin/bun run services/proxy/dist/index.js
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 3. Kubernetes
-
-See `kubernetes/` directory for Helm charts and manifests.
+- `--restart=always`: Ensures containers restart after system reboot or crashes
+- `--env-file .env.prod`: Loads environment variables from production config file
+- `-v`: Mounts credentials directory as read-only for security
+- `--health-*`: Configures health checks for container monitoring
 
 ## Production Configuration
 
 ### Environment Variables
 
-Create production `.env`:
+Create a production environment file `.env.prod`:
 
 ```bash
-# Database (use connection pooling)
+# Database (with connection pooling)
 DATABASE_URL=postgresql://user:pass@db-host:5432/claude_nexus?pool_max=20
 
 # Authentication
 DASHBOARD_API_KEY=$(openssl rand -base64 32)
+ENABLE_CLIENT_AUTH=true
 
-# Features
+# Core Features
 STORAGE_ENABLED=true
 DEBUG=false
 
-# Performance
+# Performance Tuning
+CLAUDE_API_TIMEOUT=600000  # 10 minutes
+PROXY_SERVER_TIMEOUT=660000  # 11 minutes
 DASHBOARD_CACHE_TTL=300
 SLOW_QUERY_THRESHOLD_MS=2000
 
-# Monitoring
+# Optional Features
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
+AI_WORKER_ENABLED=false  # Enable if using AI analysis
 ```
 
-### Database Setup
+For a complete list of environment variables, see [Environment Variables Reference](../../06-Reference/environment-vars.md).
 
-1. **Create Production Database**:
+### Best Practices for Production Images
 
-```sql
-CREATE DATABASE claude_nexus;
-CREATE USER claude_proxy WITH PASSWORD 'secure-password';
-GRANT CONNECT ON DATABASE claude_nexus TO claude_proxy;
-```
+#### 1. Use Multi-Stage Builds
 
-2. **Run Migrations**:
+The provided Dockerfiles use multi-stage builds to:
+
+- Separate build dependencies from runtime
+- Reduce final image size
+- Improve security by excluding build tools
+
+#### 2. Security Hardening
 
 ```bash
-DATABASE_URL=postgresql://... bun run db:migrate
+# Run containers as non-root user (already configured in Dockerfiles)
+# Use read-only filesystem where possible
+docker run --read-only --tmpfs /tmp ...
+
+# Limit container resources
+docker run --memory="1g" --cpus="1.0" ...
 ```
 
-3. **Optimize for Performance**:
+#### 3. Create a .dockerignore
 
-```sql
--- Increase shared buffers
-ALTER SYSTEM SET shared_buffers = '256MB';
+Ensure sensitive files are not included in the build context:
 
--- Enable query optimization
-ALTER SYSTEM SET random_page_cost = 1.1;
-
--- Reload configuration
-SELECT pg_reload_conf();
+```
+# .dockerignore
+.env*
+credentials/
+*.log
+node_modules/
+.git/
 ```
 
-### Reverse Proxy Setup
+## Container Networking
 
-#### Nginx Configuration
-
-```nginx
-upstream proxy_backend {
-    server 127.0.0.1:3000;
-    keepalive 32;
-}
-
-upstream dashboard_backend {
-    server 127.0.0.1:3001;
-    keepalive 16;
-}
-
-# Proxy API
-server {
-    listen 443 ssl http2;
-    server_name api.yourdomain.com;
-
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    location / {
-        proxy_pass http://proxy_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-
-        # For streaming responses
-        proxy_buffering off;
-        proxy_cache off;
-    }
-}
-
-# Dashboard
-server {
-    listen 443 ssl http2;
-    server_name dashboard.yourdomain.com;
-
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    location / {
-        proxy_pass http://dashboard_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    # SSE endpoint
-    location /sse {
-        proxy_pass http://dashboard_backend/sse;
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_buffering off;
-        proxy_cache off;
-    }
-}
-```
-
-#### Caddy Configuration
-
-```caddyfile
-api.yourdomain.com {
-    reverse_proxy localhost:3000 {
-        flush_interval -1
-    }
-}
-
-dashboard.yourdomain.com {
-    reverse_proxy localhost:3001
-}
-```
-
-## Scaling
-
-### Horizontal Scaling
-
-1. **Proxy Service** - Stateless, scale freely:
+### Docker Network Isolation
 
 ```bash
-# Docker Swarm
-docker service scale proxy=5
+# Create isolated network for services
+docker network create claude-nexus
 
-# Kubernetes
-kubectl scale deployment proxy --replicas=5
+# Run containers on isolated network
+docker run --network claude-nexus --name proxy ...
+docker run --network claude-nexus --name dashboard ...
 ```
 
-2. **Dashboard Service** - Also stateless:
+### Exposing Services
+
+For production, consider:
+
+- Using a reverse proxy (nginx, Caddy) instead of exposing ports directly
+- Implementing TLS/SSL termination at the proxy level
+- Setting up proper firewall rules
+
+Example with Docker networks:
 
 ```bash
-docker service scale dashboard=3
+# Only expose through reverse proxy
+docker run --network claude-nexus --name proxy claude-nexus-proxy:latest
+# No -p flag means not exposed to host directly
 ```
 
-3. **Database** - Use read replicas for dashboard:
+## Data Persistence
+
+### Stateless Services
+
+Both proxy and dashboard services are stateless, storing all data in PostgreSQL. This means:
+
+- Containers can be replaced without data loss
+- Easy horizontal scaling
+- Simple backup strategy (database only)
+
+### Credentials Volume
+
+The only local state is the credentials directory:
 
 ```bash
-# Primary for writes (proxy)
-DATABASE_URL=postgresql://primary:5432/claude_nexus
+# Create named volume for credentials
+docker volume create claude-credentials
 
-# Read replica for dashboard
-DATABASE_URL=postgresql://replica:5432/claude_nexus
+# Use named volume instead of bind mount
+docker run -v claude-credentials:/app/credentials:ro ...
 ```
 
-### Performance Tuning
+## Container Management
 
-1. **Connection Pooling**:
+### Using Docker Compose
+
+For easier management of multiple containers, see [Docker Compose Guide](./docker-compose.md).
+
+### Using Container Orchestration
+
+For production deployments at scale, consider:
+
+- Docker Swarm for simple multi-host deployments
+- Kubernetes for complex orchestration needs
+- AWS ECS/Fargate for cloud-native deployments
+
+## Pushing to Registry
+
+### Docker Hub
 
 ```bash
-DATABASE_URL=postgresql://...?pool_max=50&pool_idle_timeout=10000
+# Login to Docker Hub
+docker login
+
+# Push images
+docker push ${DOCKER_REGISTRY_USER}/claude-nexus-proxy:latest
+docker push ${DOCKER_REGISTRY_USER}/claude-nexus-dashboard:latest
+
+# Or use the push script
+./docker/push-images.sh
 ```
 
-2. **Disable Non-Essential Features**:
+### Private Registry
 
 ```bash
-STORAGE_ENABLED=false  # If not needed
-DEBUG=false
-COLLECT_TEST_SAMPLES=false
+# Tag for private registry
+docker tag claude-nexus-proxy:latest registry.company.com/claude-nexus-proxy:latest
+
+# Push to private registry
+docker push registry.company.com/claude-nexus-proxy:latest
 ```
 
-3. **Optimize Dashboard**:
+## Next Steps
 
-```bash
-DASHBOARD_CACHE_TTL=600  # 10-minute cache
-```
-
-## Monitoring
-
-### Health Checks
-
-Both services expose health endpoints:
-
-```bash
-# Proxy health
-curl http://localhost:3000/health
-
-# Dashboard health
-curl http://localhost:3001/health
-```
-
-### Metrics Collection
-
-1. **Application Metrics**:
-   - Token usage: `/token-stats`
-   - Request counts by domain
-   - Response times
-
-2. **System Metrics**:
-
-```bash
-# Docker stats
-docker stats
-
-# Process monitoring
-pm2 monit
-```
-
-### Logging
-
-1. **Centralized Logging**:
-
-```yaml
-# docker-compose.yml
-services:
-  proxy:
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-```
-
-2. **Log Aggregation**:
-
-```bash
-# Ship to ELK/Loki/etc
-docker logs proxy | logstash -f logstash.conf
-```
-
-## Security Hardening
-
-### Network Security
-
-1. **Firewall Rules**:
-
-```bash
-# Only allow HTTPS
-ufw allow 443/tcp
-ufw deny 3000/tcp
-ufw deny 3001/tcp
-```
-
-2. **Internal Network**:
-
-```yaml
-# docker-compose.yml
-networks:
-  internal:
-    internal: true
-  external:
-    internal: false
-```
-
-### File Permissions
-
-```bash
-# Secure credentials
-chmod 700 /opt/claude-nexus-proxy/credentials
-chmod 600 /opt/claude-nexus-proxy/credentials/*
-
-# Application files
-chown -R proxy:proxy /opt/claude-nexus-proxy
-chmod -R 755 /opt/claude-nexus-proxy
-```
-
-## Backup and Recovery
-
-### Automated Backups
-
-```bash
-# Backup script (add to cron)
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR=/backups
-
-# Database backup
-pg_dump $DATABASE_URL | gzip > $BACKUP_DIR/db_$DATE.sql.gz
-
-# Credentials backup
-tar czf $BACKUP_DIR/credentials_$DATE.tar.gz /opt/claude-nexus-proxy/credentials
-
-# Retention (keep 7 days)
-find $BACKUP_DIR -name "*.gz" -mtime +7 -delete
-```
-
-### Disaster Recovery
-
-1. **Database Recovery**:
-
-```bash
-gunzip < backup.sql.gz | psql $DATABASE_URL
-```
-
-2. **Service Recovery**:
-
-```bash
-# Restore credentials
-tar xzf credentials_backup.tar.gz -C /
-
-# Restart services
-docker-compose up -d
-```
-
-## Maintenance
-
-### Rolling Updates
-
-```bash
-# Update proxy without downtime
-docker service update --image claude-nexus-proxy:new proxy
-
-# Update dashboard
-docker service update --image claude-nexus-dashboard:new dashboard
-```
-
-### Database Maintenance
-
-```bash
-# Vacuum and analyze
-psql $DATABASE_URL -c "VACUUM ANALYZE;"
-
-# Reindex for performance
-psql $DATABASE_URL -c "REINDEX DATABASE claude_nexus;"
-```
-
-## Troubleshooting Production Issues
-
-### High Memory Usage
-
-```bash
-# Check memory usage
-docker stats
-
-# Limit container memory
-docker run -m 1g claude-nexus-proxy
-```
-
-### Slow Queries
-
-```bash
-# Enable slow query logging
-SLOW_QUERY_THRESHOLD_MS=1000
-
-# Check pg_stat_statements
-SELECT query, mean_exec_time, calls
-FROM pg_stat_statements
-ORDER BY mean_exec_time DESC
-LIMIT 10;
-```
-
-### Connection Issues
-
-```bash
-# Test database connection
-psql $DATABASE_URL -c "SELECT 1;"
-
-# Check proxy logs
-docker logs proxy --tail 100
-
-# Verify credentials
-ls -la credentials/
-```
+- For local development with Docker Compose, see [Docker Compose Guide](./docker-compose.md)
+- For monitoring and operational procedures, see [Operations Guide](../operations.md)
+- For AWS deployment, see [AWS Infrastructure Guide](./aws-infrastructure.md)
+- For database setup, see [Database Guide](../database.md)
