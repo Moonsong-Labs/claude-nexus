@@ -32,6 +32,18 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **test/unit/request-response-parsing.test.ts refactoring**: Restructured and improved domain entity tests
+  - Split monolithic test file into separate `ProxyRequest.test.ts` and `ProxyResponse.test.ts`
+  - Moved tests to proper location: `services/proxy/src/domain/entities/__tests__/`
+  - Added comprehensive test coverage for all public methods (previously missing ~40% coverage)
+  - Improved test organization by behavior/scenarios rather than methods
+  - Enhanced test quality with descriptive names, extracted constants, and helper functions
+  - Added edge case testing for malformed data, large content, and error scenarios
+  - Removed type assertion hacks (`as any`) and code duplication
+  - Validated refactoring plan with Gemini-2.5-pro (10/10 confidence - "exemplary refactoring")
+  - Rationale: Tests should be colocated with code they test, have comprehensive coverage, and follow best practices
+  - Impact: Better test maintainability, clearer test intent, easier to extend
+
 - **e2e/dark-mode-components.test.ts deletion**: Removed redundant E2E test file with anti-patterns
   - Deleted brittle test checking hard-coded RGB color values (e.g., `rgb(30, 41, 59)`)
   - Test had conditional execution (`if (elementExists)`) that could silently pass when elements were missing
