@@ -19,7 +19,7 @@ const proxyCircuitBreakerLogger: CircuitBreakerLogger = {
 
 // Proxy-specific circuit breaker class with logging
 export class CircuitBreaker extends SharedCircuitBreaker {
-  constructor(name: string, config?: CircuitBreakerConfig) {
+  constructor(name: string, config?: Partial<CircuitBreakerConfig>) {
     super(name, { ...config, logger: proxyCircuitBreakerLogger })
   }
 }

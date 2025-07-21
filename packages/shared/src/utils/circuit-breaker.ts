@@ -39,18 +39,22 @@ export class CircuitBreaker {
   private lastFailureTime: number = 0
   private nextAttempt: number = 0
   private outcomes: RequestOutcome[] = []
+  private config: CircuitBreakerConfig
 
   constructor(
     private name: string,
-    private config: CircuitBreakerConfig = {
+    config: Partial<CircuitBreakerConfig> = {}
+  ) {
+    this.config = {
       failureThreshold: 5,
       successThreshold: 2,
       timeout: 60000, // 1 minute
       volumeThreshold: 10,
       errorThresholdPercentage: 50,
       rollingWindowSize: 60000, // 1 minute
+      ...config,
     }
-  ) {}
+  }
 
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     if (this.state === CircuitState.OPEN) {
