@@ -7,10 +7,9 @@ This directory contains the test suite for Claude Nexus Proxy.
 ```
 test/
 ├── unit/              # Unit tests for individual components
-├── integration/       # Integration tests (currently empty)
-├── fixtures/         # Test data and fixtures
-│   └── requests/     # Sample request/response data
-└── helpers/          # Test utilities and factories
+├── integration/       # Integration tests
+└── fixtures/         # Test data and fixtures
+    └── requests/     # Sample request/response data
 ```
 
 ## Running Tests
@@ -92,17 +91,6 @@ describe('Feature Name', () => {
     // Assert
     expect(result).toBe(expected)
   })
-})
-```
-
-### Using Test Factories
-
-```typescript
-import { createTestRequest } from '../helpers/test-factories'
-
-const request = createTestRequest({
-  domain: 'test.com',
-  model: 'claude-3-opus-20240229',
 })
 ```
 

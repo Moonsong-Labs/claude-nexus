@@ -2302,3 +2302,43 @@ Both Gemini 2.5 Pro and O3-mini unanimously validated the approach:
 - Clear separation between generated samples and curated test fixtures
 - Better documentation prevents future confusion
 - Improved test maintainability with intentionally designed fixtures
+
+### 2025-07-21 - Unused Test Factory File Cleanup
+
+**Files Deleted:**
+
+- `test/helpers/test-factories.ts`
+- `test/helpers/` directory (now empty)
+
+**Files Modified:**
+
+- `test/README.md` - Removed reference to test factories and updated structure
+
+**Changes Made:**
+
+1. **Removed Unused Test Factory File**
+   - Deleted comprehensive test factory file using faker.js that was never imported anywhere
+   - File contained factories for credentials, requests, responses, and scenarios
+   - Only referenced in test/README.md as an example, but not actually used
+
+2. **Updated Test Documentation**
+   - Removed "Using Test Factories" section from README
+   - Updated directory structure to remove helpers directory
+   - Maintained accurate documentation reflecting actual project structure
+
+**Analysis Findings:**
+
+- Verified via grep that no files import from test-factories
+- All test files use their own inline test data creation
+- The factories represented over-engineering for unused functionality
+- Removing dead code improves maintainability
+
+**Validation:**
+
+- Gemini-2.5-pro: Strongly endorsed removal as good repository hygiene, suggesting two-phase approach
+- O3-mini: 9/10 confidence for deletion, emphasized removing dead code
+- All tests pass after deletion - confirmed no functional dependencies
+
+**Rationale:**
+
+Dead code that isn't referenced anywhere adds maintenance burden and confusion. Test files already have their own data creation patterns that work well for their specific needs. Following YAGNI principle, unused comprehensive factories should be removed. The deletion simplifies the repository structure while maintaining all test functionality.
