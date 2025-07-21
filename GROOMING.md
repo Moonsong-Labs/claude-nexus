@@ -32,6 +32,17 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **.lintstagedrc.json refactoring**: Fixed critical configuration issues and improved glob patterns
+  - Fixed bug where `*.{json,md,css}` patterns only matched root directory files, missing nested files
+  - Changed to `**/*.{json,md,css}` to properly format all files throughout the monorepo
+  - Combined `packages` and `services` patterns using `{packages,services}/**/*.{js,ts,tsx,jsx}` for conciseness
+  - Removed `jsx/tsx` extensions from scripts pattern (backend-only directory)
+  - Validated with Gemini-2.5-pro (10/10 confidence) - critical fix for monorepo formatting coverage
+  - Rationale: Ensures all configuration and style files are properly formatted on commit
+  - Impact: Prevents unformatted files from being committed, improves code consistency
+
+### 2025-07-21
+
 - **feature-plan-ai-analysis.md deletion**: Removed outdated AI analysis feature planning document
   - Deleted `docs/04-Architecture/feature-plan-ai-analysis.md` as the feature has been fully implemented
   - Feature is properly documented in ADR-018 (architectural decision) and AI Analysis Implementation Guide
