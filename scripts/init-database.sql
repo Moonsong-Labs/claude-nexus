@@ -126,7 +126,7 @@ COMMENT ON COLUMN api_requests.current_message_hash IS 'SHA-256 hash of the last
 COMMENT ON COLUMN api_requests.parent_message_hash IS 'SHA-256 hash of the previous message (null for conversation start)';
 COMMENT ON COLUMN api_requests.conversation_id IS 'UUID grouping related messages into conversations';
 COMMENT ON COLUMN api_requests.branch_id IS 'Branch identifier within a conversation (defaults to main)';
-COMMENT ON COLUMN api_requests.message_count IS 'Total number of messages in the conversation up to this request';
+COMMENT ON COLUMN api_requests.message_count IS 'Caches the total number of messages to optimize conversation list performance by avoiding expensive COUNT(*) queries. Pre-computed during request insertion for better query performance';
 COMMENT ON COLUMN api_requests.parent_task_request_id IS 'Links sub-task requests to their parent task';
 COMMENT ON COLUMN api_requests.is_subtask IS 'Boolean flag indicating if a request is a sub-task';
 COMMENT ON COLUMN api_requests.task_tool_invocation IS 'JSONB array storing Task tool invocations';

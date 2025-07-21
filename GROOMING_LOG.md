@@ -1,5 +1,39 @@
 # Grooming Log
 
+## 2025-01-21: Message Count Implementation Documentation Removal
+
+### File: `docs/04-Architecture/message-count-implementation.md`
+
+#### Action: DELETED
+
+#### Changes Made:
+
+1. **Deleted temporary implementation note** that served its purpose
+2. **Enhanced SQL comment** for `message_count` column to explain performance optimization rationale
+3. **Removed reference to non-existent migration script** (`migrate-conversation-schema.ts`)
+
+#### Rationale:
+
+- File was a temporary developer note, not formal documentation
+- Referenced non-existent migration script, creating confusion for future developers
+- Feature is already self-documented in database schema with proper column comments
+- Creating retroactive ADRs without original context is an anti-pattern
+- Violated Single Source of Truth principle - schema should be authoritative
+
+#### Validation:
+
+- Gemini-2.5-pro: 10/10 confidence - "harmful documentation debt that should be removed"
+- Emphasized avoiding retroactive ADRs and trusting schema as single source of truth
+
+#### Impact:
+
+- **Developer Experience**: Eliminates confusion from referencing non-existent files
+- **Documentation Quality**: Removes redundant, outdated documentation
+- **Maintenance**: Reduces documentation debt and false historical records
+- **Best Practices**: Follows Single Source of Truth principle for database schema
+
+---
+
 ## 2025-01-21: Claude CLI User Guide Refactoring
 
 ### File: `docs/02-User-Guide/claude-cli.md`
