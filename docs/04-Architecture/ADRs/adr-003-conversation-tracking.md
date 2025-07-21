@@ -42,6 +42,8 @@ We will use **message content hashing** to automatically track conversations and
 1. **Message Normalization**:
 
 ```typescript
+import type { ContentBlock } from '../types/claude'
+
 function normalizeContent(content: string | ContentBlock[]): string {
   if (typeof content === 'string') {
     return content
@@ -56,15 +58,27 @@ function normalizeContent(content: string | ContentBlock[]): string {
 2. **Hash Generation**:
 
 ```typescript
-function generateMessageHash(message: Message): string {
+import { createHash } from 'crypto'
+import type { ClaudeMessage } from '../types/claude'
+
+function generateMessageHash(message: ClaudeMessage): string {
   const normalized = normalizeContent(message.content)
-  return crypto.createHash('sha256').update(`${message.role}:${normalized}`).digest('hex')
+  return createHash('sha256').update(`${message.role}:${normalized}`).digest('hex')
 }
 ```
 
 3. **Conversation Linking**:
 
 ```typescript
+interface LinkingResult {
+  conversationId: string | null
+  parentRequestId: string | null
+  branchId: string
+  currentMessageHash: string
+  parentMessageHash: string | null
+  systemHash: string | null
+}
+
 // For each request:
 const messages = request.messages
 const currentHash = generateMessageHash(messages[messages.length - 1])
@@ -81,15 +95,18 @@ if (parentHash && conversationHasMultipleChildren(parentHash)) {
 }
 ```
 
-4. **Database Schema**:
+4. **Database Schema** ([Migration 001](../../../scripts/db/migrations/001-add-conversation-tracking.ts)):
 
 ```sql
-ALTER TABLE api_requests ADD COLUMN conversation_id UUID;
-ALTER TABLE api_requests ADD COLUMN current_message_hash VARCHAR(64);
-ALTER TABLE api_requests ADD COLUMN parent_message_hash VARCHAR(64);
-ALTER TABLE api_requests ADD COLUMN branch_id VARCHAR(50) DEFAULT 'main';
+ALTER TABLE api_requests
+ADD COLUMN IF NOT EXISTS current_message_hash CHAR(64),
+ADD COLUMN IF NOT EXISTS parent_message_hash CHAR(64),
+ADD COLUMN IF NOT EXISTS conversation_id UUID,
+ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255) DEFAULT 'main',
+ADD COLUMN IF NOT EXISTS message_count INTEGER DEFAULT 0;
 
-CREATE INDEX idx_message_hashes ON api_requests(parent_message_hash, current_message_hash);
+CREATE INDEX IF NOT EXISTS idx_message_hashes
+ON api_requests(parent_message_hash, current_message_hash);
 ```
 
 ## Consequences
@@ -119,75 +136,53 @@ CREATE INDEX idx_message_hashes ON api_requests(parent_message_hash, current_mes
 - **Risk**: Performance impact on high-volume systems
   - **Mitigation**: Hash computation is fast, can be made async if needed
 
-## Links
+## Implementation References
 
-- [Implementation PR #13](https://github.com/your-org/claude-nexus-proxy/pull/13)
-- [Conversation Visualization](../../02-User-Guide/dashboard-guide.md#conversation-tracking)
-- [Database Schema](../../03-Operations/database.md)
+- [Message Hashing Implementation](../../../packages/shared/src/utils/conversation-hash.ts)
+- [Conversation Linking Service](../../../packages/shared/src/utils/conversation-linker.ts)
+- [Database Migration](../../../scripts/db/migrations/001-add-conversation-tracking.ts)
+- [Database Schema Documentation](../../03-Operations/database.md)
+
+## Evolution and Enhancements
+
+### Dual Hash System
+
+The implementation evolved to handle system prompt changes gracefully. The original design included system prompts in conversation hashes, which broke conversation linking when system prompts changed between sessions (e.g., git status updates in Claude Code, context compaction).
+
+**Current Implementation:**
+
+1. **Separate Message Hash**: `hashMessagesOnly()` - Hashes only the message content for conversation linking
+2. **Separate System Hash**: `hashSystemPrompt()` - Hashes only the system prompt for tracking context changes
+3. **Dual Hash Return**: `extractMessageHashes()` returns three values:
+   - `currentMessageHash` - Message-only hash for linking
+   - `parentMessageHash` - Parent message hash for branching
+   - `systemHash` - System prompt hash for context tracking
+
+This separation allows conversations to maintain links even when system prompts change, while still tracking context changes independently. The implementation is backward compatible with existing data through [Migration 006](../../../scripts/db/migrations/006-split-conversation-hashes.ts).
+
+### Temporal Awareness
+
+To support accurate historical rebuilds and prevent future data from affecting past conversation linking, timestamps are mandatory for key query methods:
+
+1. **`getMaxSubtaskSequence(conversationId, beforeTimestamp)`**: Only considers subtasks that existed before the specified time
+2. **`findConversationByParentHash(parentHash, beforeTimestamp)`**: Only considers conversations that existed before the specified time
+3. **Cache keys include timestamps**: `${conversationId}_${timestamp.toISOString()}` to prevent cross-temporal cache pollution
+
+This ensures that historical rebuilds accurately reflect the state at any given point in time, which is critical for systems that need to analyze or reconstruct past conversation states.
 
 ## Notes
 
 This approach has proven effective in production, enabling powerful conversation analytics without requiring any changes to client applications. The branch detection feature has been particularly valuable for understanding how users explore different conversation paths.
 
-### Enhancement: Dual Hash System (2025-06-28)
-
-The original implementation included system prompts in the conversation hash, which caused issues when system prompts changed between sessions (e.g., git status in Claude Code, context compaction). This was resolved by implementing a dual hash system:
-
-**Changes:**
-
-1. **Separate Message Hash**: `hashMessagesOnly()` - Hashes only the message content for conversation linking
-2. **Separate System Hash**: `hashSystemPrompt()` - Hashes only the system prompt for tracking context changes
-3. **Updated `extractMessageHashes()`**: Now returns three values:
-   - `currentMessageHash` - Message-only hash for linking
-   - `parentMessageHash` - Parent message hash for branching
-   - `systemHash` - System prompt hash for context tracking
-
-**Benefits:**
-
-- Conversations maintain links even when system prompts change
-- System context changes can be tracked independently
-- Backward compatible with existing data
-
-**Migration:**
-
-- Added `system_hash` column to `api_requests` table
-- System hash is now automatically populated during normal operations
-
-Future enhancements could include:
+### Future Considerations
 
 - Conversation merging detection
 - Semantic similarity for fuzzy matching
 - Conversation templates and patterns
 - System prompt change visualization in dashboard
 
-### Enhancement: Temporal Awareness for Historical Rebuilds (2025-07-02)
-
-To support accurate historical rebuilds and prevent future data from affecting past conversation linking, we've made timestamps mandatory for key query methods:
-
-**Changes:**
-
-1. **`getMaxSubtaskSequence(conversationId, beforeTimestamp)`**: Now requires a timestamp to only consider subtasks that existed before that time
-2. **`findConversationByParentHash(parentHash, beforeTimestamp)`**: Now requires a timestamp to only consider conversations that existed before that time
-3. **Updated `SubtaskSequenceQueryExecutor` type**: Made the `beforeTimestamp` parameter mandatory
-4. **Cache key updates**: ConversationLinker now includes timestamp in cache keys to prevent cross-temporal cache pollution
-
-**Benefits:**
-
-- Historical rebuilds accurately reflect the state at that point in time
-- Prevents future subtasks from being incorrectly included in past conversations
-- Ensures temporal integrity when rebuilding conversation links
-- Maintains data consistency across different time queries
-
-**Implementation Details:**
-
-- All queries now include `AND timestamp < $N` clauses
-- Cache keys incorporate timestamp: `${conversationId}_${timestamp.toISOString()}`
-- When timestamp is not provided at the API level, the system defaults to current time
-- Type system enforces timestamp awareness throughout the codebase
-
-This enhancement is particularly important for systems that need to rebuild or analyze historical conversation data, ensuring that the reconstructed state accurately reflects what existed at any given point in time.
-
 ---
 
-Date: 2024-02-01 (Updated: 2025-06-28, 2025-07-02)
-Authors: Development Team
+**Date**: 2024-02-01  
+**Last Updated**: 2025-01-19  
+**Authors**: Development Team
