@@ -33,13 +33,11 @@ info:
   version: 1.0.0
   contact:
     name: Claude Nexus Proxy
-    url: https://github.com/alanpurestake/claude-nexus-proxy
+    url: https://github.com/Moonsong-Labs/claude-nexus-proxy
 
 servers:
   - url: http://localhost:3000
     description: Local development server
-  - url: https://api.example.com
-    description: Production server
 
 security:
   - DashboardKey: []
@@ -318,6 +316,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RateLimitError'
+              example:
+                error:
+                  type: 'rate_limit_error'
+                  message: 'Too many analysis requests. Please try again later.'
+                  retry_after: 60
         '500':
           description: Internal server error
           content:
@@ -332,6 +335,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerError'
+              example:
+                error: 'Database not configured'
 
   /api/analyses/{conversationId}/{branchId}/regenerate:
     post:
@@ -372,24 +377,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationError'
+              example:
+                error: 'Invalid parameters'
+                details:
+                  - code: 'invalid_uuid'
+                    path: ['conversationId']
+                    message: 'Invalid UUID format'
         '401':
           description: Missing authentication
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthError'
+              example:
+                error:
+                  code: 'unauthorized'
+                  message: 'API key required'
         '403':
           description: Invalid API key
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthError'
+              example:
+                error:
+                  code: 'forbidden'
+                  message: 'Invalid API key'
         '429':
           description: Rate limit exceeded
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RateLimitError'
+              example:
+                error:
+                  type: 'rate_limit_error'
+                  message: 'Too many analysis requests. Please try again later.'
+                  retry_after: 60
         '500':
           description: Internal server error
           content:
@@ -404,6 +428,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerError'
+              example:
+                error: 'Database not configured'
 
 components:
   securitySchemes:
