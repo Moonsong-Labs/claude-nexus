@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-032: CI/CD Workflow Consolidation and Optimization](adr-032-cicd-workflow-consolidation.md)
+
+> **Note**: This ADR documents the original CI/CD strategy from June 2024. It has been superseded by ADR-032 in January 2025, which consolidated and optimized the workflow. Please refer to ADR-032 for the current implementation.
 
 ## Context
 
@@ -51,65 +53,17 @@ The choice of CI/CD platform and strategy would significantly impact developer p
 
 We will use **GitHub Actions** for all CI/CD workflows.
 
-### Implementation Details
+### Original Implementation Approach
 
-1. **Workflow Structure**:
+The original implementation used GitHub Actions with:
 
-   ```yaml
-   name: CI
-   on:
-     push:
-       branches: [main]
-     pull_request:
-       branches: [main]
+- Separate jobs for TypeScript checking and building
+- Matrix builds for multiple services (proxy, dashboard)
+- Docker BuildKit for image creation
+- Caching strategies for dependencies and build artifacts
+- Continue-on-error for TypeScript checks during PR reviews
 
-   jobs:
-     typecheck:
-       runs-on: ubuntu-latest
-       steps:
-         - uses: actions/checkout@v4
-         - uses: oven-sh/setup-bun@v1
-         - run: bun install
-         - run: bun run typecheck
-
-     build:
-       runs-on: ubuntu-latest
-       steps:
-         - uses: actions/checkout@v4
-         - uses: oven-sh/setup-bun@v1
-         - run: bun install
-         - run: bun run build
-   ```
-
-2. **Docker Build Strategy**:
-
-   ```yaml
-   docker:
-     runs-on: ubuntu-latest
-     strategy:
-       matrix:
-         service: [proxy, dashboard]
-     steps:
-       - uses: docker/setup-buildx-action@v3
-       - uses: docker/build-push-action@v5
-         with:
-           context: .
-           file: docker/${{ matrix.service }}/Dockerfile
-           tags: claude-nexus-${{ matrix.service }}:${{ github.sha }}
-   ```
-
-3. **Error Handling**:
-
-   ```yaml
-   # Continue on TypeScript errors for development
-   - run: bun run typecheck
-     continue-on-error: ${{ github.event_name == 'pull_request' }}
-   ```
-
-4. **Caching Strategy**:
-   - Cache Bun dependencies
-   - Cache Docker layers
-   - Cache build artifacts between jobs
+_Note: For current implementation details, see [ADR-032](adr-032-cicd-workflow-consolidation.md)._
 
 ## Consequences
 
@@ -139,13 +93,16 @@ We will use **GitHub Actions** for all CI/CD workflows.
   - **Mitigation**: Use masked secrets
   - **Mitigation**: Careful log output review
 
-## Implementation Notes
+## Historical Implementation Notes
 
-- Introduced in PR #1
-- Uses official Bun setup action
+This ADR documented the initial CI/CD approach:
+
+- Used official Bun setup action
 - Separate workflows for CI and deployment
-- TypeScript errors don't block PR reviews (continue-on-error)
-- Docker builds use BuildKit for better caching
+- TypeScript errors didn't block PR reviews (continue-on-error)
+- Docker builds used BuildKit for better caching
+
+**Superseded**: See [ADR-032](adr-032-cicd-workflow-consolidation.md) for how these workflows were consolidated and optimized in January 2025.
 
 ## Workflow Patterns
 
@@ -174,9 +131,8 @@ We will use **GitHub Actions** for all CI/CD workflows.
 
 ## Links
 
-- [PR #1: CI/CD Setup](https://github.com/your-org/claude-nexus-proxy/pull/1)
 - [GitHub Actions Documentation](https://docs.github.com/actions)
-- [Deployment Guide](../../03-Operations/deployment/)
+- [Current Implementation: ADR-032](adr-032-cicd-workflow-consolidation.md)
 
 ---
 
