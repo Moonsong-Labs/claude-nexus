@@ -32,6 +32,15 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **test/unit/streaming-tool-input.test.ts deletion**: Removed duplicate test file with redundant coverage
+  - Deleted `test/unit/streaming-tool-input.test.ts` which contained 3 tests for ProxyResponse streaming
+  - 2 out of 3 tests were exact duplicates of tests in `services/proxy/src/domain/entities/__tests__/ProxyResponse.test.ts`
+  - The unique test (multiple tools in streaming) was nice-to-have but not critical functionality
+  - File location violated project conventions (tests should be in `__tests__` directories co-located with code)
+  - Validated deletion plan with Gemini-2.5-pro (9/10 confidence)
+  - Rationale: Duplicate tests cause maintenance burden, confusion, and violate DRY principle
+  - Impact: Reduced technical debt, enforced testing conventions, no functionality loss
+
 - **test/unit/subtask-detection.test.ts deletion**: Removed obsolete test file that was superseded by proper tests
   - Deleted `test/unit/subtask-detection.test.ts` which tested outdated `StorageWriter` implementation
   - Current architecture uses `ConversationLinker` for subtask detection (in packages/shared)
