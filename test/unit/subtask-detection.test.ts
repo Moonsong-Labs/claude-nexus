@@ -1,3 +1,11 @@
+/**
+ * Unit tests for sub-task detection functionality.
+ * 
+ * This test suite verifies that Task tool invocations are properly detected
+ * in response bodies, timing relationships between parent and sub-tasks are
+ * validated, and prompt matching works correctly between Task invocations
+ * and sub-task conversations.
+ */
 import { describe, it, expect } from 'bun:test'
 import { StorageWriter } from '../../services/proxy/src/storage/writer'
 import mainRequestSample from '../data/inference_streaming_with_tools_with_system_opus-1750420376296-im7ygz453.json'

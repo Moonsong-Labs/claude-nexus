@@ -91,3 +91,42 @@
 - TypeScript compilation passes
 - Build process completes successfully
 - Dashboard service starts without errors
+
+## 2025-01-21: Test Documentation Cleanup
+
+### File: test/unit/README-subtask-tests.md
+
+**Action**: Deleted
+
+### Issues Found:
+
+1. **Redundancy**: The file was redundant with the main `test/README.md` which already provides comprehensive test documentation
+2. **Incorrect References**: The file contained incorrect file paths (e.g., referencing `subtask-linking.test.ts` as being in the unit folder when it's actually in integration)
+3. **Non-existent Test Data**: Referenced test data files that don't exist in the specified locations
+4. **Better Documentation Pattern**: Test documentation should be:
+   - High-level overview in main test/README.md
+   - Detailed explanations as inline comments in test files
+
+### Changes Made:
+
+1. **Deleted** `test/unit/README-subtask-tests.md`
+2. **Updated** `test/README.md` to include sub-task testing documentation section
+3. **Added** comprehensive header documentation to `test/unit/subtask-detection.test.ts`
+4. **Verified** `test/integration/subtask-linking.test.ts` already has proper documentation
+
+### Benefits:
+
+- Single source of truth for test documentation
+- No more incorrect file references
+- Documentation closer to code for better maintenance
+- Reduced confusion from multiple documentation locations
+
+### Validation:
+
+- Reviewed plan with Gemini 2.5 Pro and O3-mini AI models
+- Both models confirmed this approach follows best practices
+- All subtask tests pass after changes
+
+### Principle Applied:
+
+Keep documentation close to code, maintain single source of truth, remove outdated/incorrect information

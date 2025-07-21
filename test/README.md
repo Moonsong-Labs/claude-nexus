@@ -50,6 +50,20 @@ bun test --coverage
 - Validates error message formatting
 - Tests tool call notifications
 
+### Sub-task Detection and Linking
+
+- Tests sub-task conversation tracking feature
+- Validates Task tool invocation detection
+- Tests timing-based linking logic (30-second window)
+- Verifies parent-child relationships between tasks
+
+**How Sub-task Linking Works:**
+
+1. **Detection**: When a response contains a tool use with `name: "Task"`, it's marked as spawning a sub-task
+2. **Storage**: The Task invocation details are stored in the `task_tool_invocation` field
+3. **Linking**: Conversations that start within 30 seconds of a Task invocation are linked as sub-tasks
+4. **Tracking**: Sub-tasks have `is_subtask: true` and `parent_task_request_id` set to the spawning request
+
 ## Test Fixtures
 
 Sample requests are stored in `fixtures/requests/`:
