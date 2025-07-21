@@ -50,23 +50,13 @@ claude-nexus-proxy/
 
 ### Implementation Details
 
-Root `package.json`:
+The monorepo is configured using Bun workspaces with the following structure:
 
-```json
-{
-  "name": "claude-nexus-proxy",
-  "private": true,
-  "workspaces": ["packages/*", "services/*"],
-  "scripts": {
-    "dev": "concurrently \"bun run dev:proxy\" \"bun run dev:dashboard\"",
-    "dev:proxy": "cd services/proxy && bun run dev",
-    "dev:dashboard": "cd services/dashboard && bun run dev",
-    "build": "bun run build:shared && bun run build:services",
-    "build:shared": "cd packages/shared && bun run build",
-    "build:services": "concurrently \"cd services/proxy && bun run build\" \"cd services/dashboard && bun run build\""
-  }
-}
-```
+- **Workspace Configuration**: `["packages/*", "services/*"]` in root package.json
+- **Shared Package**: `@claude-nexus/shared` provides common types, utilities, and configurations
+- **Build Order**: Managed through TypeScript Project References (see [ADR-013](./adr-013-typescript-project-references.md))
+- **Development Scripts**: Concurrent execution of services via `concurrently` package
+- **Type Safety**: Cross-package type checking via TypeScript Project References
 
 ## Consequences
 
@@ -76,13 +66,15 @@ Root `package.json`:
 - **Independent Services**: Each service can be built and deployed separately
 - **Unified Development**: Single `bun install` installs all dependencies
 - **Atomic Changes**: Related changes across services can be committed together
-- **Type Safety**: TypeScript types flow naturally between packages
+- **Type Safety**: TypeScript types flow naturally between packages using project references
+- **Consistent Standards**: Shared linting, formatting, and build configurations across all packages
 
 ### Negative
 
 - **Initial Complexity**: Developers need to understand workspace structure
-- **Build Order**: Must build shared packages before services
+- **Build Order Dependencies**: Shared packages must be built before services (mitigated by TypeScript Project References - see [ADR-013](./adr-013-typescript-project-references.md))
 - **Tooling Requirements**: Some tools may not fully support workspaces
+- **TypeScript Compilation**: Initial challenges with circular dependencies resolved through project references
 
 ### Risks and Mitigations
 
@@ -96,12 +88,16 @@ Root `package.json`:
 
 - [Bun Workspaces Documentation](https://bun.sh/docs/workspaces)
 - [ADR-002: Separate Docker Images](./adr-002-separate-docker-images.md)
+- [ADR-013: TypeScript Project References](./adr-013-typescript-project-references.md) - Addresses TypeScript compilation challenges in the monorepo
 
 ## Notes
 
 This structure allows us to maintain separate Docker images for each service while sharing code effectively. The monorepo approach has proven successful for many large-scale projects and aligns well with our need for rapid development while maintaining service independence.
 
+**Evolution**: Since the initial decision, we've successfully implemented TypeScript Project References to resolve compilation order issues, demonstrating the flexibility of the monorepo approach to adapt to challenges while maintaining its core benefits.
+
 ---
 
-Date: 2024-01-15
-Authors: Development Team
+**Date**: 2024-01-15  
+**Last Updated**: 2025-01-21  
+**Authors**: Development Team
