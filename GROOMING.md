@@ -2087,3 +2087,46 @@ The spark.ts file is actively used by multiple dashboard components for handling
   - Added cross-references to related documentation
   - Validated refactoring plan with Gemini-2.5-pro (10/10 confidence score)
   - Rationale: Critical for production readiness and developer onboarding - addresses major inconsistency between service documentation
+
+### 2025-07-21 - Changelog Refactoring
+
+**File Updated:**
+
+- `docs/06-Reference/changelog.md`
+
+**Changes Made:**
+
+1. **Added Contributor Guidelines**
+   - Added comprehensive comment section at the top with clear instructions for maintaining the changelog
+   - Included examples of proper changelog entries
+   - Added step-by-step release process instructions
+
+2. **Consolidated Unreleased Section**
+   - Transformed 30+ granular implementation details into 4 user-focused feature descriptions
+   - Grouped AI analysis features into single comprehensive entry with ADR link
+   - Removed internal jargon and technical implementation details
+
+3. **Added Breaking Changes Section**
+   - Added explicit Breaking Changes section to v2.0.0 for runtime and architecture changes
+   - Clarified impact on users upgrading from v1.0.0
+
+4. **Fixed Issues**
+   - Removed broken link to non-existent `docs/MIGRATION.md` file
+   - Improved consistency in formatting across all versions
+   - Enhanced readability with bolded feature names
+
+**Rationale:**
+
+The changelog is a critical user-facing document that was suffering from:
+
+- Implementation detail overload making it hard to understand actual changes
+- Missing breaking changes section for major version upgrade
+- Broken documentation link
+- Lack of contributor guidance
+
+**Validation:**
+
+- Gemini-2.5-pro: Provided comprehensive refactoring example and best practices
+- O3-mini: Confirmed approach and suggested additional improvements (Deprecated section, version compare links)
+- Maintained Keep a Changelog format compliance
+- Enhanced user value while reducing maintenance burden

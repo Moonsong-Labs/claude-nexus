@@ -1,5 +1,24 @@
 # Changelog
 
+<!--
+Thank you for contributing to the changelog!
+
+Please add all user-facing changes to the `[Unreleased]` section under the
+appropriate heading (`Added`, `Changed`, `Fixed`, `Removed`, `Security`, `Breaking Changes`, `Deprecated`).
+
+Keep entries concise and focused on the value to the user. Avoid implementation
+details or internal jargon. Link to relevant ADRs or documentation where helpful.
+
+Example:
+- Real-time dashboard with SSE updates (see [ADR-005](../04-Architecture/ADRs/adr-005-xxx.md))
+
+When cutting a new release:
+1. Create a new version section: ## [X.Y.Z] - YYYY-MM-DD
+2. Move relevant changes from [Unreleased] to the new version
+3. Clear the [Unreleased] section for new changes
+4. Update version links if using GitHub compare URLs
+-->
+
 All notable changes to Claude Nexus Proxy will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -9,49 +28,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Conversation branching visualization in dashboard
-- Message count tracking at database level for performance
-- Branch-specific statistics in conversation view
-- Database backup script with timestamp support
-- Comprehensive migration system with TypeScript support
-- AI-powered conversation analysis infrastructure
-  - New `conversation_analyses` table with ENUM status type
-  - Automatic timestamp management via trigger
-  - Optimized indexes for queue processing
-  - Phase 2 Task 4: Prompt Engineering implementation
-    - Smart truncation with tail-first priority
-    - @lenml/tokenizer-gemini for local token counting
-    - Zod schema validation for LLM responses
-    - Versioned prompt templates (v1)
-    - 855k token limit with 5% safety margin
-  - Migration 011 for schema creation
-  - Migration 012 for audit logging infrastructure
-  - Comprehensive security implementation with PII redaction, rate limiting, and prompt injection protection
-  - Security documentation with monitoring queries and best practices
+- **AI-Powered Conversation Analysis**: Automated analysis of conversations with security features including PII redaction, rate limiting, and prompt injection protection (see [ADR-018](../04-Architecture/ADRs/adr-018-ai-powered-conversation-analysis.md))
+- **Enhanced Dashboard Visualizations**: Conversation branching with visual indicators and branch-specific statistics
+- **Database Management Improvements**: TypeScript-based migration system and timestamped backup utilities
+- **Performance Optimizations**: Database-level message count tracking for faster dashboard queries
 
 ### Changed
 
-- Improved conversation tree rendering with squared arrows for branches
-- Optimized dashboard queries using message_count column
-- Reorganized scripts into categorized subdirectories
-- Consolidated documentation into organized docs/ folder
-- Updated request information display for better density
+- Improved conversation tree rendering with clearer visual indicators for branches
+- Reorganized project structure: scripts categorized into subdirectories, documentation consolidated into `docs/` folder
+- Enhanced request information display for better information density
 
 ### Fixed
 
-- Branch parent resolution for conversations with hash collisions
-- Conversation tree pointing to incorrect parent requests
-- Message count display showing 0 for existing conversations
-- Conversation UI now properly displays messages with multiple tool_use or tool_result blocks
-- Added deduplication of tool_use and tool_result blocks by ID to prevent duplicate display
-- System reminder text blocks are now filtered out from conversation display
+- Conversation branch linking with hash collisions now resolves correctly
+- Message count display for existing conversations
+- Conversation UI correctly renders and deduplicates multiple `tool_use` or `tool_result` blocks
+- System reminder text properly filtered from conversation display
 
 ## [2.0.0] - 2024-01-15
+
+### Breaking Changes
+
+- **Runtime Migration**: Project now requires Bun runtime; Node.js is no longer supported
+- **Architecture Change**: Migrated from single service to microservices - deployment now requires separate containers for proxy and dashboard services
 
 ### Added
 
 - Monorepo structure with separate proxy and dashboard services
-- Real-time dashboard with SSE updates
+- Real-time dashboard with Server-Sent Events (SSE) updates
 - Conversation tracking with automatic message threading
 - OAuth support with automatic token refresh
 - Docker support with optimized separate images
@@ -67,8 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Node.js dependency (now Bun-only)
-- Single container deployment (now uses separate containers)
+- Node.js dependency
+- Single container deployment option
 
 ## [1.0.0] - 2023-12-01
 
@@ -79,7 +84,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simple logging and monitoring
 - Docker support
 - Environment-based configuration
-
----
-
-_For detailed migration guides between versions, see [docs/MIGRATION.md](docs/MIGRATION.md)_
