@@ -32,6 +32,16 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **e2e/dark-mode-components.test.ts deletion**: Removed redundant E2E test file with anti-patterns
+  - Deleted brittle test checking hard-coded RGB color values (e.g., `rgb(30, 41, 59)`)
+  - Test had conditional execution (`if (elementExists)`) that could silently pass when elements were missing
+  - Used anti-pattern `page.waitForTimeout(100)` instead of proper wait conditions
+  - Dark mode functionality is already properly tested in `e2e/dark-mode.test.ts`
+  - Component styling is better tested at unit level (`services/dashboard/src/routes/__tests__/dark-mode.integration.test.ts`)
+  - Validated with Gemini-2.5-pro and O3-mini - consensus that E2E tests should focus on user journeys, not implementation details
+  - Rationale: Reduces test maintenance burden and follows testing best practices
+  - Impact: Cleaner test suite without brittle implementation-specific checks
+
 - **.lintstagedrc.json refactoring**: Fixed critical configuration issues and improved glob patterns
   - Fixed bug where `*.{json,md,css}` patterns only matched root directory files, missing nested files
   - Changed to `**/*.{json,md,css}` to properly format all files throughout the monorepo
