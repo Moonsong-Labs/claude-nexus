@@ -1,7 +1,7 @@
 import { Context } from 'hono'
 import { ProxyService } from '../services/ProxyService'
 import { RequestContext } from '../domain/value-objects/RequestContext'
-import { validateClaudeRequest } from '../types/claude'
+import { validateClaudeRequest } from '@claude-nexus/shared'
 import { ValidationError, serializeError } from '../types/errors'
 import { getRequestLogger } from '../middleware/logger'
 
