@@ -38,6 +38,7 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 - [Architecture Decision Records](./04-Architecture/ADRs/) - Key architectural decisions
 - [Technical Debt](./04-Architecture/technical-debt.md) - Known issues and improvement plans
 - [Internals](./04-Architecture/internals.md) - Deep dive into implementation details
+- [AI Analysis Implementation](./04-Architecture/ai-analysis-implementation-guide.md) - AI-powered conversation analysis guide
 
 ### 🔧 [05-Troubleshooting](./05-Troubleshooting/)
 
@@ -60,13 +61,10 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 
 ## Project Links
 
-- [GitHub Repository](https://github.com/your-org/claude-nexus-proxy)
+- [GitHub Repository](https://github.com/anthropics/claude-nexus-proxy)
 - [Main README](../README.md)
 - [Contributing Guidelines](../CONTRIBUTING.md)
-- [License](../LICENSE)
 
 ## Documentation Maintenance
 
 This documentation is continuously updated. If you find any issues or have suggestions for improvements, please open an issue or submit a pull request.
-
-Last Updated: <%= new Date().toISOString().split('T')[0] %>
