@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Implemented
 
 ## Context
 
@@ -47,7 +47,7 @@ This creates a data consistency challenge:
 
 ## Decision
 
-We will implement **Option 2: Migrate All at Once** using a dedicated migration script (008-update-subtask-conversation-ids.ts).
+We will implement **Option 2: Migrate All at Once** using a dedicated migration script (008-subtask-updates-and-task-indexes.ts).
 
 ### Implementation Details
 
@@ -165,9 +165,10 @@ WHERE is_subtask = true
 
 - [ADR-007: Sub-task Detection and Tracking](adr-007-subtask-tracking.md)
 - [ADR-012: Database Schema Evolution Strategy](adr-012-database-schema-evolution.md)
-- [Migration Script](../../../scripts/db/migrations/008-update-subtask-conversation-ids.ts)
+- [Migration Script](../../../scripts/db/migrations/008-subtask-updates-and-task-indexes.ts)
 
 ---
 
 Date: 2025-01-07
+Implemented: 2025-01-07
 Authors: Development Team
