@@ -1,5 +1,44 @@
 # Grooming Log
 
+## 2025-01-21: Architecture Internals Documentation Refactoring
+
+### File: `docs/04-Architecture/internals.md`
+
+#### Action: REFACTORED
+
+#### Changes Made:
+
+1. **Removed all pseudo-code examples** - Replaced with references to actual implementation files
+2. **Deleted "Future Architecture Considerations" section** - Speculative content belongs in ADRs
+3. **Added missing subsystems** - MCP server, AI analysis worker, sub-task detection
+4. **Restructured content** - Better organization with clear sections for each subsystem
+5. **Fixed incorrect file references** - Updated to point to actual implementation files
+6. **Improved focus** - Changed from code duplication to architectural patterns and design decisions
+7. **Added comprehensive implementation references** - Each section now points to relevant source files
+
+#### Rationale:
+
+- **Maintainability**: Pseudo-code examples become outdated quickly and mislead developers
+- **DRY Principle**: Following ADR-022, avoid duplicating code that exists in implementation
+- **Accuracy**: All references now point to actual files that can be verified
+- **Completeness**: Added documentation for recently implemented features
+- **Focus**: Document serves as technical reference complementing high-level architecture.md
+
+#### Validation:
+
+- Gemini-2.5-pro: 9/10 confidence - "fundamentally sound and follows well-established best practices"
+- Emphasized "Docs as Code" principles and reduced maintenance burden
+- O3: Unable to validate due to API access issue
+
+#### Impact:
+
+- **Reduced Maintenance**: No more updating pseudo-code when implementation changes
+- **Improved Accuracy**: Developers directed to actual source of truth
+- **Better Coverage**: Now documents all major subsystems including recent additions
+- **Clear Purpose**: Serves as implementation guide rather than code duplication
+
+---
+
 ## 2025-01-21: Message Count Implementation Documentation Removal
 
 ### File: `docs/04-Architecture/message-count-implementation.md`
