@@ -1,4 +1,4 @@
-# ADR-014: SubtaskQueryExecutor Pattern for Task Detection
+# ADR-044: SubtaskQueryExecutor Pattern for Task Detection
 
 ## Status
 
@@ -90,3 +90,13 @@ This query leverages a GIN index on `response_body` for efficient lookups.
 
 - [PostgreSQL JSONB Containment](https://www.postgresql.org/docs/current/datatype-json.html#JSON-CONTAINMENT)
 - [GIN Indexes for JSONB](https://www.postgresql.org/docs/current/gin-builtin-opclasses.html)
+
+## Related ADRs
+
+- [ADR-007: Sub-task Detection and Tracking](./adr-007-subtask-tracking.md) - The broader subtask tracking system that uses this pattern
+- [ADR-015: Subtask Conversation Migration](./adr-015-subtask-conversation-migration.md) - Migration strategy for subtask conversation linking
+
+---
+
+Date: 2025-01-21
+Authors: Development Team

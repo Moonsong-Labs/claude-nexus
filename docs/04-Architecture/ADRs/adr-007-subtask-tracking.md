@@ -65,7 +65,7 @@ The system evolved from a two-phase approach (where subtasks got separate conver
 
 The current single-phase implementation leverages:
 
-1. **SubtaskQueryExecutor Pattern** (see [ADR-014](./adr-014-subtask-query-executor-pattern.md)):
+1. **SubtaskQueryExecutor Pattern** (see [ADR-044](./adr-044-subtask-query-executor-pattern.md)):
    - Dependency injection of database query capability into ConversationLinker
    - Optimized SQL queries using PostgreSQL's `@>` containment operator
    - 24-hour lookback window with 30-second matching precision

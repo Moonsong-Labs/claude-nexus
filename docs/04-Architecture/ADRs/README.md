@@ -52,6 +52,8 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-019](./adr-019-remove-unused-type-definitions.md)   | Remove Unused Type Definitions      | Accepted   | 2025-01-20 |
 | [ADR-041](./adr-041-claude-cli-docker-image.md)          | Claude CLI Docker Image Addition    | Accepted   | 2025-01-21 |
 | [ADR-043](./adr-043-remove-future-decisions-adr.md)      | Remove Future Decisions ADR         | Accepted   | 2025-01-21 |
+| [ADR-044](./adr-044-subtask-query-executor-pattern.md)   | SubtaskQueryExecutor Pattern        | Accepted   | 2025-01-21 |
+| [ADR-045](./adr-045-adr-014-renumbering-resolution.md)   | ADR-014 Renumbering Resolution      | Accepted   | 2025-01-21 |
 
 ## Creating a New ADR
 
