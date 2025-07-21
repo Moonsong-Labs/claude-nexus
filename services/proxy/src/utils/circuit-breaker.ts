@@ -1,4 +1,4 @@
-import { UpstreamError, TimeoutError } from '../types/errors'
+import { UpstreamError, TimeoutError } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 
 // Circuit breaker states

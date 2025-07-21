@@ -1,8 +1,9 @@
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { AuthResult } from './AuthenticationService'
-import { UpstreamError, TimeoutError } from '../types/errors'
 import {
+  UpstreamError,
+  TimeoutError,
   ClaudeMessagesResponse,
   ClaudeStreamEvent,
   isClaudeError,
