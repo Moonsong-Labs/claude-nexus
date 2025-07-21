@@ -49,121 +49,49 @@ We needed a way to automatically detect and link these sub-tasks to provide bett
 
 We implemented **single-phase subtask detection** entirely within the ConversationLinker component:
 
-- In-memory caching of Task tool invocations via TaskInvocationCache
+- SQL-based retrieval of Task tool invocations from the database
 - Complete subtask detection during conversation linking
-- Subtasks inherit parent conversation ID with unique branch naming
+- Subtasks inherit parent conversation ID with unique branch naming (e.g., `subtask_1`, `subtask_2`)
 
-### Implementation Details
+### Evolution Summary
 
-1. **Phase 1 - Potential Subtask Detection (ConversationLinker)**:
+The system evolved from a two-phase approach (where subtasks got separate conversation IDs) to the current single-phase architecture. This change was driven by the need for:
 
-   ```typescript
-   // Detect potential subtasks in ConversationLinker
-   private detectPotentialSubtask(messages: Message[]): boolean {
-     // Single user message conversations are potential subtasks
-     if (messages.length !== 1) return false
-     if (messages[0].role !== 'user') return false
+- Unified conversation trees in the dashboard
+- Simpler implementation with single responsibility
+- Better persistence across proxy restarts
 
-     const textContent = this.extractTextContent(messages[0])
+### Implementation Architecture
 
-     // This is a broad, first-pass filter. We intentionally flag ANY non-empty
-     // single user message as a potential sub-task. The downstream proxy service
-     // is responsible for the precise matching against actual Task tool invocations.
-     return textContent !== null && textContent.trim().length > 0
-   }
-   ```
+The current single-phase implementation leverages:
 
-2. **Phase 2 - Task Invocation Extraction and Matching**:
+1. **SubtaskQueryExecutor Pattern** (see [ADR-014](./adr-014-subtask-query-executor-pattern.md)):
+   - Dependency injection of database query capability into ConversationLinker
+   - Optimized SQL queries using PostgreSQL's `@>` containment operator
+   - 24-hour lookback window with 30-second matching precision
 
-   ```typescript
-   // Extract Task tool invocations from response
-   function extractTaskInvocations(response: any): TaskInvocation[] {
-     const invocations = []
-
-     // Check content blocks for tool_use
-     if (response.content) {
-       for (const block of response.content) {
-         if (block.type === 'tool_use' && block.name === 'Task') {
-           invocations.push({
-             tool_use_id: block.id,
-             prompt: block.input.prompt,
-             description: block.input.description,
-           })
-         }
-       }
-     }
-
-     return invocations
-   }
-
-   // Match potential subtask against stored invocations
-   const TASK_MATCH_WINDOW = 30000 // 30-second window
-
-   async function linkSubtask(request: ProcessedRequest) {
-     // Only process if ConversationLinker flagged as potential subtask
-     if (!request.isPotentialSubtask) return
-
-     const userMessage = extractTextContent(request.messages[0])
-
-     // Find recent Task invocations
-     const recentTasks = await findTaskInvocations({
-       since: new Date(request.timestamp - TASK_MATCH_WINDOW),
-       matchingPrompt: userMessage,
-     })
-
-     if (recentTasks.length > 0) {
-       // Link to most recent matching task
-       request.is_subtask = true
-       request.parent_task_request_id = recentTasks[0].request_id
-     }
-   }
-   ```
+2. **Conversation Inheritance**:
+   - Subtasks inherit parent's `conversation_id`
+   - Sequential branch naming: `subtask_1`, `subtask_2`, etc.
+   - Parent-child relationships tracked via `parent_task_request_id`
 
 3. **Database Schema**:
 
    ```sql
+   -- Core subtask tracking columns
    ALTER TABLE api_requests ADD COLUMN is_subtask BOOLEAN DEFAULT FALSE;
    ALTER TABLE api_requests ADD COLUMN parent_task_request_id UUID;
    ALTER TABLE api_requests ADD COLUMN task_tool_invocation JSONB;
 
+   -- Optimized indexes for subtask queries
    CREATE INDEX idx_subtask_parent ON api_requests(parent_task_request_id);
-   CREATE INDEX idx_task_invocations ON api_requests USING gin(task_tool_invocation);
+   CREATE INDEX idx_task_invocations ON api_requests USING gin(response_body);
    ```
 
-4. **Visualization Data**:
+For implementation details, refer to:
 
-   ```typescript
-   // Enhance conversation data with sub-task info
-   interface ConversationNode {
-     id: string
-     messages: Message[]
-     subtasks: SubTask[]
-   }
-
-   interface SubTask {
-     request_id: string
-     task_number: number
-     description: string
-     message_count: number
-     status: 'running' | 'completed'
-   }
-   ```
-
-## Why Two-Phase Detection?
-
-The two-phase approach separates concerns:
-
-1. **ConversationLinker** (Phase 1) focuses on conversation structure and linking
-   - Identifies potential subtasks based on message patterns
-   - Doesn't need database access for Task invocations
-   - Can run efficiently as part of conversation processing
-
-2. **Proxy Service** (Phase 2) handles the actual Task tool matching
-   - Has access to response data with Task invocations
-   - Can store and query Task invocations in the database
-   - Performs precise matching with time windows
-
-This separation allows subtasks to be separate conversations (different conversation_id) while still being tracked as subtasks through the `is_subtask` and `parent_task_request_id` fields.
+- [`packages/shared/src/utils/conversation-linker.ts`](../../../packages/shared/src/utils/conversation-linker.ts)
+- [`services/proxy/src/storage/storage-adapter.ts`](../../../services/proxy/src/storage/storage-adapter.ts)
 
 ## Consequences
 
@@ -178,11 +106,10 @@ This separation allows subtasks to be separate conversations (different conversa
 
 ### Negative
 
-- **Processing Overhead**: Must parse all responses
+- **Processing Overhead**: Must parse responses for Task tool invocations
 - **Timing Sensitivity**: 30-second window may miss slow tasks
 - **Storage Increase**: Additional JSONB data per request
 - **Potential Mismatches**: Similar prompts could link incorrectly
-- **Two-Phase Complexity**: Requires coordination between components
 
 ### Risks and Mitigations
 
@@ -201,13 +128,11 @@ This separation allows subtasks to be separate conversations (different conversa
 ## Implementation Notes
 
 - Re-implemented in November 2024 after initial removal
-- Two-phase detection allows clean separation of concerns
-- ConversationLinker returns `isPotentialSubtask` flag for single-message user conversations
-- Proxy service performs actual Task tool matching and sets `is_subtask` field
-- 30-second window chosen based on typical Task execution time
+- Evolved to single-phase architecture in January 2025
+- 30-second matching window within 24-hour lookback period
 - Dashboard shows sub-tasks as gray boxes with tooltips
 - Supports multiple sub-tasks per parent request
-- Subtasks maintain separate conversation_ids but link via parent_task_request_id
+- Subtasks inherit parent conversation_id with unique branch naming
 
 ## Dashboard Visualization
 
@@ -225,55 +150,23 @@ This separation allows subtasks to be separate conversations (different conversa
    - Click sub-task to view conversation
    - Hover for task prompt preview
 
-## Architecture Evolution (2025-01)
+## Migration from Two-Phase to Single-Phase
 
-### Single-Phase Subtask Detection in ConversationLinker
+The architecture evolved in January 2025 to address limitations of the original two-phase approach:
 
-In January 2025, we completed a major architectural evolution to consolidate all subtask detection logic into the ConversationLinker component:
+### Key Changes
 
-**Previous Architecture (Two-Phase)**:
+1. **Conversation ID Inheritance**: Subtasks now inherit parent conversation IDs instead of getting separate ones
+2. **Single-Phase Detection**: All logic consolidated in ConversationLinker
+3. **SQL-Based Retrieval**: Direct database queries replace in-memory caching
 
-- ConversationLinker detected potential subtasks (Phase 1)
-- StorageAdapter/Writer performed Task matching (Phase 2)
-- Subtasks got separate conversation IDs
-- Required database queries during write operations
+See [ADR-015](./adr-015-subtask-conversation-migration.md) for details on migrating historical data.
 
-**Current Architecture (Single-Phase)**:
+### Lessons Learned
 
-- SQL queries retrieve Task invocations from database (24-hour window)
-- ConversationLinker performs complete subtask detection in one phase
-- Subtasks inherit parent's conversation_id with unique branch_id
-- Optimized indexes for efficient Task tool queries
-- StorageAdapter passes TaskContext to ConversationLinker
-
-**Implementation Details**:
-
-1. **SQL-based Task Retrieval** (StorageAdapter.loadTaskContext):
-   - Queries last 24 hours of Task invocations per domain
-   - Filters to 30-second window for actual matching
-   - Optimized with GIN indexes on JSONB response_body
-   - No memory overhead from caching
-
-2. **ConversationLinker Updates**:
-   - Added `detectSubtask()` method for complete detection
-   - Accepts optional `TaskContext` with recent invocations
-   - Uses `RequestByIdExecutor` to fetch parent task details
-   - Assigns sequential `subtask_N` branch IDs
-
-3. **Database Migration** (008-update-subtask-conversation-ids.ts):
-   - Updates existing subtasks to inherit parent conversation IDs
-   - Fixes branch numbering for consistency
-   - Creates optimized indexes for Task invocation queries
-   - Maintains backward compatibility
-
-**Benefits Achieved**:
-
-1. **Single Responsibility**: All linking logic in one component
-2. **Persistence**: Survives proxy restarts, no cache warming needed
-3. **Unified Conversations**: Related messages stay together
-4. **Cleaner Dashboard**: Single conversation tree for task hierarchies
-5. **Simpler Testing**: All logic testable in isolation
-6. **Extended Window**: 24-hour lookback for better subtask detection
+- Two-phase separation created unnecessary complexity
+- Separate conversation IDs fragmented the user experience
+- SQL-based approach provides better persistence and reliability
 
 ## Future Enhancements
 
@@ -289,8 +182,15 @@ In January 2025, we completed a major architectural evolution to consolidate all
 - [Dashboard Guide](../../02-User-Guide/dashboard-guide.md#sub-task-visualization)
 - [API Reference](../../02-User-Guide/api-reference.md#subtasks)
 
+## Revision History
+
+- 2024-06-25: Initial implementation with two-phase architecture
+- 2024-11: Re-implemented after initial removal
+- 2025-01-07: Evolved to single-phase architecture
+- 2025-01-21: Refactored ADR to focus on current architecture
+
 ---
 
 Date: 2024-06-25 (Initial)
-Updated: 2025-01-07 (Single-phase architecture)
+Updated: 2025-01-21
 Authors: Development Team
