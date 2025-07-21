@@ -6,18 +6,27 @@
 
 ## Context
 
-During the code grooming sprint, we discovered that `test/unit/tool-notification-formatting.test.ts` was not actually testing the NotificationService implementation. Instead, it was duplicating the formatting logic inline within the test file.
+During the code grooming sprint, we discovered multiple test files that were not actually testing the NotificationService implementation. Instead, they were duplicating the formatting logic inline within the test files.
+
+Files identified with this issue:
+
+- `test/unit/tool-notification-formatting.test.ts`
+- `test/unit/notification-formatting.test.ts`
 
 Key issues identified:
 
-1. The test file imported ProxyResponse but didn't test NotificationService
+1. The test files imported ProxyResponse but didn't test NotificationService
 2. All formatting logic was duplicated from NotificationService's `toolFormatters`
 3. The tests were structured as examples rather than proper unit tests
 4. NotificationService's formatting methods are private and formatters are not exported, making direct testing difficult
+5. Both files exhibited the same anti-pattern of duplicating production code in tests
 
 ## Decision
 
-We decided to **DELETE** the file `test/unit/tool-notification-formatting.test.ts` entirely.
+We decided to **DELETE** both files:
+
+- `test/unit/tool-notification-formatting.test.ts`
+- `test/unit/notification-formatting.test.ts`
 
 ## Rationale
 
@@ -44,7 +53,7 @@ We decided to **DELETE** the file `test/unit/tool-notification-formatting.test.t
 
 ### Negative
 
-- Removes the only explicit test for tool notification formatting
+- Removes the only explicit tests for notification formatting
 - May need to revisit if formatting bugs arise
 
 ## Future Considerations
