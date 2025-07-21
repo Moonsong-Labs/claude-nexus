@@ -2,298 +2,195 @@
 
 This document tracks known technical debt in the Claude Nexus Proxy project. Each item includes context, impact, and proposed remediation.
 
-## High Priority
+## Summary
 
-### 1. Memory Leak in StorageAdapter
+| ID     | Priority | Description                   | Effort | Status | Target Date |
+| ------ | -------- | ----------------------------- | ------ | ------ | ----------- |
+| TD-001 | High     | Memory Leak in StorageAdapter | M      | Open   | 2025-02-15  |
+| TD-003 | Low      | Incomplete SSE Implementation | L      | Open   | 2025-03-01  |
+| TD-004 | Medium   | Missing Automated Tests       | XL     | Open   | Q1 2025     |
+| TD-005 | Medium   | Configuration Hardcoding      | M      | Open   | Q1 2025     |
+| TD-006 | Low      | Incomplete Error Handling     | M      | Open   | Q2 2025     |
+| TD-009 | Low      | API Response Caching          | L      | Open   | Q2 2025     |
 
-**Location**: `services/proxy/src/storage/StorageAdapter.ts:12-15`
+**Metrics:**
 
-**Issue**: The `requestIdMap` grows indefinitely as requests are processed, causing memory usage to increase over time.
+- Active High Priority Items: 1
+- Active Medium Priority Items: 2
+- Active Low Priority Items: 3
+- Total Active Items: 6
 
-```typescript
-// Current problematic code
-private requestIdMap = new Map<string, string>();
+## Active Technical Debt
 
-// Missing cleanup after storeResponse
-```
+### TD-001: Memory Leak in StorageAdapter
 
-**Impact**:
+- **Priority:** High
+- **Effort:** M
+- **Status:** Open
+- **Location:** `services/proxy/src/storage/StorageAdapter.ts:12-15`
+- **First Identified:** 2025-01-15
+- **Target Date:** 2025-02-15
 
-- Service crashes after extended operation
-- Increased memory costs
-- Potential data loss during OOM crashes
+**Description:**  
+The `requestIdMap` grows indefinitely as requests are processed, causing memory usage to increase over time.
 
-**Remediation**:
+**Impact:**
 
-```typescript
-async storeResponse(data: ResponseData) {
-  // ... existing code ...
+- Service crashes after extended operation (OOM)
+- Increased infrastructure costs
+- Potential data loss during crashes
 
-  // Add cleanup
-  this.requestIdMap.delete(data.request_id);
-}
+**Proposed Remediation:**  
+Implement cleanup logic in `storeResponse()` to remove entries after use. Add periodic cleanup for orphaned entries using environment variables for retention configuration (STORAGE_ADAPTER_CLEANUP_MS, STORAGE_ADAPTER_RETENTION_MS).
 
-// Add periodic cleanup for orphaned entries
-setInterval(() => {
-  const oneHourAgo = Date.now() - 3600000;
-  for (const [key, value] of this.requestIdMap.entries()) {
-    if (value.timestamp < oneHourAgo) {
-      this.requestIdMap.delete(key);
-    }
-  }
-}, 300000); // Every 5 minutes
-```
+### TD-003: Incomplete SSE Implementation
 
-**Reference**: [PR #13 Review](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review)
+- **Priority:** Low
+- **Effort:** L
+- **Status:** Open
+- **Location:** `services/dashboard/src/routes/sse.ts`
+- **First Identified:** 2025-01-10
+- **Target Date:** 2025-03-01
 
-### 2. ✅ N+1 Query Pattern in Conversations API [RESOLVED]
+**Description:**  
+Server-Sent Events implementation exists but is not integrated - routes not registered, broadcast functions never called.
 
-**Location**: `services/proxy/src/routes/api.ts:456-460`
+**Impact:**
 
-**Issue**: Correlated subqueries create an N+1 query pattern, causing poor performance with large datasets.
+- Documentation promises real-time updates that don't work
+- Dashboard lacks live monitoring capabilities
+- Potential user trust issues
 
-**Resolution** (2025-06-26):
+**Proposed Remediation:**  
+Register SSE route in `app.ts`, implement proxy-to-dashboard communication (Redis Pub/Sub or in-memory event bus), and call broadcast functions from proxy service on relevant events.
 
-- Replaced correlated subqueries with window functions using `ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY timestamp DESC, request_id DESC)`
-- Added deterministic ordering with `request_id` as tie-breaker
-- Created optimized indexes in migration `004-optimize-conversation-window-functions.ts`:
-  - `idx_requests_conversation_timestamp_id` for efficient window function execution
-  - `idx_requests_conversation_subtask` for subtask filtering
-  - `idx_requests_request_id` for final LEFT JOIN
-- Changed parent_task_request_id selection to use first subtask in conversation for consistency
+### TD-004: Missing Automated Tests
 
-**Performance Improvements**:
+- **Priority:** Medium
+- **Effort:** XL
+- **Status:** Open
+- **Location:** Project-wide
+- **First Identified:** 2025-01-05
+- **Target Date:** Q1 2025
 
-- Eliminated N+1 pattern by computing all fields in a single pass
-- Reduced query complexity from O(n\*m) to O(n log n)
-- Added proper indexes aligned with window function partitioning
+**Description:**  
+No automated test suite despite complex business logic in conversation tracking, authentication, and token management.
 
-**Reference**: [PR #13 Review](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/13#review)
+**Impact:**
 
-## Medium Priority
+- High risk of regressions during refactoring
+- Slower development velocity due to manual testing
+- Lower confidence when making changes
 
-### 3. ✅ N+1 Query in Token Usage Time Series [RESOLVED]
+**Proposed Remediation:**  
+Prioritize unit tests for critical functions (message hashing, token counting, auth), add integration tests for API endpoints, implement E2E tests for critical user journeys. Set up CI/CD with test requirements.
 
-**Location**: `services/proxy/src/routes/api.ts:771-774`
+### TD-005: Configuration Hardcoding
 
-**Issue**: Was looping through each account and executing separate queries for time series data.
+- **Priority:** Medium
+- **Effort:** M
+- **Status:** Open
+- **Location:** Various files
+- **First Identified:** 2025-01-08
+- **Target Date:** Q1 2025
 
-**Resolution Date**: 2025-06-26
+**Description:**  
+Some configuration values are hardcoded in source files rather than externalized to environment variables.
 
-**Fix Applied**:
+**Impact:**
 
-- Refactored to fetch all time series data in a single query
-- Used UNNEST with array parameter to process all accounts at once
-- Employed FILTER clause for conditional aggregation
-- Grouped results by account using Map for efficient lookup
+- Requires code changes and redeployment for config updates
+- Risk of accidentally committing sensitive values
+- Harder to maintain different environments
 
-**Performance Improvement**:
+**Proposed Remediation:**  
+Audit codebase for hardcoded values, move all configuration to environment variables following existing patterns, update CLAUDE.md with new configuration options.
 
-- Reduced database queries from N+1 to 1 (where N = number of accounts)
-- Significantly improved dashboard loading time for multiple accounts
+### TD-006: Incomplete Error Handling
 
-### 4. Missing Automated Tests
+- **Priority:** Low
+- **Effort:** M
+- **Status:** Open
+- **Location:** Various async functions
+- **First Identified:** 2025-01-12
+- **Target Date:** Q2 2025
 
-**Location**: Project-wide
+**Description:**  
+Some async operations lack proper error handling, leading to ungraceful failures.
 
-**Issue**: No automated test suite despite complex business logic.
+**Impact:**
 
-**Impact**:
+- Ungraceful service failures
+- Poor error messages making debugging difficult
+- Potential for cascading failures
 
-- Risk of regressions
-- Slower development velocity
-- Lower confidence in changes
+**Proposed Remediation:**  
+Implement comprehensive error handling strategy: add try-catch blocks to all async operations, use structured error logging, implement error recovery and circuit breaker patterns where appropriate.
 
-**Remediation**:
+### TD-009: API Response Caching
 
-1. Add unit tests for critical functions:
-   - Message hashing
-   - Token counting
-   - Authentication logic
-2. Add integration tests for API endpoints
-3. Add end-to-end tests for critical user journeys
-4. Set up CI/CD pipeline with test requirements
+- **Priority:** Low
+- **Effort:** L
+- **Status:** Open
+- **Location:** API routes
+- **First Identified:** 2025-01-14
+- **Target Date:** Q2 2025
 
-### 5. Configuration Hardcoding
+**Description:**  
+No caching layer for expensive database queries, causing repeated computations.
 
-**Location**: Various files
+**Impact:**
 
-**Issue**: Some configuration values are hardcoded rather than externalized.
+- Higher latency for frequently accessed endpoints
+- Unnecessary database load
+- Higher infrastructure costs
 
-**Impact**:
+**Proposed Remediation:**  
+Implement caching using existing DASHBOARD_CACHE_TTL configuration. Add Redis caching layer for expensive queries, implement cache invalidation on data changes, monitor cache hit rates.
 
-- Requires code changes for configuration updates
-- Risk of exposing sensitive values
+## Process & Metrics
 
-**Remediation**:
+### Resolution Process
 
-- Audit all hardcoded values
-- Move to environment variables or config files
-- Document all configuration options
-
-## Low Priority
-
-### 6. Incomplete Error Handling
-
-**Location**: Various async functions
-
-**Issue**: Some async operations lack proper error handling and recovery.
-
-**Impact**:
-
-- Ungraceful failures
-- Poor error messages for debugging
-
-**Remediation**:
-
-- Add try-catch blocks to all async operations
-- Implement proper error logging
-- Add error recovery mechanisms
-
-### 7. ✅ Database Migration Strategy [RESOLVED]
-
-**Location**: `scripts/db/migrations/`
-
-**Issue**: Manual migration execution without version tracking.
-
-**Resolution Date**: 2025-06-26
-
-**Fix Applied**:
-
-- Standardized on TypeScript migration scripts with numeric ordering
-- Created comprehensive `init-database.sql` for fresh installations
-- Updated `writer.ts` to use init SQL file instead of inline table creation
-- Documented migration patterns and best practices
-- All migrations are idempotent (safe to run multiple times)
-
-**Improvements**:
-
-- Consistent schema management approach
-- Clear migration ordering with numeric prefixes
-- TypeScript provides type safety and better tooling
-- See ADR-012 for detailed architecture decision
-
-**Future Enhancements** (Nice to have):
-
-- Migration version tracking table
-- Automated migration runner
-- Rollback capability
-
-### 8. Incomplete SSE Implementation
-
-**Location**: `services/dashboard/src/routes/sse.ts`
-
-**Issue**: Server-Sent Events (SSE) implementation exists but is not integrated:
-
-- SSE handlers are implemented but not registered in app routes
-- Broadcast functions exist but are never called from the proxy service
-- Feature is documented in multiple places as providing "real-time updates"
-
-**Impact**:
-
-- Documentation promises a feature that doesn't work
-- Dashboard lacks real-time monitoring capabilities
-- User confusion and potential trust issues
-
-**Remediation**:
-
-1. Register SSE route in `app.ts`:
-
-   ```typescript
-   app.get('/sse', dashboardAuth, handleSSE)
-   ```
-
-2. Implement proxy-to-dashboard communication:
-   - Option A: Redis Pub/Sub for multi-instance support
-   - Option B: In-memory event bus for single-instance
-   - Option C: Message queue (RabbitMQ, etc.) for reliability
-
-3. Call broadcast functions from proxy service on relevant events:
-   - New requests
-   - Token usage updates
-   - Error events
-
-**Consensus**: Both Gemini-2.5-pro and O3-mini strongly recommend completing this feature (9/10 confidence) as it provides high user value and aligns with industry best practices for monitoring dashboards.
-
-### 9. API Response Caching
-
-**Location**: API routes
-
-**Issue**: No caching for expensive queries.
-
-**Impact**:
-
-- Repeated expensive computations
-- Higher latency for common requests
-
-**Remediation**:
-
-- Implement Redis caching layer
-- Add cache invalidation logic
-- Configure TTLs appropriately
-
-## Tracking and Resolution
-
-### Process
-
-1. **Identification**: Document new debt as it's introduced
-2. **Prioritization**: Assess impact and effort quarterly
-3. **Resolution**: Allocate 20% of development time to debt reduction
+1. **Identification**: Document new debt as it's introduced with clear metadata
+2. **Prioritization**: Reassess priority and effort estimates monthly
+3. **Resolution**: Allocate 20% of sprint capacity to debt reduction
 4. **Prevention**: Review PRs for new debt introduction
 
-### Metrics
+### Tracking Metrics
 
-Track technical debt health:
+- High-priority items: Target ≤ 2
+- Average age of debt: Target < 90 days for high priority
+- Resolution rate: Target 2+ items per quarter
+- New debt introduction rate: Monitor monthly
 
-- Number of high-priority items
-- Average age of debt items
-- Time spent on debt-related incidents
-- Performance degradation trends
+## Resolution History
 
-### Recent Progress
+### 2025-06-26
 
-- ✅ Implemented conversation tracking (removed from debt)
-- ✅ Added token usage tracking (removed from debt)
-- ✅ Improved OAuth error handling (removed from debt)
-- ✅ Fixed N+1 query pattern in Conversations API (2025-06-26)
+- **N+1 Query Pattern in Conversations API** - Replaced correlated subqueries with window functions, added optimized indexes
+- **N+1 Query in Token Usage Time Series** - Refactored to single query using UNNEST
+- **Database Migration Strategy** - Standardized on TypeScript migrations with init SQL
 
-## Future Considerations
+### 2025-01-20
 
-### Architectural Improvements
+- **Console.log violations** - Replaced with proper debug logging
+- **TestSampleCollector privacy issues** - Fixed sensitive data masking
 
-1. **Event Sourcing**: Consider for better audit trail
-2. **CQRS**: Separate read/write models for performance
-3. **Service Mesh**: For better observability and security
+### Earlier Resolutions
 
-### Performance Optimizations
-
-1. **Connection Pooling**: Optimize database connections
-2. **Query Optimization**: Regular query plan analysis
-3. **Horizontal Scaling**: Prepare for multi-instance deployment
-
-### Security Enhancements
-
-1. **Secrets Management**: Integrate with secret stores
-2. **Audit Logging**: Comprehensive security audit trail
-3. **Rate Limiting**: Implement proper rate limiting
+- **Conversation tracking** - Implemented with message hashing
+- **Token usage tracking** - Added comprehensive tracking system
+- **OAuth error handling** - Improved with auto-refresh logic
 
 ## References
 
+- [Architecture Decision Records](./ADRs/)
 - [Performance Troubleshooting](../05-Troubleshooting/performance.md)
-- [Database Optimization](../03-Operations/database.md)
-- [Architecture Overview](./internals.md)
+- [Database Documentation](../03-Operations/database.md)
+- [GROOMING.md](../../GROOMING.md) - Grooming process guidelines
 
 ---
 
-Last Updated: 2025-06-26
-Next Review: 2025-07-26
-
-## Recent Grooming Progress
-
-- ✅ Fixed Memory Leak in StorageAdapter (HIGH priority)
-- ✅ Fixed N+1 Query in Conversations API (HIGH priority)
-- ✅ Fixed N+1 Query in Token Usage Time Series (MEDIUM priority)
-- ✅ Fixed console.log violations in TestSampleCollector
-- ✅ Resolved Database Migration Strategy (LOW priority)
-- ✅ Fixed critical data privacy issues in TestSampleCollector
-- ✅ Consolidated database schema management
+Last Updated: 2025-01-21
+Next Review: 2025-02-21
