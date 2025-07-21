@@ -64,31 +64,10 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
    - Proxy server timeout: 11 minutes (allows for overhead)
    - Client connection timeout: Should be > 11 minutes
 
-3. **Streaming Support**:
-
-   ```typescript
-   // Keep connection alive during streaming
-   const streamWithHeartbeat = (stream: ReadableStream) => {
-     const heartbeatInterval = setInterval(() => {
-       // Send keep-alive comment every 30 seconds
-       controller.enqueue(': keep-alive\n\n')
-     }, 30000)
-
-     stream.finally(() => clearInterval(heartbeatInterval))
-   }
-   ```
-
-4. **Error Handling**:
-   ```typescript
-   try {
-     const response = await fetchWithTimeout(claudeUrl, requestOptions, CLAUDE_API_TIMEOUT)
-   } catch (error) {
-     if (error.name === 'AbortError') {
-       throw new Error('Claude API request timeout after 10 minutes')
-     }
-     throw error
-   }
-   ```
+3. **Error Handling**:
+   - Proper timeout error handling in proxy service
+   - Clear error messages when timeouts occur
+   - Graceful degradation for client disconnections
 
 ## Consequences
 
@@ -123,11 +102,9 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
 
 ## Implementation Notes
 
-- Introduced in PR #16
 - Default 10-minute timeout based on Claude API observations
 - Server timeout 1 minute higher to allow for processing overhead
-- Keep-alive mechanism for streaming responses
-- Configurable via environment variables
+- Configurable via environment variables for different deployment needs
 
 ## Operational Considerations
 
@@ -148,19 +125,10 @@ We will implement **configurable timeouts** with sensible defaults for long-runn
    - Ensure LB timeout > 11 minutes
    - Configure keep-alive appropriately
 
-## Future Enhancements
+## Related Documentation
 
-1. **Dynamic Timeouts**: Based on model and request complexity
-2. **Timeout Warnings**: Notify when approaching timeout
-3. **Request Estimation**: Predict processing time
-4. **Partial Results**: Return partial response if timeout approaching
-5. **Background Processing**: Async processing with webhook callbacks
-
-## Links
-
-- [PR #16: Long-running request support](https://github.com/your-org/claude-nexus-proxy/pull/16)
-- [Configuration Guide](../../01-Getting-Started/configuration.md#timeouts)
-- [Performance Guide](../../05-Troubleshooting/performance.md)
+- Environment variables are documented in [Environment Variables Reference](../../06-Reference/environment-vars.md)
+- CLAUDE.md includes timeout configuration details
 
 ---
 
