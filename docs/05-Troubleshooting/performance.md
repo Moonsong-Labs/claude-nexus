@@ -2,6 +2,14 @@
 
 This guide helps identify and resolve performance issues in Claude Nexus Proxy.
 
+## Quick Diagnosis Checklist
+
+1. **Check Dashboard Metrics**: Review P95/P99 latencies at http://localhost:3001
+2. **Database Health**: Run `SELECT COUNT(*) FROM pg_stat_activity;` to check connections
+3. **Logs**: Check for slow query warnings with `DEBUG_SQL=true`
+4. **Token Usage**: Monitor via `/api/token-usage/current` endpoint
+5. **System Resources**: Use `docker stats` to check CPU/memory usage
+
 ## Common Performance Issues
 
 ### High Response Latency
@@ -33,17 +41,20 @@ LIMIT 10;
 2. **Identify Slow Endpoints**
 
 ```sql
--- Slowest requests
+-- Slowest requests by duration
 SELECT
   method,
   path,
-  AVG(response_time_ms) as avg_time,
-  MAX(response_time_ms) as max_time,
-  COUNT(*) as count
+  AVG(duration_ms) as avg_duration_ms,
+  MAX(duration_ms) as max_duration_ms,
+  AVG(first_token_ms) as avg_first_token_ms,
+  COUNT(*) as request_count
 FROM api_requests
 WHERE created_at > NOW() - INTERVAL '1 hour'
+  AND duration_ms IS NOT NULL
 GROUP BY method, path
-ORDER BY avg_time DESC;
+ORDER BY avg_duration_ms DESC
+LIMIT 10;
 ```
 
 3. **Check Resource Usage**
@@ -54,6 +65,12 @@ docker stats
 
 # Database connections
 psql -c "SELECT count(*) FROM pg_stat_activity;"
+
+# Check for stuck requests
+psql -c "SELECT request_id, domain, created_at, duration_ms
+         FROM api_requests
+         WHERE response_status IS NULL
+         AND created_at < NOW() - INTERVAL '10 minutes';"
 ```
 
 #### Solutions
@@ -62,9 +79,14 @@ psql -c "SELECT count(*) FROM pg_stat_activity;"
 
 ```sql
 -- Add missing indexes
-CREATE INDEX CONCURRENTLY idx_api_requests_created_at ON api_requests(created_at);
-CREATE INDEX CONCURRENTLY idx_api_requests_domain ON api_requests(domain);
-CREATE INDEX CONCURRENTLY idx_api_requests_conversation ON api_requests(conversation_id, created_at);
+-- These indexes are already created in the init-database.sql
+-- Verify they exist:
+SELECT indexname FROM pg_indexes WHERE tablename = 'api_requests';
+
+-- If missing, create them:
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_api_requests_created_at ON api_requests(created_at);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_api_requests_domain ON api_requests(domain);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_api_requests_conversation ON api_requests(conversation_id, created_at);
 
 -- Update statistics
 ANALYZE api_requests;
@@ -108,7 +130,7 @@ const pool = new Pool({
 })
 ```
 
-### Memory Leaks
+### Memory Issues
 
 #### Symptoms
 
@@ -122,40 +144,29 @@ const pool = new Pool({
 # Monitor memory usage
 docker stats proxy --no-stream
 
-# Check for large objects
-docker compose exec proxy node --inspect=0.0.0.0:9229
-# Use Chrome DevTools to take heap snapshots
+# Check Bun memory usage
+bun --print memory
 ```
 
 #### Solutions
 
-1. **Fix RequestIdMap Memory Leak**
+1. **Configure Request ID Cleanup**
 
-```typescript
-// services/proxy/src/storage/StorageAdapter.ts
-private requestIdMap = new Map<string, string>();
+The proxy automatically cleans up request ID mappings. Configure via environment variables:
 
-async storeResponse(data: ResponseData) {
-  // ... existing code ...
-
-  // Clean up the map entry after storing
-  this.requestIdMap.delete(data.request_id);
-}
+```bash
+# .env configuration
+STORAGE_ADAPTER_CLEANUP_MS=300000    # Cleanup interval (default: 5 minutes)
+STORAGE_ADAPTER_RETENTION_MS=3600000 # Retention time (default: 1 hour)
 ```
 
-2. **Implement Request Cleanup**
+2. **Monitor Cleanup Performance**
 
-```typescript
-// Add periodic cleanup
-setInterval(() => {
-  // Clean up old entries (older than 1 hour)
-  const oneHourAgo = Date.now() - 3600000
-  for (const [key, value] of this.requestIdMap.entries()) {
-    if (value.timestamp < oneHourAgo) {
-      this.requestIdMap.delete(key)
-    }
-  }
-}, 300000) // Every 5 minutes
+Enable debug logging to see cleanup operations:
+
+```bash
+DEBUG=true bun run dev:proxy
+# Look for "Cleaned up X orphaned request IDs" messages
 ```
 
 ### Database Performance
@@ -199,11 +210,11 @@ AND tablename IN ('api_requests', 'streaming_chunks');
 
 ```bash
 # Manual vacuum
-docker compose exec postgres vacuumdb -U postgres -d claude_nexus -z
+docker compose exec postgres vacuumdb -U postgres -d claude_nexus_proxy -z
 
 # Configure autovacuum
-ALTER TABLE api_requests SET (autovacuum_vacuum_scale_factor = 0.1);
-ALTER TABLE streaming_chunks SET (autovacuum_vacuum_scale_factor = 0.1);
+psql -c "ALTER TABLE api_requests SET (autovacuum_vacuum_scale_factor = 0.1);"
+psql -c "ALTER TABLE streaming_chunks SET (autovacuum_vacuum_scale_factor = 0.1);"
 ```
 
 2. **Partition Large Tables**
@@ -245,207 +256,208 @@ max_wal_size = 4GB
 #### Diagnosis
 
 ```sql
--- Find high token usage requests
+-- Find high token usage by account
 SELECT
+  account_id,
   domain,
   model,
   request_type,
-  AVG(input_tokens + output_tokens) as avg_tokens,
-  MAX(input_tokens + output_tokens) as max_tokens,
-  COUNT(*) as count
+  AVG(total_tokens) as avg_tokens,
+  MAX(total_tokens) as max_tokens,
+  SUM(total_tokens) as total_tokens_used,
+  COUNT(*) as request_count
 FROM api_requests
 WHERE created_at > NOW() - INTERVAL '24 hours'
-GROUP BY domain, model, request_type
-ORDER BY avg_tokens DESC;
+  AND total_tokens > 0
+GROUP BY account_id, domain, model, request_type
+ORDER BY total_tokens_used DESC;
 
--- Identify token usage patterns
+-- Check 5-hour rolling window usage
 SELECT
-  date_trunc('hour', created_at) as hour,
-  SUM(input_tokens) as input,
-  SUM(output_tokens) as output,
-  COUNT(*) as requests
+  account_id,
+  SUM(total_tokens) as tokens_in_window,
+  COUNT(*) as requests_in_window
 FROM api_requests
-WHERE created_at > NOW() - INTERVAL '24 hours'
-GROUP BY hour
-ORDER BY hour;
+WHERE created_at > NOW() - INTERVAL '5 hours'
+GROUP BY account_id
+ORDER BY tokens_in_window DESC;
 ```
 
 #### Solutions
 
-1. **Implement Token Limits**
+1. **Monitor Token Usage**
 
-```typescript
-// Add request validation
-if (requestBody.max_tokens > 4000) {
-  return res.status(400).json({
-    error: 'max_tokens too high',
-    message: 'Maximum allowed tokens is 4000',
-  })
-}
+Use the dashboard or API endpoints:
+
+```bash
+# Current 5-hour window
+curl "http://localhost:3000/api/token-usage/current?accountId=acc_xxx" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
+
+# Daily usage history
+curl "http://localhost:3000/api/token-usage/daily?accountId=acc_xxx" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
-2. **Cache Common Responses**
+2. **Configure Timeouts**
 
-```typescript
-// Implement response caching for repeated queries
-const cacheKey = generateCacheKey(request)
-const cached = await cache.get(cacheKey)
-if (cached) {
-  return cached
-}
+Prevent runaway requests:
+
+```bash
+# .env configuration
+CLAUDE_API_TIMEOUT=600000      # 10 minutes for Claude API
+PROXY_SERVER_TIMEOUT=660000    # 11 minutes for server
 ```
 
 ## Performance Optimization Strategies
 
-### 1. Request Optimization
+### 1. Database Optimization
 
-- **Batch Processing**: Group multiple small requests
-- **Request Deduplication**: Cache identical requests
-- **Smart Routing**: Route to appropriate model based on complexity
+#### Enable SQL Query Logging
 
-### 2. Database Optimization
+Identify slow queries:
 
-- **Index Strategy**: Create indexes for common query patterns
-- **Data Retention**: Archive old data to keep tables manageable
-- **Read Replicas**: Offload dashboard queries to replica
+```bash
+# Enable SQL debug logging
+DEBUG_SQL=true bun run dev:proxy
 
-### 3. Caching Strategy
-
-```typescript
-// Multi-level caching
-const cache = {
-  memory: new LRU({ max: 1000 }),
-  redis: new Redis(),
-
-  async get(key: string) {
-    // Try memory first
-    let value = this.memory.get(key)
-    if (value) return value
-
-    // Try Redis
-    value = await this.redis.get(key)
-    if (value) {
-      this.memory.set(key, value)
-      return value
-    }
-
-    return null
-  },
-}
+# Configure slow query threshold (default: 5000ms)
+SLOW_QUERY_THRESHOLD_MS=3000
 ```
 
-### 4. Load Balancing
+#### Optimize Common Queries
 
-```nginx
-# nginx.conf for load balancing
-upstream claude_proxy {
-    least_conn;
-    server proxy1:3000 weight=3;
-    server proxy2:3000 weight=2;
-    server proxy3:3000 weight=1;
-}
+The system includes optimized queries for:
+
+- Conversation tracking with proper indexes
+- Sub-task detection using JSONB containment
+- Token usage aggregation with window functions
+
+See [ADR-007](../04-Architecture/ADRs/adr-007-subtask-tracking.md) and [ADR-044](../04-Architecture/ADRs/adr-044-subtask-query-executor-pattern.md) for implementation details.
+
+### 2. Request Optimization
+
+#### Configure Timeouts
+
+```bash
+# Environment variables
+CLAUDE_API_TIMEOUT=600000           # Claude API timeout (10 min)
+PROXY_SERVER_TIMEOUT=660000         # Server timeout (11 min)
+AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS=60000  # AI analysis timeout
+```
+
+#### Dashboard Caching
+
+```bash
+# Configure dashboard cache TTL
+DASHBOARD_CACHE_TTL=30  # Cache responses for 30 seconds
+DASHBOARD_CACHE_TTL=0   # Disable caching for development
+```
+
+### 3. Resource Management
+
+#### Connection Pooling
+
+The system uses PostgreSQL connection pooling. Monitor active connections:
+
+```sql
+-- Check connection count by state
+SELECT state, COUNT(*)
+FROM pg_stat_activity
+GROUP BY state;
+
+-- Identify long-running queries
+SELECT pid, now() - query_start AS duration, query
+FROM pg_stat_activity
+WHERE state = 'active'
+AND now() - query_start > interval '30 seconds';
 ```
 
 ## Monitoring Performance
 
+### Built-in Dashboard
+
+Access the performance dashboard at http://localhost:3001:
+
+1. **Analytics Page**: View request latencies, token usage, and error rates
+2. **Real-time Updates**: SSE-powered live metrics
+3. **Conversation View**: Track request chains and sub-tasks
+
 ### Key Metrics to Track
 
-1. **Response Time Percentiles**
-   - P50, P95, P99 latencies
-   - By endpoint and domain
+1. **Response Times**
+   - `duration_ms`: Total request duration
+   - `first_token_ms`: Time to first token (streaming)
+   - Monitor via dashboard analytics
 
-2. **Throughput**
-   - Requests per second
-   - Tokens per minute
+2. **Token Usage**
+   - Per-account tracking
+   - 5-hour rolling windows
+   - Daily aggregations
 
-3. **Error Rates**
-   - By error type
-   - By domain
+3. **Database Performance**
+   - Query execution time (with `DEBUG_SQL=true`)
+   - Connection pool usage
+   - Slow query alerts
 
-4. **Resource Usage**
-   - CPU and memory usage
-   - Database connections
-   - Network I/O
+### API Monitoring Endpoints
 
-### Performance Dashboard
+```bash
+# Token usage statistics
+curl "http://localhost:3000/api/token-usage/current?window=300" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 
-Create Grafana dashboard with:
+# Conversation analytics
+curl "http://localhost:3000/api/conversations?limit=50" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 
-```json
-{
-  "panels": [
-    {
-      "title": "Request Latency",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"
-        }
-      ]
-    },
-    {
-      "title": "Database Query Time",
-      "targets": [
-        {
-          "expr": "rate(pg_stat_statements_total_time[5m])"
-        }
-      ]
-    },
-    {
-      "title": "Token Usage Rate",
-      "targets": [
-        {
-          "expr": "rate(claude_tokens_total[5m])"
-        }
-      ]
-    }
-  ]
-}
+# Request details
+curl "http://localhost:3000/api/requests/:requestId" \
+  -H "X-Dashboard-Key: $DASHBOARD_API_KEY"
 ```
 
-## Load Testing
+## Prevention Strategies
 
-### Prepare Load Tests
+### 1. Proactive Monitoring
 
-```javascript
-// k6 load test script
-import http from 'k6/http'
-import { check } from 'k6'
+- Enable `DEBUG_SQL=true` in development to catch slow queries early
+- Set up alerts for high token usage patterns
+- Monitor dashboard metrics regularly
+- Review conversation trees for unusual patterns
 
-export let options = {
-  stages: [
-    { duration: '5m', target: 100 },
-    { duration: '10m', target: 100 },
-    { duration: '5m', target: 0 },
-  ],
-}
+### 2. Configuration Best Practices
 
-export default function () {
-  let response = http.post(
-    'http://localhost:3000/v1/messages',
-    JSON.stringify({
-      messages: [{ role: 'user', content: 'Hello' }],
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 100,
-    }),
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer test-key',
-        Host: 'test.example.com',
-      },
-    }
-  )
-
-  check(response, {
-    'status is 200': r => r.status === 200,
-    'response time < 500ms': r => r.timings.duration < 500,
-  })
-}
+```bash
+# Recommended production settings
+STORAGE_ENABLED=true
+DEBUG=false
+DEBUG_SQL=false
+SLOW_QUERY_THRESHOLD_MS=5000
+DASHBOARD_CACHE_TTL=30
+CLAUDE_API_TIMEOUT=600000
+PROXY_SERVER_TIMEOUT=660000
 ```
 
-## Next Steps
+### 3. Regular Maintenance
 
-- [Review common issues](./common-issues.md)
-- [Set up monitoring](../03-Operations/monitoring.md)
-- [Configure alerts](../03-Operations/monitoring.md#alerting)
-- [Optimize database](../03-Operations/database.md)
+- Run `VACUUM ANALYZE` on PostgreSQL weekly
+- Monitor disk space for database growth
+- Review and optimize slow queries monthly
+- Archive old conversation data quarterly
+
+See [Database Maintenance](../03-Operations/database.md) for detailed procedures.
+
+## Related Documentation
+
+- [Common Issues](./common-issues.md) - General troubleshooting guide
+- [Debugging Guide](./debugging.md) - Debug logging and tracing
+- [Database Operations](../03-Operations/database.md) - Database maintenance procedures
+- [Monitoring Setup](../03-Operations/monitoring.md) - Comprehensive monitoring guide
+- [Environment Variables](../06-Reference/environment-vars.md) - Complete configuration reference
+
+## Relevant ADRs
+
+- [ADR-006: Long Running Requests](../04-Architecture/ADRs/adr-006-long-running-requests.md) - Timeout configuration
+- [ADR-005: Token Usage Tracking](../04-Architecture/ADRs/adr-005-token-usage-tracking.md) - Token tracking implementation
+- [ADR-014: SQL Query Logging](../04-Architecture/ADRs/adr-014-sql-query-logging.md) - Debug SQL features
+- [ADR-044: Subtask Query Executor Pattern](../04-Architecture/ADRs/adr-044-subtask-query-executor-pattern.md) - Query optimization
