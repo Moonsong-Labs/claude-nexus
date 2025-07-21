@@ -32,6 +32,15 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **test/unit/subtask-detection.test.ts deletion**: Removed obsolete test file that was superseded by proper tests
+  - Deleted `test/unit/subtask-detection.test.ts` which tested outdated `StorageWriter` implementation
+  - Current architecture uses `ConversationLinker` for subtask detection (in packages/shared)
+  - All functionality already covered by comprehensive tests at `packages/shared/src/utils/__tests__/subtask-detection.test.ts`
+  - Also deleted orphaned test data files: `inference_streaming_with_tools_with_system_opus-*.json`
+  - Validated deletion plan with Gemini-2.5-pro (9/10 confidence)
+  - Rationale: File violated architectural boundaries by importing from `services/proxy/src/`, tested outdated implementation, and duplicated existing test coverage
+  - Impact: Reduced technical debt, enforced correct architecture patterns, prevented confusion from outdated test patterns
+
 - **test/unit/css-validation.test.ts consolidation**: Merged CSS validation tests into proper service test file
   - Merged CSS syntax validation tests from `test/unit/css-validation.test.ts` into `services/dashboard/src/layout/__tests__/styles.test.ts`
   - Deleted original file after successful merge
