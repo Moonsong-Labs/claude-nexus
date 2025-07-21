@@ -62,8 +62,8 @@ We will implement **Bearer Token Authentication** with domain-specific API keys 
    ```
    Client → Proxy: Authorization: Bearer cnp_live_xxx...
    Proxy: Extract domain from Host header
-   Proxy: Load credentials/<domain>.credentials.json
-   Proxy: Compare tokens using timing-safe SHA-256
+   Proxy: Load credentials/<domain>.credentials.json via AuthenticationService
+   Proxy: Compare tokens using direct timing-safe string comparison
    Proxy → Claude: Forward if authenticated
    ```
 
@@ -79,10 +79,12 @@ We will implement **Bearer Token Authentication** with domain-specific API keys 
    ```
 
 3. **Security Measures**:
-   - SHA-256 hashing before comparison (timing-safe)
+   - Direct timing-safe string comparison using Node's `crypto.timingSafeEqual`
    - Domain validation to prevent path traversal
    - No fallback to default credentials
    - WWW-Authenticate header on 401 responses
+
+   **Implementation Note**: The original design proposed SHA-256 hashing before comparison, but the implementation uses direct timing-safe comparison which is equally secure and more efficient for this use case.
 
 4. **Key Format**:
    - Prefix: `cnp_live_` for production, `cnp_test_` for testing
@@ -114,17 +116,18 @@ We will implement **Bearer Token Authentication** with domain-specific API keys 
   - **Mitigation**: Keys are domain-specific, limiting blast radius
 
 - **Risk**: Timing attacks on key comparison
-  - **Mitigation**: SHA-256 hashing ensures constant-time comparison
+  - **Mitigation**: Direct use of `crypto.timingSafeEqual` prevents timing attacks
 
 - **Risk**: Path traversal attacks
   - **Mitigation**: Domain validation and path sanitization
 
 ## Implementation Notes
 
-- Introduced in PR #2
-- Two new middleware components: `domainExtractorMiddleware` and `clientAuthMiddleware`
-- 11 test cases with 91.53% code coverage
-- Script provided for key generation: `scripts/generate-api-key.ts`
+- Core middleware: `clientAuthMiddleware` in `services/proxy/src/middleware/client-auth.ts`
+- Authentication logic abstracted in `AuthenticationService` for better testability
+- Timing-safe comparison implemented using Node.js built-in `crypto.timingSafeEqual`
+- Script provided for key generation: `scripts/auth/generate-api-key.ts`
+- Test coverage includes various authentication scenarios in `client-auth.test.ts`
 
 ## Future Enhancements
 
@@ -136,11 +139,17 @@ We will implement **Bearer Token Authentication** with domain-specific API keys 
 
 ## Links
 
-- [PR #2: Proxy-level authentication](https://github.com/your-org/claude-nexus-proxy/pull/2)
 - [Security Guide](../../03-Operations/security.md)
 - [Authentication Guide](../../02-User-Guide/authentication.md)
+- [Client Auth Middleware Implementation](../../services/proxy/src/middleware/client-auth.ts)
+- [Authentication Service](../../services/proxy/src/services/AuthenticationService.ts)
+
+## Revision History
+
+- **2025-07-21**: Updated implementation details to reflect actual code. Corrected SHA-256 hashing claims - the implementation uses direct timing-safe comparison without hashing, which is equally secure for this use case.
 
 ---
 
-Date: 2024-06-25
-Authors: Development Team
+Date: 2024-06-25  
+Authors: Development Team  
+Last Updated: 2025-07-21
