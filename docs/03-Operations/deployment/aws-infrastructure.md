@@ -1,30 +1,25 @@
 # AWS Infrastructure Deployment
 
-This guide covers deploying Claude Nexus Proxy on AWS EC2 infrastructure with support for multiple environments.
+This guide covers deploying Claude Nexus Proxy on AWS EC2 instances using the provided operational scripts.
 
-## Environment Architecture
+## Overview
 
-Claude Nexus Proxy supports two primary environments:
+The Claude Nexus Proxy can be deployed across multiple AWS EC2 instances, with support for environment-based filtering (production/staging) using the `manage-nexus-proxies.sh` script.
 
-- **Production (`prod`)** - Live production services
-- **Staging (`staging`)** - Pre-production testing environment
+## EC2 Instance Requirements
 
-Each environment is isolated and can be managed independently using the `manage-nexus-proxies.sh` script.
+### Minimum Specifications
 
-## EC2 Instance Setup
-
-### Instance Requirements
-
-- **OS**: Ubuntu 20.04 LTS or later
-- **Instance Type**: t3.medium or larger (minimum 2 vCPU, 4GB RAM)
-- **Storage**: 20GB+ EBS volume
+- **OS**: Ubuntu 22.04 LTS or later
+- **Instance Type**: t3.medium or larger (2 vCPU, 4GB RAM minimum)
+- **Storage**: 20GB EBS volume
 - **Security Groups**:
-  - Inbound: SSH (22), HTTP (3000), Dashboard (3001)
-  - Outbound: All traffic (for Claude API access)
+  - Inbound: SSH (22), Proxy API (3000), Dashboard (3001)
+  - Outbound: All traffic (required for Claude API and GitHub access)
 
-### File Structure
+### Required Directory Structure
 
-Each EC2 instance should have the following structure in the ubuntu user's home directory:
+Each EC2 instance must have the following setup:
 
 ```
 /home/ubuntu/
@@ -36,171 +31,169 @@ Each EC2 instance should have the following structure in the ubuntu user's home 
 │   └── domain2.com.credentials.json
 ```
 
-### Required AWS Tags
+### AWS Tagging Requirements
 
-Each EC2 instance must be tagged appropriately:
+The `manage-nexus-proxies.sh` script uses AWS tags to identify and filter instances:
 
 1. **Name Tag** (Required)
    - Must contain "Nexus Proxy" (case-insensitive)
    - Example: `"Nexus Proxy Production Server 1"`
 
-2. **env Tag** (Required for environment filtering)
-   - Value: `prod` or `staging`
-   - This tag determines which environment the instance belongs to
+2. **env Tag** (Optional - for environment filtering)
+   - Values: `prod` or `staging`
+   - Used with `--env` flag to target specific environments
 
-### Example Terraform Configuration
+## Instance Preparation
 
-```hcl
-resource "aws_instance" "nexus_proxy_prod" {
-  count         = 3
-  ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04
-  instance_type = "t3.medium"
+### Manual Setup Steps
 
-  tags = {
-    Name = "Nexus Proxy Production ${count.index + 1}"
-    env  = "prod"
-    Type = "proxy"
-  }
+1. **Launch EC2 Instance**
+   - Use Ubuntu 22.04 LTS AMI
+   - Select appropriate instance type (t3.medium or larger)
+   - Configure security groups as specified above
+   - Add required tags
 
-  user_data = <<-EOF
-    #!/bin/bash
-    # Install Docker
-    curl -fsSL https://get.docker.com | bash
+2. **Initial Server Configuration**
 
-    # Clone repository
-    git clone https://github.com/yourusername/claude-nexus-proxy.git /home/ubuntu/claude-nexus-proxy
-    chown -R ubuntu:ubuntu /home/ubuntu/claude-nexus-proxy
+   ```bash
+   # SSH into the instance
+   ssh -i your-key.pem ubuntu@your-instance-ip
 
-    # Create required directories
-    mkdir -p /home/ubuntu/credentials
-    chown ubuntu:ubuntu /home/ubuntu/credentials
+   # Update system
+   sudo apt update && sudo apt upgrade -y
 
-    # Note: .env file should be placed at /home/ubuntu/.env
-    # Note: credentials should be placed in /home/ubuntu/credentials/
-  EOF
-}
+   # Install Docker
+   curl -fsSL https://get.docker.com | bash
+   sudo usermod -aG docker ubuntu
 
-resource "aws_instance" "nexus_proxy_staging" {
-  count         = 2
-  ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04
-  instance_type = "t3.small"
+   # Install Git
+   sudo apt install -y git
 
-  tags = {
-    Name = "Nexus Proxy Staging ${count.index + 1}"
-    env  = "staging"
-    Type = "proxy"
-  }
+   # Clone the repository
+   git clone <your-repository-url> /home/ubuntu/claude-nexus-proxy
 
-  user_data = "${file("user-data.sh")}"
-}
-```
+   # Create credentials directory
+   mkdir -p /home/ubuntu/credentials
+   ```
 
-## Environment Management
+3. **Configure Environment**
+   - Copy your `.env` file to `/home/ubuntu/.env`
+   - Add credential files to `/home/ubuntu/credentials/`
+   - Ensure proper permissions are set
 
-### Using the Management Script
+## Managing Deployments
 
-The `manage-nexus-proxies.sh` script provides environment-aware operations:
+### Using manage-nexus-proxies.sh
+
+The primary tool for managing EC2 deployments is the `manage-nexus-proxies.sh` script. It supports the following operations:
 
 ```bash
-# Check status of all servers (both prod and staging)
+# Check status of all Nexus Proxy servers
 ./scripts/ops/manage-nexus-proxies.sh status
 
-# Update only production servers
-./scripts/ops/manage-nexus-proxies.sh --env prod up
+# Update/deploy to all servers
+./scripts/ops/manage-nexus-proxies.sh up
 
-# Stop staging servers for maintenance
-./scripts/ops/manage-nexus-proxies.sh --env staging down
+# Stop containers on all servers
+./scripts/ops/manage-nexus-proxies.sh down
 
-# Update specific staging server
-./scripts/ops/manage-nexus-proxies.sh --env staging up "Nexus Proxy Staging 1"
+# Execute commands on all servers
+./scripts/ops/manage-nexus-proxies.sh exec "docker ps"
 ```
 
-### Environment Isolation
+### Environment Filtering
 
-Each environment should have:
-
-1. **Separate Databases**
-   - Production: High-availability RDS instance
-   - Staging: Smaller RDS instance or containerized PostgreSQL
-
-2. **Separate Credentials**
-   - Use different Claude API keys for each environment
-   - Store in separate credential files
-
-3. **Separate Monitoring**
-   - Different Slack channels for alerts
-   - Separate dashboards for metrics
-
-## Deployment Workflow
-
-### 1. Staging Deployment
-
-Deploy to staging first for testing:
+Use the `--env` flag to target specific environments:
 
 ```bash
-# Update staging servers with new version
+# Target only production servers
+./scripts/ops/manage-nexus-proxies.sh --env prod status
+
+# Update staging servers only
 ./scripts/ops/manage-nexus-proxies.sh --env staging up
 
-# Run tests against staging
-curl https://staging-proxy.yourdomain.com/health
-
-# Monitor staging logs
-./scripts/ops/manage-nexus-proxies.sh --env staging status
+# Stop staging for maintenance
+./scripts/ops/manage-nexus-proxies.sh --env staging down
 ```
 
-### 2. Production Deployment
+### Targeting Specific Servers
 
-After staging validation:
+You can target a specific server by name:
 
 ```bash
-# Rolling update of production servers
-for server in $(aws ec2 describe-instances --filters "Name=tag:env,Values=prod" "Name=tag:Name,Values=*Nexus Proxy*" --query "Reservations[].Instances[].Tags[?Key=='Name'].Value" --output text); do
+# Update a specific server
+./scripts/ops/manage-nexus-proxies.sh up "Nexus Proxy Production 1"
+
+# Check status of specific server with environment filter
+./scripts/ops/manage-nexus-proxies.sh --env prod status "Nexus Proxy Production 1"
+```
+
+## Deployment Best Practices
+
+### 1. Environment Separation
+
+Maintain clear separation between environments:
+
+- **Production**: Use separate database, credentials, and monitoring
+- **Staging**: Mirror production setup but with lower resources
+- **Credentials**: Never share API keys between environments
+
+### 2. Rolling Updates
+
+For production deployments, update servers one at a time:
+
+```bash
+# Example: Update each production server with delay
+for server in "Nexus Proxy Production 1" "Nexus Proxy Production 2"; do
   ./scripts/ops/manage-nexus-proxies.sh --env prod up "$server"
-  sleep 30 # Wait between updates
+  echo "Waiting 30 seconds before next update..."
+  sleep 30
 done
 ```
 
-## Environment-Specific Configuration
+### 3. Health Checks
 
-### Production Configuration
+After deployment, verify services are running:
 
 ```bash
-# .env.prod
-DATABASE_URL=postgresql://prod-rds.aws.com:5432/claude_nexus
+# Check container status
+./scripts/ops/manage-nexus-proxies.sh exec "docker ps"
+
+# Test proxy endpoint (from local machine)
+curl -I http://your-server-ip:3000/health
+```
+
+## Configuration Examples
+
+### Environment Variables
+
+Each environment should have its own `.env` configuration:
+
+**Production Example:**
+
+```bash
+DATABASE_URL=postgresql://prod-host:5432/claude_nexus
 STORAGE_ENABLED=true
 DEBUG=false
-SLACK_WEBHOOK_URL=https://hooks.slack.com/prod-channel
+SLACK_WEBHOOK_URL=https://hooks.slack.com/prod-webhook
 DASHBOARD_CACHE_TTL=300
 ```
 
-### Staging Configuration
+**Staging Example:**
 
 ```bash
-# .env.staging
-DATABASE_URL=postgresql://staging-rds.aws.com:5432/claude_nexus_staging
+DATABASE_URL=postgresql://staging-host:5432/claude_nexus_staging
 STORAGE_ENABLED=true
 DEBUG=true
-SLACK_WEBHOOK_URL=https://hooks.slack.com/staging-channel
+SLACK_WEBHOOK_URL=https://hooks.slack.com/staging-webhook
 DASHBOARD_CACHE_TTL=60
 ```
 
-## Multi-Region Deployment
+## AWS Permissions
 
-For global deployment across regions:
+### Required IAM Permissions
 
-```bash
-# Tag instances with region
-aws ec2 create-tags --resources i-1234567890abcdef0 --tags Key=env,Value=prod Key=region,Value=us-east-1
-
-# Future enhancement: filter by region
-./scripts/ops/manage-nexus-proxies.sh --env prod --region us-east-1 status
-```
-
-## Security Considerations
-
-### IAM Roles
-
-Create environment-specific IAM roles:
+The user or role running the management script needs:
 
 ```json
 {
@@ -209,91 +202,94 @@ Create environment-specific IAM roles:
     {
       "Effect": "Allow",
       "Action": ["ec2:DescribeInstances", "ec2:DescribeTags"],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "ec2:ResourceTag/env": ["prod", "staging"]
-        }
-      }
+      "Resource": "*"
     }
   ]
 }
 ```
 
-### Network Isolation
+### Security Best Practices
 
-- Production: Dedicated VPC with private subnets
-- Staging: Separate VPC or isolated subnets
-- No cross-environment communication
+1. **SSH Key Management**
+   - Use dedicated SSH keys per environment
+   - Rotate keys regularly
+   - Never commit keys to version control
 
-## Monitoring by Environment
+2. **Network Security**
+   - Restrict SSH access to known IPs
+   - Use VPC security groups effectively
+   - Consider bastion hosts for production
 
-### CloudWatch Metrics
+3. **Credential Protection**
+   - Encrypt credential files at rest
+   - Use AWS Secrets Manager for sensitive data
+   - Implement least-privilege access
 
-```bash
-# Create environment-specific dashboards
-aws cloudwatch put-dashboard \
-  --dashboard-name "ClaudeNexusProxy-Production" \
-  --dashboard-body file://dashboards/prod-dashboard.json
+## Troubleshooting
 
-aws cloudwatch put-dashboard \
-  --dashboard-name "ClaudeNexusProxy-Staging" \
-  --dashboard-body file://dashboards/staging-dashboard.json
-```
+### Common Issues
 
-### Alerts
+1. **Script Cannot Find Instances**
+   - Verify Name tag contains "Nexus Proxy"
+   - Check AWS CLI configuration and permissions
+   - Ensure instances are in the correct region
 
-Configure environment-specific alerts:
+2. **SSH Connection Failures**
+   - Verify security group allows SSH from your IP
+   - Check SSH key permissions (600)
+   - Ensure instance is running
 
-- **Production**: PagerDuty integration for critical alerts
-- **Staging**: Email notifications only
+3. **Docker Container Issues**
+   - Check Docker daemon is running: `sudo systemctl status docker`
+   - Verify .env file exists and is readable
+   - Check credential files are present
 
-## Disaster Recovery
-
-### Backup Strategy
-
-- **Production**: Automated daily backups with 30-day retention
-- **Staging**: Weekly backups with 7-day retention
-
-### Failover
-
-```bash
-# Quick failover to backup region
-./scripts/ops/manage-nexus-proxies.sh --env prod --region us-west-2 up
-```
-
-## Cost Optimization
-
-### Environment-Specific Scaling
-
-- **Production**: Auto-scaling based on load
-- **Staging**: Fixed smaller instance count
-
-### Resource Tagging
+### Debug Commands
 
 ```bash
-# Tag all resources for cost tracking
-aws ec2 create-tags --resources $INSTANCE_ID --tags \
-  Key=Project,Value=ClaudeNexusProxy \
-  Key=Environment,Value=prod \
-  Key=CostCenter,Value=Engineering
+# List all EC2 instances with tags
+aws ec2 describe-instances --query "Reservations[].Instances[].[InstanceId,State.Name,Tags]"
+
+# Test SSH connectivity
+ssh -v -i your-key.pem ubuntu@instance-ip
+
+# Check Docker logs
+./scripts/ops/manage-nexus-proxies.sh exec "docker logs claude-nexus-proxy"
 ```
 
-## Compliance
+## Monitoring and Maintenance
 
-### Environment Separation
+### Health Monitoring
 
-- Ensure prod/staging data never mix
-- Separate access controls per environment
-- Audit logs for each environment
+Set up basic monitoring for your instances:
 
-### Data Residency
+```bash
+# Create a simple health check script
+cat > /home/ubuntu/health-check.sh << 'EOF'
+#!/bin/bash
+curl -f http://localhost:3000/health || exit 1
+curl -f http://localhost:3001/health || exit 1
+EOF
 
-- Production: Data stays in primary region
-- Staging: Can use development regions
+chmod +x /home/ubuntu/health-check.sh
+```
 
-## Next Steps
+### Log Management
 
-- [Configure monitoring](../monitoring.md)
-- [Set up CI/CD pipelines](../../04-Architecture/ADRs/adr-008-cicd-strategy.md)
-- [Review security best practices](../security.md)
+Configure log rotation for Docker containers:
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m",
+    "max-file": "3"
+  }
+}
+```
+
+## Related Documentation
+
+- [Operational Scripts Guide](./ops-scripts.md) - Detailed documentation for all operational scripts
+- [Docker Deployment](./docker.md) - Container-based deployment options
+- [Monitoring Setup](../monitoring.md) - Configure monitoring and alerts
