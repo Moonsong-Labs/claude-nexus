@@ -51,6 +51,7 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-015](./adr-015-subtask-conversation-migration.md)   | Subtask Conversation Migration      | Accepted | 2025-01-07 |
 | [ADR-016](./adr-016-ai-powered-conversation-analysis.md) | AI-Powered Conversation Analysis    | Accepted | 2025-01-08 |
 | [ADR-019](./adr-019-remove-unused-type-definitions.md)   | Remove Unused Type Definitions      | Accepted | 2025-01-20 |
+| [ADR-041](./adr-041-claude-cli-docker-image.md)          | Claude CLI Docker Image Addition    | Accepted | 2025-01-21 |
 
 ## Creating a New ADR
 

@@ -42,56 +42,21 @@ We will use **completely separate Docker images** for each service:
 
 ### Implementation Details
 
-Proxy Dockerfile (`docker/proxy/Dockerfile`):
+The implementation uses multi-stage Docker builds with Alpine Linux for minimal image size and enhanced security. Each service has its own optimized Dockerfile:
 
-```dockerfile
-FROM oven/bun:1 as builder
-WORKDIR /app
-COPY package.json bun.lockb ./
-COPY packages/shared/package.json ./packages/shared/
-COPY services/proxy/package.json ./services/proxy/
-RUN bun install --frozen-lockfile
+- **Proxy Service**: [`docker/proxy/Dockerfile`](../../../docker/proxy/Dockerfile)
+  - Multi-stage build with Alpine Linux
+  - Production-optimized with `build:production` script
+  - Includes runtime essentials only (credentials, dist, client-setup)
+  - Exposed on port 3000
 
-COPY packages/shared ./packages/shared
-COPY services/proxy ./services/proxy
-RUN cd packages/shared && bun run build
-RUN cd services/proxy && bun run build
+- **Dashboard Service**: [`docker/dashboard/Dockerfile`](../../../docker/dashboard/Dockerfile)
+  - Multi-stage build with Alpine Linux
+  - Production-optimized with `build:production` script
+  - Includes pre-generated prompt assets
+  - Exposed on port 3001
 
-FROM oven/bun:1-slim
-WORKDIR /app
-COPY --from=builder /app/services/proxy/dist ./dist
-COPY --from=builder /app/services/proxy/package.json ./
-RUN bun install --production
-
-EXPOSE 3000
-CMD ["bun", "dist/index.js"]
-```
-
-Dashboard Dockerfile (`docker/dashboard/Dockerfile`):
-
-```dockerfile
-FROM oven/bun:1 as builder
-WORKDIR /app
-COPY package.json bun.lockb ./
-COPY packages/shared/package.json ./packages/shared/
-COPY services/dashboard/package.json ./services/dashboard/
-RUN bun install --frozen-lockfile
-
-COPY packages/shared ./packages/shared
-COPY services/dashboard ./services/dashboard
-RUN cd packages/shared && bun run build
-RUN cd services/dashboard && bun run build
-
-FROM oven/bun:1-slim
-WORKDIR /app
-COPY --from=builder /app/services/dashboard/dist ./dist
-COPY --from=builder /app/services/dashboard/public ./public
-COPY --from=builder /app/services/dashboard/package.json ./
-RUN bun install --production
-
-EXPOSE 3001
-CMD ["bun", "dist/index.js"]
-```
+**Note**: The architecture was later extended to include a third Docker image for Claude CLI integration. See [ADR-041](./adr-041-claude-cli-docker-image.md) for details on this extension.
 
 ## Consequences
 
@@ -124,7 +89,10 @@ CMD ["bun", "dist/index.js"]
 
 - [ADR-001: Monorepo Structure](./adr-001-monorepo-structure.md)
 - [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
-- [Deployment Guide](../../03-Operations/deployment/docker.md)
+- [Proxy Dockerfile](../../../docker/proxy/Dockerfile)
+- [Dashboard Dockerfile](../../../docker/dashboard/Dockerfile)
+- [Build Scripts](../../../docker/build-images.sh)
+- [Docker Compose Configuration](../../../docker/docker-compose.yml)
 
 ## Notes
 

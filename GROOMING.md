@@ -42,6 +42,15 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
   - Rationale: Reduces CI/CD redundancy, improves maintainability, addresses security concerns
   - Impact: Faster CI runs, clearer workflow responsibilities, improved developer experience
 
+- **ADR-002 grooming**: Updated separate Docker images ADR to reflect current implementation
+  - Removed outdated Dockerfile code examples that didn't match actual implementation
+  - Added links to actual Dockerfile implementations and build scripts
+  - Created ADR-041 to document the Claude CLI Docker image addition (extending original 2-image to 3-image architecture)
+  - Preserved historical context while removing misleading implementation details
+  - Validated approach with Gemini-2.5-flash and O3-mini - aligned with ADR best practices
+  - Rationale: Maintains ADR accuracy without losing historical decision context
+  - Impact: Clearer documentation, reduced confusion for new contributors
+
 ### 2025-07-20
 
 - **Deleted services/dashboard/preload.js**: Removed dead code file
