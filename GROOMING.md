@@ -32,6 +32,19 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **test/unit/css-validation.test.ts consolidation**: Merged CSS validation tests into proper service test file
+  - Merged CSS syntax validation tests from `test/unit/css-validation.test.ts` into `services/dashboard/src/layout/__tests__/styles.test.ts`
+  - Deleted original file after successful merge
+  - Both test files were testing the same `dashboardStyles` export but with different focuses
+  - Original file was in wrong location (root test directory instead of co-located with service)
+  - Organized merged tests into clear sections: "Dashboard Theme CSS Variables" and "CSS Validation"
+  - All 28 tests continue to pass after consolidation
+  - Validated refactoring plan with Gemini-2.5-flash and O3-mini (both 9/10 confidence)
+  - Rationale: Tests should be co-located with the code they test, avoiding duplication and improving maintainability
+  - Impact: Single source of truth for dashboard style tests, better discoverability, reduced maintenance burden
+
+### 2025-07-21
+
 - **test/unit/request-response-parsing.test.ts refactoring**: Restructured and improved domain entity tests
   - Split monolithic test file into separate `ProxyRequest.test.ts` and `ProxyResponse.test.ts`
   - Moved tests to proper location: `services/proxy/src/domain/entities/__tests__/`
