@@ -1,5 +1,26 @@
 # Grooming Log
 
+## 2025-01-21: test-db-pool.js Removal
+
+### File: `test-db-pool.js` (root directory)
+
+#### Changes Made:
+
+- **Deleted the file**: Removed temporary database connection test script from root directory
+
+#### Rationale:
+
+- **Temporary debugging script**: The file was a quick debugging utility that doesn't belong in production code
+- **Wrong location**: File was in root directory instead of proper scripts folder
+- **Inconsistent with project standards**: Used Node.js instead of Bun runtime, CommonJS instead of ES modules
+- **Redundant functionality**: Database connectivity is already tested through migration scripts
+- **Technical debt**: Keeping temporary debugging files clutters the repository and confuses contributors
+
+#### AI Consensus:
+
+- Gemini-2.5-pro: 10/10 confidence for deletion, citing it as "textbook example of technical debt"
+- Deletion aligns with industry best practices for code hygiene and production readiness
+
 ## 2025-01-21: Technical Debt Document Refactoring
 
 ### File: `docs/04-Architecture/technical-debt.md`
