@@ -32,6 +32,17 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **services/proxy/tests/fixtures/requests/inference_streaming_with_tools_with_system_opus.json refactoring**: Replaced large fixture with programmatic test builder
+  - Deleted 2267-line (137KB) JSON fixture containing full Claude conversation data
+  - Created minimal test builder function `createInferenceRequestWithMultipleSystemMessages()` in test file
+  - Security concern: File contained what appeared to be real conversation data from moonbeam-tools project
+  - File was only used to test request type identification for inference requests
+  - Updated `test/README.md` to remove reference and add guidance on using programmatic builders
+  - All tests continue to pass after refactoring
+  - Validated plan with Gemini-2.5-pro (10/10 confidence)
+  - Rationale: Eliminates security risk, reduces repository size, improves test maintainability
+  - Follows industry best practice of programmatic test data generation over large static fixtures
+
 - **test/fixtures/requests/ deletion**: Removed duplicate test fixture directory
   - Deleted entire `/test/fixtures/requests/` directory containing 3 duplicate JSON fixture files
   - Files were duplicates of fixtures in `/services/proxy/tests/fixtures/requests/`

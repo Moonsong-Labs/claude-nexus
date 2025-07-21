@@ -5,7 +5,64 @@ import { ClaudeMessagesRequest } from '@claude-nexus/shared'
 // Load real test samples
 import quotaSample from './fixtures/requests/quota_haiku.json'
 import queryEvaluationSample from './fixtures/requests/query_evaluation_streaming_with_system_haiku.json'
-import inferenceSample from './fixtures/requests/inference_streaming_with_tools_with_system_opus.json'
+
+// Helper function to create a minimal inference request with multiple system messages
+function createInferenceRequestWithMultipleSystemMessages(): ClaudeMessagesRequest {
+  return {
+    model: 'claude-opus-4-20250514',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: '<system-reminder>\nSystem reminder content\n</system-reminder>\n',
+          },
+          {
+            type: 'text',
+            text: 'User message content',
+          },
+        ],
+      },
+      {
+        role: 'assistant',
+        content: 'Assistant response',
+      },
+    ],
+    system: [
+      {
+        type: 'text',
+        text: "You are Claude Code, Anthropic's official CLI for Claude.",
+        cache_control: {
+          type: 'ephemeral',
+        },
+      },
+      {
+        type: 'text',
+        text: 'Additional system instructions...',
+        cache_control: {
+          type: 'ephemeral',
+        },
+      },
+    ],
+    max_tokens: 32000,
+    stream: true,
+    tools: [
+      {
+        name: 'Task',
+        description: 'Launch a new agent',
+        input_schema: {
+          type: 'object',
+          properties: {
+            description: { type: 'string' },
+            prompt: { type: 'string' },
+          },
+          required: ['description', 'prompt'],
+        },
+      },
+    ],
+  }
+}
 
 describe('ProxyRequest - Request Type Identification', () => {
   const TEST_DOMAIN = 'test.domain.com'
@@ -97,7 +154,7 @@ describe('ProxyRequest - Request Type Identification', () => {
   describe('inference requests', () => {
     it('should identify inference with multiple system messages', () => {
       const request = new ProxyRequest(
-        inferenceSample.body as ClaudeMessagesRequest,
+        createInferenceRequestWithMultipleSystemMessages(),
         TEST_DOMAIN,
         TEST_REQUEST_ID
       )

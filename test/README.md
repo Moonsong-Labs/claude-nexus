@@ -66,11 +66,13 @@ bun test --coverage
 
 ## Test Fixtures
 
-Sample requests are stored in `fixtures/requests/`:
+Sample requests are stored in service-specific test directories:
 
-- `inference_streaming_with_tools_with_system_opus.json` - Complex streaming request
-- `query_evaluation_streaming_with_system_haiku.json` - Query evaluation example
-- `quota_haiku.json` - Quota check request
+- `services/proxy/tests/fixtures/requests/`:
+  - `query_evaluation_streaming_with_system_haiku.json` - Query evaluation example
+  - `quota_haiku.json` - Quota check request
+
+Note: For complex test data, prefer using programmatic test builders over large JSON fixtures to improve maintainability and reduce repository size.
 
 ## Writing Tests
 
