@@ -32,6 +32,17 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **test/fixtures/requests/ deletion**: Removed duplicate test fixture directory
+  - Deleted entire `/test/fixtures/requests/` directory containing 3 duplicate JSON fixture files
+  - Files were duplicates of fixtures in `/services/proxy/tests/fixtures/requests/`
+  - Test file `request-type-identification.test.ts` correctly imports from service-level fixtures
+  - No code references to root-level fixtures found via comprehensive grep search
+  - Validated files were identical using diff before deletion
+  - Also removed empty `/test/fixtures/` directory after cleanup
+  - Validated deletion plan with Gemini-2.5-pro (9/10 confidence) and o3-mini (10/10 confidence)
+  - Rationale: Duplicate files violate DRY principle, create maintenance burden, and tests should be co-located with services
+  - Impact: Reduced confusion, single source of truth for test fixtures, follows project conventions
+
 - **test/unit/streaming-tool-input.test.ts deletion**: Removed duplicate test file with redundant coverage
   - Deleted `test/unit/streaming-tool-input.test.ts` which contained 3 tests for ProxyResponse streaming
   - 2 out of 3 tests were exact duplicates of tests in `services/proxy/src/domain/entities/__tests__/ProxyResponse.test.ts`
