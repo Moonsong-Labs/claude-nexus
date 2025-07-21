@@ -64,6 +64,12 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
    ├── 003-add-subtask-tracking.ts
    ├── 004-optimize-conversation-window-functions.ts
    ├── 005-populate-account-ids.ts
+   ├── 006-split-conversation-hashes.ts
+   ├── 007-add-parent-request-id.ts
+   ├── 008-subtask-updates-and-task-indexes.ts
+   ├── 009-add-response-body-gin-index.ts
+   ├── 010-add-temporal-awareness-indexes.ts
+   ├── 011-add-conversation-analyses.ts
    └── README.md
    ```
 
@@ -169,6 +175,7 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
    - Include existence checks for idempotency
    - Add helpful console output
    - Run ANALYZE after significant changes
+   - Include help command support (e.g., `migration.ts help`)
 
 3. **Testing Migrations**:
    - Test on a copy of production data
@@ -186,8 +193,8 @@ We will implement **custom TypeScript migration scripts** with a simple numeric 
 
 1. **Migration Runner**: Build a tool to run all pending migrations
 2. **Version Tracking**: Add migrations table to track applied versions
-3. **Rollback Scripts**: Standardize down migrations
-4. **Validation**: Pre-flight checks before migrations
+3. ~~**Rollback Scripts**: Standardize down migrations~~ ✅ Implemented in migration 011
+4. ~~**Validation**: Pre-flight checks before migrations~~ ✅ Implemented (environment validation)
 5. **Auto-Generation**: Generate migrations from schema diffs
 6. **CI Integration**: Automated migration testing
 
@@ -281,6 +288,163 @@ await pool.query(
 )
 ```
 
+### Optimizing Task Tool Queries (008-subtask-updates-and-task-indexes.ts)
+
+```typescript
+// Create specialized indexes for Task invocation queries
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_task_tool_invocations 
+  ON api_requests (created_at DESC, request_id)
+  WHERE response_body::text LIKE '%"name":"Task"%'
+`)
+
+// Add GIN index for efficient JSONB searches
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_response_body_gin 
+  ON api_requests USING gin (response_body)
+`)
+```
+
+### Full GIN Index Implementation (009-add-response-body-gin-index.ts)
+
+```typescript
+// Create comprehensive GIN index if not exists
+const indexCheckResult = await pool.query(`
+  SELECT 1 FROM pg_indexes 
+  WHERE tablename = 'api_requests' 
+  AND indexname = 'idx_response_body_gin'
+`)
+
+if (indexCheckResult.rowCount === 0) {
+  await pool.query(`
+    CREATE INDEX CONCURRENTLY idx_response_body_gin 
+    ON api_requests USING gin (response_body)
+  `)
+}
+```
+
+### Temporal Awareness Indexes (010-add-temporal-awareness-indexes.ts)
+
+```typescript
+// Composite index for temporal queries
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_api_requests_conversation_timestamp 
+  ON api_requests(conversation_id, timestamp DESC)
+`)
+
+// Partial index for subtask sequences
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_api_requests_parent_task_timestamp 
+  ON api_requests(parent_task_request_id, timestamp DESC) 
+  WHERE parent_task_request_id IS NOT NULL
+`)
+```
+
+### AI Analysis Infrastructure with ENUM Types (011-add-conversation-analyses.ts)
+
+```typescript
+// Create ENUM type for status field
+await pool.query(`
+  DO $$ BEGIN
+    CREATE TYPE conversation_analysis_status AS ENUM (
+      'pending', 'processing', 'completed', 'failed'
+    );
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+`)
+
+// Create conversation_analyses table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS conversation_analyses (
+    conversation_id UUID NOT NULL,
+    branch_id VARCHAR(100) NOT NULL DEFAULT 'main',
+    status conversation_analysis_status NOT NULL DEFAULT 'pending',
+    analysis_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (conversation_id, branch_id)
+  )
+`)
+
+// Create automatic updated_at trigger
+await pool.query(`
+  CREATE OR REPLACE FUNCTION trigger_set_timestamp()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;
+`)
+
+await pool.query(`
+  CREATE TRIGGER set_timestamp_on_conversation_analyses
+  BEFORE UPDATE ON conversation_analyses
+  FOR EACH ROW
+  EXECUTE PROCEDURE trigger_set_timestamp();
+`)
+```
+
+### Rollback Support Example (from 011-add-conversation-analyses.ts)
+
+```typescript
+// Migration with rollback support
+async function migrate() {
+  // Forward migration logic here
+}
+
+async function rollback() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+
+  try {
+    await pool.query('BEGIN')
+
+    // Drop triggers first
+    await pool.query(
+      'DROP TRIGGER IF EXISTS set_timestamp_on_conversation_analyses ON conversation_analyses'
+    )
+
+    // Drop tables
+    await pool.query('DROP TABLE IF EXISTS conversation_analyses CASCADE')
+    await pool.query('DROP TABLE IF EXISTS analysis_audit_log CASCADE')
+
+    // Drop types
+    await pool.query('DROP TYPE IF EXISTS conversation_analysis_status CASCADE')
+
+    // Drop functions
+    await pool.query('DROP FUNCTION IF EXISTS trigger_set_timestamp() CASCADE')
+
+    await pool.query('COMMIT')
+    console.log('Rollback completed successfully!')
+  } catch (error) {
+    await pool.query('ROLLBACK')
+    throw error
+  }
+}
+
+// Handle command line arguments
+if (process.argv.includes('rollback')) {
+  rollback().catch(console.error)
+} else if (process.argv.includes('help')) {
+  console.log(`
+Usage: bun run ${process.argv[1]} [command]
+
+Commands:
+  <none>     Run the migration
+  rollback   Rollback the migration
+  help       Show this help message
+`)
+  process.exit(0)
+} else {
+  migrate().catch(console.error)
+}
+```
+
+## Related ADRs
+
+- [ADR-018: AI-Powered Conversation Analysis](./adr-018-ai-powered-conversation-analysis.md) - Depends on this migration strategy for schema changes
+
 ## Links
 
 - [Database Documentation](../../03-Operations/database.md)
@@ -290,5 +454,6 @@ await pool.query(
 
 ---
 
-Date: 2025-06-26
+Date: 2025-06-26  
+Last Updated: 2025-07-21
 Authors: Development Team
