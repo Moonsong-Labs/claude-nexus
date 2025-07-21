@@ -1,505 +1,122 @@
 # API Schemas Reference
 
-Complete reference for request and response schemas used in Claude Nexus Proxy.
+Reference guide for request and response schemas used in Claude Nexus Proxy.
 
-## Claude API Schemas
+## TypeScript Type Definitions
 
-### Messages API Request
+### Claude API Types
 
-```typescript
-interface MessagesRequest {
-  model: string // e.g., "claude-3-opus-20240229"
-  messages: Message[] // Conversation history
-  max_tokens: number // Maximum tokens to generate
-  temperature?: number // 0.0 to 1.0 (default: 1.0)
-  top_p?: number // Nucleus sampling (default: 1.0)
-  top_k?: number // Top-k sampling
-  metadata?: MessageMetadata // User tracking
-  stop_sequences?: string[] // Stop generation at these sequences
-  stream?: boolean // Enable streaming (default: false)
-  system?: string // System prompt
-}
+All Claude API type definitions are maintained in the source code:
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string | ContentBlock[]
-}
+- **Location**: [`packages/shared/src/types/claude.ts`](../../packages/shared/src/types/claude.ts)
+- **Key Types**:
+  - `ClaudeMessagesRequest` - Request format for Messages API
+  - `ClaudeMessagesResponse` - Response format for Messages API
+  - `ClaudeStreamEvent` - Streaming event types
+  - `ClaudeContent` - Content block types (text, image, tool_use, tool_result)
+  - `ClaudeUsage` - Token usage information
 
-interface ContentBlock {
-  type: 'text' | 'image'
-  text?: string // For text blocks
-  source?: ImageSource // For image blocks
-}
+### Dashboard API Types
 
-interface ImageSource {
-  type: 'base64'
-  media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-  data: string // Base64 encoded image data
-}
+Dashboard-specific API types are defined in:
 
-interface MessageMetadata {
-  user_id?: string
-}
-```
+- **Location**: [`services/dashboard/src/services/api-client.types.ts`](../../services/dashboard/src/services/api-client.types.ts)
+- **Key Types**:
+  - `StatsResponse` - Dashboard statistics
+  - `RequestDetails` - Detailed request information
+  - `TokenUsageWindow` - Token usage tracking
+  - `ConversationsResponse` - Conversation listing
 
-### Messages API Response (Non-Streaming)
+## API Endpoints
 
-```typescript
-interface MessagesResponse {
-  id: string // Response ID
-  type: 'message'
-  role: 'assistant'
-  content: ContentBlock[]
-  model: string
-  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence'
-  stop_sequence?: string
-  usage: TokenUsage
-}
+### Claude Messages API
 
-interface TokenUsage {
-  input_tokens: number
-  output_tokens: number
-  cache_creation_input_tokens?: number
-  cache_read_input_tokens?: number
-}
-```
+**Endpoint**: `POST /v1/messages`
 
-### Messages API Response (Streaming)
+Create a new message with Claude. The proxy transparently forwards requests to Claude's API while adding monitoring and storage capabilities.
 
-```typescript
-// Server-Sent Events format
-interface StreamEvent {
-  event: EventType
-  data: string // JSON stringified event data
-}
+**Example Request**:
 
-type EventType =
-  | 'message_start'
-  | 'content_block_start'
-  | 'content_block_delta'
-  | 'content_block_stop'
-  | 'message_delta'
-  | 'message_stop'
-  | 'error'
-
-// Event data types
-interface MessageStartEvent {
-  type: 'message_start'
-  message: {
-    id: string
-    type: 'message'
-    role: 'assistant'
-    content: []
-    model: string
-    usage: TokenUsage
-  }
-}
-
-interface ContentBlockDeltaEvent {
-  type: 'content_block_delta'
-  index: number
-  delta: {
-    type: 'text_delta'
-    text: string
-  }
-}
-
-interface MessageStopEvent {
-  type: 'message_stop'
-  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence'
-  stop_sequence?: string
-  usage?: TokenUsage // Final token counts
-}
-```
-
-## Proxy API Schemas
-
-### Token Stats Response
-
-```typescript
-interface TokenStatsResponse {
-  total_requests: number
-  total_tokens: {
-    input: number
-    output: number
-    total: number
-  }
-  by_domain: {
-    [domain: string]: {
-      requests: number
-      tokens: {
-        input: number
-        output: number
-        total: number
-      }
-      by_type: {
-        inference: number
-        query_evaluation: number
-      }
+```json
+{
+  "model": "claude-3-opus-20240229",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, Claude!"
     }
-  }
-  by_model: {
-    [model: string]: {
-      requests: number
-      tokens: {
-        input: number
-        output: number
-        total: number
-      }
-    }
-  }
+  ],
+  "max_tokens": 1000
 }
 ```
 
-### Health Check Response
+For complete schema details, see the [Claude API types](../../packages/shared/src/types/claude.ts).
 
-```typescript
-interface HealthResponse {
-  status: 'ok' | 'error'
-  timestamp?: string
-  version?: string
-  database?: 'connected' | 'disconnected'
-}
-```
+### Proxy Monitoring Endpoints
 
-## Dashboard API Schemas
+#### Token Stats
 
-### Stats Response
+- **Endpoint**: `GET /token-stats`
+- **Description**: Get aggregated token usage statistics
+- **Authentication**: Requires client API key
 
-```typescript
-interface StatsResponse {
-  total_requests: number
-  total_tokens: number
-  active_domains: number
-  total_subtasks: number
-  success_rate: number // Percentage (0-100)
-  average_latency: number // Milliseconds
-  period: {
-    start: string // ISO 8601
-    end: string // ISO 8601
-  }
-}
-```
+#### Health Check
 
-### Token Usage Current Window
+- **Endpoint**: `GET /health`
+- **Description**: Check proxy service health and database connectivity
 
-```typescript
-interface CurrentUsageResponse {
-  account_id: string
-  window_minutes: number // Usually 300 (5 hours)
-  usage: {
-    tokens_used: number
-    limit: number // Inferred from usage patterns
-    percentage: number // Usage percentage
-    reset_at: string // ISO 8601
-  }
-  requests: {
-    count: number
-    by_type: {
-      inference: number
-      query_evaluation: number
-      quota: number
-    }
-  }
-}
-```
+### Dashboard API Endpoints
 
-### Token Usage Daily
+#### Statistics
 
-```typescript
-interface DailyUsageResponse {
-  account_id: string
-  period: {
-    start: string // ISO 8601
-    end: string // ISO 8601
-  }
-  days: DailyUsageData[]
-  totals: {
-    requests: number
-    input_tokens: number
-    output_tokens: number
-    total_tokens: number
-    estimated_cost: number // USD
-  }
-}
+- **Endpoint**: `GET /api/stats`
+- **Description**: Get dashboard statistics and metrics
+- **Authentication**: X-Dashboard-Key header
 
-interface DailyUsageData {
-  date: string // YYYY-MM-DD
-  requests: number
-  input_tokens: number
-  output_tokens: number
-  total_tokens: number
-  by_model: {
-    [model: string]: {
-      requests: number
-      tokens: number
-    }
-  }
-}
-```
+#### Token Usage
 
-### Conversations Response
+- **Current Window**: `GET /api/token-usage/current`
+- **Daily History**: `GET /api/token-usage/daily`
+- **Query Parameters**:
+  - `accountId` - Filter by account
+  - `window` - Time window in minutes (default: 300)
 
-```typescript
-interface ConversationsResponse {
-  conversations: Conversation[]
-  pagination: {
-    total: number
-    page: number
-    per_page: number
-    total_pages: number
-  }
-}
+#### Conversations
 
-interface Conversation {
-  conversation_id: string
-  account_id: string
-  domain: string
-  first_message_at: string // ISO 8601
-  last_message_at: string // ISO 8601
-  message_count: number
-  total_tokens: number
-  branches: Branch[]
-  latest_request: RequestSummary
-  has_subtasks: boolean
-  subtask_count: number
-}
+- **List**: `GET /api/conversations`
+- **Details**: `GET /api/requests/:id`
+- **Query Parameters**:
+  - `domain` - Filter by domain
+  - `limit` - Maximum results
 
-interface Branch {
-  branch_id: string
-  parent_hash: string
-  created_at: string
-  message_count: number
-}
+For complete API documentation, see [API Reference](../02-User-Guide/api-reference.md).
 
-interface RequestSummary {
-  id: string
-  status_code: number
-  model: string
-  created_at: string
-}
-```
+## Database Schema
 
-### Request Details Response
+For complete database schema documentation, see [Database Schema](../03-Operations/database.md).
 
-```typescript
-interface RequestDetailsResponse {
-  id: string
-  domain: string
-  account_id: string
-  method: string
-  path: string
-  status_code: number
-  error_type?: string
-  error_message?: string
-  model?: string
-  request_type: 'inference' | 'query_evaluation' | 'quota'
-  input_tokens: number
-  output_tokens: number
-  total_tokens: number
-  response_time_ms: number
-  created_at: string
-  updated_at: string
-  conversation_id?: string
-  branch_id?: string
-  current_message_hash?: string
-  parent_message_hash?: string
-  is_subtask: boolean
-  parent_task_request_id?: string
-  request_body: any // Original request
-  response_body: any // Original response
-  streaming_chunks?: StreamingChunk[]
-}
+## Error Handling
 
-interface StreamingChunk {
-  chunk_index: number
-  content: string
-  created_at: string
-}
-```
+The proxy handles various error scenarios:
 
-## Error Response Schemas
+1. **Client Authentication Errors** (401)
+   - Invalid or missing client API key
+   - Expired OAuth tokens
 
-### Standard Error Response
+2. **Claude API Errors** (4xx/5xx)
+   - Rate limiting
+   - Invalid requests
+   - Model availability
 
-```typescript
-interface ErrorResponse {
-  error: {
-    type: string // Error type/code
-    message: string // Human-readable message
-    details?: any // Additional error details
-  }
-  request_id?: string
-  timestamp: string
-}
-```
+3. **Proxy Errors** (500)
+   - Database connectivity issues
+   - Internal processing errors
 
-### Claude API Error Response
+Error responses follow a consistent format with `error.type` and `error.message` fields.
 
-```typescript
-interface ClaudeErrorResponse {
-  type: 'error'
-  error: {
-    type: string // e.g., "invalid_request_error"
-    message: string
-  }
-}
-```
+## Related Documentation
 
-### OAuth Error Response
-
-```typescript
-interface OAuthErrorResponse {
-  error: string // e.g., "invalid_grant"
-  error_description: string // Detailed error message
-}
-```
-
-## Webhook Schemas
-
-### Slack Notification
-
-```typescript
-interface SlackWebhookPayload {
-  text: string // Main message
-  blocks?: SlackBlock[] // Rich formatting
-  attachments?: SlackAttachment[]
-}
-
-interface SlackBlock {
-  type: 'section' | 'header' | 'divider'
-  text?: {
-    type: 'mrkdwn' | 'plain_text'
-    text: string
-  }
-  fields?: Array<{
-    type: 'mrkdwn' | 'plain_text'
-    text: string
-  }>
-}
-
-interface SlackAttachment {
-  color: 'good' | 'warning' | 'danger' | string
-  title: string
-  text: string
-  fields?: Array<{
-    title: string
-    value: string
-    short: boolean
-  }>
-  footer?: string
-  ts?: number // Unix timestamp
-}
-```
-
-## Database Schemas
-
-### api_requests Table
-
-```sql
-CREATE TABLE api_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  domain VARCHAR(255) NOT NULL,
-  account_id VARCHAR(255),
-  method VARCHAR(10) NOT NULL,
-  path VARCHAR(255) NOT NULL,
-  status_code INTEGER,
-  error_type VARCHAR(255),
-  error_message TEXT,
-  model VARCHAR(100),
-  request_type VARCHAR(50),
-  input_tokens INTEGER DEFAULT 0,
-  output_tokens INTEGER DEFAULT 0,
-  total_tokens INTEGER GENERATED ALWAYS AS (input_tokens + output_tokens) STORED,
-  response_time_ms INTEGER,
-  request_body JSONB,
-  response_body JSONB,
-  headers JSONB,
-  conversation_id UUID,
-  branch_id VARCHAR(50) DEFAULT 'main',
-  current_message_hash VARCHAR(64),
-  parent_message_hash VARCHAR(64),
-  is_subtask BOOLEAN DEFAULT FALSE,
-  parent_task_request_id UUID,
-  task_tool_invocation JSONB,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-### streaming_chunks Table
-
-```sql
-CREATE TABLE streaming_chunks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  request_id UUID NOT NULL REFERENCES api_requests(id),
-  chunk_index INTEGER NOT NULL,
-  content TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-## Type Utilities
-
-### Common Types
-
-```typescript
-// UUID v4 format
-type UUID = string
-
-// ISO 8601 datetime
-type ISODateTime = string
-
-// Domain name
-type Domain = string
-
-// Model identifier
-type ModelId = string
-
-// Account identifier
-type AccountId = string
-
-// Request types
-type RequestType = 'inference' | 'query_evaluation' | 'quota'
-
-// HTTP methods
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-
-// Status codes
-type StatusCode = number
-```
-
-### Validation Helpers
-
-```typescript
-// Validate UUID
-function isValidUUID(id: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  return uuidRegex.test(id)
-}
-
-// Validate domain
-function isValidDomain(domain: string): boolean {
-  const domainRegex = /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i
-  return domainRegex.test(domain)
-}
-
-// Validate model
-function isValidModel(model: string): boolean {
-  const validModels = [
-    'claude-3-opus-20240229',
-    'claude-3-sonnet-20240229',
-    'claude-3-haiku-20240307',
-    'claude-2.1',
-    'claude-2.0',
-    'claude-instant-1.2',
-  ]
-  return validModels.includes(model)
-}
-```
-
-## Next Steps
-
-- [API Reference](../02-User-Guide/api-reference.md)
-- [Authentication Guide](../02-User-Guide/authentication.md)
-- [Database Schema](../03-Operations/database.md)
+- [API Reference](../02-User-Guide/api-reference.md) - Complete API endpoint documentation
+- [Authentication Guide](../02-User-Guide/authentication.md) - Authentication setup and configuration
+- [Database Schema](../03-Operations/database.md) - Database tables and indexes
+- [TypeScript Types](../../packages/shared/src/types/) - Source code type definitions
