@@ -48,7 +48,23 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
   - Also deleted orphaned test data files: `inference_streaming_with_tools_with_system_opus-*.json`
   - Validated deletion plan with Gemini-2.5-pro (9/10 confidence)
   - Rationale: File violated architectural boundaries by importing from `services/proxy/src/`, tested outdated implementation, and duplicated existing test coverage
-  - Impact: Reduced technical debt, enforced correct architecture patterns, prevented confusion from outdated test patterns
+
+- **test/unit/slack-notification-filtering.test.ts refactoring**: Moved and rewrote NotificationService test
+  - Moved from `test/unit/slack-notification-filtering.test.ts` to `services/proxy/src/services/__tests__/NotificationService.test.ts`
+  - Completely rewrote test file to follow project patterns and improve coverage
+  - Previous issues addressed:
+    - Wrong location: Was in `test/unit/` instead of co-located with source code
+    - Incomplete coverage: Only tested basic ProxyRequest scenarios, not actual NotificationService methods
+    - Fragile imports: Used relative paths crossing service boundaries
+    - Missing core tests: No tests for `notify()`, `notifyError()`, or message formatting
+  - New test features:
+    - Comprehensive coverage of NotificationService functionality
+    - Mock-based testing without external dependencies
+    - Tests for request type filtering, message formatting, tool formatting, deduplication, and error handling
+    - Integration scenario tests to validate complete workflows
+  - Validated approach with Gemini-2.5-pro and o3-mini
+  - All 12 tests passing successfully
+  - Impact: Improved test coverage, enforced testing conventions, better maintainability
 
 - **test/unit/css-validation.test.ts consolidation**: Merged CSS validation tests into proper service test file
   - Merged CSS syntax validation tests from `test/unit/css-validation.test.ts` into `services/dashboard/src/layout/__tests__/styles.test.ts`
