@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-041: Claude CLI Docker Image Addition](./adr-041-claude-cli-docker-image.md)
+
+## Supersession Note
+
+This ADR has been superseded by ADR-041, which documents the current implementation of Claude CLI Docker integration. The implementation details and code examples in this document are outdated and should not be used. This document is preserved for historical context only.
 
 ## Context
 
@@ -50,56 +54,16 @@ The challenge was integrating a third-party CLI tool while maintaining security,
 
 We will provide **Docker-based Claude CLI integration** with pre-configured containers.
 
-### Implementation Details
+### Implementation Approach
 
-1. **Docker Service Configuration**:
+The implementation used Docker containers to provide:
 
-   ```yaml
-   services:
-     claude-cli:
-       image: ghcr.io/anthropics/claude-cli:latest
-       profiles: ['claude']
-       environment:
-         CLAUDE_API_URL: http://proxy:3000
-         CLAUDE_API_KEY: ${CLAUDE_CLI_API_KEY}
-       volumes:
-         - ./workspace:/workspace
-       working_dir: /workspace
-       stdin_open: true
-       tty: true
-   ```
+- Isolated CLI environment
+- Consistent cross-platform experience
+- Integration with proxy authentication
+- Volume mounts for file access
 
-2. **Authentication Flow**:
-
-   ```
-   CLI → Bearer Token → Proxy → Domain Resolution → Claude API
-   ```
-
-   - CLI uses standard Bearer authentication
-   - Proxy maps to localhost.credentials.json
-   - Token tracked under localhost domain
-
-3. **Usage Monitoring**:
-
-   ```typescript
-   // Additional monitoring for CLI usage
-   if (domain === 'localhost' && userAgent.includes('claude-cli')) {
-     metrics.trackCliUsage(request)
-   }
-   ```
-
-4. **Helper Commands**:
-
-   ```bash
-   # Interactive session
-   docker compose run --rm claude-cli claude
-
-   # Single command
-   docker compose run --rm claude-cli claude "Explain Docker"
-
-   # With file access
-   docker compose run --rm -v $(pwd):/workspace claude-cli claude "Review this code" /workspace/app.py
-   ```
+For current implementation details, see [ADR-041](./adr-041-claude-cli-docker-image.md).
 
 ## Consequences
 
@@ -129,57 +93,9 @@ We will provide **Docker-based Claude CLI integration** with pre-configured cont
   - **Mitigation**: Mount credentials read-only
   - **Mitigation**: Use environment variables for sensitive data
 
-## Implementation Notes
+## Historical Note
 
-- Introduced in PRs #17 and #19
-- Uses official ghcr.io/anthropics/claude-cli image
-- Integrated with docker-compose profiles
-- Includes usage monitoring script (monitor command)
-- Supports both interactive and batch modes
-
-## Usage Patterns
-
-1. **Interactive Development**:
-
-   ```bash
-   docker compose --profile claude up -d
-   docker compose exec claude-cli claude
-   ```
-
-2. **Script Integration**:
-
-   ```bash
-   echo "Explain this error: $ERROR" | \
-     docker compose run --rm claude-cli claude
-   ```
-
-3. **File Analysis**:
-   ```bash
-   docker compose run --rm \
-     -v $(pwd):/workspace \
-     claude-cli claude "Review" /workspace/src/
-   ```
-
-## Monitoring Integration
-
-- `ccusage` command for token statistics
-- `monitor` command for real-time tracking
-- Integration with proxy's token tracking
-- Appears in dashboard under localhost domain
-
-## Future Enhancements
-
-1. **Native Binary Distribution**: Package CLI with proxy
-2. **Web Terminal**: Browser-based CLI interface
-3. **Session Persistence**: Save CLI conversation state
-4. **Custom Commands**: Proxy-specific CLI features
-5. **Multi-User Support**: Separate CLI sessions per user
-
-## Links
-
-- [PR #17: Docker CLI Setup](https://github.com/your-org/claude-nexus-proxy/pull/17)
-- [PR #19: CLI Enhancements](https://github.com/your-org/claude-nexus-proxy/pull/19)
-- [Claude CLI Guide](../../02-User-Guide/claude-cli.md)
+This ADR documented the initial decision to integrate Claude CLI via Docker containers. The approach evolved and was refined in ADR-041, which contains the current implementation details and usage patterns.
 
 ---
 
