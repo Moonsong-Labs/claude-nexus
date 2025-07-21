@@ -64,4 +64,4 @@ The refactoring was validated by:
 
 - [Installation Guide](../../01-Getting-Started/installation.md)
 - [Docker Deployment Guide](../../03-Operations/deployment/docker.md)
-- [Quick Start Guide](../../00-Overview/quickstart.md)
+- ~~[Quick Start Guide](../../00-Overview/quickstart.md)~~ (Removed in favor of consolidated installation guide)

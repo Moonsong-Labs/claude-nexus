@@ -1,7 +1,9 @@
-# Documentation Moved
+# Quick Start
 
-The Quick Start guide has been moved to improve documentation organization.
+For quick start instructions, please see:
 
-Please see: [docs/00-Overview/quickstart.md](docs/00-Overview/quickstart.md)
+- **Local Development**: [Installation Guide](docs/01-Getting-Started/installation.md)
+- **Docker Deployment**: [Docker Compose Guide](docs/03-Operations/deployment/docker-compose.md)
+- **Production**: [Deployment Options](docs/03-Operations/deployment/)
 
 For the complete documentation index, visit: [docs/README.md](docs/README.md)

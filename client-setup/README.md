@@ -22,4 +22,4 @@ This directory should contain only non-sensitive example or template files in th
 ## Related Documentation
 
 - See `docker/claude-cli/README.md` for Claude CLI Docker setup
-- See `docs/00-Overview/quickstart.md` for quick start guide
+- See `docs/01-Getting-Started/installation.md` for installation guide

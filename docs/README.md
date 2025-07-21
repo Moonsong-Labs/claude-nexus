@@ -7,7 +7,6 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 ### 📚 [00-Overview](./00-Overview/)
 
 - [Architecture](./00-Overview/architecture.md) - System design and components
-- [Quick Start](./00-Overview/quickstart.md) - Get up and running in 5 minutes
 - [Features](./00-Overview/features.md) - Complete feature list and capabilities
 
 ### 🚀 [01-Getting Started](./01-Getting-Started/)
@@ -54,7 +53,7 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 
 ## Quick Links
 
-- **Need help getting started?** → [Quick Start Guide](./00-Overview/quickstart.md)
+- **Need help getting started?** → [Installation Guide](./01-Getting-Started/installation.md)
 - **Setting up authentication?** → [Authentication Guide](./02-User-Guide/authentication.md)
 - **Deploying to production?** → [Deployment Guide](./03-Operations/deployment/)
 - **Having issues?** → [Troubleshooting](./05-Troubleshooting/common-issues.md)

@@ -247,8 +247,8 @@ Comprehensive documentation is available in the [docs](docs/) directory:
 
 ### 📚 Getting Started
 
-- [Quick Start Guide](docs/00-Overview/quickstart.md) - Get up and running in 5 minutes
-- [Installation](docs/01-Getting-Started/installation.md) - Detailed installation instructions
+- [Installation Guide](docs/01-Getting-Started/installation.md) - Local development setup
+- [Docker Deployment](docs/03-Operations/deployment/docker-compose.md) - Production deployment
 - [Configuration](docs/01-Getting-Started/configuration.md) - All configuration options
 
 ### 🔧 User Guides
