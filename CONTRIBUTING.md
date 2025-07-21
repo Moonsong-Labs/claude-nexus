@@ -8,7 +8,7 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 
 ## Getting Started
 
-1. Fork the repository
+1. Fork the repository from https://github.com/moonsong-labs/claude-nexus-proxy
 2. Clone your fork: `git clone https://github.com/yourusername/claude-nexus-proxy.git`
 3. Create a feature branch: `git checkout -b feature/your-feature-name`
 4. Make your changes
@@ -16,7 +16,7 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 
 ## Development Setup
 
-See [Development Guide](docs/DEVELOPMENT.md) for detailed setup instructions.
+See [Development Guide](docs/01-Getting-Started/development.md) for detailed setup instructions.
 
 Quick start:
 
@@ -52,11 +52,16 @@ The project uses Husky for automated pre-commit checks. These are installed auto
    bun run format
    ```
 
-3. **Test**: Run the test suite
+3. **Test**: Run the appropriate test suite
 
    ```bash
-   bun test
+   bun test              # All tests
+   bun test:unit        # Unit tests only
+   bun test:integration # Integration tests
+   bun test:coverage    # With coverage report
    ```
+
+   See `package.json` for all available test commands.
 
 4. **Documentation**: Update relevant documentation for new features
 
@@ -103,6 +108,7 @@ docs: update API reference for new endpoints
 - Keep shared types in `packages/shared`
 - Use dependency injection for testability
 - Follow single responsibility principle
+- Use TypeScript Project References for monorepo management (see [ADR-013](docs/04-Architecture/ADRs/adr-013-typescript-project-references.md))
 
 ### Performance Considerations
 
@@ -126,6 +132,8 @@ docs: update API reference for new endpoints
 2. Use transaction for safety
 3. Include rollback strategy
 4. Test on development database first
+
+See [ADR-012](docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md) for schema evolution strategy.
 
 ### UI Components
 
@@ -194,21 +202,7 @@ Include:
 
 ## Security
 
-### Reporting Security Issues
-
-**Do not** open public issues for security vulnerabilities. Instead:
-
-1. Email security concerns to [security contact]
-2. Include detailed description
-3. Wait for response before disclosure
-
-### Security Best Practices
-
-- Never commit credentials or secrets
-- Validate all user input
-- Use parameterized queries
-- Keep dependencies updated
-- Follow principle of least privilege
+For security vulnerabilities, please see our [Security Policy](SECURITY.md).
 
 ## Review Process
 
@@ -235,10 +229,17 @@ Contributors will be:
 - Added to contributors list
 - Thanked in project documentation
 
+## Additional Resources
+
+- [CLAUDE.md](CLAUDE.md) - Instructions for AI assistants working with this codebase
+- [GROOMING.md](GROOMING.md) - Code quality and maintenance guidelines
+- [Architecture Documentation](docs/04-Architecture/)
+- [ADRs](docs/04-Architecture/ADRs/) - Architectural Decision Records
+
 ## Questions?
 
-- Open a discussion for general questions
+- Open a GitHub issue for bugs or feature requests
+- Start a GitHub discussion for general questions
 - Check existing issues and discussions first
-- Join our community chat [if applicable]
 
 Thank you for contributing to Claude Nexus Proxy!
