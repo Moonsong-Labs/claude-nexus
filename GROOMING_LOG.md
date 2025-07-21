@@ -1,5 +1,42 @@
 # Grooming Log
 
+## 2025-01-21: Claude CLI User Guide Refactoring
+
+### File: `docs/02-User-Guide/claude-cli.md`
+
+#### Action: REFACTORED
+
+#### Changes Made:
+
+1. **Reduced from 199 to 75 lines** (62% reduction) following ADR-022 DRY principle
+2. **Removed ~70% duplicated content** with `docker/claude-cli/README.md`
+3. **Fixed all commands** to use correct tools (`./docker-up.sh`, `./claude`)
+4. **Removed references to non-existent scripts** (`claude-with-logs.sh`, `view-claude-logs.sh`)
+5. **Added prominent `./claude` helper script** as recommended approach
+6. **Streamlined to quick-start guide** with links to comprehensive docs
+
+#### Rationale:
+
+- Violated ADR-022 documentation strategy (DRY principle)
+- Contained incorrect commands that would fail for users
+- Referenced scripts that don't exist in the repository
+- Duplicated technical details available in docker/claude-cli/README.md
+- Missing the most convenient helper script (`./claude`)
+
+#### Validation:
+
+- Gemini-2.5-pro: 10/10 confidence, "model example of effective documentation grooming"
+- O3-mini: Confirmed alignment with DRY principle and best practices
+
+#### Impact:
+
+- **User Experience**: Accurate, concise quick-start guide
+- **Maintenance**: Single source of truth for technical details
+- **Consistency**: Follows project documentation standards
+- **Accuracy**: All commands now work correctly
+
+---
+
 ## 2025-01-20: Claude PR Assistant Workflow Removal
 
 ### File: `.github/workflows/claude.yml`
