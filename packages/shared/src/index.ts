@@ -57,6 +57,17 @@ export {
   createRateLimitAwareRetry,
 } from './utils/retry.js'
 
+// Export circuit breaker utilities
+export {
+  CircuitBreaker,
+  CircuitState,
+  CircuitBreakerConfig,
+  CircuitBreakerLogger,
+  RequestOutcome,
+  getCircuitBreaker,
+  isCircuitBreakerError,
+} from './utils/circuit-breaker.js'
+
 // Export model limits configuration
 export {
   MODEL_CONTEXT_RULES,
