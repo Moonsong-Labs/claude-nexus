@@ -32,6 +32,18 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2025-07-21
 
+- **ADR-017 grooming**: Enhanced MCP Prompt Sharing Implementation documentation
+  - Added acceptance date (2024-12-10) and updated status to "Accepted and Implemented"
+  - Enhanced context section with clear problem statement
+  - Added comprehensive "Alternatives Considered" section documenting why file-based approach was chosen over database-backed (ADR-016)
+  - Improved consequences section with more detailed positive/negative impacts
+  - Added implementation details section referencing key source files
+  - Updated references to remove potentially broken GitHub PR links
+  - Added both Mermaid and ASCII diagrams for better architecture visualization
+  - Validated with Gemini-2.5-pro and O3-mini - aligned with Michael Nygard's ADR best practices
+  - Rationale: Improves documentation clarity, provides better decision traceability, follows ADR standards
+  - Impact: Better understanding of architectural decisions, clearer guidance for maintainers
+
 - **.github directory cleanup**: Streamlined CI/CD workflows for production readiness
   - Deleted `.github/workflows/typecheck.yml` - Functionality duplicated in code-quality.yml
   - Deleted `.github/PRETTIER_CI_SETUP.md` - Referenced non-existent auto-format.yml workflow
