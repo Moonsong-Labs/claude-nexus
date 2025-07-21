@@ -4,18 +4,89 @@ Protect your Claude Nexus Proxy data with comprehensive backup and disaster reco
 
 ## Overview
 
-Critical data to backup:
+This guide is organized into two main sections:
+
+1. **Available Tools** - Backup utilities that are implemented and ready to use
+2. **Implementation Templates** - Shell script examples and patterns for building comprehensive backup strategies
+
+### What's Currently Available
+
+✅ **Database Backup Utility** (`scripts/db/backup-database.ts`)
+
+- Full database backups to SQL files or backup databases
+- Time-based filtering for recent data
+- Secure TypeScript implementation
+
+✅ **Copy Conversation Utility** (`scripts/copy-conversation.ts`)
+
+- Selective conversation copying between databases
+- Dry-run mode for safety
+- Cross-database migration support
+
+❌ **Not Yet Implemented** (see templates below)
+
+- Automated daily backup scripts
+- Backup monitoring and alerting
+- Automated recovery scripts
+- Disaster recovery orchestration
+
+### Critical Data to Backup
 
 - PostgreSQL database (requests, responses, conversations)
 - Credential files (API keys, OAuth tokens)
 - Configuration files (.env, custom configs)
 - Docker volumes (if using Docker)
 
-## Backup Strategies
+## Available Backup Tools
 
-### Database Backups
+### Database Backup Utility
 
-#### Manual Backup
+The project includes a TypeScript-based database backup utility that provides:
+
+- Full database backups to SQL files or backup databases
+- Time-based filtering for recent data
+- Secure implementation without shell injection risks
+
+#### Usage Examples
+
+```bash
+# Create a backup database with timestamp
+bun run scripts/db/backup-database.ts
+
+# Create backup with custom name
+bun run scripts/db/backup-database.ts --name=backup_prod_20240120
+
+# Export to SQL file
+bun run scripts/db/backup-database.ts --file
+bun run scripts/db/backup-database.ts --file=backup.sql
+
+# Backup recent data only
+bun run scripts/db/backup-database.ts --since="1 day"
+bun run scripts/db/backup-database.ts --since="2024-01-01" --file
+```
+
+### Copy Conversation Utility
+
+For selective data migration:
+
+```bash
+# Copy specific conversation to another database
+bun run scripts/copy-conversation.ts \
+  --conversation-id=123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db="postgresql://user:pass@backup-server:5432/backup_db"
+
+# Dry run to preview
+bun run scripts/copy-conversation.ts \
+  --conversation-id=123e4567-e89b-12d3-a456-426614174000 \
+  --dest-db="postgresql://backup-db-url" \
+  --dry-run
+```
+
+See [Copy Conversation Documentation](./utilities/copy-conversation.md) for details.
+
+## Manual Backup Commands
+
+### Direct PostgreSQL Commands
 
 ```bash
 # Direct PostgreSQL backup
@@ -28,13 +99,17 @@ docker compose exec -T postgres pg_dump -U postgres claude_nexus > backup-$(date
 docker compose exec -T postgres pg_dump -U postgres claude_nexus | gzip > backup-$(date +%Y%m%d-%H%M%S).sql.gz
 ```
 
-#### Automated Daily Backups
+## Implementation Templates
 
-Create backup script:
+> **Note**: The following sections provide shell script templates for implementing comprehensive backup strategies. These scripts are examples that you can adapt to your specific environment and requirements.
+
+### Automated Daily Backup Template
+
+Create a backup script based on this template:
 
 ```bash
 #!/bin/bash
-# /scripts/backup-daily.sh
+# backup-daily.sh - Template for automated daily backups
 
 BACKUP_DIR="/backups/daily"
 RETENTION_DAYS=7
@@ -44,13 +119,14 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 # Create backup directory
 mkdir -p $BACKUP_DIR
 
-# Backup database
+# Backup database using the TypeScript utility
 echo "Starting database backup..."
-pg_dump -h localhost -U postgres -d $DB_NAME | gzip > $BACKUP_DIR/db-$TIMESTAMP.sql.gz
+bun run scripts/db/backup-database.ts --file=$BACKUP_DIR/db-$TIMESTAMP.sql
+gzip $BACKUP_DIR/db-$TIMESTAMP.sql
 
-# Backup credentials
+# Backup credentials (ensure encryption!)
 echo "Backing up credentials..."
-tar -czf $BACKUP_DIR/credentials-$TIMESTAMP.tar.gz ./credentials/
+tar -czf - ./credentials/ | openssl enc -aes-256-cbc -salt -out $BACKUP_DIR/credentials-$TIMESTAMP.tar.gz.enc
 
 # Backup configuration
 echo "Backing up configuration..."
@@ -67,27 +143,32 @@ Schedule with cron:
 
 ```bash
 # Add to crontab
-0 2 * * * /path/to/scripts/backup-daily.sh >> /var/log/claude-backup.log 2>&1
+0 2 * * * /path/to/backup-daily.sh >> /var/log/claude-backup.log 2>&1
 ```
 
-#### Continuous Archiving (WAL)
+### PostgreSQL WAL Configuration
 
-For point-in-time recovery:
+For point-in-time recovery, configure PostgreSQL's Write-Ahead Logging:
 
 ```bash
-# postgresql.conf
+# postgresql.conf example settings
 archive_mode = on
 archive_command = 'cp %p /backup/wal/%f'
 wal_level = replica
 ```
 
-### Credential Backups
+> **Note**: This requires PostgreSQL server configuration access and additional setup.
 
-#### Secure Credential Backup
+### Credential Security
+
+**⚠️ IMPORTANT**: Never store credentials in plain text backups. Always encrypt sensitive data.
+
+#### Secure Credential Backup Template
 
 ```bash
 #!/bin/bash
-# Encrypt credentials before backup
+# secure-backup-credentials.sh - Template for encrypted credential backup
+
 BACKUP_FILE="credentials-backup-$(date +%Y%m%d).tar.gz.enc"
 
 # Create encrypted backup
@@ -95,42 +176,45 @@ tar -czf - credentials/ | openssl enc -aes-256-cbc -salt -out $BACKUP_FILE
 
 # Store encryption key separately
 echo "Backup created: $BACKUP_FILE"
-echo "Store encryption password securely!"
+echo "⚠️  Store encryption password in a secure password manager!"
 ```
 
-#### Version Control for Credentials
+#### Version Control for Credentials (Local Only)
 
 ```bash
-# Initialize git repo for credentials (local only)
+# NEVER push credentials to remote repositories
 cd credentials/
 git init
-echo "*.credentials.json" > .gitignore
+echo "*.credentials.json" >> .gitignore
+echo "*.enc" >> .gitignore
 git add .gitignore
-git commit -m "Initial commit"
+git commit -m "Initial commit - gitignore only"
 
-# Track changes
+# Track changes locally
 git add -A
 git commit -m "Updated credentials $(date)"
 ```
 
-### Configuration Backups
+### Configuration Backup Template
 
 ```bash
 #!/bin/bash
-# Backup all configuration files
+# backup-config.sh - Template for configuration backup
+
 CONFIG_BACKUP_DIR="/backups/config"
 mkdir -p $CONFIG_BACKUP_DIR
 
 # Backup files
 cp .env $CONFIG_BACKUP_DIR/.env.$(date +%Y%m%d)
 cp docker-compose.yml $CONFIG_BACKUP_DIR/
-cp -r scripts/ $CONFIG_BACKUP_DIR/
+cp -r docker/ $CONFIG_BACKUP_DIR/
 
 # Create manifest
 cat > $CONFIG_BACKUP_DIR/manifest.txt << EOF
 Backup Date: $(date)
 Environment: $(hostname)
 Services: proxy, dashboard
+Git Commit: $(git rev-parse HEAD 2>/dev/null || echo "not in git repo")
 EOF
 ```
 
@@ -170,30 +254,42 @@ rsync -avz --delete /backups/ user@backup-server:/remote/backups/claude-nexus/
 
 ### Database Recovery
 
-#### Full Recovery
+#### Full Recovery from TypeScript Backup
 
 ```bash
-# Stop services
+# If you created a backup database
+# 1. Stop services
 docker compose down
 
-# Drop and recreate database
-docker compose exec postgres dropdb -U postgres claude_nexus
-docker compose exec postgres createdb -U postgres claude_nexus
+# 2. Connect to the backup database
+export DATABASE_URL="postgresql://user:pass@localhost:5432/claude_nexus_backup_20240120_143022"
 
-# Restore from backup
-gunzip -c backup-20240101-020000.sql.gz | docker compose exec -T postgres psql -U postgres claude_nexus
+# 3. Or restore from SQL file
+gunzip -c claude_nexus_backup_20240120_143022.sql.gz | \
+  docker compose exec -T postgres psql -U postgres claude_nexus
 
-# Restart services
+# 4. Restart services
 docker compose up -d
 ```
 
 #### Selective Recovery
 
+Use the copy-conversation utility for selective data recovery:
+
+```bash
+# Copy specific conversations from backup
+bun run scripts/copy-conversation.ts \
+  --conversation-id=<uuid> \
+  --dest-db="$DATABASE_URL"
+```
+
+#### Manual Recovery Commands
+
 ```bash
 # Extract specific tables
 pg_restore -t api_requests -d claude_nexus backup.sql
 
-# Recovery specific time range
+# Export specific time range
 psql claude_nexus -c "
   COPY (
     SELECT * FROM api_requests
@@ -205,168 +301,173 @@ psql claude_nexus -c "
 ### Credential Recovery
 
 ```bash
-# Decrypt credential backup
+# Decrypt credential backup (you'll be prompted for password)
 openssl enc -d -aes-256-cbc -in credentials-backup-20240101.tar.gz.enc | tar -xzf -
 
 # Restore to credentials directory
-mv credentials/* /app/credentials/
+cp -i credentials/*.json ./credentials/
 
 # Verify permissions
-chmod 600 /app/credentials/*.json
+chmod 600 ./credentials/*.json
+
+# Verify structure
+ls -la ./credentials/
 ```
 
-### Point-in-Time Recovery
+### Point-in-Time Recovery (Advanced)
+
+> **Note**: This is an advanced PostgreSQL feature requiring WAL archiving setup.
 
 ```bash
-# Using WAL archives
-# 1. Restore base backup
-psql -U postgres -c "SELECT pg_stop_backup();"
-rm -rf /var/lib/postgresql/data/*
-tar -xzf base-backup.tar.gz -C /var/lib/postgresql/data/
+# Example PITR process (requires WAL archives)
+# 1. Stop PostgreSQL and restore base backup
+# 2. Configure recovery parameters
+# 3. PostgreSQL will replay WAL files to target time
 
-# 2. Configure recovery
-cat > /var/lib/postgresql/data/recovery.conf << EOF
-restore_command = 'cp /backup/wal/%f %p'
-recovery_target_time = '2024-01-15 14:30:00'
-recovery_target_action = 'promote'
-EOF
-
-# 3. Start PostgreSQL
-pg_ctl start
+# See PostgreSQL documentation for complete PITR setup:
+# https://www.postgresql.org/docs/current/continuous-archiving.html
 ```
 
-## Disaster Recovery Plan
+## Disaster Recovery Guidelines
 
-### Recovery Time Objectives
+### Recovery Objectives
 
-- **RTO** (Recovery Time Objective): 1 hour
-- **RPO** (Recovery Point Objective): 24 hours
+- **RTO** (Recovery Time Objective): Target based on your SLA
+- **RPO** (Recovery Point Objective): Depends on backup frequency
 
-### DR Procedures
+### Basic Recovery Steps
 
-#### 1. Assessment Phase (15 minutes)
+1. **Assess the Situation**
+   - Check service health: `docker compose ps`
+   - Check database connectivity: `psql $DATABASE_URL -c "SELECT 1"`
+   - Review logs: `docker compose logs --tail=100`
 
-```bash
-# Check service status
-./scripts/health-check.sh
+2. **Identify Recovery Path**
 
-# Identify failure scope
-- Database corruption?
-- Credential loss?
-- Service failure?
-- Complete system loss?
-```
+   ```
+   Is database accessible?
+   ├── Yes: Check service configuration
+   └── No:
+       ├── Recent backup available?
+       │   ├── Yes: Restore from backup
+       │   └── No: Check for WAL/transaction logs
+       └── Credentials intact?
+           ├── Yes: Continue recovery
+           └── No: Restore encrypted credentials
+   ```
 
-#### 2. Recovery Decision (5 minutes)
+3. **Execute Recovery**
 
-Decision tree:
+   ```bash
+   # Stop services
+   docker compose down
 
-```
-Is database accessible?
-├── Yes: Proceed to service recovery
-└── No:
-    ├── Recent backup available?
-    │   ├── Yes: Full database recovery
-    │   └── No: Point-in-time recovery
-    └── Credentials intact?
-        ├── Yes: Continue recovery
-        └── No: Restore credentials first
-```
+   # Restore database from latest backup
+   bun run scripts/db/backup-database.ts --file=latest_backup.sql
+   gunzip -c latest_backup.sql.gz | psql $DATABASE_URL
 
-#### 3. Recovery Execution (30-40 minutes)
+   # Restore credentials if needed
+   # (decrypt from secure backup)
 
-```bash
-# Step 1: Stop all services
-docker compose down
+   # Restart services
+   docker compose up -d
 
-# Step 2: Restore database
-./scripts/restore-database.sh --latest
+   # Verify
+   docker compose ps
+   curl http://localhost:3000/health
+   ```
 
-# Step 3: Restore credentials
-./scripts/restore-credentials.sh --encrypted
+### Recovery Automation Templates
 
-# Step 4: Verify configuration
-./scripts/verify-config.sh
+> **Note**: These are templates for creating your own automated recovery scripts.
 
-# Step 5: Start services
-docker compose up -d
-
-# Step 6: Verify recovery
-./scripts/post-recovery-check.sh
-```
-
-### Automated Recovery
+#### Health Check Template
 
 ```bash
 #!/bin/bash
-# auto-recovery.sh
-set -e
+# health-check.sh - Template for service health monitoring
 
-echo "Starting automated recovery..."
+SERVICES=("proxy" "dashboard" "postgres")
+FAILED=0
 
-# Check if manual recovery is needed
-if [ -f /tmp/manual-recovery-required ]; then
-    echo "Manual intervention required. Exiting."
+for service in "${SERVICES[@]}"; do
+    if ! docker compose ps | grep -q "$service.*Up"; then
+        echo "❌ $service is down"
+        FAILED=$((FAILED + 1))
+    else
+        echo "✅ $service is running"
+    fi
+done
+
+if [ $FAILED -gt 0 ]; then
+    echo "⚠️  $FAILED services need attention"
+    exit 1
+fi
+```
+
+## Testing Your Backups
+
+### Testing Database Backups
+
+```bash
+# Create a test backup
+bun run scripts/db/backup-database.ts --name=test_backup
+
+# Verify backup was created
+psql $DATABASE_URL -c "SELECT datname FROM pg_database WHERE datname LIKE '%test_backup%'"
+
+# Test restoration to a new database
+export TEST_DB_URL="postgresql://user:pass@localhost:5432/claude_nexus_test"
+bun run scripts/db/backup-database.ts --file=test_backup.sql
+psql $TEST_DB_URL < test_backup.sql
+
+# Verify data
+psql $TEST_DB_URL -c "SELECT COUNT(*) FROM api_requests"
+
+# Cleanup
+psql $DATABASE_URL -c "DROP DATABASE IF EXISTS claude_nexus_test"
+```
+
+### Recovery Testing Template
+
+```bash
+#!/bin/bash
+# test-recovery.sh - Template for testing recovery procedures
+
+# Test backup creation
+echo "Testing backup creation..."
+bun run scripts/db/backup-database.ts --file=test_backup.sql
+
+if [ -f test_backup.sql ]; then
+    echo "✅ Backup created successfully"
+    # Test file size
+    SIZE=$(stat -f%z test_backup.sql 2>/dev/null || stat -c%s test_backup.sql)
+    echo "📊 Backup size: $((SIZE / 1024 / 1024)) MB"
+else
+    echo "❌ Backup creation failed"
     exit 1
 fi
 
-# Attempt automatic recovery
-if ! systemctl is-active --quiet postgresql; then
-    echo "PostgreSQL down, attempting restart..."
-    systemctl restart postgresql
-    sleep 10
-fi
-
-if ! curl -f http://localhost:3000/health > /dev/null 2>&1; then
-    echo "Proxy unhealthy, restarting..."
-    docker compose restart proxy
-fi
-
-echo "Recovery attempt completed"
-```
-
-## Testing Backups
-
-### Monthly Backup Tests
-
-```bash
-#!/bin/bash
-# test-recovery.sh
-
-# Create test environment
-docker compose -f docker-compose.test.yml up -d
-
-# Restore latest backup
-LATEST_BACKUP=$(ls -t /backups/daily/db-*.sql.gz | head -1)
-gunzip -c $LATEST_BACKUP | docker compose -f docker-compose.test.yml exec -T postgres psql -U postgres claude_nexus_test
-
-# Verify data integrity
-docker compose -f docker-compose.test.yml exec postgres psql -U postgres claude_nexus_test -c "
-  SELECT COUNT(*) as request_count,
-         MAX(created_at) as latest_request
-  FROM api_requests;
-"
-
 # Cleanup
-docker compose -f docker-compose.test.yml down -v
+rm -f test_backup.sql
 ```
 
-### Recovery Drills
+### Recommended Testing Schedule
 
-Schedule quarterly drills:
+1. **Weekly**: Verify backup script execution
+2. **Monthly**: Test restoration to development environment
+3. **Quarterly**: Full disaster recovery drill
+4. **Annually**: Review and update recovery procedures
 
-1. **Scenario 1**: Database corruption
-2. **Scenario 2**: Credential loss
-3. **Scenario 3**: Complete system failure
-4. **Scenario 4**: Partial data loss
+## Backup Monitoring Templates
 
-## Backup Monitoring
+### Backup History Tracking
 
-### Backup Verification
+> **Note**: If you want to track backup history in the database, you can create this table:
 
 ```sql
--- Track backup history
-CREATE TABLE backup_history (
+-- Optional: Track backup history
+CREATE TABLE IF NOT EXISTS backup_history (
     id SERIAL PRIMARY KEY,
     backup_type VARCHAR(50),
     backup_path TEXT,
@@ -375,32 +476,33 @@ CREATE TABLE backup_history (
     status VARCHAR(20),
     created_at TIMESTAMP DEFAULT NOW()
 );
-
--- Check recent backups
-SELECT
-    backup_type,
-    COUNT(*) as count,
-    MAX(created_at) as latest,
-    AVG(duration_seconds) as avg_duration
-FROM backup_history
-WHERE created_at > NOW() - INTERVAL '7 days'
-GROUP BY backup_type;
 ```
 
-### Alerts
+### Monitoring Script Template
 
 ```bash
-# Alert on backup failure
-if ! ./scripts/backup-daily.sh; then
-    curl -X POST $SLACK_WEBHOOK_URL \
-        -H 'Content-type: application/json' \
-        -d '{"text":"⚠️ Claude Nexus backup failed!"}'
-fi
+#!/bin/bash
+# monitor-backups.sh - Template for backup monitoring
 
-# Alert on old backups
-LATEST_BACKUP_AGE=$(find /backups/daily -name "db-*.sql.gz" -mtime -1 | wc -l)
-if [ $LATEST_BACKUP_AGE -eq 0 ]; then
-    echo "WARNING: No recent backups found!"
+# Check for recent backups
+BACKUP_DIR="/backups/daily"
+MAX_AGE_HOURS=26  # Alert if no backup in 26 hours
+
+# Find backups created in the last MAX_AGE_HOURS
+RECENT_BACKUPS=$(find $BACKUP_DIR -name "*.sql.gz" -mmin -$((MAX_AGE_HOURS * 60)) 2>/dev/null | wc -l)
+
+if [ $RECENT_BACKUPS -eq 0 ]; then
+    echo "⚠️  WARNING: No backups found in the last $MAX_AGE_HOURS hours!"
+
+    # Send alert (implement your notification method)
+    # Example with Slack webhook:
+    if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        curl -X POST $SLACK_WEBHOOK_URL \
+            -H 'Content-type: application/json' \
+            -d '{"text":"⚠️ Claude Nexus: No recent backups found!"}'
+    fi
+else
+    echo "✅ Found $RECENT_BACKUPS recent backup(s)"
 fi
 ```
 
@@ -435,12 +537,21 @@ fi
 - [ ] Execute recovery procedure
 - [ ] Verify data integrity
 - [ ] Test service functionality
-- [ ] Update documentation
-- [ ] Conduct post-mortem
+- [ ] Document lessons learned
+- [ ] Update recovery procedures based on experience
 
 ## Next Steps
 
-- [Review security practices](./security.md)
-- [Set up monitoring](./monitoring.md)
-- [Configure high availability](./deployment/docker-compose.md)
-- [Plan capacity](../04-Architecture/internals.md)
+### Immediate Actions
+
+1. **Test the backup utility**: Run `bun run scripts/db/backup-database.ts --help`
+2. **Create your first backup**: Use the TypeScript utility to create a backup
+3. **Set up automated backups**: Adapt the templates above for your environment
+4. **Test recovery**: Practice restoring from backup in a test environment
+
+### Related Documentation
+
+- [Copy Conversation Utility](./utilities/copy-conversation.md) - For selective data migration
+- [Security Best Practices](./security.md) - Secure your backups
+- [Monitoring Setup](./monitoring.md) - Monitor backup health
+- [Database Schema](../04-Architecture/internals.md#database-schema) - Understand data structure
