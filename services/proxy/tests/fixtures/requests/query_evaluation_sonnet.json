@@ -1,0 +1,31 @@
+{
+  "timestamp": "2025-06-18T12:26:55.489Z",
+  "method": "POST",
+  "path": "/v1/messages",
+  "headers": {
+    "accept": "*/*",
+    "authorization": "Bearer ****",
+    "content-length": "128",
+    "content-type": "application/json",
+    "host": "localhost:3000",
+    "user-agent": "curl/8.5.0"
+  },
+  "body": {
+    "model": "claude-3-sonnet-20240229",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello"
+      }
+    ],
+    "max_tokens": 100
+  },
+  "queryParams": {},
+  "metadata": {
+    "requestType": "query_evaluation",
+    "isStreaming": false,
+    "hasTools": false,
+    "modelUsed": "claude-3-sonnet-20240229",
+    "messageCount": 1
+  }
+}

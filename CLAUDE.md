@@ -489,6 +489,8 @@ The proxy can collect real request samples for test development:
 - Each request type gets its own file (e.g., `inference_streaming_opus.json`)
 - Sensitive data is automatically masked
 - Samples include headers, body, and metadata
+- **Important**: The `test-samples/` directory is gitignored and should NOT be committed to the repository
+- For test fixtures, use curated samples in `services/proxy/tests/fixtures/`
 
 **Tests:**
 

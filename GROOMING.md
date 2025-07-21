@@ -2261,3 +2261,44 @@ The changelog is a critical user-facing document that was suffering from:
 - O3-mini: Confirmed approach and suggested additional improvements (Deprecated section, version compare links)
 - Maintained Keep a Changelog format compliance
 - Enhanced user value while reducing maintenance burden
+
+### 2025-07-21 - Test Samples Directory Cleanup
+
+**Files Deleted:**
+
+- `services/proxy/test-samples/` directory (135 files, 25MB)
+
+**Files Created:**
+
+- `services/proxy/tests/fixtures/inference/streaming_with_tools_success.json`
+- `services/proxy/tests/fixtures/inference/non_streaming_with_tools.json`
+- `services/proxy/tests/fixtures/requests/query_evaluation_sonnet.json`
+
+**Rationale:**
+
+1. **Anti-pattern Cleanup** - The test-samples directory contained 135 auto-generated files that were already gitignored
+2. **Repository Hygiene** - 25MB of generated test data doesn't belong in version control
+3. **Technical Debt** - Having 93 nearly identical test files for one scenario was unmaintainable
+4. **Best Practice** - Created 3 curated test fixtures representing key scenarios (success, non-streaming, query evaluation)
+
+**Consensus Decision:**
+
+Both Gemini 2.5 Pro and O3-mini unanimously validated the approach:
+
+- Gemini recommended creating 2-3 curated fixtures instead of a single one
+- O3-mini confirmed this leads to better focused testing and reduced overhead
+- Both emphasized that generated artifacts should never be in version control
+
+**Changes Made:**
+
+1. Created curated test fixtures in proper `tests/fixtures/` directory structure
+2. Deleted entire `test-samples/` directory (already gitignored)
+3. Updated CLAUDE.md documentation to clarify test sample collection feature
+4. Added warning that test-samples should NOT be committed
+
+**Impact:**
+
+- Cleaner repository without 25MB of unnecessary data
+- Clear separation between generated samples and curated test fixtures
+- Better documentation prevents future confusion
+- Improved test maintainability with intentionally designed fixtures
