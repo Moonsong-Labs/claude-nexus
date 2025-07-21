@@ -1,198 +1,83 @@
 # Claude CLI Integration
 
-This document describes how to use Claude CLI with the Claude Nexus Proxy.
+Use Claude CLI with the Claude Nexus Proxy for tracked usage and monitoring.
 
-## Overview
+## Quick Start
 
-The Claude Nexus Proxy includes a Docker service that runs Claude CLI connected to your local proxy. This allows you to:
-
-- Use Claude CLI with your proxy configuration
-- Track usage through the proxy's monitoring
-- Apply any proxy-level features (rate limiting, logging, etc.)
-
-## Setup
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Claude API key configured in your environment
-
-### Running Claude CLI
-
-1. Start the proxy and Claude CLI services:
+### Using the Helper Script (Recommended)
 
 ```bash
-docker compose --profile dev --profile claude up -d
+# Run Claude from anywhere in the project
+./claude "What is the purpose of this project?"
+
+# Interactive mode
+./claude
 ```
 
-2. Access Claude CLI interactively:
+### Using Docker Commands
 
 ```bash
-docker compose exec claude-cli claude
+# Start services
+./docker-up.sh up -d
+
+# Access Claude CLI
+./docker-up.sh exec claude-cli claude "Your query here"
+
+# View token usage
+./docker-up.sh exec claude-cli ccusage daily
 ```
 
-3. Or run a single command:
+## Common Usage Patterns
+
+### Analyze Code
 
 ```bash
-docker compose exec claude-cli claude "Write a hello world in Python"
+./claude "Review the code in services/proxy/src/app.ts"
 ```
 
-## Configuration
-
-The Claude CLI service is configured to:
-
-- Connect to the proxy at `http://proxy:3000/v1`
-- Use Bearer token authentication with your API key
-- Mount the project directory as `/workspace` for file access
-
-### Environment Variables
-
-- API key is provided through domain credential files in the `credentials/` directory
-
-## How It Works
-
-1. The Claude CLI Docker container starts with the official `@anthropic-ai/claude-code` package
-2. A setup script configures Claude to use the proxy endpoint
-3. Authentication is handled via Bearer token using your API key
-4. All requests go through the proxy, enabling monitoring and tracking
-
-## File Access
-
-The entire project directory is mounted at `/workspace` in the container, allowing Claude to:
-
-- Read and analyze your code
-- Generate files
-- Access project documentation
-
-## Examples
-
-### Interactive Session
+### Monitor Token Usage
 
 ```bash
-docker compose exec claude-cli claude
+# Real-time monitoring
+./docker-up.sh exec claude-cli monitor
+
+# Usage reports
+./docker-up.sh exec claude-cli ccusage weekly
 ```
 
-### Single Command
+### Work with Files
+
+The project directory is mounted at `/workspace` in the container:
 
 ```bash
-docker compose exec claude-cli claude "Explain the proxy architecture"
-```
-
-### With File Context
-
-```bash
-docker compose exec claude-cli claude "Review the code in /workspace/services/proxy/src/app.ts"
-```
-
-### Query with Automatic Log Display
-
-```bash
-# Use the helper script to run a query and see logs
-./scripts/claude-with-logs.sh "What is the purpose of this project?"
-```
-
-## Helper Scripts
-
-### view-claude-logs.sh
-
-View and filter proxy logs:
-
-```bash
-# Show help
-./scripts/view-claude-logs.sh --help
-
-# Follow logs in real-time
-./scripts/view-claude-logs.sh -f
-
-# Show only errors
-./scripts/view-claude-logs.sh -e
-
-# Show API requests
-./scripts/view-claude-logs.sh -r
-
-# Show authentication logs
-./scripts/view-claude-logs.sh -a
-```
-
-### claude-with-logs.sh
-
-Run Claude queries and automatically display relevant logs:
-
-```bash
-./scripts/claude-with-logs.sh "Your query here"
+./claude "Analyze the architecture in /workspace/docs"
 ```
 
 ## Troubleshooting
 
-### Viewing Proxy Logs
+### Claude not connecting?
 
-To debug issues with Claude queries, you can view the proxy logs:
+- Check services: `./docker-up.sh ps`
+- View logs: `./docker-up.sh logs claude-cli`
 
-```bash
-# View all proxy logs
-docker compose logs proxy
+### Authentication issues?
 
-# Follow logs in real-time
-docker compose logs -f proxy
+- Verify credentials exist: `ls -la credentials/`
+- Check proxy logs: `./docker-up.sh logs proxy | grep -i auth`
 
-# View last 50 lines
-docker compose logs --tail=50 proxy
-
-# View logs with timestamps
-docker compose logs -t proxy
-
-# Filter logs for specific patterns
-docker compose logs proxy | grep -i error
-docker compose logs proxy | grep -i "claude request"
-```
-
-### Debug Mode
-
-Enable debug mode to see detailed request/response information:
+### Need detailed logs?
 
 ```bash
-# Set DEBUG=true in your .env file or:
-DEBUG=true docker compose --profile dev --profile claude up -d
+# Enable debug mode
+DEBUG=true ./docker-up.sh up -d
 
-# Then run your Claude query
-docker compose exec claude-cli claude "test query"
-
-# View the detailed logs
-docker compose logs -f proxy | grep -A 10 -B 10 "test query"
+# View detailed logs
+./docker-up.sh logs -f proxy
 ```
 
-### Common Log Patterns
+## Learn More
 
-1. **Successful Request:**
+For comprehensive technical documentation including configuration, architecture, and advanced troubleshooting, see:
 
-   ```
-   [PROXY] Received request: POST /v1/messages
-   [PROXY] Authentication successful
-   [PROXY] Forwarding to Claude API
-   [PROXY] Response received: 200 OK
-   ```
-
-2. **Authentication Error:**
-
-   ```
-   [PROXY] Authentication failed: Invalid API key
-   [PROXY] Response: 401 Unauthorized
-   ```
-
-3. **API Error:**
-   ```
-   [PROXY] Claude API error: rate_limit_exceeded
-   [PROXY] Response: 429 Too Many Requests
-   ```
-
-### Claude CLI not connecting
-
-- Ensure the proxy service is running: `docker compose ps`
-- Check Claude CLI logs: `docker compose logs claude-cli`
-- Verify your API key is configured correctly in the credential files
-
-### Authentication errors
-
-- Ensure your API key is valid
-- Check proxy logs for authentication issues: `docker compose logs proxy | grep -i auth`
-- Verify the proxy is configured correctly: `docker compose exec proxy env | grep CLAUDE`
+- [Claude CLI Docker Integration](../../docker/claude-cli/README.md)
+- [CLAUDE.md](../../CLAUDE.md) - Project conventions for Claude
