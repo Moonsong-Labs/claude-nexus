@@ -155,11 +155,10 @@ The SQL logging feature has been successfully implemented and provides valuable 
 
 ## Links
 
-- [Implementation PR #44](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/44)
 - [sql-logger.ts](../../../services/proxy/src/utils/sql-logger.ts)
-- [Database Configuration](../../../services/proxy/src/services/database.ts)
+- [Container Configuration](../../../services/proxy/src/container.ts#L148) - Where StorageAdapter enables SQL logging
 
 ---
 
-Date: 2025-06-30
+Date: 2025-07-20
 Authors: Development Team
