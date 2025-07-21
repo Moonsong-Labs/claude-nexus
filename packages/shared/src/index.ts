@@ -68,6 +68,15 @@ export {
   isCircuitBreakerError,
 } from './utils/circuit-breaker.js'
 
+// Export formatting utilities
+export {
+  formatNumber,
+  formatDuration,
+  formatTimestamp,
+  formatRelativeTime,
+  escapeHtml,
+} from './utils/formatters.js'
+
 // Export model limits configuration
 export {
   MODEL_CONTEXT_RULES,
