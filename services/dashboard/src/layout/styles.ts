@@ -241,6 +241,16 @@ export const dashboardStyles = `
   .btn-secondary:hover {
     background: var(--btn-secondary-hover);
   }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn:disabled:hover {
+    background: var(--btn-primary-bg);
+  }
+  .btn-secondary:disabled:hover {
+    background: var(--btn-secondary-bg);
+  }
 
   select {
     padding: 0.5rem;
@@ -1195,6 +1205,58 @@ export const dashboardStyles = `
 
   .status-value.never_synced {
     color: var(--text-muted);
+  }
+  
+  /* Read-only banner styles */
+  .read-only-banner {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-weight: 500;
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--color-warning);
+  }
+
+  /* Toast notification styles */
+  #toast-container {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1000;
+  }
+  
+  .toast {
+    background: var(--toast-bg);
+    border: 1px solid var(--toast-border);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    max-width: 400px;
+    box-shadow: var(--shadow-md);
+    animation: slideIn 0.3s ease-out;
+  }
+  
+  .toast-error {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+  }
+  
+  .toast-message {
+    color: var(--toast-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
   }
   
   /* Dark mode toggle styles */

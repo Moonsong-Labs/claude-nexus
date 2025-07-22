@@ -31,6 +31,7 @@ export const analysisPartialsRoutes = new Hono<{
   Variables: {
     apiClient?: ProxyApiClient
     csrfToken?: string
+    auth?: { isAuthenticated: boolean; isReadOnly: boolean }
   }
 }>()
 
@@ -44,6 +45,7 @@ analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
   const { conversationId, branchId } = c.req.param()
   const pollCount = parseInt(c.req.query('pollCount') || '0')
   const apiClient = c.get('apiClient') || container.getApiClient()
+  const auth = c.get('auth') || { isAuthenticated: false, isReadOnly: false }
 
   try {
     // Get analysis status from API
@@ -71,16 +73,16 @@ analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
       case 'processing':
         return c.html(renderProcessingPanel(conversationId, branchId, pollCount))
       case 'completed':
-        return c.html(renderCompletedPanel(conversationId, branchId, response))
+        return c.html(renderCompletedPanel(conversationId, branchId, response, auth))
       case 'failed':
-        return c.html(renderFailedPanel(conversationId, branchId, response.error))
+        return c.html(renderFailedPanel(conversationId, branchId, response.error, auth))
       default:
-        return c.html(renderIdlePanel(conversationId, branchId))
+        return c.html(renderIdlePanel(conversationId, branchId, auth))
     }
   } catch (error: any) {
     // If it's a 404, the analysis doesn't exist yet - show idle panel
     if (error?.status === 404) {
-      return c.html(renderIdlePanel(conversationId, branchId))
+      return c.html(renderIdlePanel(conversationId, branchId, auth))
     }
 
     logger.error('Failed to get analysis status', {
@@ -180,9 +182,14 @@ analysisPartialsRoutes.post('/regenerate/:conversationId/:branchId', async c => 
 
 // Render functions for different states
 
-function renderIdlePanel(conversationId: string, branchId: string) {
+function renderIdlePanel(
+  conversationId: string,
+  branchId: string,
+  auth?: { isAuthenticated: boolean; isReadOnly: boolean }
+) {
   const defaultPrompt = getAnalysisPromptTemplate()
   const promptId = `prompt-${conversationId}-${branchId}`.replace(/[^a-zA-Z0-9-]/g, '-')
+  const isReadOnly = auth?.isReadOnly && !auth?.isAuthenticated
 
   return html`
     <div id="analysis-panel" class="section">
@@ -258,12 +265,13 @@ ${defaultPrompt}</textarea
         </details>
 
         <button
-          hx-post="/partials/analysis/generate/${conversationId}/${branchId}"
-          hx-target="#analysis-panel"
-          hx-swap="outerHTML"
-          hx-include="#${promptId}"
+          ${isReadOnly ? '' : `hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`}
+          ${isReadOnly ? '' : 'hx-target="#analysis-panel"'}
+          ${isReadOnly ? '' : 'hx-swap="outerHTML"'}
+          ${isReadOnly ? '' : `hx-include="#${promptId}"`}
           class="btn"
           style="display: inline-flex; align-items: center; gap: 0.5rem;"
+          ${isReadOnly ? 'disabled title="This feature is disabled in read-only mode"' : ''}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -358,8 +366,10 @@ function renderAnalysisSection(icon: string, title: string, content: any): strin
 function renderCompletedPanel(
   conversationId: string,
   branchId: string,
-  analysisResponse: GetAnalysisResponse
+  analysisResponse: GetAnalysisResponse,
+  auth?: { isAuthenticated: boolean; isReadOnly: boolean }
 ) {
+  const isReadOnly = auth?.isReadOnly && !auth?.isAuthenticated
   const formatDate = (date: string | Date) => {
     const d = new Date(date)
     return d.toLocaleString('en-US', {
@@ -431,12 +441,15 @@ function renderCompletedPanel(
             Customize
           </button>
           <button
-            hx-post="/partials/analysis/regenerate/${conversationId}/${branchId}"
-            hx-target="#analysis-panel"
-            hx-swap="outerHTML"
-            hx-include="#regenerate-prompt"
+            ${isReadOnly
+              ? ''
+              : `hx-post="/partials/analysis/regenerate/${conversationId}/${branchId}"`}
+            ${isReadOnly ? '' : 'hx-target="#analysis-panel"'}
+            ${isReadOnly ? '' : 'hx-swap="outerHTML"'}
+            ${isReadOnly ? '' : 'hx-include="#regenerate-prompt"'}
             class="btn btn-secondary"
             style="font-size: 0.875rem; padding: 0.375rem 0.75rem; display: inline-flex; align-items: center; gap: 0.375rem;"
+            ${isReadOnly ? 'disabled title="This feature is disabled in read-only mode"' : ''}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -1010,7 +1023,13 @@ ${getAnalysisPromptTemplate()}</textarea
   `
 }
 
-function renderFailedPanel(conversationId: string, branchId: string, errorMessage?: string | null) {
+function renderFailedPanel(
+  conversationId: string,
+  branchId: string,
+  errorMessage?: string | null,
+  auth?: { isAuthenticated: boolean; isReadOnly: boolean }
+) {
+  const isReadOnly = auth?.isReadOnly && !auth?.isAuthenticated
   return html`
     <div id="analysis-panel" class="section">
       <div class="section-header" style="display: flex; align-items: center; gap: 0.75rem;">
@@ -1064,11 +1083,12 @@ function renderFailedPanel(conversationId: string, branchId: string, errorMessag
           </div>
         </div>
         <button
-          hx-post="/partials/analysis/generate/${conversationId}/${branchId}"
-          hx-target="#analysis-panel"
-          hx-swap="outerHTML"
+          ${isReadOnly ? '' : `hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`}
+          ${isReadOnly ? '' : 'hx-target="#analysis-panel"'}
+          ${isReadOnly ? '' : 'hx-swap="outerHTML"'}
           class="btn"
           style="display: inline-flex; align-items: center; gap: 0.5rem;"
+          ${isReadOnly ? 'disabled title="This feature is disabled in read-only mode"' : ''}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

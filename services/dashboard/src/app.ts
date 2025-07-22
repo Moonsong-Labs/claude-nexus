@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { secureHeaders } from 'hono/secure-headers'
 // Remove static file serving - will inline CSS instead
 import { container } from './container.js'
 import { loggingMiddleware, logger } from './middleware/logger.js'
@@ -7,19 +8,28 @@ import { requestIdMiddleware } from './middleware/request-id.js'
 // Use the new API-based dashboard routes
 import { dashboardRoutes } from './routes/dashboard-api.js'
 import { conversationDetailRoutes } from './routes/conversation-detail.js'
-import { dashboardAuth } from './middleware/auth.js'
+import { dashboardAuth, type AuthContext } from './middleware/auth.js'
 import { getErrorMessage, getStatusCode } from '@claude-nexus/shared'
 import { sparkProxyRoutes } from './routes/spark-proxy.js'
 import { analysisRoutes } from './routes/analysis-api.js'
 import { analysisPartialsRoutes } from './routes/partials/analysis.js'
 import { analyticsPartialRoutes } from './routes/partials/analytics.js'
 import { analyticsConversationPartialRoutes } from './routes/partials/analytics-conversation.js'
+import { csrfProtection } from './middleware/csrf.js'
+import { rateLimitForReadOnly } from './middleware/rate-limit.js'
 
 /**
  * Create and configure the Dashboard application
  */
-export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClient: unknown } }>> {
-  const app = new Hono<{ Variables: { apiClient: unknown } }>()
+type DashboardApp = Hono<{
+  Variables: {
+    apiClient: unknown
+    auth?: AuthContext
+  }
+}>
+
+export async function createDashboardApp(): Promise<DashboardApp> {
+  const app: DashboardApp = new Hono()
 
   // Centralized error handler
   app.onError((err, c) => {
@@ -48,6 +58,8 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
 
   // Global middleware
   app.use('*', cors())
+  app.use('*', secureHeaders()) // Apply security headers
+  app.use('*', rateLimitForReadOnly(100, 60000)) // 100 requests per minute in read-only mode
   app.use('*', requestIdMiddleware()) // Generate request ID first
   app.use('*', loggingMiddleware()) // Then use it for logging
 
@@ -177,6 +189,40 @@ export async function createDashboardApp(): Promise<Hono<{ Variables: { apiClien
 
   // Apply auth middleware to all dashboard routes
   app.use('/*', dashboardAuth)
+
+  // Apply CSRF protection after auth (so we have auth context)
+  app.use('/*', csrfProtection())
+
+  // Apply global write protection for all write methods in read-only mode
+  // This ensures no write operation can slip through when DASHBOARD_API_KEY is not set
+  app.on(['POST', 'PUT', 'DELETE', 'PATCH'], '*', async (c, next) => {
+    const auth = c.get('auth')
+    if (auth?.isReadOnly) {
+      // Return user-friendly error for HTMX requests
+      const hxRequest = c.req.header('HX-Request')
+      if (hxRequest) {
+        c.header('HX-Reswap', 'none')
+        c.header('HX-Retarget', '#toast-container')
+
+        return c.html(
+          `<div id="toast-container" class="toast toast-error" hx-swap-oob="true">
+            <div class="toast-message">This action is not available in read-only mode.</div>
+          </div>`,
+          403
+        )
+      }
+
+      // Return JSON error for API requests
+      return c.json(
+        {
+          error: 'Forbidden',
+          message: 'The dashboard is in read-only mode. Write operations are not allowed.',
+        },
+        403
+      )
+    }
+    return next()
+  })
 
   // Pass API client to dashboard routes instead of database pool
   app.use('/*', async (c, next) => {
