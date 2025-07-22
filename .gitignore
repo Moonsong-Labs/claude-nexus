@@ -230,3 +230,13 @@ sync-info.json
 # Playwright
 playwright-report/
 test-results/
+
+# Test files in root (if accidentally created)
+/test-*.html
+/test-*.js
+/test-*.mjs
+/test-*.sh
+
+# Generated binaries/executables
+/bin
+/claude-cli
