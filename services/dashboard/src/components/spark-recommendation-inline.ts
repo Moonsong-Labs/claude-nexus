@@ -453,22 +453,6 @@ export async function renderSparkRecommendationInline(
         })
       })
 
-      // Helper to get cookie value
-      function getCookie(name) {
-        const value = '; ' + document.cookie
-        const parts = value.split('; ' + name + '=')
-        if (parts.length === 2) return parts.pop().split(';').shift()
-        return ''
-      }
-      
-      // Get dashboard API key from cookie
-      // Note: The dashboard_auth cookie is set with httpOnly=false to allow JavaScript access
-      // This is needed for making authenticated API calls from the browser to the proxy service
-      function getDashboardApiKey() {
-        // Get from cookie - this works because httpOnly is set to false in auth.ts
-        const cookieValue = getCookie('dashboard_auth') || ''
-        return cookieValue
-      }
 
       // Submit feedback
       async function submitInlineSparkFeedback(sessionId) {

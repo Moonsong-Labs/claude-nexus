@@ -89,46 +89,6 @@ export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext }
 }
 
 /**
- * Middleware to protect write routes in read-only mode
- * This should be applied globally to POST, PUT, DELETE, PATCH methods
- */
-export const protectWriteRoutes: MiddlewareHandler<{ Variables: { auth: AuthContext } }> = async (
-  c,
-  next
-) => {
-  const auth = c.get('auth')
-
-  // If in read-only mode, block ALL write operations regardless of authentication
-  if (auth?.isReadOnly) {
-    // Return user-friendly error for HTMX requests
-    const hxRequest = c.req.header('HX-Request')
-    if (hxRequest) {
-      // Prevent HTMX from swapping the main content
-      c.header('HX-Reswap', 'none')
-      c.header('HX-Retarget', '#toast-container')
-
-      return c.html(
-        `<div id="toast-container" class="toast toast-error" hx-swap-oob="true">
-          <div class="toast-message">This action is not available in read-only mode.</div>
-        </div>`,
-        403
-      )
-    }
-
-    // Return JSON error for API requests
-    return c.json(
-      {
-        error: 'Forbidden',
-        message: 'The dashboard is in read-only mode. Write operations are not allowed.',
-      },
-      403
-    )
-  }
-
-  return next()
-}
-
-/**
  * Optional: Domain-scoped authentication
  * Allows restricting dashboard access to specific domains
  */

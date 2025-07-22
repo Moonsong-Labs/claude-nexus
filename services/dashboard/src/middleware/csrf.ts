@@ -19,6 +19,12 @@ function generateToken(): string {
  */
 export function csrfProtection() {
   return async (c: Context, next: Next) => {
+    // Skip CSRF protection in read-only mode since all writes are blocked
+    const auth = c.get('auth')
+    if (auth?.isReadOnly) {
+      return next()
+    }
+
     const method = c.req.method.toUpperCase()
 
     // Get or generate CSRF token

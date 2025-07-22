@@ -67,7 +67,7 @@ authRoutes.post('/login', async c => {
 
   if (isValid) {
     setCookie(c, 'dashboard_auth', key as string, {
-      httpOnly: false, // Allow JavaScript access for API calls from the dashboard
+      httpOnly: true, // Prevent client-side script access for security
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days

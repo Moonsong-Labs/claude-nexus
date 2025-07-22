@@ -189,7 +189,7 @@ function renderIdlePanel(
 ) {
   const defaultPrompt = getAnalysisPromptTemplate()
   const promptId = `prompt-${conversationId}-${branchId}`.replace(/[^a-zA-Z0-9-]/g, '-')
-  const isReadOnly = auth?.isReadOnly && !auth?.isAuthenticated
+  const isReadOnly = !!auth?.isReadOnly
 
   return html`
     <div id="analysis-panel" class="section">
@@ -369,7 +369,7 @@ function renderCompletedPanel(
   analysisResponse: GetAnalysisResponse,
   auth?: { isAuthenticated: boolean; isReadOnly: boolean }
 ) {
-  const isReadOnly = auth?.isReadOnly && !auth?.isAuthenticated
+  const isReadOnly = !!auth?.isReadOnly
   const formatDate = (date: string | Date) => {
     const d = new Date(date)
     return d.toLocaleString('en-US', {
@@ -1029,7 +1029,7 @@ function renderFailedPanel(
   errorMessage?: string | null,
   auth?: { isAuthenticated: boolean; isReadOnly: boolean }
 ) {
-  const isReadOnly = auth?.isReadOnly && !auth?.isAuthenticated
+  const isReadOnly = !!auth?.isReadOnly
   return html`
     <div id="analysis-panel" class="section">
       <div class="section-header" style="display: flex; align-items: center; gap: 0.75rem;">
