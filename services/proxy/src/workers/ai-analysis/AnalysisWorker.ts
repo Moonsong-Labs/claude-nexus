@@ -8,8 +8,7 @@ import {
   fetchConversationMessages,
   type ConversationAnalysisJob,
 } from './db.js'
-import { AI_WORKER_CONFIG } from '@claude-nexus/shared/config'
-import { getErrorMessage, getErrorStack } from '@claude-nexus/shared/utils/errors'
+import { AI_WORKER_CONFIG, getErrorMessage, getErrorStack } from '@claude-nexus/shared'
 import { logger } from '../../middleware/logger.js'
 
 export class AnalysisWorker {

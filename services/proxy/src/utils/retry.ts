@@ -9,7 +9,7 @@ import {
   retryConfigs,
   getRetryAfter,
   createRateLimitAwareRetry as sharedCreateRateLimitAwareRetry,
-} from '@claude-nexus/shared/utils/retry'
+} from '@claude-nexus/shared'
 
 // Re-export all the types and functions
 export {

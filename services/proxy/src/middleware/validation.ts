@@ -1,7 +1,11 @@
 import { Context, Next } from 'hono'
-import { ValidationError, validateClaudeRequest } from '@claude-nexus/shared'
+import {
+  ValidationError,
+  validateClaudeRequest,
+  maskSensitiveData,
+  truncateString,
+} from '@claude-nexus/shared'
 import { getRequestLogger } from './logger'
-import { maskSensitiveData, truncateString } from '@claude-nexus/shared/utils/validation'
 
 // Request size limits
 const MAX_REQUEST_SIZE = 10 * 1024 * 1024 // 10MB

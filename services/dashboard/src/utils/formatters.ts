@@ -7,4 +7,4 @@ export {
   formatTimestamp,
   formatRelativeTime,
   escapeHtml,
-} from '@claude-nexus/shared/utils/formatters'
+} from '@claude-nexus/shared'
