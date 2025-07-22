@@ -44,6 +44,40 @@ export {
 
 export { stripSystemReminder, containsSystemReminder } from './utils/system-reminder.js'
 
+// Export retry utilities
+export {
+  retryWithBackoff,
+  defaultRetryConfig,
+  isRetryableError,
+  calculateDelay,
+  retryConfigs,
+  getRetryAfter,
+  createRateLimitAwareRetry,
+} from './utils/retry.js'
+export type { RetryConfig, RetryLogger } from './utils/retry.js'
+
+// Export circuit breaker utilities
+export {
+  CircuitBreaker,
+  CircuitState,
+  getCircuitBreaker,
+  isCircuitBreakerError,
+} from './utils/circuit-breaker.js'
+export type {
+  CircuitBreakerConfig,
+  CircuitBreakerLogger,
+  RequestOutcome,
+} from './utils/circuit-breaker.js'
+
+// Export formatting utilities
+export {
+  formatNumber,
+  formatDuration,
+  formatTimestamp,
+  formatRelativeTime,
+  escapeHtml,
+} from './utils/formatters.js'
+
 // Export model limits configuration
 export {
   MODEL_CONTEXT_RULES,

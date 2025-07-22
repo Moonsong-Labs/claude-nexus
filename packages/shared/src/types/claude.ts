@@ -24,19 +24,29 @@ export interface ClaudeContent {
 }
 
 export interface ClaudeTool {
-  name: string
-  description: string
-  input_schema: {
-    type: 'object'
-    properties: Record<string, any>
+  name?: string
+  description?: string
+  input_schema?: {
+    type?: 'object' | string
+    properties?: Record<string, any>
     required?: string[]
+    [key: string]: any // Allow any additional fields
   }
+  [key: string]: any // Allow any additional fields at tool level
 }
 
 export interface ClaudeMessagesRequest {
   model: string
   messages: ClaudeMessage[]
-  system?: string | { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[]
+  system?:
+    | string
+    | Array<{
+        type: 'text'
+        text: string
+        cache_control?: {
+          type: 'ephemeral'
+        }
+      }>
   max_tokens: number
   metadata?: {
     user_id?: string
@@ -51,6 +61,11 @@ export interface ClaudeMessagesRequest {
     type: 'auto' | 'any' | 'tool'
     name?: string
   }
+  thinking?: {
+    budget_tokens?: number
+    [key: string]: any // Allow any additional thinking fields
+  }
+  [key: string]: any // Allow any additional fields in the request
 }
 
 // Response types
@@ -65,6 +80,8 @@ export interface ClaudeMessagesResponse {
   usage: {
     input_tokens: number
     output_tokens: number
+    cache_creation_input_tokens?: number
+    cache_read_input_tokens?: number
   }
 }
 
@@ -92,6 +109,8 @@ export interface ClaudeStreamEvent {
   usage?: {
     input_tokens?: number
     output_tokens?: number
+    cache_creation_input_tokens?: number
+    cache_read_input_tokens?: number
   }
   error?: {
     type: string
@@ -133,9 +152,6 @@ export function validateClaudeRequest(request: any): request is ClaudeMessagesRe
   if (!Array.isArray(request.messages) || request.messages.length === 0) {
     return false
   }
-  if (!request.max_tokens || typeof request.max_tokens !== 'number') {
-    return false
-  }
 
   // Validate messages
   for (const message of request.messages) {
@@ -163,7 +179,18 @@ export function validateClaudeRequest(request: any): request is ClaudeMessagesRe
 
 // Helper to count system messages
 export function countSystemMessages(request: ClaudeMessagesRequest): number {
-  let count = request.system ? 1 : 0
+  let count = 0
+
+  // Handle system field - can be string or array
+  if (request.system) {
+    if (Array.isArray(request.system)) {
+      count = request.system.length
+    } else {
+      count = 1
+    }
+  }
+
+  // Add system messages from messages array
   count += request.messages.filter(m => m.role === 'system').length
   return count
 }

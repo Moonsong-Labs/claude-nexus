@@ -66,12 +66,16 @@ export class RateLimitError extends BaseError {
 }
 
 export class UpstreamError extends BaseError {
+  public readonly upstreamResponse?: any
+
   constructor(
     message: string,
     public readonly upstreamStatus?: number,
-    context?: Record<string, any>
+    context?: Record<string, any>,
+    upstreamResponse?: any
   ) {
-    super('UPSTREAM_ERROR', message, 502, context)
+    super('UPSTREAM_ERROR', message, upstreamStatus || 502, context)
+    this.upstreamResponse = upstreamResponse
   }
 }
 
@@ -101,24 +105,35 @@ export function isOperationalError(error: Error): boolean {
   return false
 }
 
+// Map error codes to Claude API error types
+const errorCodeToType: Record<string, string> = {
+  AUTHENTICATION_ERROR: 'authentication_error',
+  AUTHORIZATION_ERROR: 'permission_error',
+  VALIDATION_ERROR: 'invalid_request_error',
+  RATE_LIMIT_ERROR: 'rate_limit_error',
+  NOT_FOUND: 'not_found_error',
+  UPSTREAM_ERROR: 'api_error',
+  TIMEOUT_ERROR: 'timeout_error',
+  CONFIGURATION_ERROR: 'internal_error',
+  STORAGE_ERROR: 'internal_error',
+  INTERNAL_ERROR: 'internal_error',
+}
+
 // Serialize error for API response
-export function serializeError(error: Error): {
-  error: {
-    code: string
-    message: string
-    statusCode: number
-    timestamp: Date
-    requestId?: string
+export function serializeError(error: Error): any {
+  // Special handling for UpstreamError to return Claude's original error format
+  if (error instanceof UpstreamError && error.upstreamResponse) {
+    // Return Claude's error response directly to maintain compatibility
+    return error.upstreamResponse
   }
-} {
+
   if (error instanceof BaseError) {
+    // Use Claude's error format for compatibility
     return {
       error: {
-        code: error.code,
+        type: errorCodeToType[error.code] || 'internal_error',
         message: error.message,
-        statusCode: error.statusCode,
-        timestamp: error.timestamp,
-        requestId: error.context?.requestId,
+        request_id: error.context?.requestId,
       },
     }
   }
@@ -127,7 +142,7 @@ export function serializeError(error: Error): {
   return {
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'An unexpected error occurred',
+      message: error.message || 'An unexpected error occurred',
       statusCode: 500,
       timestamp: new Date(),
     },

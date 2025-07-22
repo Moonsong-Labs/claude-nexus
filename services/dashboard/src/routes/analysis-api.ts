@@ -7,8 +7,8 @@ import {
   type CreateAnalysisResponse,
   type GetAnalysisResponse,
   type RegenerateAnalysisResponse,
+  isValidUUID,
 } from '@claude-nexus/shared'
-import { isValidUUID } from '@claude-nexus/shared/utils/validation'
 import { HttpError } from '../errors/HttpError.js'
 
 export const analysisRoutes = new Hono<{

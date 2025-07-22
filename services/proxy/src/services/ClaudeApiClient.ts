@@ -1,12 +1,17 @@
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { AuthResult } from './AuthenticationService'
-import { UpstreamError, TimeoutError } from '../types/errors'
-import { ClaudeMessagesResponse, ClaudeStreamEvent, isClaudeError } from '../types/claude'
+import {
+  UpstreamError,
+  TimeoutError,
+  ClaudeMessagesResponse,
+  ClaudeStreamEvent,
+  isClaudeError,
+  getErrorMessage,
+} from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 import { claudeApiCircuitBreaker } from '../utils/circuit-breaker'
 import { retryWithBackoff, retryConfigs } from '../utils/retry'
-import { getErrorMessage } from '@claude-nexus/shared'
 
 export interface ClaudeApiConfig {
   baseUrl: string
