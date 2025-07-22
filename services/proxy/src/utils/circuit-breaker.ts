@@ -5,7 +5,7 @@ import {
   CircuitBreakerLogger,
   CircuitState,
   isCircuitBreakerError,
-} from '@claude-nexus/shared/utils/circuit-breaker'
+} from '@claude-nexus/shared'
 
 // Re-export all types and functions
 export { CircuitState, isCircuitBreakerError }
