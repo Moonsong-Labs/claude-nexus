@@ -1,15 +1,15 @@
-import { logger } from '../middleware/logger'
+import { logger } from '../middleware/logger.js'
 import {
   CircuitBreaker as SharedCircuitBreaker,
-  CircuitBreakerConfig,
-  CircuitBreakerLogger,
   CircuitState,
   isCircuitBreakerError,
+  type CircuitBreakerConfig,
+  type CircuitBreakerLogger,
 } from '@claude-nexus/shared'
 
 // Re-export all types and functions
 export { CircuitState, isCircuitBreakerError }
-export type { CircuitBreakerConfig }
+export type { CircuitBreakerConfig, CircuitBreakerLogger }
 
 // Create logger adapter for proxy
 const proxyCircuitBreakerLogger: CircuitBreakerLogger = {

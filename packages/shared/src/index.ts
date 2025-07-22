@@ -47,8 +47,6 @@ export { stripSystemReminder, containsSystemReminder } from './utils/system-remi
 // Export retry utilities
 export {
   retryWithBackoff,
-  RetryConfig,
-  RetryLogger,
   defaultRetryConfig,
   isRetryableError,
   calculateDelay,
@@ -56,16 +54,19 @@ export {
   getRetryAfter,
   createRateLimitAwareRetry,
 } from './utils/retry.js'
+export type { RetryConfig, RetryLogger } from './utils/retry.js'
 
 // Export circuit breaker utilities
 export {
   CircuitBreaker,
   CircuitState,
+  getCircuitBreaker,
+  isCircuitBreakerError,
+} from './utils/circuit-breaker.js'
+export type {
   CircuitBreakerConfig,
   CircuitBreakerLogger,
   RequestOutcome,
-  getCircuitBreaker,
-  isCircuitBreakerError,
 } from './utils/circuit-breaker.js'
 
 // Export formatting utilities

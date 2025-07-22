@@ -1,25 +1,19 @@
-import { logger } from '../middleware/logger'
+import { logger } from '../middleware/logger.js'
 import {
   retryWithBackoff as sharedRetryWithBackoff,
-  RetryConfig,
-  RetryLogger,
   defaultRetryConfig,
   isRetryableError,
   calculateDelay,
   retryConfigs,
   getRetryAfter,
   createRateLimitAwareRetry as sharedCreateRateLimitAwareRetry,
+  type RetryConfig,
+  type RetryLogger,
 } from '@claude-nexus/shared'
 
 // Re-export all the types and functions
-export {
-  RetryConfig,
-  defaultRetryConfig,
-  isRetryableError,
-  calculateDelay,
-  retryConfigs,
-  getRetryAfter,
-}
+export type { RetryConfig, RetryLogger }
+export { defaultRetryConfig, isRetryableError, calculateDelay, retryConfigs, getRetryAfter }
 
 // Create logger adapter for proxy
 const proxyRetryLogger: RetryLogger = {
