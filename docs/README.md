@@ -15,9 +15,11 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 - [Installation](./01-Getting-Started/installation.md) - Detailed installation guide
 - [Configuration](./01-Getting-Started/configuration.md) - Configuration options and environment variables
 - [Development](./01-Getting-Started/development.md) - Local development setup
+- [Repository Grooming](./01-Getting-Started/repository-grooming.md) - Guide for maintaining the repository
 
 ### 📖 [02-User Guide](./02-User-Guide/)
 
+- [AI Analysis](./02-User-Guide/ai-analysis.md) - Setting up and using the AI analysis feature
 - [API Reference](./02-User-Guide/api-reference.md) - Complete API documentation
 - [Authentication](./02-User-Guide/authentication.md) - Authentication methods, OAuth, and troubleshooting
 - [Dashboard Guide](./02-User-Guide/dashboard-guide.md) - Using the monitoring dashboard
@@ -70,4 +72,4 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 
 This documentation is continuously updated. If you find any issues or have suggestions for improvements, please open an issue or submit a pull request.
 
-Last Updated: <%= new Date().toISOString().split('T')[0] %>
+Last Updated: 2024-07-30

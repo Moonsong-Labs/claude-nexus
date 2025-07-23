@@ -76,24 +76,39 @@ claude-nexus-proxy/
 
 ## Development Workflow
 
-### Type Safety
+### Code Quality and CI
 
-Always run type checking before committing:
+To maintain code consistency and quality, we use several tools that are enforced by our CI pipeline.
+
+#### Code Formatting (Prettier)
+
+We use Prettier for automatic code formatting. Run it locally before committing your changes.
+
+```bash
+# Format all files
+bun run format
+
+# Check for formatting issues without changing files
+bun run format:check
+```
+
+Our CI includes an auto-format workflow that will attempt to fix formatting issues in pull requests originating from within the repository (not from forks).
+
+#### Type Safety (TypeScript)
+
+Always run the type checker before committing. The build will fail if there are any type errors.
 
 ```bash
 bun run typecheck
 ```
 
-Fix any type errors - the build will fail if types don't check.
+#### CI Workflows
 
-### Code Formatting
+Our GitHub Actions workflows automatically validate code quality on every pull request:
 
-Format code with Prettier:
-
-```bash
-bun run format        # Format all files
-bun run format:check  # Check formatting
-```
+- **Format Check**: Verifies Prettier formatting.
+- **Type Check**: Runs `bun run typecheck`.
+- **Auto-Format**: Automatically formats code and commits changes back to the PR (for internal PRs only).
 
 ### Making Changes
 
