@@ -196,3 +196,35 @@ docker compose logs -f proxy | grep -A 10 -B 10 "test query"
 - Ensure your API key is valid
 - Check proxy logs for authentication issues: `docker compose logs proxy | grep -i auth`
 - Verify the proxy is configured correctly: `docker compose exec proxy env | grep CLAUDE`
+
+## Usage Monitoring Integration
+
+The Claude CLI Docker image comes with integrated tools for monitoring token usage in real-time.
+
+### Running the Usage Monitor
+
+You can run the monitor or the `ccusage` analysis tool directly within the running `claude-cli` container.
+
+```bash
+# Start the services if they aren't running
+docker compose --profile dev --profile claude up -d
+
+# Run the real-time usage monitor
+docker compose exec claude-cli monitor
+
+# Get daily usage statistics
+docker compose exec claude-cli ccusage daily
+
+# See live usage blocks
+docker compose exec claude-cli ccusage blocks --live
+```
+
+<details>
+<summary><b>Implementation Details</b></summary>
+
+- **Integrated Tools**: The Docker image includes the main `@anthropic-ai/claude-code` CLI, `ccusage` for usage analysis, and the Python-based `Claude Usage Monitor`.
+- **Security**: The container runs as a non-root user (`claude`) on a minimal Alpine base image.
+- **Data Persistence**: The `/home/claude/.claude` directory is mounted as a volume to persist configuration, credentials, and usage data across container restarts.
+- **Configuration**: The monitor is configured via environment variables (`ANTHROPIC_BASE_URL`, `CLAUDE_HOME`) set within the Docker Compose service definition.
+
+</details>
