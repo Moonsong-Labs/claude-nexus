@@ -47,6 +47,7 @@ docker run -d \
   claude-nexus-proxy
 
 # Run dashboard
+# ⚠️ CRITICAL: Always set DASHBOARD_API_KEY to prevent unauthorized access
 docker run -d \
   --name claude-dashboard \
   -p 3001:3001 \
@@ -483,3 +484,62 @@ docker logs proxy --tail 100
 # Verify credentials
 ls -la credentials/
 ```
+
+## Security Considerations
+
+### ⚠️ CRITICAL: Dashboard Authentication
+
+**Never deploy the dashboard without setting `DASHBOARD_API_KEY`!**
+
+When `DASHBOARD_API_KEY` is not set, the dashboard runs in "read-only mode" with NO authentication, exposing:
+
+- All conversation histories
+- Token usage and costs
+- Account information
+- AI analysis results
+- Potentially sensitive customer data
+
+**Production Security Checklist:**
+
+```bash
+# 1. ALWAYS set DASHBOARD_API_KEY (minimum 32 characters)
+export DASHBOARD_API_KEY=$(openssl rand -base64 32)
+
+# 2. Verify it's set before deployment
+if [ -z "$DASHBOARD_API_KEY" ]; then
+  echo "ERROR: DASHBOARD_API_KEY not set!"
+  exit 1
+fi
+
+# 3. Never expose dashboard port directly to internet
+# Use reverse proxy with additional authentication
+# Block port 3001 at firewall level
+
+# 4. Test authentication is working
+curl -I http://localhost:3001/dashboard
+# Should return 302 redirect to login
+```
+
+### Network Security
+
+1. **Firewall Rules**:
+   - Only expose reverse proxy ports (80/443)
+   - Block direct access to service ports (3000/3001)
+   - Whitelist specific IPs if possible
+
+2. **Internal Network Only**:
+
+   ```bash
+   # Docker: Use internal network
+   docker run --network internal ...
+
+   # Or bind to localhost only
+   docker run -p 127.0.0.1:3001:3001 ...
+   ```
+
+3. **Additional Authentication Layer**:
+   - Consider basic auth at reverse proxy level
+   - Use VPN for dashboard access
+   - Implement IP whitelisting
+
+See the [Security Guide](../security.md) for comprehensive security information.

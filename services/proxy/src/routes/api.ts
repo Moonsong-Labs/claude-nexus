@@ -156,7 +156,7 @@ apiRoutes.get('/stats', async c => {
       SELECT request_type, COUNT(*) as count
       FROM api_requests
       ${whereClause}
-      AND request_type IS NOT NULL
+      ${whereClause ? ' AND' : ' WHERE'} request_type IS NOT NULL
       GROUP BY request_type
       ORDER BY count DESC
     `

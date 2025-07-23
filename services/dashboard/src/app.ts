@@ -217,6 +217,7 @@ export async function createDashboardApp(): Promise<DashboardApp> {
         {
           error: 'Forbidden',
           message: 'The dashboard is in read-only mode. Write operations are not allowed.',
+          hint: 'To enable write operations, please set the DASHBOARD_API_KEY environment variable.',
         },
         403
       )
