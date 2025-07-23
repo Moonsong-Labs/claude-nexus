@@ -2,6 +2,8 @@
 
 A high-performance proxy for Claude API with comprehensive monitoring, conversation tracking, and dashboard visualization.
 
+![Claude Nexus Proxy Dashboard](./images/Capture%20d'écran%202025-07-19%20224058.png)
+
 ## Features
 
 - 🚀 **High-Performance Proxy** - Built with Bun and Hono for minimal latency
@@ -13,6 +15,44 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 🐳 **Docker Ready** - Separate optimized images for each service
 - 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
 - 🧠 **AI-Powered Analysis** - Automated conversation insights using Gemini Pro
+
+## Screenshots
+
+### Conversation Tracking & Visualization
+
+Visualize entire conversation flows as interactive trees, making it easy to understand complex interactions, debug issues, and track conversation branches.
+
+![Conversation tree visualization showing branching and message flow](./images/Capture%20d'écran%202025-07-19%20231711.png)
+
+### Detailed Conversation Timeline
+
+Dive deep into individual conversations with a timeline view that shows message flow, token usage, branches, and execution metrics. Filter by branch to focus on specific conversation paths.
+
+![Conversation timeline with branch filters and detailed metrics](./images/Capture%20d'écran%202025-07-23%20212603.png)
+
+### Request Details & Tool Results
+
+Examine individual API requests and responses with syntax highlighting, tool result visualization, and comprehensive metadata including token counts and timing information.
+
+![Request details showing tool results and conversation messages](./images/Capture%20d'écran%202025-07-23%20213201.png)
+
+### AI-Powered Conversation Analysis
+
+Leverage Gemini Pro to automatically analyze conversations for sentiment, quality, outcomes, and actionable insights. Get intelligent recommendations for improving your AI interactions.
+
+![AI analysis panel showing comprehensive conversation insights](./images/ai-analysis.png)
+
+### MCP Prompt Management
+
+Manage and sync Model Context Protocol prompts from GitHub repositories. Create reusable prompt templates that can be shared across your team and integrated with Claude Desktop.
+
+![MCP prompts interface showing GitHub-synced prompt library](./images/Capture%20d'écran%202025-07-23%20213108.png)
+
+### Raw JSON Debugging
+
+For developers who need complete visibility, access the raw JSON view of any request or response with syntax highlighting and expandable tree structure.
+
+![Raw JSON view for detailed debugging](./images/Capture%20d'écran%202025-07-23%20213210.png)
 
 ## Quick Start
 
