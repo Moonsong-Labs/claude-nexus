@@ -13,6 +13,8 @@ export const layout = (
 ) => {
   // Get CSRF token if context is provided
   const csrfToken = context?.get('csrfToken') || ''
+  // Get auth state if context is provided
+  const auth = context?.get('auth') || { isAuthenticated: false, isReadOnly: false }
 
   return html`
     <!DOCTYPE html>
@@ -23,9 +25,7 @@ export const layout = (
         <title>${title} - Claude Nexus Dashboard</title>
         ${csrfToken ? html`<meta name="csrf-token" content="${csrfToken}" />` : ''}
         <style>
-          ${raw(
-            dashboardStyles
-          )}
+          ${raw(dashboardStyles)}
         
         /* Ultra-dense JSON viewer styles injected globally */
         andypf-json-viewer::part(json-viewer) {
@@ -170,8 +170,9 @@ export const layout = (
           }
         </style>
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-        ${csrfToken
-          ? raw(`
+        ${
+          csrfToken
+            ? raw(`
       <script>
         // Add CSRF token to all HTMX requests
         document.addEventListener('DOMContentLoaded', function() {
@@ -183,10 +184,23 @@ export const layout = (
           });
         });
       </script>`)
-          : ''}
+            : ''
+        }
         ${additionalScripts}
       </head>
-      <body>
+      <body${auth.isReadOnly ? ' class="read-only-mode"' : ''}>
+        ${
+          auth.isReadOnly
+            ? html`
+                <div
+                  class="read-only-banner"
+                  style="background-color: #fbbf24; color: #000; text-align: center; padding: 0.5rem; font-weight: bold; position: sticky; top: 0; z-index: 100;"
+                >
+                  Dashboard is running in Read-Only Mode
+                </div>
+              `
+            : ''
+        }
         <nav>
           <div class="container">
             <h1>Claude Nexus Dashboard</h1>
@@ -197,7 +211,11 @@ export const layout = (
               <a href="/dashboard/token-usage" class="text-sm text-blue-600">Token Usage</a>
               <a href="/dashboard/prompts" class="text-sm text-blue-600">Prompts</a>
               <span class="text-sm text-gray-600" id="current-domain">All Domains</span>
-              <a href="/dashboard/logout" class="text-sm text-blue-600">Logout</a>
+              ${
+                !auth.isReadOnly
+                  ? html`<a href="/dashboard/logout" class="text-sm text-blue-600">Logout</a>`
+                  : ''
+              }
               <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode">
                 <svg
                   id="theme-icon-light"
@@ -232,6 +250,7 @@ export const layout = (
             </div>
           </div>
         </nav>
+        <div id="toast-container"></div>
         <main class="container" style="padding: 2rem 1rem;">${content}</main>
         <script>
           // Dark mode functionality

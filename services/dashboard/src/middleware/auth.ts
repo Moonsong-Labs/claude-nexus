@@ -1,11 +1,21 @@
-import { Context, Next } from 'hono'
+import { Context, Next, MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
+import { isReadOnly, dashboardApiKey } from '../config.js'
+
+export type AuthContext = {
+  isAuthenticated: boolean
+  isReadOnly: boolean
+}
 
 /**
  * Dashboard authentication middleware
  * Protects dashboard routes with API key authentication
+ * Supports read-only mode when DASHBOARD_API_KEY is not set
  */
-export const dashboardAuth = async (c: Context, next: Next) => {
+export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext } }> = async (
+  c,
+  next
+) => {
   // Skip auth for login page
   if (
     c.req.path === '/dashboard/login' ||
@@ -16,9 +26,20 @@ export const dashboardAuth = async (c: Context, next: Next) => {
     return next()
   }
 
+  // Set read-only mode in context
+  c.set('auth', {
+    isAuthenticated: false,
+    isReadOnly: isReadOnly,
+  })
+
+  // If in read-only mode, allow access without authentication
+  if (isReadOnly) {
+    return next()
+  }
+
   // Check for dashboard API key in environment
-  const dashboardKey = process.env.DASHBOARD_API_KEY
-  if (!dashboardKey) {
+  if (!dashboardApiKey) {
+    // This should not happen given the isReadOnly check above, but keep for safety
     return c.html(
       `
       <div style="text-align: center; padding: 50px; font-family: sans-serif;">
@@ -32,13 +53,21 @@ export const dashboardAuth = async (c: Context, next: Next) => {
 
   // Check cookie authentication
   const authCookie = getCookie(c, 'dashboard_auth')
-  if (authCookie === dashboardKey) {
+  if (authCookie === dashboardApiKey) {
+    c.set('auth', {
+      isAuthenticated: true,
+      isReadOnly: false,
+    })
     return next()
   }
 
   // Check header authentication (for API calls)
   const headerKey = c.req.header('X-Dashboard-Key')
-  if (headerKey === dashboardKey) {
+  if (headerKey === dashboardApiKey) {
+    c.set('auth', {
+      isAuthenticated: true,
+      isReadOnly: false,
+    })
     return next()
   }
 

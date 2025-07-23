@@ -11,7 +11,8 @@ export async function renderSparkRecommendationInline(
   recommendation: SparkRecommendation,
   sessionId: string,
   messageIndex: number,
-  existingFeedback?: Record<string, unknown>
+  existingFeedback?: Record<string, unknown>,
+  isReadOnly?: boolean
 ): Promise<string> {
   // Render markdown content
   const dirtyHtml = await marked.parse(recommendation.response)
@@ -105,16 +106,19 @@ export async function renderSparkRecommendationInline(
         <button 
           class="spark-feedback-toggle"
           onclick="toggleSparkFeedback('${sessionId}')"
+          ${isReadOnly ? 'disabled title="Feedback is disabled in read-only mode"' : ''}
         >
           <span class="toggle-icon">▼</span>
-          ${hasFeedback ? 'View Feedback' : 'Add Feedback'}
+          ${hasFeedback ? 'View Feedback' : isReadOnly ? 'Feedback Disabled' : 'Add Feedback'}
         </button>
         
         <div class="spark-inline-feedback" id="${feedbackId}" style="display: none;">
           ${
             hasFeedback
               ? renderInlineExistingFeedback(existingFeedback)
-              : renderInlineFeedbackForm(sessionId)
+              : isReadOnly
+                ? '<p style="text-align: center; color: #64748b; margin: 1rem 0;">Feedback is disabled in read-only mode</p>'
+                : renderInlineFeedbackForm(sessionId)
           }
         </div>
       </div>
@@ -293,8 +297,13 @@ export async function renderSparkRecommendationInline(
         transition: background 0.2s;
       }
 
-      .spark-feedback-toggle:hover {
+      .spark-feedback-toggle:hover:not(:disabled) {
         background: #e0f2fe;
+      }
+
+      .spark-feedback-toggle:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
 
       .toggle-icon {
@@ -444,22 +453,6 @@ export async function renderSparkRecommendationInline(
         })
       })
 
-      // Helper to get cookie value
-      function getCookie(name) {
-        const value = '; ' + document.cookie
-        const parts = value.split('; ' + name + '=')
-        if (parts.length === 2) return parts.pop().split(';').shift()
-        return ''
-      }
-      
-      // Get dashboard API key from cookie
-      // Note: The dashboard_auth cookie is set with httpOnly=false to allow JavaScript access
-      // This is needed for making authenticated API calls from the browser to the proxy service
-      function getDashboardApiKey() {
-        // Get from cookie - this works because httpOnly is set to false in auth.ts
-        const cookieValue = getCookie('dashboard_auth') || ''
-        return cookieValue
-      }
 
       // Submit feedback
       async function submitInlineSparkFeedback(sessionId) {

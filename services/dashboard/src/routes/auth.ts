@@ -3,6 +3,7 @@ import { html } from 'hono/html'
 import { setCookie } from 'hono/cookie'
 import { timingSafeEqual } from 'crypto'
 import { layout } from '../layout/index.js'
+import { isReadOnly } from '../config.js'
 
 export const authRoutes = new Hono()
 
@@ -10,6 +11,10 @@ export const authRoutes = new Hono()
  * Login page
  */
 authRoutes.get('/login', c => {
+  // If in read-only mode, redirect to dashboard
+  if (isReadOnly) {
+    return c.redirect('/dashboard')
+  }
   const content = html`
     <div
       style="max-width: 400px; margin: 4rem auto; background: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);"
@@ -43,6 +48,11 @@ authRoutes.get('/login', c => {
  * Handle login POST
  */
 authRoutes.post('/login', async c => {
+  // If in read-only mode, redirect to dashboard
+  if (isReadOnly) {
+    return c.redirect('/dashboard')
+  }
+
   const { key } = await c.req.parseBody()
   const apiKey = process.env.DASHBOARD_API_KEY
 
@@ -57,7 +67,7 @@ authRoutes.post('/login', async c => {
 
   if (isValid) {
     setCookie(c, 'dashboard_auth', key as string, {
-      httpOnly: false, // Allow JavaScript access for API calls from the dashboard
+      httpOnly: true, // Prevent client-side script access for security
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
