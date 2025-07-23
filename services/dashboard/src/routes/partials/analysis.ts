@@ -265,13 +265,16 @@ ${defaultPrompt}</textarea
         </details>
 
         <button
-          ${isReadOnly ? '' : `hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`}
-          ${isReadOnly ? '' : 'hx-target="#analysis-panel"'}
-          ${isReadOnly ? '' : 'hx-swap="outerHTML"'}
-          ${isReadOnly ? '' : `hx-include="#${promptId}"`}
+          ${isReadOnly ? 'disabled' : ''}
+          ${isReadOnly ? 'title="This feature is disabled in read-only mode"' : ''}
+          ${!isReadOnly
+            ? raw(`hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`)
+            : ''}
+          ${!isReadOnly ? raw('hx-target="#analysis-panel"') : ''}
+          ${!isReadOnly ? raw('hx-swap="outerHTML"') : ''}
+          ${!isReadOnly ? raw(`hx-include="#${promptId}"`) : ''}
           class="btn"
           style="display: inline-flex; align-items: center; gap: 0.5rem;"
-          ${isReadOnly ? 'disabled title="This feature is disabled in read-only mode"' : ''}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -441,15 +444,16 @@ function renderCompletedPanel(
             Customize
           </button>
           <button
-            ${isReadOnly
-              ? ''
-              : `hx-post="/partials/analysis/regenerate/${conversationId}/${branchId}"`}
-            ${isReadOnly ? '' : 'hx-target="#analysis-panel"'}
-            ${isReadOnly ? '' : 'hx-swap="outerHTML"'}
-            ${isReadOnly ? '' : 'hx-include="#regenerate-prompt"'}
+            ${isReadOnly ? 'disabled' : ''}
+            ${isReadOnly ? 'title="This feature is disabled in read-only mode"' : ''}
+            ${!isReadOnly
+              ? raw(`hx-post="/partials/analysis/regenerate/${conversationId}/${branchId}"`)
+              : ''}
+            ${!isReadOnly ? raw('hx-target="#analysis-panel"') : ''}
+            ${!isReadOnly ? raw('hx-swap="outerHTML"') : ''}
+            ${!isReadOnly ? raw('hx-include="#regenerate-prompt"') : ''}
             class="btn btn-secondary"
             style="font-size: 0.875rem; padding: 0.375rem 0.75rem; display: inline-flex; align-items: center; gap: 0.375rem;"
-            ${isReadOnly ? 'disabled title="This feature is disabled in read-only mode"' : ''}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -1083,12 +1087,15 @@ function renderFailedPanel(
           </div>
         </div>
         <button
-          ${isReadOnly ? '' : `hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`}
-          ${isReadOnly ? '' : 'hx-target="#analysis-panel"'}
-          ${isReadOnly ? '' : 'hx-swap="outerHTML"'}
+          ${isReadOnly ? 'disabled' : ''}
+          ${isReadOnly ? 'title="This feature is disabled in read-only mode"' : ''}
+          ${!isReadOnly
+            ? raw(`hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`)
+            : ''}
+          ${!isReadOnly ? raw('hx-target="#analysis-panel"') : ''}
+          ${!isReadOnly ? raw('hx-swap="outerHTML"') : ''}
           class="btn"
           style="display: inline-flex; align-items: center; gap: 0.5rem;"
-          ${isReadOnly ? 'disabled title="This feature is disabled in read-only mode"' : ''}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
