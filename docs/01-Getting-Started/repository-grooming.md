@@ -18,7 +18,7 @@ Repository grooming is a regular maintenance activity to ensure code quality, re
 
 ### 2. Technical Debt
 
-- [ ] Review `docs/04-Architecture/technical-debt.md`
+- [ ] Review `../04-Architecture/technical-debt.md`
 - [ ] Prioritize and fix HIGH priority items first
 - [ ] Update technical debt register with resolution dates
 - [ ] Document any new technical debt discovered
@@ -137,10 +137,10 @@ bun outdated
 
 ## References
 
-- [Technical Debt Register](docs/04-Architecture/technical-debt.md)
-- [Database Documentation](docs/03-Operations/database.md)
-- [Architecture Decision Records](docs/04-Architecture/ADRs/)
-- [CLAUDE.md](CLAUDE.md) - AI Assistant Guidelines
+- [Technical Debt Register](../04-Architecture/technical-debt.md)
+- [Database Documentation](../03-Operations/database.md)
+- [Architecture Decision Records](../04-Architecture/ADRs/)
+- [AI Assistant Guidelines](../../CLAUDE.md)
 
 ---
 
