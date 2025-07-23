@@ -97,7 +97,7 @@ Options:
 Environment Variables:
   PORT                        Server port (default: 3001)
   HOST                        Server hostname (default: 0.0.0.0)
-  DASHBOARD_API_KEY           API key for dashboard access (required)
+  DASHBOARD_API_KEY           API key for dashboard access (optional - omit for read-only mode)
   DATABASE_URL                PostgreSQL connection string (required)
   PROXY_API_URL               URL of the proxy service for real-time updates (optional)
 
@@ -108,7 +108,8 @@ Examples:
   claude-nexus-dashboard --env-file .env.production
 
 Dashboard Access:
-  The dashboard requires DASHBOARD_API_KEY to be set.
+  If DASHBOARD_API_KEY is set, the dashboard requires authentication.
+  If DASHBOARD_API_KEY is not set, the dashboard runs in read-only mode.
   Access the dashboard at http://localhost:3001/
 
 Note: The dashboard automatically loads .env file from the current directory.
@@ -146,11 +147,7 @@ if (hostIndex !== -1 && args[hostIndex + 1]) {
 // Main function
 async function main() {
   try {
-    // Validate required configuration
-    if (!process.env.DASHBOARD_API_KEY) {
-      console.error('❌ Error: DASHBOARD_API_KEY environment variable is required')
-      process.exit(1)
-    }
+    // Note: DASHBOARD_API_KEY is now optional - if not set, dashboard runs in read-only mode
 
     if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
       console.error('❌ Error: DATABASE_URL or DB_* environment variables are required')
@@ -162,7 +159,9 @@ async function main() {
     console.log('Mode: Web Dashboard for monitoring and analytics')
 
     console.log('\nConfiguration:')
-    console.log(`  - Authentication: Configured`)
+    console.log(
+      `  - Mode: ${process.env.DASHBOARD_API_KEY ? 'Authenticated (read-write)' : 'Read-only (no auth required)'}`
+    )
     console.log(`  - Database: ${process.env.DATABASE_URL ? 'URL configured' : 'Host configured'}`)
 
     if (process.env.PROXY_API_URL) {
