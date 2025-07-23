@@ -13,6 +13,9 @@
 git clone https://github.com/moonsong-labs/claude-nexus-proxy.git
 cd claude-nexus-proxy
 cp .env.example .env
+
+# ⚠️ CRITICAL: Edit .env and set DASHBOARD_API_KEY!
+# Without it, the dashboard has NO authentication!
 ```
 
 ### 2. Create credentials
@@ -65,7 +68,7 @@ docker compose exec claude-cli /usr/local/bin/claude-cli "Hello!"
 
 - **View logs**: `docker compose logs -f proxy`
 - **Token stats**: `curl http://localhost:3000/token-stats`
-- **Dashboard**: http://localhost:3001 (use DASHBOARD_API_KEY from .env)
+- **Dashboard**: http://localhost:3001 (requires DASHBOARD_API_KEY from .env - ⚠️ NO AUTH if not set!)
 
 ## Troubleshooting
 

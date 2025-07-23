@@ -93,6 +93,9 @@ Essential configuration:
 DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
 
 # Dashboard Authentication
+# ⚠️ CRITICAL SECURITY WARNING: Without this key, the dashboard runs in read-only mode
+# with NO authentication, exposing ALL conversation data to anyone with network access!
+# NEVER deploy to production without setting this!
 DASHBOARD_API_KEY=your-secure-key
 
 # Optional Features
@@ -141,6 +144,8 @@ curl -X POST http://localhost:3000/v1/messages \
 ### Dashboard
 
 Access the dashboard at `http://localhost:3001` with your `DASHBOARD_API_KEY`.
+
+**⚠️ Security Warning**: If `DASHBOARD_API_KEY` is not set, the dashboard runs in read-only mode without any authentication, exposing all conversation data. This should NEVER be used in production. See the [Security Guide](docs/03-Operations/security.md) for details.
 
 Features:
 

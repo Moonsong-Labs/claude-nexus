@@ -2,6 +2,14 @@
 
 This guide covers security considerations and best practices for deploying Claude Nexus Proxy.
 
+## ⚠️ CRITICAL SECURITY NOTICE
+
+**Dashboard Read-Only Mode**: When `DASHBOARD_API_KEY` is not set, the dashboard operates in "read-only mode" without ANY authentication. This exposes ALL conversation data, token usage, and potentially sensitive information to anyone with network access.
+
+**NEVER deploy to production without setting `DASHBOARD_API_KEY`!**
+
+See [ADR-019: Dashboard Read-Only Mode Security Implications](../04-Architecture/ADRs/adr-019-dashboard-read-only-mode-security.md) for detailed information about this security consideration.
+
 ## Authentication
 
 ### Client Authentication
@@ -222,15 +230,40 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 
 ## Common Vulnerabilities
 
-### 1. Exposed Dashboard
+### 1. Exposed Dashboard (CRITICAL)
 
-**Risk**: Dashboard accessible without authentication
+**Risk**: Dashboard accessible without authentication exposes ALL conversation data
+
+**⚠️ CRITICAL SECURITY WARNING**:
+When `DASHBOARD_API_KEY` is not set, the dashboard runs in "read-only mode" with NO authentication. This means:
+
+- Anyone with network access can view ALL conversations
+- All API requests and responses are visible
+- Token usage, costs, and account information are exposed
+- AI analysis results and insights are accessible
+- This includes potentially sensitive customer data, API keys in conversations, and proprietary information
+
+**Impact**: Complete data exposure, privacy breach, potential compliance violations
 
 **Mitigation**:
 
-- Always set `DASHBOARD_API_KEY`
-- Use strong, unique keys
-- Restrict dashboard to internal network
+- **ALWAYS** set `DASHBOARD_API_KEY` in production
+- Use strong, unique keys (minimum 32 characters)
+- Restrict dashboard to internal network only
+- Never expose dashboard port (3001) to the internet
+- Consider using a reverse proxy with additional authentication
+- For local development only, use read-only mode behind a firewall
+
+**Checking for Vulnerability**:
+
+```bash
+# If this returns empty, your dashboard is UNSECURED
+echo $DASHBOARD_API_KEY
+
+# Check if dashboard is publicly accessible
+curl http://your-server:3001/dashboard
+# If you see the dashboard without login, it's exposed
+```
 
 ### 2. Credential Leakage
 

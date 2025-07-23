@@ -328,7 +328,7 @@ export class StorageReader {
         SELECT request_type, COUNT(*) as count
         FROM api_requests
         ${whereClause}
-        AND request_type IS NOT NULL
+        ${whereClause ? ' AND' : ' WHERE'} request_type IS NOT NULL
         GROUP BY request_type
       `
       const typeRows = await this.executeQuery<any>(typeQuery, values, 'getStats-types')

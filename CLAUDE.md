@@ -56,6 +56,7 @@ claude-nexus-proxy/
 - Analytics and usage charts
 - Request history browser
 - SSE for live updates
+- **⚠️ SECURITY WARNING**: Read-only mode (when `DASHBOARD_API_KEY` is not set) exposes all data without authentication. See [ADR-019](docs/04-Architecture/ADRs/adr-019-dashboard-read-only-mode-security.md)
 
 ## Development
 
@@ -372,7 +373,7 @@ SQL logging features:
 **Essential:**
 
 - `DATABASE_URL` - PostgreSQL connection
-- `DASHBOARD_API_KEY` - Dashboard authentication
+- `DASHBOARD_API_KEY` - Dashboard authentication (⚠️ **CRITICAL**: Without this, dashboard runs in read-only mode with NO authentication)
 
 **Optional:**
 
