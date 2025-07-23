@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { createDashboardApp } from '../../app.js'
-import type { Hono } from 'hono'
 
 describe('Dashboard Read-Only Mode Security', () => {
-  let app: Hono
+  let app: Awaited<ReturnType<typeof createDashboardApp>>
   let originalDashboardKey: string | undefined
   let originalDatabaseUrl: string | undefined
 
@@ -53,7 +52,7 @@ describe('Dashboard Read-Only Mode Security', () => {
       })
 
       expect(res.status).toBe(403)
-      const json = await res.json()
+      const json = (await res.json()) as { error: string; message: string }
       expect(json.error).toBe('Forbidden')
       expect(json.message).toContain('read-only mode')
     })
@@ -296,7 +295,7 @@ describe('Dashboard Read-Only Mode Security', () => {
       expect([200, 404, 500]).toContain(res.status)
 
       if (res.status === 500) {
-        const data = await res.json()
+        const data = (await res.json()) as { error?: unknown }
         expect(data.error).not.toContain('stack')
       }
     })
@@ -312,7 +311,7 @@ describe('Dashboard Read-Only Mode Security', () => {
       })
 
       expect(res.status).toBe(403)
-      const json = await res.json()
+      const json = (await res.json()) as { message: string; hint: string }
       expect(json.message).toContain('read-only mode')
       expect(json.hint).toContain('DASHBOARD_API_KEY')
     })
@@ -321,7 +320,7 @@ describe('Dashboard Read-Only Mode Security', () => {
 
 // Test with API key set
 describe.skip('Dashboard Normal Mode (with API key)', () => {
-  let app: Hono
+  let app: Awaited<ReturnType<typeof createDashboardApp>>
   let originalDashboardKey: string | undefined
   let originalDatabaseUrl: string | undefined
 

@@ -1,9 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { createDashboardApp } from '../app.js'
-import type { Hono } from 'hono'
 
 describe('Read-Only Mode Security Tests', () => {
-  let app: Hono
+  let app: Awaited<ReturnType<typeof createDashboardApp>>
   let originalApiKey: string | undefined
 
   beforeEach(async () => {
@@ -36,7 +35,7 @@ describe('Read-Only Mode Security Tests', () => {
       })
 
       expect(response.status).toBe(403)
-      const data = await response.json()
+      const data = (await response.json()) as { error: string; message: string }
       expect(data.error).toBe('Forbidden')
       expect(data.message).toBe(
         'The dashboard is in read-only mode. Write operations are not allowed.'
@@ -52,7 +51,7 @@ describe('Read-Only Mode Security Tests', () => {
       })
 
       expect(response.status).toBe(403)
-      const data = await response.json()
+      const data = (await response.json()) as { error: string; message: string }
       expect(data.error).toBe('Forbidden')
       expect(data.message).toBe(
         'The dashboard is in read-only mode. Write operations are not allowed.'
@@ -75,7 +74,7 @@ describe('Read-Only Mode Security Tests', () => {
       })
 
       expect(response.status).toBe(403)
-      const data = await response.json()
+      const data = (await response.json()) as { error: string; message: string }
       expect(data.error).toBe('Forbidden')
       expect(data.message).toBe(
         'The dashboard is in read-only mode. Write operations are not allowed.'
@@ -94,7 +93,7 @@ describe('Read-Only Mode Security Tests', () => {
       })
 
       expect(response.status).toBe(403)
-      const data = await response.json()
+      const data = (await response.json()) as { error: string; message: string }
       expect(data.error).toBe('Forbidden')
       expect(data.message).toBe(
         'The dashboard is in read-only mode. Write operations are not allowed.'
@@ -111,7 +110,7 @@ describe('Read-Only Mode Security Tests', () => {
       })
 
       expect(response.status).toBe(403)
-      const data = await response.json()
+      const data = (await response.json()) as { error: string; message: string }
       expect(data.error).toBe('Forbidden')
       expect(data.message).toBe(
         'The dashboard is in read-only mode. Write operations are not allowed.'
@@ -124,7 +123,7 @@ describe('Read-Only Mode Security Tests', () => {
       })
 
       expect(response.status).toBe(403)
-      const data = await response.json()
+      const data = (await response.json()) as { error: string; message: string }
       expect(data.error).toBe('Forbidden')
       expect(data.message).toBe(
         'The dashboard is in read-only mode. Write operations are not allowed.'
@@ -141,7 +140,7 @@ describe('Read-Only Mode Security Tests', () => {
       })
 
       expect(response.status).toBe(403)
-      const data = await response.json()
+      const data = (await response.json()) as { error: string; message: string }
       expect(data.error).toBe('Forbidden')
       expect(data.message).toBe(
         'The dashboard is in read-only mode. Write operations are not allowed.'
@@ -262,7 +261,7 @@ describe('Read-Only Mode Security Tests', () => {
       const response = await app.request('/api/requests?limit=1')
       expect(response.status).toBe(200)
 
-      const data = await response.json()
+      const data = (await response.json()) as { requests: unknown[] }
       // Document that the endpoint is accessible and would expose request/response bodies
       // if data existed in the database
       expect(data).toHaveProperty('requests')
@@ -316,7 +315,7 @@ describe('Read-Only Mode Security Tests', () => {
       const response = await app.request('/api/requests?limit=invalid')
 
       expect(response.status).toBe(500)
-      const data = await response.json()
+      const data = (await response.json()) as unknown
 
       // Ensure error messages don't expose database schema or connection details
       expect(JSON.stringify(data)).not.toContain('postgresql://')
@@ -326,7 +325,7 @@ describe('Read-Only Mode Security Tests', () => {
 })
 
 describe('Normal Mode with API Key Set', () => {
-  let app: Hono
+  let app: Awaited<ReturnType<typeof createDashboardApp>>
   const testApiKey = 'test-dashboard-api-key-12345'
 
   beforeEach(async () => {
@@ -353,7 +352,7 @@ describe('Normal Mode with API Key Set', () => {
 
     // CSRF protection returns 403 for unauthenticated write requests
     expect(response1.status).toBe(403)
-    const data1 = await response1.json()
+    const data1 = (await response1.json()) as { error: string }
     expect(data1.error).toBe('Forbidden')
 
     // With valid API key but no CSRF token - still blocked by CSRF
@@ -371,7 +370,7 @@ describe('Normal Mode with API Key Set', () => {
 
     // CSRF protection is still active even with valid API key
     expect(response2.status).toBe(403)
-    const data2 = await response2.json()
+    const data2 = (await response2.json()) as { error: string }
     expect(data2.error).toBe('Forbidden')
   })
 
