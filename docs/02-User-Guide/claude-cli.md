@@ -51,7 +51,7 @@ The Claude CLI service is configured to:
 
 ## How It Works
 
-1. The Claude CLI Docker container starts with the official `@anthropic-ai/claude-code` package
+1. The Claude CLI Docker container starts with the official `@anthropic-ai/claude-cli` package
 2. A setup script configures Claude to use the proxy endpoint
 3. Authentication is handled via Bearer token using your API key
 4. All requests go through the proxy, enabling monitoring and tracking
@@ -222,7 +222,7 @@ docker compose exec claude-cli ccusage blocks --live
 <details>
 <summary><b>Implementation Details</b></summary>
 
-- **Integrated Tools**: The Docker image includes the main `@anthropic-ai/claude-code` CLI, `ccusage` for usage analysis, and the Python-based `Claude Usage Monitor`.
+- **Integrated Tools**: The Docker image includes the main `@anthropic-ai/claude-cli` CLI, `ccusage` for usage analysis, and the Python-based `Claude Usage Monitor`.
 - **Security**: The container runs as a non-root user (`claude`) on a minimal Alpine base image.
 - **Data Persistence**: The `/home/claude/.claude` directory is mounted as a volume to persist configuration, credentials, and usage data across container restarts.
 - **Configuration**: The monitor is configured via environment variables (`ANTHROPIC_BASE_URL`, `CLAUDE_HOME`) set within the Docker Compose service definition.

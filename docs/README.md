@@ -72,4 +72,4 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 
 This documentation is continuously updated. If you find any issues or have suggestions for improvements, please open an issue or submit a pull request.
 
-Last Updated: <%= new Date().toISOString().split('T')[0] %>
+Last Updated: 2024-07-30

@@ -61,6 +61,7 @@ AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS=1000
 AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS=4000
 
 # Optional: Prompt tuning
+# NOTE: This is for Gemini 2.0 models with 1M+ context windows
 AI_MAX_PROMPT_TOKENS=855000                # Override calculated token limit
 AI_HEAD_MESSAGES=10                        # Messages to keep from start
 AI_TAIL_MESSAGES=30                        # Messages to keep from end
