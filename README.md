@@ -6,17 +6,9 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 
 Claude Nexus Proxy empowers development teams to maximize their Claude AI usage through:
 
-### 🔍 **Complete Visibility**
-
-Real-time access to conversations, tool invocations, and prompts for effective troubleshooting and debugging
-
-### 📈 **Historical Analytics**
-
-Comprehensive activity history enabling usage monitoring, pattern identification, and continuous improvement
-
-### 🤖 **Intelligent Insights**
-
-AI-powered conversation analysis providing actionable prompt optimization suggestions and best practice recommendations
+- 🔍 **Complete Visibility**: Real-time access to conversations, tool invocations, and prompts for effective troubleshooting and debugging
+- 📈 **Historical Analytics**: Comprehensive activity history enabling usage monitoring, pattern identification, and continuous improvement
+- 🤖 **Intelligent Insights**: AI-powered conversation analysis providing actionable prompt optimization suggestions and best practice recommendations
 
 ## 🚀 Demo
 
@@ -39,6 +31,36 @@ _Note: This is a read-only demo showcasing real usage data from our development 
 - 🐳 **Docker Ready** - Separate optimized images for each service
 - 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
 - 🧠 **AI-Powered Analysis** - Automated conversation insights using Gemini Pro
+
+## 📚 Key Concepts
+
+Understanding these terms will help you navigate Claude Nexus Proxy effectively:
+
+### Core Concepts
+
+- **🗣️ Conversation**: A complete interaction session between a user and Claude, consisting of multiple message exchanges. Each conversation has a unique ID and can span multiple requests.
+
+- **🌳 Branch**: When you edit an earlier message in a conversation and continue from there, it creates a new branch - similar to Git branches. This allows exploring alternative conversation paths without losing the original.
+
+- **📦 Compact**: When a conversation exceeds Claude's context window, it's automatically summarized and continued as a "compact" conversation, preserving the essential context while staying within token limits.
+
+- **🤖 Sub-task**: When Claude spawns another AI agent using the Task tool, it creates a sub-task. These are tracked separately but linked to their parent conversation for complete visibility.
+
+### Technical Terms
+
+- **🔤 Token**: The basic unit of text that Claude processes. Monitoring token usage helps track costs and stay within API limits.
+
+- **📊 Request**: A single API call to Claude, which may contain multiple messages. Conversations are built from multiple requests.
+
+- **🔧 Tool Use**: Claude's ability to use external tools (like file reading, web search, or spawning sub-tasks). Each tool invocation is tracked and displayed.
+
+- **📝 MCP (Model Context Protocol)**: A protocol for managing and sharing prompt templates across teams, with GitHub integration for version control.
+
+### Dashboard Elements
+
+- **Timeline View**: Shows the chronological flow of messages within a conversation
+- **Tree View**: Visualizes conversation branches and sub-tasks as an interactive tree
+- **Message Hash**: Unique identifier for each message, used to track conversation flow and detect branches
 
 ## 📸 Screenshots
 
