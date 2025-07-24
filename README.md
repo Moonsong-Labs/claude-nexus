@@ -1,6 +1,10 @@
 # Claude Nexus Proxy
 
-A high-performance proxy for Claude API with comprehensive monitoring, conversation tracking, and dashboard visualization.
+A high-performance proxy for Claude Code with comprehensive monitoring, conversation tracking, and dashboard visualization.  
+(_Supports Claude Max plan_)
+
+⚠️ Disclaimer: This project has been entirely vibe Coded (using Claude Nexus Proxy) with the goal to not manually touch a single file.
+Use at your own risk :)
 
 ## 🎯 Objectives
 
@@ -39,21 +43,15 @@ Understanding these terms will help you navigate Claude Nexus Proxy effectively:
 ### Core Concepts
 
 - **🗣️ Conversation**: A complete interaction session between a user and Claude, consisting of multiple message exchanges. Each conversation has a unique ID and can span multiple requests.
-
 - **🌳 Branch**: When you edit an earlier message in a conversation and continue from there, it creates a new branch - similar to Git branches. This allows exploring alternative conversation paths without losing the original.
-
 - **📦 Compact**: When a conversation exceeds Claude's context window, it's automatically summarized and continued as a "compact" conversation, preserving the essential context while staying within token limits.
-
 - **🤖 Sub-task**: When Claude spawns another AI agent using the Task tool, it creates a sub-task. These are tracked separately but linked to their parent conversation for complete visibility.
 
 ### Technical Terms
 
 - **🔤 Token**: The basic unit of text that Claude processes. Monitoring token usage helps track costs and stay within API limits.
-
 - **📊 Request**: A single API call to Claude, which may contain multiple messages. Conversations are built from multiple requests.
-
 - **🔧 Tool Use**: Claude's ability to use external tools (like file reading, web search, or spawning sub-tasks). Each tool invocation is tracked and displayed.
-
 - **📝 MCP (Model Context Protocol)**: A protocol for managing and sharing prompt templates across teams, with GitHub integration for version control.
 
 ### Dashboard Elements
@@ -106,7 +104,7 @@ For developers who need complete visibility, access the raw JSON view of any req
 
 - [Bun](https://bun.sh) runtime (v1.0+)
 - PostgreSQL database
-- Claude API key
+- Claude Plan (_or Claude API Key_)
 
 ### Installation
 
@@ -122,50 +120,18 @@ bun install
 cp .env.example .env
 # Edit .env with your settings
 
-# Initialize database
-bun run db:migrate:token-usage
-
 # Start development servers
 bun run dev
 ```
 
 The proxy runs on `http://localhost:3000` and dashboard on `http://localhost:3001`.
 
-### Using Claude CLI with the Proxy
+### Using Claude Code with the Proxy
 
 Run Claude CLI connected to your local proxy:
 
 ```bash
-# Start the proxy and Claude CLI
-docker compose --profile dev --profile claude up -d
-
-# Access Claude CLI
-docker compose exec claude-cli claude
-
-# Or run a single command
-docker compose exec claude-cli claude "What is 2+2?"
-```
-
-The Claude CLI will use Bearer token authentication to connect through the proxy.
-
-### Viewing Proxy Logs
-
-After running Claude queries, you can view the proxy logs to debug issues:
-
-```bash
-# View recent logs
-docker compose logs proxy
-
-# Follow logs in real-time
-docker compose logs -f proxy
-
-# Use the helper script for filtered views
-./scripts/view-claude-logs.sh --help
-
-# Examples:
-./scripts/view-claude-logs.sh -f          # Follow logs
-./scripts/view-claude-logs.sh -e -n 100   # Show last 100 errors
-./scripts/view-claude-logs.sh -r          # Show API requests
+API_TIMEOUT_MS=300000 DISABLE_NON_ESSENTIAL_MODEL_CALLS=1 ANTHROPIC_BASE_URL=http://localhost:3000 claude
 ```
 
 ## Configuration
@@ -187,7 +153,6 @@ DASHBOARD_API_KEY=your-secure-key
 # Optional Features
 STORAGE_ENABLED=true
 DEBUG=false
-SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ```
 
 See the [Documentation](docs/README.md) for complete configuration options.
@@ -204,11 +169,19 @@ bun run auth:generate-key
 cat > credentials/example.com.credentials.json << EOF
 {
   "type": "api_key",
-  "accountId": "acc_unique_identifier",
+  "accountId": "acc_name_to_display",
   "api_key": "sk-ant-...",
   "client_api_key": "cnp_live_..."
 }
 EOF
+```
+
+(_Use `credentials/localhost\:3000.credentials.json` for using it locally_)
+
+Authenticate your credential with Claude MAX Plan:
+
+```bash
+./scripts/auth/oauth-login.ts credentials/example.com.credentials.json
 ```
 
 ## Usage
@@ -274,14 +247,13 @@ bun run db:rebuild-conversations # Rebuild conversation data
 bun run ai:check-jobs          # Check analysis job statuses
 bun run ai:check-content       # Inspect analysis content
 bun run ai:reset-stuck         # Reset jobs with high retry counts
-bun run ai:fail-exceeded       # Manually fail jobs exceeding retries
 ```
 
 See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.
 
 ## Deployment
 
-### Environments
+### Environments (MoonsongLabs Internal)
 
 Claude Nexus Proxy supports deployment to multiple environments:
 
@@ -314,11 +286,9 @@ See [AWS Infrastructure Guide](docs/03-Operations/deployment/aws-infrastructure.
 ```bash
 # Build and run with locally built images
 ./docker-local.sh up -d --build
-
-# Or manually:
-cd docker
-docker compose -f docker-compose.local.yml --env-file ../.env up -d --build
 ```
+
+(_dashboard key: `key`_)
 
 #### Building Images Separately
 
