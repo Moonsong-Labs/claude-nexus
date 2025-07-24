@@ -2,12 +2,36 @@
 
 A high-performance proxy for Claude API with comprehensive monitoring, conversation tracking, and dashboard visualization.
 
+## 🎯 Objectives
+
+Claude Nexus Proxy empowers development teams to maximize their Claude AI usage through:
+
+### 🔍 **Complete Visibility**
+
+Real-time access to conversations, tool invocations, and prompts for effective troubleshooting and debugging
+
+### 📈 **Historical Analytics**
+
+Comprehensive activity history enabling usage monitoring, pattern identification, and continuous improvement
+
+### 🤖 **Intelligent Insights**
+
+AI-powered conversation analysis providing actionable prompt optimization suggestions and best practice recommendations
+
+## 🚀 Demo
+
+Experience Claude Nexus Proxy in action with our live demo:
+
+👉 **[https://nexus-demo.moonsonglabs.dev](https://nexus-demo.moonsonglabs.dev)**
+
+_Note: This is a read-only demo showcasing real usage data from our development team._
+
 <img src="https://github.com/user-attachments/assets/aebffb8c-9535-4073-aa76-be31ee05a402" alt="Claude Nexus Proxy Dashboard" width="800">
 
-## Features
+## ✨ Features
 
 - 🚀 **High-Performance Proxy** - Built with Bun and Hono for minimal latency
-- 🔀 **Conversation Tracking** - Automatic message threading with branch support
+- 🔀 **Conversation Tracking** - Automatic message threading with branch, sub-agent & compact support
 - 📊 **Real-time Dashboard** - Monitor usage, view conversations, and analyze patterns
 - 🔐 **Multi-Auth Support** - API keys and OAuth with auto-refresh
 - 📈 **Token Tracking** - Detailed usage statistics per domain and account
@@ -16,44 +40,43 @@ A high-performance proxy for Claude API with comprehensive monitoring, conversat
 - 🤖 **Claude CLI Integration** - Run Claude CLI connected to the proxy
 - 🧠 **AI-Powered Analysis** - Automated conversation insights using Gemini Pro
 
-## Screenshots
+## 📸 Screenshots
 
 ### Conversation Tracking & Visualization
 
 Visualize entire conversation flows as interactive trees, making it easy to understand complex interactions, debug issues, and track conversation branches.
 
-<img src="https://github.com/user-attachments/assets/655f2c5c-91c0-41f6-9d82-19f44dd3ef6d" alt="Conversation tree visualization showing branching and message flow" width="600">
+<img src="https://github.com/user-attachments/assets/655f2c5c-91c0-41f6-9d82-19f44dd3ef6d" alt="Conversation tree visualization showing branching and message flow" width="400">
 
 ### Detailed Conversation Timeline
 
 Dive deep into individual conversations with a timeline view that shows message flow, token usage, branches, and execution metrics. Filter by branch to focus on specific conversation paths.
 
-<img src="https://github.com/user-attachments/assets/e3e8df59-a4a8-47a8-9033-4a0624bf03cf" alt="Conversation timeline with branch filters and detailed metrics" width="600">
+<img src="https://github.com/user-attachments/assets/e3e8df59-a4a8-47a8-9033-4a0624bf03cf" alt="Conversation timeline with branch filters and detailed metrics" width="400">
 
 ### Request Details & Tool Results
 
 Examine individual API requests and responses with syntax highlighting, tool result visualization, and comprehensive metadata including token counts and timing information.
 
-<img src="https://github.com/user-attachments/assets/aeda8a80-5a9a-407c-b14d-e6a8af6883de" alt="Request details showing tool results and conversation messages" width="600">
+<img src="https://github.com/user-attachments/assets/aeda8a80-5a9a-407c-b14d-e6a8af6883de" alt="Request details showing tool results and conversation messages" width="400">
 
 ### AI-Powered Conversation Analysis
 
 Leverage Gemini Pro to automatically analyze conversations for sentiment, quality, outcomes, and actionable insights. Get intelligent recommendations for improving your AI interactions.
 
-<img src="https://github.com/user-attachments/assets/63ed0346-ee2e-49b4-86df-49937516786f" alt="AI analysis panel showing comprehensive conversation insights 1" width="600">
-<img src="https://github.com/user-attachments/assets/ef3f84bc-8011-43a1-825b-15dfd7f20cef" alt="AI analysis panel showing comprehensive conversation insights 2" width="600">
+<img src="https://github.com/user-attachments/assets/63ed0346-ee2e-49b4-86df-49937516786f" alt="AI analysis panel showing comprehensive conversation insights" width="400">
 
 ### MCP Prompt Management
 
 Manage and sync Model Context Protocol prompts from GitHub repositories. Create reusable prompt templates that can be shared across your team and integrated with Claude Desktop.
 
-<img src="https://github.com/user-attachments/assets/6cb406d7-cb2a-4698-b03d-0b67b7b44702" alt="MCP prompts interface showing GitHub-synced prompt library" width="600">
+<img src="https://github.com/user-attachments/assets/6cb406d7-cb2a-4698-b03d-0b67b7b44702" alt="MCP prompts interface showing GitHub-synced prompt library" width="400">
 
 ### Raw JSON Debugging
 
 For developers who need complete visibility, access the raw JSON view of any request or response with syntax highlighting and expandable tree structure.
 
-<img src="https://github.com/user-attachments/assets/b3c247ca-e66b-4e6c-8b89-0f1a881b7198" alt="Raw JSON view for detailed debugging" width="600">
+<img src="https://github.com/user-attachments/assets/b3c247ca-e66b-4e6c-8b89-0f1a881b7198" alt="Raw JSON view for detailed debugging" width="400">
 
 ## Quick Start
 
