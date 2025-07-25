@@ -6,11 +6,6 @@
 #   ./update-proxy.sh v8          # Updates both containers
 #   ./update-proxy.sh v8 proxy    # Updates only proxy
 #   ./update-proxy.sh v8 dashboard # Updates only dashboard
-#
-# IMPORTANT: This script uses 'docker run' to redeploy services.
-# Any configuration changes made to the 'proxy' or 'dashboard' services
-# in 'docker/docker-compose.yml' (e.g., environment variables, volumes)
-# MUST be manually duplicated here to avoid configuration drift.
 
 VERSION=$1
 SERVICE=$2
