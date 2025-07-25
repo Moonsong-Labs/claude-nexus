@@ -6,6 +6,11 @@
 #   ./update-proxy.sh v8          # Updates both containers
 #   ./update-proxy.sh v8 proxy    # Updates only proxy
 #   ./update-proxy.sh v8 dashboard # Updates only dashboard
+#
+# IMPORTANT: This script uses 'docker run' to redeploy services.
+# Any configuration changes made to the 'proxy' or 'dashboard' services
+# in 'docker/docker-compose.yml' (e.g., environment variables, volumes)
+# MUST be manually duplicated here to avoid configuration drift.
 
 VERSION=$1
 SERVICE=$2
@@ -78,10 +83,11 @@ update_dashboard() {
     fi
 }
 
-# Check if network exists, create if it doesn't
-if ! docker network ls | grep -q claude-nexus-network; then
-    echo "Creating Docker network claude-nexus-network..."
-    docker network create claude-nexus-network
+# Check that the network managed by Docker Compose exists.
+if ! docker network ls | grep -q "claude-nexus-network"; then
+    echo "Error: Docker network 'claude-nexus-network' not found."
+    echo "The environment must be initialized first. Please run './docker-up.sh up -d' from the project root."
+    exit 1
 fi
 
 # Update based on service parameter
