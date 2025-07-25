@@ -83,11 +83,10 @@ update_dashboard() {
     fi
 }
 
-# Check that the network managed by Docker Compose exists.
-if ! docker network ls | grep -q "claude-nexus-network"; then
-    echo "Error: Docker network 'claude-nexus-network' not found."
-    echo "The environment must be initialized first. Please run './docker-up.sh up -d' from the project root."
-    exit 1
+# Check if network exists, create if it doesn't
+if ! docker network ls | grep -q claude-nexus-network; then
+    echo "Creating Docker network claude-nexus-network..."
+    docker network create claude-nexus-network
 fi
 
 # Update based on service parameter
