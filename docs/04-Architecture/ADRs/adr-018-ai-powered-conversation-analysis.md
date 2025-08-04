@@ -116,7 +116,7 @@ We will implement **Background Jobs in Proxy Service** with database polling for
 
 - **Risk**: Background jobs impacting proxy performance
   - **Mitigation**: Configurable concurrency limits and resource monitoring
-  - **Mitigation**: Circuit breakers to pause processing under high load
+  - **Mitigation**: Job throttling based on system load metrics
 
 - **Risk**: Long-running analyses blocking other conversations
   - **Mitigation**: Timeout controls and conversation size limits

@@ -10,7 +10,6 @@ import {
   getErrorMessage,
 } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
-import { claudeApiCircuitBreaker } from '../utils/circuit-breaker'
 import { retryWithBackoff, retryConfigs } from '../utils/retry'
 
 export interface ClaudeApiConfig {
@@ -37,15 +36,12 @@ export class ClaudeApiClient {
     const url = `${this.config.baseUrl}/v1/messages`
     const headers = request.createHeaders(auth.headers)
 
-    // Use circuit breaker for protection
-    return claudeApiCircuitBreaker.execute(async () => {
-      // Use retry logic for transient failures
-      return retryWithBackoff(
-        async () => this.makeRequest(url, request, headers),
-        retryConfigs.standard,
-        { requestId: request.requestId, operation: 'claude_api_call' }
-      )
-    })
+    // Use retry logic for transient failures
+    return retryWithBackoff(
+      async () => this.makeRequest(url, request, headers),
+      retryConfigs.standard,
+      { requestId: request.requestId, operation: 'claude_api_call' }
+    )
   }
 
   /**

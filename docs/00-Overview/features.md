@@ -80,6 +80,15 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 - **Bun runtime** for optimal performance
 - **Monorepo structure** with shared packages
 
+### 🔄 Error Handling & Resilience
+
+- **Retry logic with exponential backoff** for transient failures
+- **Jitter implementation** to prevent thundering herd
+- **Configurable retry policies** for different error types
+- **Retry-After header support** for rate limiting
+- **Smart error classification** (retryable vs non-retryable)
+- **Detailed error logging** with full context
+
 ### 🐳 Deployment Options
 
 - **Docker support** with optimized images
@@ -91,7 +100,7 @@ Claude Nexus Proxy is a high-performance proxy for the Claude API with comprehen
 ### 🔧 Operational Features
 
 - **Graceful shutdown** handling
-- **Request retry logic**
+- **Comprehensive request retry logic**
 - **Error recovery mechanisms**
 - **Slow query logging** and monitoring
 - **Database migration** support

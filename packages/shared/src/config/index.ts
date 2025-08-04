@@ -16,11 +16,11 @@ const env = {
     return value ? parseInt(value, 10) : defaultValue
   },
   bool: (key: string, defaultValue: boolean): boolean => {
-    const value = process.env[key]
-    if (!value) {
+    const value = process.env[key]?.toLowerCase()
+    if (value === undefined || value === '') {
       return defaultValue
     }
-    return value.toLowerCase() === 'true'
+    return value === 'true' || value === '1'
   },
 }
 
@@ -124,25 +124,6 @@ export const config = {
     },
     get domainMaxTokens() {
       return env.int('DOMAIN_RATE_LIMIT_MAX_TOKENS', 5000000)
-    },
-  },
-
-  // Circuit breaker
-  circuitBreaker: {
-    get failureThreshold() {
-      return env.int('CIRCUIT_BREAKER_FAILURE_THRESHOLD', 5)
-    },
-    get successThreshold() {
-      return env.int('CIRCUIT_BREAKER_SUCCESS_THRESHOLD', 3)
-    },
-    get timeout() {
-      return env.int('CIRCUIT_BREAKER_TIMEOUT', 120000)
-    }, // 2 minutes
-    get volumeThreshold() {
-      return env.int('CIRCUIT_BREAKER_VOLUME_THRESHOLD', 10)
-    },
-    get errorThresholdPercentage() {
-      return env.int('CIRCUIT_BREAKER_ERROR_PERCENTAGE', 50)
     },
   },
 
