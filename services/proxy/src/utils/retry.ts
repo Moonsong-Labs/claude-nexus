@@ -6,7 +6,6 @@ import {
   calculateDelay,
   retryConfigs,
   getRetryAfter,
-  createRateLimitAwareRetry as sharedCreateRateLimitAwareRetry,
   type RetryConfig,
   type RetryLogger,
 } from '@claude-nexus/shared'
@@ -28,11 +27,4 @@ export async function retryWithBackoff<T>(
   context?: { requestId?: string; operation?: string }
 ): Promise<T> {
   return sharedRetryWithBackoff(fn, { ...config, logger: proxyRetryLogger }, context)
-}
-
-// Proxy-specific rate limit aware retry
-export function createRateLimitAwareRetry(
-  baseConfig: Partial<RetryConfig> = {}
-): <T>(fn: () => Promise<T>, context?: any) => Promise<T> {
-  return sharedCreateRateLimitAwareRetry({ ...baseConfig, logger: proxyRetryLogger })
 }

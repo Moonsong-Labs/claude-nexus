@@ -52,22 +52,8 @@ export {
   calculateDelay,
   retryConfigs,
   getRetryAfter,
-  createRateLimitAwareRetry,
 } from './utils/retry.js'
 export type { RetryConfig, RetryLogger } from './utils/retry.js'
-
-// Export circuit breaker utilities
-export {
-  CircuitBreaker,
-  CircuitState,
-  getCircuitBreaker,
-  isCircuitBreakerError,
-} from './utils/circuit-breaker.js'
-export type {
-  CircuitBreakerConfig,
-  CircuitBreakerLogger,
-  RequestOutcome,
-} from './utils/circuit-breaker.js'
 
 // Export formatting utilities
 export {

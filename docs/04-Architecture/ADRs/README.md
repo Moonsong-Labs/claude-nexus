@@ -53,6 +53,7 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-017](./adr-017-mcp-prompt-sharing.md)                | MCP Prompt Sharing                  | Accepted   | 2025-01-10 |
 | [ADR-018](./adr-018-ai-powered-conversation-analysis.md)  | AI-Powered Conversation Analysis    | Accepted   | 2025-01-12 |
 | [ADR-019](./adr-019-dashboard-read-only-mode-security.md) | Dashboard Read-Only Mode Security   | Accepted   | 2025-01-23 |
+| [ADR-020](./adr-020-circuit-breaker-removal.md)           | Circuit Breaker Removal             | Accepted   | 2025-08-04 |
 
 ## Creating a New ADR
 

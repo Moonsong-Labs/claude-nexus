@@ -48,22 +48,31 @@ export function isRetryableError(error: Error): boolean {
     return true
   }
 
-  // Upstream errors (5xx)
-  if (error instanceof UpstreamError) {
-    return true
-  }
-
-  // HTTP status codes
-  if ('statusCode' in error) {
+  // HTTP status codes - check both on error object and UpstreamError
+  if ('statusCode' in error && typeof (error as any).statusCode === 'number') {
     const status = (error as any).statusCode
-    // Retry on 429 (rate limit), 502 (bad gateway), 503 (service unavailable), 504 (gateway timeout)
-    if (status === 429 || status === 502 || status === 503 || status === 504) {
+    // Retry only on 5xx server errors and 429 rate limit
+    if (status >= 500 || status === 429) {
       return true
+    }
+    // Do not retry 4xx client errors
+    if (status >= 400 && status < 500) {
+      return false
     }
   }
 
-  // Claude API specific errors
-  if (error.message.includes('overloaded_error') || error.message.includes('rate_limit_error')) {
+  // Claude API specific errors from parsed response
+  if (error instanceof UpstreamError && error.cause) {
+    const cause = error.cause as any
+    if (cause?.error?.type === 'overloaded_error' || cause?.error?.type === 'rate_limit_error') {
+      return true
+    }
+  }
+  // Fallback for cases where cause is not populated or error is not UpstreamError
+  else if (
+    error.message.includes('overloaded_error') ||
+    error.message.includes('rate_limit_error')
+  ) {
     return true
   }
 
@@ -149,8 +158,14 @@ export async function retryWithBackoff<T>(
         throw error
       }
 
-      // Calculate delay
-      const delay = calculateDelay(attempt, finalConfig)
+      // Calculate base delay
+      let delay = calculateDelay(attempt, finalConfig)
+
+      // Honor Retry-After header if present and larger than calculated delay
+      const retryAfterMs = getRetryAfter(error)
+      if (retryAfterMs !== null) {
+        delay = Math.max(delay, retryAfterMs)
+      }
 
       if (finalConfig.logger) {
         finalConfig.logger.info('Retrying after error', {
@@ -160,6 +175,7 @@ export async function retryWithBackoff<T>(
             attempt,
             nextAttempt: attempt + 1,
             delay,
+            retryAfter: retryAfterMs,
             error: error instanceof Error ? error.message : String(error),
             errorType: error instanceof Error ? error.constructor.name : typeof error,
           },
@@ -235,32 +251,4 @@ export function getRetryAfter(error: any): number | null {
   }
 
   return null
-}
-
-// Create a retry wrapper with rate limit awareness
-export function createRateLimitAwareRetry(
-  baseConfig: Partial<RetryConfig> = {}
-): <T>(fn: () => Promise<T>, context?: any) => Promise<T> {
-  return async function retryWrapper<T>(fn: () => Promise<T>, context?: any): Promise<T> {
-    const config = { ...retryConfigs.standard, ...baseConfig }
-
-    // Override retry condition to respect retry-after
-    const originalCondition = config.retryCondition!
-    config.retryCondition = (error: Error) => {
-      if (!originalCondition(error)) {
-        return false
-      }
-
-      // Check for retry-after header
-      const retryAfter = getRetryAfter(error)
-      if (retryAfter !== null) {
-        // Adjust initial delay based on retry-after
-        config.initialDelay = Math.max(config.initialDelay, retryAfter)
-      }
-
-      return true
-    }
-
-    return retryWithBackoff(fn, config, context)
-  }
 }
