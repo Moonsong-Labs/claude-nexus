@@ -1,5 +1,7 @@
 import { Pool } from 'pg'
 import { logger } from '../middleware/logger.js'
+import { container } from '../container.js'
+import type { RateLimitInfo } from '@claude-nexus/shared'
 
 export interface TokenUsageData {
   accountId: string
@@ -26,6 +28,7 @@ export interface TokenUsageWindow {
   totalRequests: number
   cacheCreationInputTokens: number
   cacheReadInputTokens: number
+  rateLimitInfo?: RateLimitInfo
 }
 
 export interface DailyUsage {
@@ -115,7 +118,7 @@ export class TokenUsageService {
       }
 
       const row = result.rows[0]
-      return {
+      const usageData: TokenUsageWindow = {
         accountId: row.account_id,
         domain: row.domain || 'all',
         model: row.model || 'all',
@@ -128,6 +131,35 @@ export class TokenUsageService {
         cacheCreationInputTokens: parseInt(row.cache_creation_input_tokens),
         cacheReadInputTokens: parseInt(row.cache_read_input_tokens),
       }
+
+      // Get rate limit information if available
+      const rateLimitService = container.getRateLimitService()
+      if (rateLimitService) {
+        const rateLimitSummary = await rateLimitService.getRateLimitSummary(accountId)
+
+        if (rateLimitSummary) {
+          // Calculate tokens in window before limit
+          let tokensBeforeLimit = 0
+          if (rateLimitSummary.lastTriggeredAt) {
+            tokensBeforeLimit = await rateLimitService.getTokensInWindowBeforeLimit(
+              accountId,
+              rateLimitSummary.lastTriggeredAt
+            )
+          }
+
+          usageData.rateLimitInfo = {
+            is_rate_limited: rateLimitSummary.isCurrentlyRateLimited,
+            first_triggered_at: rateLimitSummary.firstTriggeredAt!.toISOString(),
+            last_triggered_at: rateLimitSummary.lastTriggeredAt!.toISOString(),
+            retry_until: rateLimitSummary.retryUntil?.toISOString() || null,
+            total_hits: rateLimitSummary.totalHits,
+            last_limit_type: rateLimitSummary.lastLimitType,
+            tokens_in_window_before_limit: tokensBeforeLimit,
+          }
+        }
+      }
+
+      return usageData
     } catch (error) {
       logger.error('Failed to get usage window', {
         metadata: {

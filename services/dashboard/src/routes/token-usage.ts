@@ -129,6 +129,13 @@ tokenUsageRoutes.get('/token-usage', async c => {
                           <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;">
                               <strong style="font-size: 14px; color: #1f2937;">${escapeHtml(account.accountId)}</strong>
+                              ${
+                                account.rateLimitInfo && account.rateLimitInfo.is_rate_limited
+                                  ? `<span style="font-size: 11px; background: #ef4444; color: white; padding: 2px 6px; border-radius: 3px; font-weight: 500;">RATE LIMITED</span>`
+                                  : account.rateLimitInfo && account.rateLimitInfo.total_hits > 0
+                                    ? `<span style="font-size: 11px; background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 3px; font-weight: 500;">Previously Limited</span>`
+                                    : ''
+                              }
                               <span style="font-size: 12px; color: ${
                                 account.percentageUsed > 90
                                   ? '#ef4444'
@@ -153,6 +160,21 @@ tokenUsageRoutes.get('/token-usage', async c => {
                                 )
                                 .join('')}
                             </div>
+                            ${
+                              account.rateLimitInfo
+                                ? `
+                              <div style="font-size: 11px; color: #6b7280; margin-top: 8px;">
+                                ${
+                                  account.rateLimitInfo.is_rate_limited &&
+                                  account.rateLimitInfo.retry_until
+                                    ? `<span style="color: #ef4444;">Rate limit active until ${new Date(account.rateLimitInfo.retry_until).toLocaleString()}</span>`
+                                    : `<span>Last limited: ${new Date(account.rateLimitInfo.last_triggered_at).toLocaleString()}</span>`
+                                }
+                                • ${account.rateLimitInfo.last_limit_type?.replace(/_/g, ' ')} • ${account.rateLimitInfo.total_hits} total hits
+                              </div>
+                              `
+                                : ''
+                            }
                           </div>
                           <div style="width: 200px; height: 60px; flex-shrink: 0;">
                             <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
@@ -218,6 +240,91 @@ tokenUsageRoutes.get('/token-usage', async c => {
       </div>
 
       <h2 style="margin: 0 0 1.5rem 0;">Token Usage for Account: ${escapeHtml(accountId)}</h2>
+
+      ${tokenUsage && tokenUsage.rateLimitInfo
+        ? html`
+            <div
+              class="section"
+              style="${tokenUsage.rateLimitInfo.is_rate_limited ? 'border-color: #ef4444;' : ''}"
+            >
+              <div
+                class="section-header"
+                style="${tokenUsage.rateLimitInfo.is_rate_limited
+                  ? 'background: #fef2f2; color: #991b1b;'
+                  : ''}"
+              >
+                Rate Limit Status
+              </div>
+              <div class="section-content">
+                <div
+                  style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;"
+                >
+                  <div>
+                    <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">Status</div>
+                    <div
+                      style="font-size: 16px; font-weight: 600; color: ${tokenUsage.rateLimitInfo
+                        .is_rate_limited
+                        ? '#ef4444'
+                        : '#10b981'};"
+                    >
+                      ${tokenUsage.rateLimitInfo.is_rate_limited ? 'RATE LIMITED' : 'Not Limited'}
+                    </div>
+                  </div>
+                  ${tokenUsage.rateLimitInfo.retry_until
+                    ? html`
+                        <div>
+                          <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+                            Can Retry At
+                          </div>
+                          <div style="font-size: 16px; font-weight: 600; color: #1f2937;">
+                            ${new Date(tokenUsage.rateLimitInfo.retry_until).toLocaleString()}
+                          </div>
+                        </div>
+                      `
+                    : ''}
+                  <div>
+                    <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+                      Limit Type
+                    </div>
+                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">
+                      ${tokenUsage.rateLimitInfo.last_limit_type?.replace(/_/g, ' ') || 'Unknown'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+                      Total Hits
+                    </div>
+                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">
+                      ${tokenUsage.rateLimitInfo.total_hits}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  style="margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 0.375rem;"
+                >
+                  <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+                    First Triggered
+                  </div>
+                  <div style="font-size: 14px; color: #1f2937; margin-bottom: 0.5rem;">
+                    ${new Date(tokenUsage.rateLimitInfo.first_triggered_at).toLocaleString()}
+                  </div>
+                  <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+                    Last Triggered
+                  </div>
+                  <div style="font-size: 14px; color: #1f2937; margin-bottom: 0.5rem;">
+                    ${new Date(tokenUsage.rateLimitInfo.last_triggered_at).toLocaleString()}
+                  </div>
+                  <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+                    Tokens Used in 5-Hour Window Before Last Limit
+                  </div>
+                  <div style="font-size: 16px; font-weight: 600; color: #1f2937;">
+                    ${formatNumber(tokenUsage.rateLimitInfo.tokens_in_window_before_limit)} tokens
+                  </div>
+                </div>
+              </div>
+            </div>
+          `
+        : ''}
 
       <!-- Current 5-Hour Window Usage -->
       <div class="section">

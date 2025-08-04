@@ -89,6 +89,15 @@ interface TokenUsageWindow {
   totalRequests: number
   cacheCreationInputTokens: number
   cacheReadInputTokens: number
+  rateLimitInfo?: {
+    is_rate_limited: boolean
+    first_triggered_at: string
+    last_triggered_at: string
+    retry_until: string | null
+    total_hits: number
+    last_limit_type: string | null
+    tokens_in_window_before_limit: number
+  }
 }
 
 interface DailyUsage {
@@ -437,6 +446,15 @@ export class ProxyApiClient {
         time: string
         remaining: number
       }>
+      rateLimitInfo?: {
+        is_rate_limited: boolean
+        first_triggered_at: string
+        last_triggered_at: string
+        retry_until: string | null
+        total_hits: number
+        last_limit_type: string | null
+        tokens_in_window_before_limit: number
+      }
     }>
     tokenLimit: number
   }> {

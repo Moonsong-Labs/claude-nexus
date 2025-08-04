@@ -7,6 +7,7 @@ import { MetricsService } from './services/MetricsService.js'
 import { NotificationService } from './services/NotificationService.js'
 import { StorageAdapter } from './storage/StorageAdapter.js'
 import { TokenUsageService } from './services/TokenUsageService.js'
+import { RateLimitService } from './services/RateLimitService.js'
 import { config } from '@claude-nexus/shared/config'
 import { logger } from './middleware/logger.js'
 import { McpServer } from './mcp/McpServer.js'
@@ -22,6 +23,7 @@ class Container {
   private pool?: Pool
   private storageService?: StorageAdapter
   private tokenUsageService?: TokenUsageService
+  private rateLimitService?: RateLimitService
   private metricsService?: MetricsService
   private notificationService?: NotificationService
   private authenticationService?: AuthenticationService
@@ -73,6 +75,7 @@ class Container {
     if (this.pool && config.storage.enabled) {
       this.storageService = new StorageAdapter(this.pool)
       this.tokenUsageService = new TokenUsageService(this.pool)
+      this.rateLimitService = new RateLimitService(this.pool)
 
       // Ensure partitions exist
       this.tokenUsageService.ensurePartitions().catch(err => {
@@ -111,7 +114,8 @@ class Container {
       this.claudeApiClient,
       this.notificationService,
       this.metricsService,
-      this.storageService
+      this.storageService,
+      this.rateLimitService
     )
 
     this.messageController = new MessageController(this.proxyService)
@@ -158,6 +162,10 @@ class Container {
 
   getTokenUsageService(): TokenUsageService | undefined {
     return this.tokenUsageService
+  }
+
+  getRateLimitService(): RateLimitService | undefined {
+    return this.rateLimitService
   }
 
   getMetricsService(): MetricsService {
@@ -255,6 +263,10 @@ class LazyContainer {
 
   getTokenUsageService(): TokenUsageService | undefined {
     return this.ensureInstance().getTokenUsageService()
+  }
+
+  getRateLimitService(): RateLimitService | undefined {
+    return this.ensureInstance().getRateLimitService()
   }
 
   getMetricsService(): MetricsService {

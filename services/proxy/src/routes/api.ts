@@ -574,6 +574,12 @@ const tokenUsageWindowSchema = z.object({
   window: z.string().regex(/^\d+$/).transform(Number).default('300'), // Default 5 hours (300 minutes)
 })
 
+// Note: Batch schema not currently used but kept for future implementation
+// const tokenUsageBatchSchema = z.object({
+//   domain: z.string().optional(),
+//   window: z.string().regex(/^\d+$/).transform(Number).default('300'), // Default 5 hours (300 minutes)
+// })
+
 const tokenUsageDailySchema = z.object({
   accountId: z.string(),
   domain: z.string().optional(),
@@ -862,11 +868,60 @@ apiRoutes.get('/token-usage/accounts', async c => {
       })
     }
 
-    // Merge mini series data with accounts
-    const accountsWithSeries = accounts.map(account => ({
-      ...account,
-      miniSeries: seriesByAccount.get(account.accountId) || [],
-    }))
+    // Get rate limit information for all accounts
+    const rateLimitService = container.getRateLimitService()
+    let rateLimitSummaries = new Map()
+
+    if (rateLimitService && accountIds.length > 0) {
+      try {
+        rateLimitSummaries = await rateLimitService.getRateLimitSummaries(accountIds)
+      } catch (error) {
+        logger.warn('Failed to get rate limit summaries', { error: getErrorMessage(error) })
+      }
+    }
+
+    // Merge mini series data and rate limit info with accounts
+    const accountsWithSeries = await Promise.all(
+      accounts.map(async account => {
+        const rateLimitSummary = rateLimitSummaries.get(account.accountId)
+        let rateLimitInfo = null
+
+        if (rateLimitSummary) {
+          let tokensBeforeLimit = 0
+          if (rateLimitSummary.lastTriggeredAt && rateLimitService) {
+            try {
+              tokensBeforeLimit = await rateLimitService.getTokensInWindowBeforeLimit(
+                account.accountId,
+                rateLimitSummary.lastTriggeredAt
+              )
+            } catch (error) {
+              logger.warn('Failed to get tokens before limit', {
+                metadata: {
+                  accountId: account.accountId,
+                },
+                error: getErrorMessage(error),
+              })
+            }
+          }
+
+          rateLimitInfo = {
+            is_rate_limited: rateLimitSummary.isCurrentlyRateLimited,
+            first_triggered_at: rateLimitSummary.firstTriggeredAt.toISOString(),
+            last_triggered_at: rateLimitSummary.lastTriggeredAt.toISOString(),
+            retry_until: rateLimitSummary.retryUntil?.toISOString() || null,
+            total_hits: rateLimitSummary.totalHits,
+            last_limit_type: rateLimitSummary.lastLimitType,
+            tokens_in_window_before_limit: tokensBeforeLimit,
+          }
+        }
+
+        return {
+          ...account,
+          miniSeries: seriesByAccount.get(account.accountId) || [],
+          rateLimitInfo,
+        }
+      })
+    )
 
     return c.json({
       accounts: accountsWithSeries,

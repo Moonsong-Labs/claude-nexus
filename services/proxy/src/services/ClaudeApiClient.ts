@@ -82,6 +82,12 @@ export class ClaudeApiClient {
           parsedError = { error: { message: errorBody, type: 'api_error' } }
         }
 
+        // Extract headers for rate limit handling
+        const headers: Record<string, string> = {}
+        response.headers.forEach((value, key) => {
+          headers[key] = value
+        })
+
         throw new UpstreamError(
           errorMessage,
           response.status,
@@ -89,6 +95,7 @@ export class ClaudeApiClient {
             requestId: request.requestId,
             status: response.status,
             body: errorBody,
+            headers,
           },
           parsedError
         )

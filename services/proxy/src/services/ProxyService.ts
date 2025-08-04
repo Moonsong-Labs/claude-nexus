@@ -1,14 +1,15 @@
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
-import { AuthenticationService } from './AuthenticationService'
+import { AuthenticationService, AuthResult } from './AuthenticationService'
 import { ClaudeApiClient } from './ClaudeApiClient'
 import { NotificationService } from './NotificationService'
 import { MetricsService } from './MetricsService'
-import { ClaudeMessagesRequest, generateConversationId } from '@claude-nexus/shared'
+import { ClaudeMessagesRequest, generateConversationId, UpstreamError } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
+import { RateLimitService } from './RateLimitService.js'
 
 /**
  * Main proxy service that orchestrates the request flow
@@ -20,7 +21,8 @@ export class ProxyService {
     private apiClient: ClaudeApiClient,
     private notificationService: NotificationService,
     private metricsService: MetricsService,
-    private storageAdapter?: StorageAdapter
+    private storageAdapter?: StorageAdapter,
+    private rateLimitService?: RateLimitService
   ) {}
 
   /**
@@ -125,9 +127,12 @@ export class ProxyService {
       }
     }
 
+    // Declare auth variable outside try block for access in catch block
+    let auth: AuthResult | undefined
+
     try {
       // Authenticate
-      const auth = context.host.toLowerCase().includes('personal')
+      auth = context.host.toLowerCase().includes('personal')
         ? await this.authService.authenticatePersonalDomain(context)
         : await this.authService.authenticateNonPersonalDomain(context)
 
@@ -168,6 +173,38 @@ export class ProxyService {
 
       return finalResponse
     } catch (error) {
+      // Check if this is a rate limit error (429)
+      if (
+        error instanceof UpstreamError &&
+        error.statusCode === 429 &&
+        this.rateLimitService &&
+        auth
+      ) {
+        // Extract account ID from auth result
+        const accountId = auth.accountId
+
+        if (accountId) {
+          // Extract retry-after header from error context
+          const retryAfterHeader = error.context?.headers?.['retry-after']
+          const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null
+
+          // Extract error message
+          const errorMessage = error.upstreamResponse?.error?.message || error.message
+
+          // Record the rate limit event
+          try {
+            await this.rateLimitService.recordRateLimitEvent({
+              accountId,
+              errorMessage,
+              retryAfterSeconds,
+              timestamp: new Date(),
+            })
+          } catch (rateLimitError) {
+            log.error('Failed to record rate limit event', rateLimitError as Error)
+          }
+        }
+      }
+
       // Track error metrics
       await this.metricsService.trackError(
         request,
@@ -194,7 +231,7 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    auth: any,
+    auth: AuthResult,
     conversationData?: {
       currentMessageHash: string
       parentMessageHash: string | null
@@ -287,7 +324,7 @@ export class ProxyService {
     request: ProxyRequest,
     response: ProxyResponse,
     context: RequestContext,
-    auth: any,
+    auth: AuthResult,
     conversationData?: {
       currentMessageHash: string
       parentMessageHash: string | null
@@ -386,7 +423,7 @@ export class ProxyService {
     writer: WritableStreamDefaultWriter,
     context: RequestContext,
     request: ProxyRequest,
-    auth: any,
+    auth: AuthResult,
     conversationData?: {
       currentMessageHash: string
       parentMessageHash: string | null
