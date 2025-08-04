@@ -2,6 +2,7 @@ import { getApiKey, DomainCredentialMapping, loadCredentials, SlackConfig } from
 import { AuthenticationError } from '@claude-nexus/shared'
 import { RequestContext } from '../domain/value-objects/RequestContext'
 import { logger } from '../middleware/logger'
+import { AccountPoolService } from './AccountPoolService'
 import * as path from 'path'
 
 export interface AuthResult {
@@ -19,13 +20,20 @@ export interface AuthResult {
 export class AuthenticationService {
   private domainMapping: DomainCredentialMapping = {}
   private warnedDomains = new Set<string>()
+  private accountPoolService?: AccountPoolService
 
   constructor(
     private defaultApiKey?: string,
-    private credentialsDir: string = process.env.CREDENTIALS_DIR || 'credentials'
+    private credentialsDir: string = process.env.CREDENTIALS_DIR || 'credentials',
+    dbPool?: any // Pool from pg
   ) {
     // Initialize domain mapping if needed
     // For now, we'll handle credentials dynamically
+    
+    // Initialize account pool service if we have a database
+    if (dbPool) {
+      this.accountPoolService = new AccountPoolService(this.credentialsDir, dbPool)
+    }
   }
 
   /**
@@ -36,9 +44,76 @@ export class AuthenticationService {
   }
 
   /**
+   * Authenticate using a pool configuration
+   */
+  async authenticateWithPool(
+    credentialPath: string,
+    context: RequestContext,
+    conversationId?: string
+  ): Promise<AuthResult> {
+    if (!this.accountPoolService) {
+      throw new AuthenticationError('Pool authentication not available - database required', {
+        domain: context.host,
+        requestId: context.requestId,
+      })
+    }
+
+    try {
+      // Load the pool if not already loaded
+      await this.accountPoolService.loadPool(credentialPath)
+
+      // Select an account from the pool
+      const authResult = await this.accountPoolService.selectAccount(
+        credentialPath,
+        conversationId,
+        context.requestId
+      )
+
+      if (!authResult) {
+        throw new AuthenticationError('No available accounts in pool', {
+          domain: context.host,
+          requestId: context.requestId,
+          hint: 'All accounts may have reached their usage limits',
+        })
+      }
+
+      logger.info(`Using pooled account for domain`, {
+        requestId: context.requestId,
+        domain: context.host,
+        metadata: {
+          accountId: authResult.accountId,
+          authType: authResult.type,
+        },
+      })
+
+      return authResult
+    } catch (error) {
+      logger.error('Pool authentication failed', {
+        requestId: context.requestId,
+        domain: context.host,
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                code: (error as any).code,
+              }
+            : { message: String(error) },
+      })
+
+      if (error instanceof AuthenticationError) {
+        throw error
+      }
+
+      throw new AuthenticationError('Pool authentication failed', {
+        originalError: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  /**
    * Authenticate non-personal domains - only uses domain credentials, no fallbacks
    */
-  async authenticateNonPersonalDomain(context: RequestContext): Promise<AuthResult> {
+  async authenticateNonPersonalDomain(context: RequestContext, conversationId?: string): Promise<AuthResult> {
     try {
       const sanitizedPath = this.getSafeCredentialPath(context.host)
       if (!sanitizedPath) {
@@ -55,6 +130,11 @@ export class AuthenticationService {
           requestId: context.requestId,
           hint: 'Domain credentials are required for non-personal domains',
         })
+      }
+
+      // Check if this is a pool configuration
+      if (credentials.type === 'pool') {
+        return this.authenticateWithPool(sanitizedPath, context, conversationId)
       }
 
       const apiKey = await getApiKey(sanitizedPath)
@@ -130,7 +210,7 @@ export class AuthenticationService {
    * Authenticate personal domains - uses fallback logic
    * Priority: Domain credentials → Bearer token → Default API key
    */
-  async authenticatePersonalDomain(context: RequestContext): Promise<AuthResult> {
+  async authenticatePersonalDomain(context: RequestContext, conversationId?: string): Promise<AuthResult> {
     try {
       // For personal domains, use the original priority logic
       // Priority order:

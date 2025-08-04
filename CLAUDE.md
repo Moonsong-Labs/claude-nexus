@@ -526,7 +526,7 @@ See `docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md` for details
 # Generate secure client API key
 bun run scripts/generate-api-key.ts
 
-# Create credential file
+# Create credential file for single account
 cat > credentials/domain.com.credentials.json << EOF
 {
   "type": "api_key",
@@ -535,7 +535,66 @@ cat > credentials/domain.com.credentials.json << EOF
   "client_api_key": "cnp_live_..."
 }
 EOF
+
+# Create pool configuration for multiple accounts
+cat > credentials/pool.domain.com.credentials.json << EOF
+{
+  "type": "pool",
+  "pool": {
+    "poolId": "main-pool",
+    "accounts": [
+      "acc_f9e1c2d3b4a5",
+      "acc_a2b3c4d5e6f7",
+      "acc_b3c4d5e6f7a8"
+    ],
+    "strategy": "sticky",  # Options: sticky (default), round-robin, least-used
+    "fallbackBehavior": "cycle"  # Options: cycle (default), error
+  },
+  "client_api_key": "cnp_live_..."
+}
+EOF
+
+# Create individual account credentials for pool members
+cat > credentials/account-1.credentials.json << EOF
+{
+  "type": "api_key",
+  "accountId": "acc_f9e1c2d3b4a5",
+  "api_key": "sk-ant-..."
+}
+EOF
 ```
+
+### Account Pooling
+
+The proxy supports account pooling to share usage limits across multiple accounts:
+
+**Features:**
+- **Non-exclusive pools**: Accounts can belong to multiple pools
+- **Sticky routing**: Requests within a conversation stay on the same account
+- **Usage-aware selection**: Automatically selects accounts with available capacity
+- **Fallback strategies**: Configurable behavior when accounts hit limits
+
+**Pool Strategies:**
+- `sticky`: Routes conversations to the same account (default)
+- `least-used`: Selects the account with most remaining tokens
+- `round-robin`: Distributes requests evenly
+
+**Configuration Example:**
+```json
+{
+  "type": "pool",
+  "pool": {
+    "poolId": "production-pool",
+    "accounts": ["acc_1", "acc_2", "acc_3"],
+    "strategy": "sticky",
+    "fallbackBehavior": "cycle"
+  },
+  "client_api_key": "cnp_live_..."
+}
+```
+
+**API Endpoints:**
+- `GET /api/pools/:domain/status` - Get pool utilization and account statuses
 
 ### Enable Storage
 

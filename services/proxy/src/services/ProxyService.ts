@@ -128,8 +128,8 @@ export class ProxyService {
     try {
       // Authenticate
       const auth = context.host.toLowerCase().includes('personal')
-        ? await this.authService.authenticatePersonalDomain(context)
-        : await this.authService.authenticateNonPersonalDomain(context)
+        ? await this.authService.authenticatePersonalDomain(context, conversationData?.conversationId)
+        : await this.authService.authenticateNonPersonalDomain(context, conversationData?.conversationId)
 
       // Forward to Claude
       log.info('Forwarding request to Claude', {

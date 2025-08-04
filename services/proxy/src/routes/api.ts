@@ -4,6 +4,8 @@ import { Pool } from 'pg'
 import { logger } from '../middleware/logger.js'
 import { getErrorMessage, getErrorStack } from '@claude-nexus/shared'
 import { container } from '../container.js'
+import { AccountPoolService } from '../services/AccountPoolService.js'
+import { loadCredentials } from '../credentials.js'
 
 // Query parameter schemas
 const statsQuerySchema = z.object({
@@ -1051,5 +1053,69 @@ apiRoutes.get('/usage/tokens/hourly', async c => {
   } catch (error) {
     logger.error('Failed to get hourly token usage', { error: getErrorMessage(error) })
     return c.json({ error: 'Failed to retrieve hourly token usage data' }, 500)
+  }
+})
+
+/**
+ * GET /api/pools/:domain/status - Get pool status for a domain
+ */
+apiRoutes.get('/pools/:domain/status', async c => {
+  const domain = c.req.param('domain')
+  
+  let pool = c.get('pool')
+  if (!pool) {
+    pool = container.getDbPool()
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    // Get credentials directory from config
+    const credentialsDir = process.env.CREDENTIALS_DIR || 'credentials'
+    
+    // Create pool service instance
+    const poolService = new AccountPoolService(credentialsDir, pool)
+    
+    // Build credential path for domain
+    const credentialPath = `${credentialsDir}/${domain}.credentials.json`
+    
+    // Check if this is a pool configuration
+    const credentials = loadCredentials(credentialPath)
+    if (!credentials || credentials.type !== 'pool') {
+      return c.json({ error: 'Domain does not use pool configuration' }, 400)
+    }
+
+    // Load the pool
+    await poolService.loadPool(credentialPath)
+    
+    // Get pool status
+    const status = await poolService.getPoolStatus(credentialPath)
+    
+    if (!status) {
+      return c.json({ error: 'Failed to get pool status' }, 500)
+    }
+
+    return c.json({
+      domain,
+      poolId: status.poolId,
+      totalCapacity: status.totalCapacity,
+      totalUsed: status.totalUsed,
+      totalRemaining: status.totalCapacity - status.totalUsed,
+      utilizationPercentage: (status.totalUsed / status.totalCapacity) * 100,
+      accounts: status.accounts.map(acc => ({
+        accountId: acc.accountId,
+        outputTokens: acc.usage?.outputTokens || 0,
+        remainingTokens: acc.usage?.remainingTokens || 140000,
+        percentageUsed: acc.usage?.percentageUsed || 0,
+        lastRequestTime: acc.usage?.lastRequestTime || null,
+      })),
+    })
+  } catch (error) {
+    logger.error('Failed to get pool status', { 
+      error: getErrorMessage(error),
+      domain,
+    })
+    return c.json({ error: 'Failed to retrieve pool status' }, 500)
   }
 })

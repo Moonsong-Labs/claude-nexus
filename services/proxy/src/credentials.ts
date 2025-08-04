@@ -38,13 +38,21 @@ export interface SlackConfig {
   enabled?: boolean
 }
 
+export interface PoolConfig {
+  poolId: string
+  accounts: string[] // Array of accountIds
+  strategy?: 'sticky' | 'round-robin' | 'least-used' // Default: sticky
+  fallbackBehavior?: 'cycle' | 'error' // Default: cycle
+}
+
 export interface ClaudeCredentials {
-  type: 'api_key' | 'oauth'
+  type: 'api_key' | 'oauth' | 'pool'
   accountId?: string // Unique identifier for the account (e.g., "acc_f9e1c2d3b4a5")
   api_key?: string
   oauth?: OAuthCredentials
   slack?: SlackConfig
   client_api_key?: string
+  pool?: PoolConfig // Pool configuration when type is 'pool'
 }
 
 export interface DomainCredentialMapping {
@@ -171,7 +179,8 @@ export function loadCredentials(filePath: string): ClaudeCredentials | null {
     }
 
     // Validate accountId (warn but don't fail for backward compatibility)
-    if (!credentials.accountId) {
+    // Note: Pool credentials don't need accountId
+    if (!credentials.accountId && credentials.type !== 'pool') {
       console.warn(`Warning: Credential file missing accountId: ${fullPath}`)
     }
 
@@ -183,6 +192,19 @@ export function loadCredentials(filePath: string): ClaudeCredentials | null {
     if (credentials.type === 'oauth' && !credentials.oauth) {
       console.error(`Invalid OAuth credential file: ${fullPath}`)
       return null
+    }
+
+    if (credentials.type === 'pool' && !credentials.pool) {
+      console.error(`Invalid pool credential file: ${fullPath}`)
+      return null
+    }
+
+    if (credentials.type === 'pool' && credentials.pool) {
+      // Validate pool configuration
+      if (!credentials.pool.poolId || !credentials.pool.accounts || credentials.pool.accounts.length === 0) {
+        console.error(`Invalid pool configuration in ${fullPath}: missing poolId or accounts`)
+        return null
+      }
     }
 
     // Cache the credentials
@@ -509,7 +531,8 @@ export function validateCredentialMapping(mapping: DomainCredentialMapping): str
     }
 
     // Check for accountId (warning only for backward compatibility)
-    if (!credentials.accountId) {
+    // Note: Pool credentials don't need accountId
+    if (!credentials.accountId && credentials.type !== 'pool') {
       errors.push(`Warning: Missing accountId for domain '${domain}' in ${credPath}`)
     }
 
@@ -526,6 +549,18 @@ export function validateCredentialMapping(mapping: DomainCredentialMapping): str
           errors.push(
             `Invalid OAuth credential for domain '${domain}': missing accessToken and refreshToken`
           )
+        }
+      }
+    } else if (credentials.type === 'pool') {
+      if (!credentials.pool) {
+        errors.push(`Invalid pool credential for domain '${domain}': missing pool field`)
+      } else {
+        const pool = credentials.pool
+        if (!pool.poolId) {
+          errors.push(`Invalid pool credential for domain '${domain}': missing poolId`)
+        }
+        if (!pool.accounts || pool.accounts.length === 0) {
+          errors.push(`Invalid pool credential for domain '${domain}': no accounts configured`)
         }
       }
     } else {
