@@ -487,20 +487,21 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 const chartId = 'chart24h'
                 const chartScript = `
               // Prepare 24-hour sliding window chart data
-              const slidingData = ${JSON.stringify(
-                slidingWindow24h.data.map(point => ({
-                  time: new Date(point.time_bucket).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                  tokens: point.sliding_window_tokens,
-                  hasWarning: point.rate_limit_warning_in_window,
-                }))
-              )};
-              
-              const tokenLimit = 600000; // Maximum chart height for better visualization
+              (function() {
+                const slidingData = ${JSON.stringify(
+                  slidingWindow24h.data.map(point => ({
+                    time: new Date(point.time_bucket).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                    tokens: point.sliding_window_tokens,
+                    hasWarning: point.rate_limit_warning_in_window,
+                  }))
+                )};
+                
+                const tokenLimit = 600000; // Maximum chart height for better visualization
               
               // Wait for canvas to be ready
               setTimeout(() => {
@@ -722,6 +723,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   tooltip.style.display = 'none';
                 });
               }, 100);
+              })(); // End of IIFE for 24-hour chart
             `
 
                 return html`
@@ -744,19 +746,20 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 const chartId = 'chart7d'
                 const chartScript = `
               // Prepare 7-day sliding window chart data
-              const slidingData = ${JSON.stringify(
-                slidingWindow7d.data.map(point => ({
-                  time: new Date(point.time_bucket).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                  }),
-                  tokens: point.sliding_window_tokens,
-                  hasWarning: point.rate_limit_warning_in_window,
-                }))
-              )};
-              
-              const tokenLimit = 600000; // Maximum chart height for better visualization
+              (function() {
+                const slidingData = ${JSON.stringify(
+                  slidingWindow7d.data.map(point => ({
+                    time: new Date(point.time_bucket).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                    }),
+                    tokens: point.sliding_window_tokens,
+                    hasWarning: point.rate_limit_warning_in_window,
+                  }))
+                )};
+                
+                const tokenLimit = 600000; // Maximum chart height for better visualization
               
               // Wait for canvas to be ready
               setTimeout(() => {
@@ -978,6 +981,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   tooltip.style.display = 'none';
                 });
               }, 100);
+              })(); // End of IIFE for 7-day chart
             `
 
                 return html`
