@@ -50,6 +50,29 @@ tokenUsageRoutes.get('/token-usage', async c => {
     try {
       const accountsData = await apiClient.getAccountsTokenUsage()
 
+      // Fetch sliding window data for all accounts in parallel
+      const slidingWindowPromises = accountsData.accounts.map(
+        account =>
+          apiClient
+            .getSlidingWindowUsage({
+              accountId: account.accountId,
+              days: 7,
+              bucketMinutes: 60, // Use 60-minute buckets for overview to reduce data
+              windowHours: 5,
+            })
+            .catch(() => null) // Handle errors gracefully
+      )
+
+      const slidingWindowResults = await Promise.all(slidingWindowPromises)
+
+      // Create a map of accountId to sliding window data
+      const slidingWindowMap = new Map()
+      slidingWindowResults.forEach((result, index) => {
+        if (result) {
+          slidingWindowMap.set(accountsData.accounts[index].accountId, result)
+        }
+      })
+
       const content = html`
         <div class="mb-6">
           <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
@@ -58,7 +81,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
         <h2 style="margin: 0 0 1.5rem 0;">Token Usage Overview - All Accounts</h2>
 
         <div class="section">
-          <div class="section-header">Active Accounts (5-Hour Window)</div>
+          <div class="section-header">Active Accounts (7-Day View with 5-Hour Sliding Windows)</div>
           <div class="section-content">
             ${accountsData.accounts.length > 0
               ? html`
@@ -67,9 +90,89 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       accountsData.accounts
                         .map(account => {
                           const chartId = `chart-${account.accountId.replace(/[^a-zA-Z0-9]/g, '-')}`
-                          const chartScript = `
+                          const slidingWindowData = slidingWindowMap.get(account.accountId)
+
+                          const chartScript = slidingWindowData
+                            ? `
                     (function() {
-                      // Mini chart for ${account.accountId}
+                      // 7-day sliding window chart for ${account.accountId}
+                      const canvas = document.getElementById('${chartId}');
+                      if (!canvas) return;
+                      
+                      const ctx = canvas.getContext('2d');
+                      const rect = canvas.getBoundingClientRect();
+                      canvas.width = rect.width * window.devicePixelRatio;
+                      canvas.height = rect.height * window.devicePixelRatio;
+                      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                      
+                      const slidingData = ${JSON.stringify(
+                        slidingWindowData.data.map(point => ({
+                          tokens: point.sliding_window_tokens,
+                          hasWarning: point.rate_limit_warning_in_window,
+                        }))
+                      )};
+                      const tokenLimit = 140000;
+                      
+                      // Draw background
+                      ctx.fillStyle = '#f9fafb';
+                      ctx.fillRect(0, 0, rect.width, rect.height);
+                      
+                      if (slidingData.length === 0) return;
+                      
+                      // Find max value for scaling
+                      const maxTokens = Math.max(...slidingData.map(d => d.tokens), tokenLimit);
+                      
+                      // Draw the line with segments
+                      ctx.lineWidth = 1.5;
+                      let lastWarningState = slidingData[0]?.hasWarning || false;
+                      let segmentStart = 0;
+                      
+                      // Function to draw a line segment
+                      const drawSegment = (startIdx, endIdx, hasWarning) => {
+                        ctx.beginPath();
+                        for (let i = startIdx; i <= endIdx; i++) {
+                          const x = (i / (slidingData.length - 1)) * rect.width;
+                          const y = rect.height - (slidingData[i].tokens / maxTokens) * rect.height;
+                          
+                          if (i === startIdx) {
+                            ctx.moveTo(x, y);
+                          } else {
+                            ctx.lineTo(x, y);
+                          }
+                        }
+                        ctx.strokeStyle = hasWarning ? '#ef4444' : '#10b981';
+                        ctx.stroke();
+                      };
+                      
+                      // Draw segments based on warning state changes
+                      for (let i = 1; i < slidingData.length; i++) {
+                        if (slidingData[i].hasWarning !== lastWarningState) {
+                          drawSegment(segmentStart, i - 1, lastWarningState);
+                          segmentStart = i - 1; // Overlap by one point for continuity
+                          lastWarningState = slidingData[i].hasWarning;
+                        }
+                      }
+                      // Draw the final segment
+                      if (slidingData.length > 0) {
+                        drawSegment(segmentStart, slidingData.length - 1, lastWarningState);
+                      }
+                      
+                      // Draw warning dots
+                      ctx.fillStyle = '#ef4444';
+                      slidingData.forEach((point, index) => {
+                        if (point.hasWarning) {
+                          const x = (index / (slidingData.length - 1)) * rect.width;
+                          const y = rect.height - (point.tokens / maxTokens) * rect.height;
+                          ctx.beginPath();
+                          ctx.arc(x, y, 2, 0, Math.PI * 2);
+                          ctx.fill();
+                        }
+                      });
+                    })();
+                  `
+                            : `
+                    (function() {
+                      // Fallback to mini chart for ${account.accountId}
                       const canvas = document.getElementById('${chartId}');
                       if (!canvas) return;
                       
@@ -130,14 +233,23 @@ tokenUsageRoutes.get('/token-usage', async c => {
                             <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;">
                               <strong style="font-size: 16px; color: #1f2937;">${escapeHtml(account.accountId)}</strong>
                               <span style="font-size: 14px; color: ${
-                                account.percentageUsed > 90
+                                slidingWindowData &&
+                                slidingWindowData.data.length > 0 &&
+                                slidingWindowData.data[slidingWindowData.data.length - 1]
+                                  .rate_limit_warning_in_window
                                   ? '#ef4444'
-                                  : account.percentageUsed > 70
-                                    ? '#f59e0b'
-                                    : '#10b981'
+                                  : '#10b981'
                               };">
                                 ${formatNumber(account.outputTokens)} / ${formatNumber(accountsData.tokenLimit)} tokens
                                 (${account.percentageUsed.toFixed(1)}% used)
+                                ${
+                                  slidingWindowData &&
+                                  slidingWindowData.data.length > 0 &&
+                                  slidingWindowData.data[slidingWindowData.data.length - 1]
+                                    .rate_limit_warning_in_window
+                                    ? '⚠️ Rate Limited'
+                                    : ''
+                                }
                               </span>
                             </div>
                             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
