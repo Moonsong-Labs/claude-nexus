@@ -25,6 +25,11 @@ export function csrfProtection() {
       return next()
     }
 
+    // Skip CSRF protection for login route (it's the entry point)
+    if (c.req.path === '/dashboard/login' || c.req.path === '/login') {
+      return next()
+    }
+
     const method = c.req.method.toUpperCase()
 
     // Get or generate CSRF token
