@@ -1,13 +1,21 @@
 import { Pool } from 'pg'
-import { parseRateLimitType, type RateLimitType } from '@claude-nexus/shared'
+import {
+  parseRateLimitType,
+  parseRateLimitEventType,
+  type RateLimitType,
+  type RateLimitEventType,
+} from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 import { enableSqlLogging } from '../utils/sql-logger'
 
 export interface RateLimitEvent {
   accountId: string
+  domain: string
+  requestId: string
   errorMessage: string
   retryAfterSeconds: number | null
   timestamp: Date
+  metadata?: Record<string, any>
 }
 
 /**
@@ -33,15 +41,45 @@ export class RateLimitService {
     const client = await this.pool.connect()
 
     try {
+      await client.query('BEGIN')
+
       // Parse the limit type from error message
       const limitType = parseRateLimitType(event.errorMessage)
+      const eventType = parseRateLimitEventType(event.errorMessage)
 
       // Calculate retry_until timestamp
       const retryUntil = event.retryAfterSeconds
         ? new Date(event.timestamp.getTime() + event.retryAfterSeconds * 1000)
         : null
 
-      // UPSERT to account_rate_limit_summary
+      // Insert individual event into rate_limit_events table
+      await client.query(
+        `
+        INSERT INTO rate_limit_events (
+          request_id,
+          account_id,
+          domain,
+          limit_type,
+          triggered_at,
+          metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+      `,
+        [
+          event.requestId,
+          event.accountId,
+          event.domain,
+          eventType,
+          event.timestamp,
+          JSON.stringify({
+            ...event.metadata,
+            retry_after_seconds: event.retryAfterSeconds,
+            error_message: event.errorMessage,
+            legacy_limit_type: limitType,
+          }),
+        ]
+      )
+
+      // Also update the summary table for backward compatibility (Phase 1)
       await client.query(
         `
         INSERT INTO account_rate_limit_summary (
@@ -71,19 +109,27 @@ export class RateLimitService {
         ]
       )
 
+      await client.query('COMMIT')
+
       logger.info('Recorded rate limit event', {
         metadata: {
+          requestId: event.requestId,
           accountId: event.accountId,
+          domain: event.domain,
+          eventType,
           limitType,
           retryAfterSeconds: event.retryAfterSeconds,
           retryUntil: retryUntil?.toISOString(),
         },
       })
     } catch (error) {
+      await client.query('ROLLBACK')
       logger.error('Failed to record rate limit event', {
         error: error instanceof Error ? error.message : String(error),
         metadata: {
+          requestId: event.requestId,
           accountId: event.accountId,
+          domain: event.domain,
         },
       })
       throw error
@@ -199,8 +245,8 @@ export class RateLimitService {
       FROM api_requests
       WHERE 
         account_id = $1
-        AND created_at >= $2
-        AND created_at < $3
+        AND timestamp >= $2
+        AND timestamp < $3
     `,
       [accountId, windowStart, lastTriggeredAt]
     )
@@ -220,6 +266,57 @@ export class RateLimitService {
     `)
 
     return result.rows.map(row => row.account_id)
+  }
+
+  /**
+   * Get rate limit events for an account within a time range
+   */
+  async getRateLimitEvents(
+    accountId: string,
+    startTime: Date,
+    endTime: Date
+  ): Promise<Array<{ triggered_at: Date; limit_type: RateLimitEventType; metadata: any }>> {
+    const result = await this.pool.query(
+      `
+      SELECT 
+        triggered_at,
+        limit_type,
+        metadata
+      FROM rate_limit_events
+      WHERE 
+        account_id = $1
+        AND triggered_at >= $2
+        AND triggered_at <= $3
+      ORDER BY triggered_at DESC
+    `,
+      [accountId, startTime, endTime]
+    )
+
+    return result.rows
+  }
+
+  /**
+   * Check if there were any rate limit events in a specific hour
+   */
+  async hasRateLimitInHour(accountId: string, hourStart: Date): Promise<boolean> {
+    const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000) // 1 hour later
+
+    const result = await this.pool.query(
+      `
+      SELECT EXISTS (
+        SELECT 1
+        FROM rate_limit_events
+        WHERE 
+          account_id = $1
+          AND triggered_at >= $2
+          AND triggered_at < $3
+        LIMIT 1
+      ) as has_rate_limit
+    `,
+      [accountId, hourStart, hourEnd]
+    )
+
+    return result.rows[0].has_rate_limit
   }
 
   /**

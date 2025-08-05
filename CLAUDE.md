@@ -328,6 +328,39 @@ template: |
   - `/api/conversations` - Conversations with account info
 - **Note**: Rate limiting is handled by Claude API directly. The proxy only tracks and displays usage statistics.
 
+### Rate Limit Event Tracking
+
+The proxy tracks individual rate limit events from the Claude API:
+
+**Features:**
+
+- Event-based tracking in partitioned `rate_limit_events` table
+- Automatic detection of rate limit types (5h_sliding, weekly)
+- Stores request ID, account, domain, and timestamp for each event
+- Monthly partitions with automatic maintenance
+- Dashboard visualization with red coloring for affected time periods
+
+**Dashboard Display:**
+
+- Token usage charts show red line segments during hours with rate limit events
+- Account overview shows rate limit status badges
+- Detailed rate limit information panel when limits are active
+- Visual markers on charts showing when rate limits occurred
+
+**Database Schema:**
+
+- `rate_limit_events` - Partitioned table storing individual events
+- `account_rate_limit_summary` - Summary table for backward compatibility
+- Automatic partition creation for future months
+- Configurable retention period (default: 90 days)
+
+**Maintenance:**
+
+```bash
+# Run partition maintenance script
+bun run scripts/maintain-rate-limit-partitions.ts
+```
+
 ### Storage
 
 - PostgreSQL for request/response data
@@ -478,6 +511,17 @@ bun test conversation-linker.test.ts
 
 **streaming_chunks** - Stores streaming response chunks
 
+**rate_limit_events** - Partitioned table storing individual rate limit events:
+
+- `request_id` - Links to the request that triggered the rate limit
+- `account_id`, `domain` - Account and domain information
+- `limit_type` - Type of rate limit (5h_sliding or weekly)
+- `triggered_at` - Timestamp when the rate limit occurred
+- `metadata` - Additional information about the rate limit event
+- Partitioned by month for efficient querying and maintenance
+
+**account_rate_limit_summary** - Summary table for rate limit information per account
+
 ### Account-Based Token Tracking
 
 Token usage is tracked directly in the `api_requests` table:
@@ -515,6 +559,11 @@ for file in scripts/db/migrations/*.ts; do bun run "$file"; done
 - 006: Split conversation hashes
 - 007: Add parent_request_id
 - 008: Update subtask conversation IDs and optimize Task queries
+- 009: Increase response body size limit
+- 010: Add account rate limit summary table
+- 011: Add conversation analyses table
+- 012: Add partial index for pending analyses
+- 013: Add rate limit events table with partitioning
 
 See `docs/04-Architecture/ADRs/adr-012-database-schema-evolution.md` for details.
 

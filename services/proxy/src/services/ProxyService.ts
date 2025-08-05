@@ -195,9 +195,15 @@ export class ProxyService {
           try {
             await this.rateLimitService.recordRateLimitEvent({
               accountId,
+              domain: context.host,
+              requestId: context.requestId,
               errorMessage,
               retryAfterSeconds,
               timestamp: new Date(),
+              metadata: {
+                headers: error.context?.headers,
+                upstreamResponse: error.upstreamResponse,
+              },
             })
           } catch (rateLimitError) {
             log.error('Failed to record rate limit event', rateLimitError as Error)

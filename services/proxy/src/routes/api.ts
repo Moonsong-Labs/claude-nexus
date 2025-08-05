@@ -691,6 +691,11 @@ apiRoutes.get('/token-usage/time-series', async c => {
             NOW(),
             $3 * INTERVAL '1 minute'
           ) AS bucket_time
+      ),
+      hourly_buckets AS (
+        SELECT DISTINCT
+          date_trunc('hour', bucket_time) AS hour_bucket
+        FROM time_buckets
       )
       SELECT 
         tb.bucket_time,
@@ -700,7 +705,14 @@ apiRoutes.get('/token-usage/time-series', async c => {
           WHERE account_id = $1
             AND timestamp > tb.bucket_time - INTERVAL '5 hours'
             AND timestamp <= tb.bucket_time
-        ) AS sliding_window_tokens
+        ) AS sliding_window_tokens,
+        EXISTS (
+          SELECT 1
+          FROM rate_limit_events rle
+          WHERE rle.account_id = $1
+            AND rle.triggered_at >= date_trunc('hour', tb.bucket_time)
+            AND rle.triggered_at < date_trunc('hour', tb.bucket_time) + INTERVAL '1 hour'
+        ) AS has_rate_limit_in_hour
       FROM time_buckets tb
       ORDER BY tb.bucket_time ASC
     `
@@ -720,6 +732,7 @@ apiRoutes.get('/token-usage/time-series', async c => {
         slidingWindowUsage,
         remaining: Math.max(0, remaining),
         percentageUsed: (slidingWindowUsage / tokenLimit) * 100,
+        hasRateLimitInHour: row.has_rate_limit_in_hour,
       }
     })
 

@@ -384,6 +384,7 @@ export class ProxyApiClient {
       cumulativeUsage: number
       remaining: number
       percentageUsed: number
+      hasRateLimitInHour?: boolean
     }>
   }> {
     try {
@@ -414,6 +415,7 @@ export class ProxyApiClient {
           cumulativeUsage: number
           remaining: number
           percentageUsed: number
+          hasRateLimitInHour?: boolean
         }[]
       }
     } catch (error) {

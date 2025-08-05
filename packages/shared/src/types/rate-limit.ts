@@ -6,6 +6,9 @@ export type RateLimitType =
   | 'tokens_per_day'
   | 'unknown'
 
+// New rate limit event types for the event-based tracking
+export type RateLimitEventType = '5h_sliding' | 'weekly'
+
 export interface RateLimitSummary {
   id: number
   account_id: string
@@ -52,6 +55,20 @@ export function parseRateLimitType(message: string): RateLimitType {
     return 'requests_per_minute'
   }
   return 'unknown'
+}
+
+// Helper function to determine rate limit event type
+export function parseRateLimitEventType(message: string): RateLimitEventType {
+  // Claude API typically uses "per-minute" for 5-hour sliding window
+  // and "daily" for weekly limits
+  if (message.includes('per-minute')) {
+    return '5h_sliding'
+  }
+  if (message.includes('daily')) {
+    return 'weekly'
+  }
+  // Default to 5h_sliding if we can't determine
+  return '5h_sliding'
 }
 
 // Check if account is currently rate limited
