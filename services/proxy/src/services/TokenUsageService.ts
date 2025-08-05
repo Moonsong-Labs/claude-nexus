@@ -141,6 +141,119 @@ export class TokenUsageService {
   }
 
   /**
+   * Get sliding window usage with rate limit status
+   * Provides 10-minute bucket aggregation over specified days with 5-hour sliding windows
+   */
+  async getSlidingWindowUsage(
+    accountId: string,
+    days: number = 7,
+    bucketMinutes: number = 10,
+    windowHours: number = 5
+  ): Promise<{
+    accountId: string
+    params: {
+      days: number
+      bucketMinutes: number
+      windowHours: number
+    }
+    data: Array<{
+      time_bucket: Date
+      sliding_window_tokens: number
+      rate_limit_warning_in_window: boolean
+    }>
+  }> {
+    try {
+      const query = `
+        -- Define the time range and intervals
+        WITH params AS (
+          SELECT
+            NOW() - ($2 * INTERVAL '1 day') AS start_time,
+            NOW() AS end_time,
+            ($3 * INTERVAL '1 minute') AS bucket_interval,
+            ($4 * INTERVAL '1 hour') AS window_interval,
+            $1::varchar AS account_id
+        ),
+        -- Step 1: Aggregate raw requests into buckets
+        bucketed_requests AS (
+          SELECT
+            -- Truncate the timestamp to the floor of the bucket
+            date_trunc('hour', ar.timestamp) + floor(extract(minute FROM ar.timestamp) / $3) * ($3 * INTERVAL '1 minute') AS time_bucket,
+            SUM(ar.output_tokens) AS tokens_in_bucket,
+            -- Check if any request in the bucket had a rate limit warning
+            bool_or(
+              COALESCE(ar.response_headers->>'anthropic-ratelimit-unified-status', '') = 'allowed_warning'
+            ) AS has_warning
+          FROM api_requests ar, params p
+          WHERE
+            ar.account_id = p.account_id
+            AND ar.timestamp >= p.start_time
+            AND ar.timestamp <= p.end_time
+            AND ar.response_headers IS NOT NULL
+          GROUP BY 1
+        ),
+        -- Step 2: Generate a complete time series for the period
+        time_series AS (
+          SELECT generate_series(
+            date_trunc('hour', p.start_time) + floor(extract(minute FROM p.start_time) / $3) * ($3 * INTERVAL '1 minute'),
+            p.end_time,
+            p.bucket_interval
+          ) AS time_bucket
+          FROM params p
+        )
+        -- Step 3: Join the time series with bucketed data and calculate the sliding window
+        SELECT
+          ts.time_bucket,
+          -- Calculate the sum of tokens over the preceding window for each bucket
+          COALESCE(
+            SUM(COALESCE(br.tokens_in_bucket, 0)) OVER (
+              ORDER BY ts.time_bucket
+              RANGE BETWEEN (($4 * 60 - 1) * INTERVAL '1 minute') PRECEDING AND CURRENT ROW
+            ),
+            0
+          ) AS sliding_window_tokens,
+          -- Carry forward the warning flag within the same sliding window
+          COALESCE(
+            bool_or(COALESCE(br.has_warning, false)) OVER (
+              ORDER BY ts.time_bucket
+              RANGE BETWEEN (($4 * 60 - 1) * INTERVAL '1 minute') PRECEDING AND CURRENT ROW
+            ),
+            false
+          ) AS rate_limit_warning_in_window
+        FROM time_series ts
+        LEFT JOIN bucketed_requests br ON ts.time_bucket = br.time_bucket
+        ORDER BY ts.time_bucket
+      `
+
+      const result = await this.pool.query(query, [accountId, days, bucketMinutes, windowHours])
+
+      return {
+        accountId,
+        params: {
+          days,
+          bucketMinutes,
+          windowHours,
+        },
+        data: result.rows.map(row => ({
+          time_bucket: row.time_bucket,
+          sliding_window_tokens: parseInt(row.sliding_window_tokens),
+          rate_limit_warning_in_window: row.rate_limit_warning_in_window,
+        })),
+      }
+    } catch (error) {
+      logger.error('Failed to get sliding window usage', {
+        metadata: {
+          accountId,
+          days,
+          bucketMinutes,
+          windowHours,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      throw error
+    }
+  }
+
+  /**
    * Get daily usage statistics
    */
   async getDailyUsage(
