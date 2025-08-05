@@ -360,23 +360,24 @@ tokenUsageRoutes.get('/token-usage', async c => {
       tokenUsageWindow,
       dailyUsageResult,
       rateLimitsResult,
-      timeSeriesResult,
-      slidingWindowResult,
+      slidingWindow24hResult,
+      slidingWindow7dResult,
     ] = await Promise.allSettled([
       apiClient.getTokenUsageWindow({ accountId, domain, window: 300 }), // 5 hour window
       apiClient.getDailyTokenUsage({ accountId, domain, days: 30, aggregate: true }),
       apiClient.getRateLimitConfigs({ accountId }),
-      apiClient.getTokenUsageTimeSeries({ accountId, window: 5, interval: 5 }), // 5-hour window, 5-minute intervals
-      apiClient.getSlidingWindowUsage({ accountId, days: 7, bucketMinutes: 10, windowHours: 5 }), // 7-day sliding window
+      apiClient.getSlidingWindowUsage({ accountId, days: 1, bucketMinutes: 5, windowHours: 5 }), // 24-hour sliding window with 5-minute buckets
+      apiClient.getSlidingWindowUsage({ accountId, days: 7, bucketMinutes: 60, windowHours: 5 }), // 7-day sliding window with 60-minute buckets
     ])
 
     // Handle results
     const tokenUsage = tokenUsageWindow.status === 'fulfilled' ? tokenUsageWindow.value : null
     const dailyUsage = dailyUsageResult.status === 'fulfilled' ? dailyUsageResult.value.usage : []
     const rateLimits = rateLimitsResult.status === 'fulfilled' ? rateLimitsResult.value.configs : []
-    const timeSeries = timeSeriesResult.status === 'fulfilled' ? timeSeriesResult.value : null
-    const slidingWindow =
-      slidingWindowResult.status === 'fulfilled' ? slidingWindowResult.value : null
+    const slidingWindow24h =
+      slidingWindow24hResult.status === 'fulfilled' ? slidingWindow24hResult.value : null
+    const slidingWindow7d =
+      slidingWindow7dResult.status === 'fulfilled' ? slidingWindow7dResult.value : null
 
     // Find the primary rate limit for this account
     const primaryLimit =
@@ -477,30 +478,33 @@ tokenUsageRoutes.get('/token-usage', async c => {
         </div>
       </div>
 
-      <!-- Cumulative Usage Chart -->
+      <!-- 24-Hour Sliding Window Chart -->
       <div class="section">
-        <div class="section-header">Cumulative Token Usage Over Time (5-Hour Window)</div>
+        <div class="section-header">24-Hour Token Usage (5-Hour Sliding Windows)</div>
         <div class="section-content">
-          ${timeSeries && timeSeries.timeSeries.length > 0
+          ${slidingWindow24h && slidingWindow24h.data.length > 0
             ? (() => {
+                const chartId = 'chart24h'
                 const chartScript = `
-              // Prepare chart data
-              const chartData = ${JSON.stringify(
-                timeSeries.timeSeries.map(point => ({
-                  time: new Date(point.time).toLocaleTimeString('en-US', {
+              // Prepare 24-hour sliding window chart data
+              const slidingData = ${JSON.stringify(
+                slidingWindow24h.data.map(point => ({
+                  time: new Date(point.time_bucket).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
                   }),
-                  remaining: point.remaining,
-                  percentageUsed: point.percentageUsed,
+                  tokens: point.sliding_window_tokens,
+                  hasWarning: point.rate_limit_warning_in_window,
                 }))
               )};
               
-              const tokenLimit = ${timeSeries.tokenLimit};
+              const tokenLimit = 140000; // 5-hour sliding window limit
               
               // Wait for canvas to be ready
               setTimeout(() => {
-                const canvas = document.getElementById('usageChart');
+                const canvas = document.getElementById('${chartId}');
                 if (!canvas) return;
                 
                 const ctx = canvas.getContext('2d');
@@ -509,7 +513,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 canvas.height = rect.height * window.devicePixelRatio;
                 ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
                 
-                const padding = { top: 20, right: 20, bottom: 60, left: 80 };
+                const padding = { top: 20, right: 20, bottom: 100, left: 80 };
                 const chartWidth = rect.width - padding.left - padding.right;
                 const chartHeight = rect.height - padding.top - padding.bottom;
                 
@@ -548,69 +552,78 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   ctx.fillText(formatNumber(value), padding.left - 10, y + 4);
                 }
                 
-                // Draw X-axis labels (show every nth label to avoid crowding)
-                ctx.textAlign = 'center';
-                const labelInterval = Math.ceil(chartData.length / 12);
-                chartData.forEach((point, index) => {
-                  if (index % labelInterval === 0 || index === chartData.length - 1) {
-                    const x = padding.left + (index / (chartData.length - 1)) * chartWidth;
-                    ctx.fillText(point.time, x, padding.top + chartHeight + 20);
+                // Draw X-axis labels (rotated for 24h view)
+                ctx.save();
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#6b7280';
+                ctx.font = '11px sans-serif';
+                
+                const labelInterval = Math.ceil(slidingData.length / 12);
+                slidingData.forEach((point, index) => {
+                  if (index % labelInterval === 0 || index === slidingData.length - 1) {
+                    const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
+                    ctx.save();
+                    ctx.translate(x, padding.top + chartHeight + 10);
+                    ctx.rotate(-Math.PI / 4);
+                    ctx.textAlign = 'right';
+                    ctx.fillText(point.time, 0, 0);
+                    ctx.restore();
                   }
                 });
+                ctx.restore();
                 
-                // Draw the cumulative usage line
-                ctx.beginPath();
+                // Draw usage line with color segments based on rate limit status
                 ctx.lineWidth = 2;
+                let lastWarningState = slidingData[0]?.hasWarning || false;
+                let segmentStart = 0;
                 
-                chartData.forEach((point, index) => {
-                  const x = padding.left + (index / (chartData.length - 1)) * chartWidth;
-                  const y = padding.top + (1 - point.remaining / tokenLimit) * chartHeight;
-                  
-                  if (index === 0) {
-                    ctx.moveTo(x, y);
-                  } else {
-                    ctx.lineTo(x, y);
+                // Function to draw a line segment
+                const drawSegment = (startIdx, endIdx, hasWarning) => {
+                  ctx.beginPath();
+                  for (let i = startIdx; i <= endIdx; i++) {
+                    const x = padding.left + (i / (slidingData.length - 1)) * chartWidth;
+                    const y = padding.top + (1 - slidingData[i].tokens / tokenLimit) * chartHeight;
+                    
+                    if (i === startIdx) {
+                      ctx.moveTo(x, y);
+                    } else {
+                      ctx.lineTo(x, y);
+                    }
+                  }
+                  ctx.strokeStyle = hasWarning ? '#ef4444' : '#10b981';
+                  ctx.stroke();
+                };
+                
+                // Draw segments based on warning state changes
+                for (let i = 1; i < slidingData.length; i++) {
+                  if (slidingData[i].hasWarning !== lastWarningState) {
+                    drawSegment(segmentStart, i - 1, lastWarningState);
+                    segmentStart = i - 1; // Overlap by one point for continuity
+                    lastWarningState = slidingData[i].hasWarning;
+                  }
+                }
+                // Draw the final segment
+                drawSegment(segmentStart, slidingData.length - 1, lastWarningState);
+                
+                // Draw warning indicators as dots
+                ctx.fillStyle = '#ef4444';
+                slidingData.forEach((point, index) => {
+                  if (point.hasWarning) {
+                    const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
+                    const y = padding.top + (1 - point.tokens / tokenLimit) * chartHeight;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
                   }
                 });
-                
-                // Create gradient for the line based on usage
-                const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
-                gradient.addColorStop(0, '#10b981'); // Green at top (low usage)
-                gradient.addColorStop(0.5, '#f59e0b'); // Yellow in middle
-                gradient.addColorStop(0.8, '#ef4444'); // Red near bottom (high usage)
-                gradient.addColorStop(1, '#dc2626'); // Dark red at bottom
-                
-                ctx.strokeStyle = gradient;
-                ctx.stroke();
-                
-                // Fill area under the curve with semi-transparent gradient
-                ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
-                ctx.lineTo(padding.left, padding.top + chartHeight);
-                ctx.closePath();
-                
-                const fillGradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
-                fillGradient.addColorStop(0, 'rgba(16, 185, 129, 0.1)');
-                fillGradient.addColorStop(0.5, 'rgba(245, 158, 11, 0.1)');
-                fillGradient.addColorStop(0.8, 'rgba(239, 68, 68, 0.2)');
-                fillGradient.addColorStop(1, 'rgba(220, 38, 38, 0.3)');
-                
-                ctx.fillStyle = fillGradient;
-                ctx.fill();
                 
                 // Draw current point
-                const lastPoint = chartData[chartData.length - 1];
+                const lastPoint = slidingData[slidingData.length - 1];
                 const lastX = padding.left + chartWidth;
-                const lastY = padding.top + (1 - lastPoint.remaining / tokenLimit) * chartHeight;
+                const lastY = padding.top + (1 - lastPoint.tokens / tokenLimit) * chartHeight;
+                const currentHasWarning = lastPoint.hasWarning;
                 
-                // Determine color based on percentage used
-                let pointColor = '#10b981'; // Green
-                if (lastPoint.percentageUsed > 90) {
-                  pointColor = '#ef4444'; // Red
-                } else if (lastPoint.percentageUsed > 70) {
-                  pointColor = '#f59e0b'; // Yellow
-                }
-                
-                ctx.fillStyle = pointColor;
+                ctx.fillStyle = currentHasWarning ? '#ef4444' : '#10b981';
                 ctx.beginPath();
                 ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
                 ctx.fill();
@@ -620,7 +633,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 ctx.font = '14px sans-serif';
                 ctx.textAlign = 'right';
                 ctx.fillText(
-                  formatNumber(lastPoint.remaining) + ' tokens remaining',
+                  formatNumber(lastPoint.tokens) + ' tokens',
                   lastX - 10,
                   lastY - 10
                 );
@@ -629,29 +642,96 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 ctx.fillStyle = '#374151';
                 ctx.font = '14px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Time', padding.left + chartWidth / 2, rect.height - 10);
+                ctx.fillText('Time (24 Hours)', padding.left + chartWidth / 2, rect.height - 10);
                 
                 ctx.save();
                 ctx.translate(15, padding.top + chartHeight / 2);
                 ctx.rotate(-Math.PI / 2);
-                ctx.fillText('Tokens Remaining', 0, 0);
+                ctx.fillText('Output Tokens (5-Hour Window)', 0, 0);
                 ctx.restore();
+                
+                // Add legend
+                const legendY = padding.top - 10;
+                ctx.font = '12px sans-serif';
+                
+                // Normal usage
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(padding.left + chartWidth - 200, legendY, 12, 12);
+                ctx.fillStyle = '#374151';
+                ctx.textAlign = 'left';
+                ctx.fillText('Normal', padding.left + chartWidth - 185, legendY + 10);
+                
+                // Rate limited
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(padding.left + chartWidth - 120, legendY, 12, 12);
+                ctx.fillStyle = '#374151';
+                ctx.fillText('Rate Limited', padding.left + chartWidth - 105, legendY + 10);
                 
                 // Helper function
                 function formatNumber(num) {
                   return num.toLocaleString();
                 }
+                
+                // Add hover functionality
+                let tooltip = document.getElementById('${chartId}-tooltip');
+                if (!tooltip) {
+                  tooltip = document.createElement('div');
+                  tooltip.id = '${chartId}-tooltip';
+                  tooltip.style.cssText = 'position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; display: none; z-index: 1000; white-space: nowrap;';
+                  document.body.appendChild(tooltip);
+                }
+                
+                canvas.addEventListener('mousemove', (e) => {
+                  const rect = canvas.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const y = e.clientY - rect.top;
+                  
+                  // Check if mouse is within chart area
+                  if (x >= padding.left && x <= padding.left + chartWidth &&
+                      y >= padding.top && y <= padding.top + chartHeight) {
+                    
+                    // Find nearest data point
+                    const dataIndex = Math.round(((x - padding.left) / chartWidth) * (slidingData.length - 1));
+                    if (dataIndex >= 0 && dataIndex < slidingData.length) {
+                      const point = slidingData[dataIndex];
+                      const pointX = padding.left + (dataIndex / (slidingData.length - 1)) * chartWidth;
+                      const pointY = padding.top + (1 - point.tokens / tokenLimit) * chartHeight;
+                      
+                      // Check if mouse is near the point (within 10 pixels)
+                      const distance = Math.sqrt(Math.pow(x - pointX, 2) + Math.pow(y - pointY, 2));
+                      if (distance < 10) {
+                        tooltip.innerHTML = \`
+                          <div style="font-weight: bold; margin-bottom: 4px;">\${point.time}</div>
+                          <div>Tokens: \${formatNumber(point.tokens)}</div>
+                          <div>Usage: \${((point.tokens / tokenLimit) * 100).toFixed(1)}%</div>
+                          \${point.hasWarning ? '<div style="color: #ff6b6b;">⚠️ Rate Limited</div>' : ''}
+                        \`;
+                        tooltip.style.left = (e.clientX + 10) + 'px';
+                        tooltip.style.top = (e.clientY - 40) + 'px';
+                        tooltip.style.display = 'block';
+                      } else {
+                        tooltip.style.display = 'none';
+                      }
+                    }
+                  } else {
+                    tooltip.style.display = 'none';
+                  }
+                });
+                
+                canvas.addEventListener('mouseleave', () => {
+                  tooltip.style.display = 'none';
+                });
               }, 100);
             `
 
                 return html`
                   <div style="width: 100%; height: 400px; position: relative;">
-                    <canvas id="usageChart" style="width: 100%; height: 100%;"></canvas>
+                    <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
                   </div>
                   ${raw(`<script>${chartScript}</script>`)}
                 `
               })()
-            : html` <p class="text-gray-500">No time series data available.</p> `}
+            : html` <p class="text-gray-500">No 24-hour data available.</p> `}
         </div>
       </div>
 
@@ -659,18 +739,17 @@ tokenUsageRoutes.get('/token-usage', async c => {
       <div class="section">
         <div class="section-header">7-Day Token Usage (5-Hour Sliding Windows)</div>
         <div class="section-content">
-          ${slidingWindow && slidingWindow.data.length > 0
+          ${slidingWindow7d && slidingWindow7d.data.length > 0
             ? (() => {
-                const chartId = 'slidingWindowChart'
+                const chartId = 'chart7d'
                 const chartScript = `
-              // Prepare sliding window chart data
+              // Prepare 7-day sliding window chart data
               const slidingData = ${JSON.stringify(
-                slidingWindow.data.map(point => ({
+                slidingWindow7d.data.map(point => ({
                   time: new Date(point.time_bucket).toLocaleString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit',
                   }),
                   tokens: point.sliding_window_tokens,
                   hasWarning: point.rate_limit_warning_in_window,
