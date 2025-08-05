@@ -30,7 +30,7 @@ function escapeHtml(unsafe: string): string {
 tokenUsageRoutes.get('/token-usage', async c => {
   const apiClient = c.get('apiClient')
   const accountId = c.req.query('accountId')
-  const domain = c.req.query('domain')
+  const _domain = c.req.query('domain') // Not currently used but kept for future use
 
   if (!apiClient) {
     return c.html(
@@ -111,7 +111,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                           hasWarning: point.rate_limit_warning_in_window,
                         }))
                       )};
-                      const tokenLimit = 140000;
+                      const tokenLimit = 600000; // Maximum chart height for better visualization
                       
                       // Draw background
                       ctx.fillStyle = '#f9fafb';
@@ -363,9 +363,9 @@ tokenUsageRoutes.get('/token-usage', async c => {
       slidingWindow24hResult,
       slidingWindow7dResult,
     ] = await Promise.allSettled([
-      apiClient.getTokenUsageWindow({ accountId, domain, window: 300 }), // 5 hour window
-      apiClient.getDailyTokenUsage({ accountId, domain, days: 30, aggregate: true }),
-      apiClient.getRateLimitConfigs({ accountId }),
+      apiClient.getTokenUsageCurrent(accountId, 300), // 5 hour window
+      apiClient.getTokenUsageDaily(accountId, false), // Daily usage
+      apiClient.getRateLimitConfigs(accountId), // Rate limit configs
       apiClient.getSlidingWindowUsage({ accountId, days: 1, bucketMinutes: 5, windowHours: 5 }), // 24-hour sliding window with 5-minute buckets
       apiClient.getSlidingWindowUsage({ accountId, days: 7, bucketMinutes: 60, windowHours: 5 }), // 7-day sliding window with 60-minute buckets
     ])
@@ -500,7 +500,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 }))
               )};
               
-              const tokenLimit = 140000; // 5-hour sliding window limit
+              const tokenLimit = 600000; // Maximum chart height for better visualization
               
               // Wait for canvas to be ready
               setTimeout(() => {
@@ -756,7 +756,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 }))
               )};
               
-              const tokenLimit = 140000; // 5-hour sliding window limit
+              const tokenLimit = 600000; // Maximum chart height for better visualization
               
               // Wait for canvas to be ready
               setTimeout(() => {
@@ -987,7 +987,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   ${raw(`<script>${chartScript}</script>`)}
                 `
               })()
-            : html` <p class="text-gray-500">No sliding window data available.</p> `}
+            : html` <p class="text-gray-500">No 7-day data available.</p> `}
         </div>
       </div>
 
