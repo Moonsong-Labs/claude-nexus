@@ -81,13 +81,15 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       
                       const data = ${JSON.stringify(account.miniSeries)};
                       const tokenLimit = ${accountsData.tokenLimit};
+                      const rateLimitInfo = ${account.rateLimitInfo ? JSON.stringify(account.rateLimitInfo) : 'null'};
                       
                       // Draw background
                       ctx.fillStyle = '#f9fafb';
                       ctx.fillRect(0, 0, rect.width, rect.height);
                       
                       // Draw rate limit line at 140k
-                      const limitY = rect.height - (tokenLimit / (tokenLimit * 1.2)) * rect.height;
+                      const maxHeight = 500000; // 500k tokens max
+                      const limitY = rect.height - (tokenLimit / maxHeight) * rect.height;
                       ctx.strokeStyle = '#ef4444';
                       ctx.lineWidth = 1;
                       ctx.setLineDash([5, 5]);
@@ -103,13 +105,31 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.textAlign = 'right';
                       ctx.fillText('140k limit', rect.width - 5, limitY - 2);
                       
-                      // Draw usage line
-                      ctx.beginPath();
+                      // Draw usage line with color changes at threshold
                       ctx.lineWidth = 1.5;
                       
+                      // Draw line segments with appropriate colors
+                      for (let i = 0; i < data.length - 1; i++) {
+                        const x1 = (i / (data.length - 1)) * rect.width;
+                        const y1 = rect.height - (data[i].usage / maxHeight) * rect.height;
+                        const x2 = ((i + 1) / (data.length - 1)) * rect.width;
+                        const y2 = rect.height - (data[i + 1].usage / maxHeight) * rect.height;
+                        
+                        // Determine color based on whether we're above or below 140k
+                        const segmentColor = data[i].usage > tokenLimit || data[i + 1].usage > tokenLimit ? '#ef4444' : '#10b981';
+                        
+                        ctx.beginPath();
+                        ctx.strokeStyle = segmentColor;
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                      }
+                      
+                      // Fill area under curve with gradient
+                      ctx.beginPath();
                       data.forEach((point, index) => {
                         const x = (index / (data.length - 1)) * rect.width;
-                        const y = rect.height - (point.usage / (tokenLimit * 1.2)) * rect.height;
+                        const y = rect.height - (point.usage / maxHeight) * rect.height;
                         
                         if (index === 0) {
                           ctx.moveTo(x, y);
@@ -118,27 +138,63 @@ tokenUsageRoutes.get('/token-usage', async c => {
                         }
                       });
                       
-                      // Get current usage (last point)
-                      const currentUsage = data.length > 0 ? data[data.length - 1].usage : 0;
-                      const currentPercentage = (currentUsage / tokenLimit) * 100;
-                      
-                      // Color based on current 5h sliding window usage
-                      let strokeColor = '#10b981'; // Green
-                      if (currentPercentage > 90) {
-                        strokeColor = '#ef4444'; // Red
-                      } else if (currentPercentage > 70) {
-                        strokeColor = '#f59e0b'; // Yellow
-                      }
-                      
-                      ctx.strokeStyle = strokeColor;
-                      ctx.stroke();
-                      
-                      // Fill area under curve
                       ctx.lineTo(rect.width, rect.height);
                       ctx.lineTo(0, rect.height);
                       ctx.closePath();
-                      ctx.fillStyle = strokeColor + '20'; // Add transparency
+                      
+                      // Create a gradient fill that changes at the threshold
+                      const fillGradient = ctx.createLinearGradient(0, 0, 0, rect.height);
+                      const limitYPosition = 1 - (tokenLimit / maxHeight);
+                      fillGradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)'); // Red at top
+                      fillGradient.addColorStop(limitYPosition - 0.01, 'rgba(239, 68, 68, 0.2)');
+                      fillGradient.addColorStop(limitYPosition, 'rgba(16, 185, 129, 0.2)');
+                      fillGradient.addColorStop(1, 'rgba(16, 185, 129, 0.2)'); // Green at bottom
+                      
+                      ctx.fillStyle = fillGradient;
                       ctx.fill();
+                      
+                      // Draw vertical lines
+                      // 1. Draw 5-hour marker (from the right edge) - for 7-day span
+                      if (data.length > 0) {
+                        const now = new Date(data[data.length - 1].time);
+                        const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+                        const oldestTime = new Date(data[0].time);
+                        const timeSpan = now - oldestTime;
+                        
+                        // Calculate position of 5 hours ago
+                        const fiveHourOffset = (now - fiveHoursAgo) / timeSpan;
+                        const fiveHourX = rect.width * (1 - fiveHourOffset);
+                        
+                        if (fiveHourX > 0) {
+                          ctx.strokeStyle = '#6366f1'; // Indigo color for 5h marker
+                          ctx.lineWidth = 1;
+                          ctx.setLineDash([3, 3]);
+                          ctx.beginPath();
+                          ctx.moveTo(fiveHourX, 0);
+                          ctx.lineTo(fiveHourX, rect.height);
+                          ctx.stroke();
+                          ctx.setLineDash([]);
+                        }
+                        
+                        // 2. Draw rate limit timestamp marker if available
+                        if (rateLimitInfo && rateLimitInfo.last_triggered_at) {
+                          const rateLimitTime = new Date(rateLimitInfo.last_triggered_at);
+                          
+                          if (rateLimitTime >= oldestTime && rateLimitTime <= now) {
+                            const rateLimitOffset = (now - rateLimitTime) / timeSpan;
+                            const rateLimitX = rect.width * (1 - rateLimitOffset);
+                            
+                            ctx.strokeStyle = '#dc2626'; // Red color for rate limit
+                            ctx.lineWidth = 1;
+                            ctx.setLineDash([2, 2]);
+                            ctx.beginPath();
+                            ctx.moveTo(rateLimitX, 0);
+                            ctx.lineTo(rateLimitX, rect.height);
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+                          }
+                        }
+                      }
                       
                       // Add time labels
                       ctx.fillStyle = '#9ca3af';
@@ -164,11 +220,9 @@ tokenUsageRoutes.get('/token-usage', async c => {
                                     : ''
                               }
                               <span style="font-size: 12px; color: ${
-                                account.percentageUsed > 90
+                                account.outputTokens5h > accountsData.tokenLimit
                                   ? '#ef4444'
-                                  : account.percentageUsed > 70
-                                    ? '#f59e0b'
-                                    : '#10b981'
+                                  : '#10b981'
                               };">
                                 7d: ${formatNumber(account.outputTokens)} tokens | 5h: ${formatNumber(account.outputTokens5h)} / ${formatNumber(accountsData.tokenLimit)}
                                 (${account.percentageUsed.toFixed(1)}% of 5h limit)
@@ -440,9 +494,9 @@ tokenUsageRoutes.get('/token-usage', async c => {
         </div>
       </div>
 
-      <!-- Cumulative Usage Chart -->
+      <!-- Sliding Window Usage Chart -->
       <div class="section">
-        <div class="section-header">Cumulative Token Usage Over Time (5-Hour Window)</div>
+        <div class="section-header">5-Hour Sliding Window Token Usage</div>
         <div class="section-content">
           ${timeSeries && timeSeries.timeSeries.length > 0
             ? (() => {
@@ -454,12 +508,14 @@ tokenUsageRoutes.get('/token-usage', async c => {
                     hour: '2-digit',
                     minute: '2-digit',
                   }),
+                  fullTime: point.time,
                   remaining: point.remaining,
                   percentageUsed: point.percentageUsed,
                 }))
               )};
               
               const tokenLimit = ${timeSeries.tokenLimit};
+              const rateLimitInfo = ${tokenUsage?.rateLimitInfo ? JSON.stringify(tokenUsage.rateLimitInfo) : 'null'};
               
               // Wait for canvas to be ready
               setTimeout(() => {
@@ -494,10 +550,11 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 ctx.font = '12px sans-serif';
                 ctx.textAlign = 'right';
                 
+                const maxHeight = 500000; // 500k tokens max
                 const ySteps = 5;
                 for (let i = 0; i <= ySteps; i++) {
                   const y = padding.top + (chartHeight * i / ySteps);
-                  const value = tokenLimit * (1 - i / ySteps);
+                  const value = maxHeight * (1 - i / ySteps);
                   
                   // Grid line
                   ctx.strokeStyle = '#f3f4f6';
@@ -521,13 +578,52 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   }
                 });
                 
-                // Draw the cumulative usage line
+                // Draw rate limit line at 140k
+                const limitY = padding.top + (1 - (maxHeight - tokenLimit) / maxHeight) * chartHeight;
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
                 ctx.beginPath();
+                ctx.moveTo(padding.left, limitY);
+                ctx.lineTo(padding.left + chartWidth, limitY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Add rate limit label
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('140k limit', padding.left + 5, limitY - 5);
+                
+                // Draw the sliding window usage line with segment-based colors
                 ctx.lineWidth = 2;
                 
+                // Draw line segments with appropriate colors
+                for (let i = 0; i < chartData.length - 1; i++) {
+                  const x1 = padding.left + (i / (chartData.length - 1)) * chartWidth;
+                  const y1 = padding.top + (1 - chartData[i].remaining / maxHeight) * chartHeight;
+                  const x2 = padding.left + ((i + 1) / (chartData.length - 1)) * chartWidth;
+                  const y2 = padding.top + (1 - chartData[i + 1].remaining / maxHeight) * chartHeight;
+                  
+                  // Calculate usage from remaining
+                  const usage1 = tokenLimit - chartData[i].remaining;
+                  const usage2 = tokenLimit - chartData[i + 1].remaining;
+                  
+                  // Determine color based on whether we're above or below 140k
+                  const segmentColor = usage1 > tokenLimit || usage2 > tokenLimit ? '#ef4444' : '#10b981';
+                  
+                  ctx.beginPath();
+                  ctx.strokeStyle = segmentColor;
+                  ctx.moveTo(x1, y1);
+                  ctx.lineTo(x2, y2);
+                  ctx.stroke();
+                }
+                
+                // Fill area under the curve
+                ctx.beginPath();
                 chartData.forEach((point, index) => {
                   const x = padding.left + (index / (chartData.length - 1)) * chartWidth;
-                  const y = padding.top + (1 - point.remaining / tokenLimit) * chartHeight;
+                  const y = padding.top + (1 - point.remaining / maxHeight) * chartHeight;
                   
                   if (index === 0) {
                     ctx.moveTo(x, y);
@@ -536,26 +632,16 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   }
                 });
                 
-                // Create gradient for the line based on usage
-                const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
-                gradient.addColorStop(0, '#10b981'); // Green at top (low usage)
-                gradient.addColorStop(0.5, '#f59e0b'); // Yellow in middle
-                gradient.addColorStop(0.8, '#ef4444'); // Red near bottom (high usage)
-                gradient.addColorStop(1, '#dc2626'); // Dark red at bottom
-                
-                ctx.strokeStyle = gradient;
-                ctx.stroke();
-                
-                // Fill area under the curve with semi-transparent gradient
                 ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
                 ctx.lineTo(padding.left, padding.top + chartHeight);
                 ctx.closePath();
                 
                 const fillGradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
-                fillGradient.addColorStop(0, 'rgba(16, 185, 129, 0.1)');
-                fillGradient.addColorStop(0.5, 'rgba(245, 158, 11, 0.1)');
-                fillGradient.addColorStop(0.8, 'rgba(239, 68, 68, 0.2)');
-                fillGradient.addColorStop(1, 'rgba(220, 38, 38, 0.3)');
+                // Match the line gradient with transparency
+                fillGradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)'); // Red at top
+                fillGradient.addColorStop(limitPosition - 0.001, 'rgba(239, 68, 68, 0.2)'); // Red just above limit
+                fillGradient.addColorStop(limitPosition, 'rgba(16, 185, 129, 0.1)'); // Green at limit
+                fillGradient.addColorStop(1, 'rgba(16, 185, 129, 0.1)'); // Green at bottom
                 
                 ctx.fillStyle = fillGradient;
                 ctx.fill();
@@ -563,15 +649,11 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 // Draw current point
                 const lastPoint = chartData[chartData.length - 1];
                 const lastX = padding.left + chartWidth;
-                const lastY = padding.top + (1 - lastPoint.remaining / tokenLimit) * chartHeight;
+                const lastY = padding.top + (1 - lastPoint.remaining / maxHeight) * chartHeight;
                 
-                // Determine color based on percentage used
-                let pointColor = '#10b981'; // Green
-                if (lastPoint.percentageUsed > 90) {
-                  pointColor = '#ef4444'; // Red
-                } else if (lastPoint.percentageUsed > 70) {
-                  pointColor = '#f59e0b'; // Yellow
-                }
+                // Determine color based on 140k threshold
+                const currentUsage = tokenLimit - lastPoint.remaining;
+                const pointColor = currentUsage > tokenLimit ? '#ef4444' : '#10b981'; // Red if over 140k, green if under
                 
                 ctx.fillStyle = pointColor;
                 ctx.beginPath();
@@ -587,6 +669,86 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   lastX - 10,
                   lastY - 10
                 );
+                
+                // Draw vertical lines
+                // 1. Draw 5-hour marker (from the right edge)
+                const now = new Date(chartData[chartData.length - 1].fullTime);
+                const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+                
+                // Find the position of 5 hours ago in the data
+                let fiveHourX = null;
+                for (let i = chartData.length - 1; i >= 0; i--) {
+                  const dataTime = new Date(chartData[i].fullTime);
+                  if (dataTime <= fiveHoursAgo) {
+                    // Interpolate position
+                    const nextTime = i < chartData.length - 1 ? new Date(chartData[i + 1].fullTime) : now;
+                    const timeFraction = (fiveHoursAgo - dataTime) / (nextTime - dataTime);
+                    const x1 = padding.left + (i / (chartData.length - 1)) * chartWidth;
+                    const x2 = i < chartData.length - 1 
+                      ? padding.left + ((i + 1) / (chartData.length - 1)) * chartWidth 
+                      : padding.left + chartWidth;
+                    fiveHourX = x1 + (x2 - x1) * timeFraction;
+                    break;
+                  }
+                }
+                
+                if (fiveHourX !== null) {
+                  ctx.strokeStyle = '#6366f1'; // Indigo color for 5h marker
+                  ctx.lineWidth = 2;
+                  ctx.setLineDash([5, 5]);
+                  ctx.beginPath();
+                  ctx.moveTo(fiveHourX, padding.top);
+                  ctx.lineTo(fiveHourX, padding.top + chartHeight);
+                  ctx.stroke();
+                  ctx.setLineDash([]);
+                  
+                  // Label for 5h marker
+                  ctx.fillStyle = '#6366f1';
+                  ctx.font = '11px sans-serif';
+                  ctx.textAlign = 'center';
+                  ctx.fillText('5h window', fiveHourX, padding.top - 5);
+                }
+                
+                // 2. Draw rate limit timestamp marker if available
+                if (rateLimitInfo && rateLimitInfo.last_triggered_at) {
+                  const rateLimitTime = new Date(rateLimitInfo.last_triggered_at);
+                  const oldestDataTime = new Date(chartData[0].fullTime);
+                  const newestDataTime = new Date(chartData[chartData.length - 1].fullTime);
+                  
+                  if (rateLimitTime >= oldestDataTime && rateLimitTime <= newestDataTime) {
+                    // Find position in the data
+                    let rateLimitX = null;
+                    for (let i = 0; i < chartData.length - 1; i++) {
+                      const dataTime = new Date(chartData[i].fullTime);
+                      const nextTime = new Date(chartData[i + 1].fullTime);
+                      
+                      if (rateLimitTime >= dataTime && rateLimitTime <= nextTime) {
+                        const timeFraction = (rateLimitTime - dataTime) / (nextTime - dataTime);
+                        const x1 = padding.left + (i / (chartData.length - 1)) * chartWidth;
+                        const x2 = padding.left + ((i + 1) / (chartData.length - 1)) * chartWidth;
+                        rateLimitX = x1 + (x2 - x1) * timeFraction;
+                        break;
+                      }
+                    }
+                    
+                    if (rateLimitX !== null) {
+                      ctx.strokeStyle = '#dc2626'; // Red color for rate limit
+                      ctx.lineWidth = 2;
+                      ctx.setLineDash([3, 3]);
+                      ctx.beginPath();
+                      ctx.moveTo(rateLimitX, padding.top);
+                      ctx.lineTo(rateLimitX, padding.top + chartHeight);
+                      ctx.stroke();
+                      ctx.setLineDash([]);
+                      
+                      // Label for rate limit marker
+                      ctx.fillStyle = '#dc2626';
+                      ctx.font = '11px sans-serif';
+                      ctx.textAlign = 'center';
+                      ctx.fillText('Rate limited', rateLimitX, padding.top - 5);
+                    }
+                  }
+                }
                 
                 // Add axis labels
                 ctx.fillStyle = '#374151';

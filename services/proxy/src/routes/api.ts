@@ -698,9 +698,9 @@ apiRoutes.get('/token-usage/time-series', async c => {
           SELECT COALESCE(SUM(output_tokens), 0)
           FROM api_requests
           WHERE account_id = $1
-            AND timestamp > tb.bucket_time - ($2 * INTERVAL '1 hour')
+            AND timestamp > tb.bucket_time - INTERVAL '5 hours'
             AND timestamp <= tb.bucket_time
-        ) AS cumulative_output_tokens
+        ) AS sliding_window_tokens
       FROM time_buckets tb
       ORDER BY tb.bucket_time ASC
     `
@@ -711,15 +711,15 @@ apiRoutes.get('/token-usage/time-series', async c => {
     const tokenLimit = 140000 // 5-hour limit
 
     const timeSeries = result.rows.map(row => {
-      const cumulativeUsage = parseInt(row.cumulative_output_tokens) || 0
-      const remaining = tokenLimit - cumulativeUsage
+      const slidingWindowUsage = parseInt(row.sliding_window_tokens) || 0
+      const remaining = tokenLimit - slidingWindowUsage
 
       return {
         time: row.bucket_time,
-        outputTokens: cumulativeUsage,
-        cumulativeUsage,
+        outputTokens: slidingWindowUsage,
+        slidingWindowUsage,
         remaining: Math.max(0, remaining),
-        percentageUsed: (cumulativeUsage / tokenLimit) * 100,
+        percentageUsed: (slidingWindowUsage / tokenLimit) * 100,
       }
     })
 
