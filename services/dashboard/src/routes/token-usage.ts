@@ -193,9 +193,10 @@ tokenUsageRoutes.get('/token-usage', async c => {
 
   try {
     // Fetch all data in parallel
-    const [tokenUsageWindow, dailyUsageResult, rateLimitsResult, timeSeriesResult] =
+    const [tokenUsageWindow, weeklyUsageWindow, dailyUsageResult, rateLimitsResult, timeSeriesResult] =
       await Promise.allSettled([
         apiClient.getTokenUsageWindow({ accountId, domain, window: 300 }), // 5 hour window
+        apiClient.getTokenUsageWindow({ accountId, domain, window: 10080 }), // 7 day window (7 * 24 * 60 = 10080 minutes)
         apiClient.getDailyTokenUsage({ accountId, domain, days: 30, aggregate: true }),
         apiClient.getRateLimitConfigs({ accountId }),
         apiClient.getTokenUsageTimeSeries({ accountId, window: 5, interval: 5 }), // 5-hour window, 5-minute intervals
@@ -203,6 +204,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
 
     // Handle results
     const tokenUsage = tokenUsageWindow.status === 'fulfilled' ? tokenUsageWindow.value : null
+    const weeklyUsage = weeklyUsageWindow.status === 'fulfilled' ? weeklyUsageWindow.value : null
     const dailyUsage = dailyUsageResult.status === 'fulfilled' ? dailyUsageResult.value.usage : []
     const rateLimits = rateLimitsResult.status === 'fulfilled' ? rateLimitsResult.value.configs : []
     const timeSeries = timeSeriesResult.status === 'fulfilled' ? timeSeriesResult.value : null
@@ -297,6 +299,97 @@ tokenUsageRoutes.get('/token-usage', async c => {
                     <strong>Total All Tokens:</strong> ${formatNumber(tokenUsage.totalTokens)}<br />
                     <strong>Model:</strong> ${tokenUsage.model || 'All models'}<br />
                     <strong>Domain:</strong> ${tokenUsage.domain || 'All domains'}
+                  </div>
+                </div>
+              `
+            : html`
+                <p class="text-gray-500">No token usage data available for this time window.</p>
+              `}
+        </div>
+      </div>
+
+      <!-- Weekly Usage -->
+      <div class="section">
+        <div class="section-header">
+          7-Day Token Usage (Output Tokens Only)
+          <span class="text-sm text-gray-500" style="float: right;">
+            ${weeklyUsage
+              ? `Window: ${new Date(weeklyUsage.windowStart).toLocaleDateString()} - ${new Date(weeklyUsage.windowEnd).toLocaleDateString()}`
+              : ''}
+          </span>
+        </div>
+        <div class="section-content">
+          ${weeklyUsage
+            ? html`
+                <div style="margin-bottom: 1.5rem;">
+                  <!-- Progress bar showing output tokens only -->
+                  <div
+                    style="position: relative; background: #f3f4f6; height: 40px; border-radius: 0.5rem; overflow: hidden;"
+                  >
+                    <div
+                      style="position: absolute; left: 0; top: 0; height: 100%; background: ${primaryLimit &&
+                      weeklyUsage.totalOutputTokens / (primaryLimit.tokenLimit * 33.6) > 0.9
+                        ? '#ef4444'
+                        : primaryLimit &&
+                            weeklyUsage.totalOutputTokens / (primaryLimit.tokenLimit * 33.6) > 0.7
+                          ? '#f59e0b'
+                          : '#10b981'}; width: ${primaryLimit
+                        ? Math.min(
+                            100,
+                            (weeklyUsage.totalOutputTokens / (primaryLimit.tokenLimit * 33.6)) * 100
+                          )
+                        : 0}%; transition: width 0.3s ease;"
+                    ></div>
+                    <div
+                      style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #1f2937;"
+                    >
+                      ${formatNumber(weeklyUsage.totalOutputTokens)} /
+                      ${primaryLimit ? formatNumber(Math.floor(primaryLimit.tokenLimit * 33.6)) : '?'} output tokens
+                      (${primaryLimit
+                        ? Math.round((weeklyUsage.totalOutputTokens / (primaryLimit.tokenLimit * 33.6)) * 100)
+                        : 0}%)
+                    </div>
+                  </div>
+                  <div style="margin-top: 0.5rem; font-size: 12px; color: #6b7280; text-align: center;">
+                    Based on 5-hour limit of ${primaryLimit ? formatNumber(primaryLimit.tokenLimit) : '?'} tokens × 33.6 windows per week
+                  </div>
+                </div>
+
+                <!-- Detailed token breakdown -->
+                <div class="stats-grid">
+                  <div class="stat-card">
+                    <div class="stat-label">Input Tokens</div>
+                    <div class="stat-value">${formatNumber(weeklyUsage.totalInputTokens)}</div>
+                    <div class="stat-meta">Messages sent</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Output Tokens</div>
+                    <div class="stat-value">${formatNumber(weeklyUsage.totalOutputTokens)}</div>
+                    <div class="stat-meta">Responses generated</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Cache Read Tokens</div>
+                    <div class="stat-value">${formatNumber(weeklyUsage.cacheReadInputTokens)}</div>
+                    <div class="stat-meta">From cache</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Cache Creation Tokens</div>
+                    <div class="stat-value">
+                      ${formatNumber(weeklyUsage.cacheCreationInputTokens)}
+                    </div>
+                    <div class="stat-meta">Cached for reuse</div>
+                  </div>
+                </div>
+
+                <div
+                  style="margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 0.375rem;"
+                >
+                  <div class="text-sm text-gray-600">
+                    <strong>Total Requests:</strong> ${weeklyUsage.totalRequests}<br />
+                    <strong>Total All Tokens:</strong> ${formatNumber(weeklyUsage.totalTokens)}<br />
+                    <strong>Average per Day:</strong> ${formatNumber(Math.round(weeklyUsage.totalOutputTokens / 7))} output tokens<br />
+                    <strong>Model:</strong> ${weeklyUsage.model || 'All models'}<br />
+                    <strong>Domain:</strong> ${weeklyUsage.domain || 'All domains'}
                   </div>
                 </div>
               `
