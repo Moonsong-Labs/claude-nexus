@@ -80,31 +80,28 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
                       
                       const data = ${JSON.stringify(account.miniSeries)};
-                      const maxUsage = Math.max(...data.map(p => p.usage), ${account.outputTokens});
                       const tokenLimit = ${accountsData.tokenLimit};
                       
                       // Draw background
                       ctx.fillStyle = '#f9fafb';
                       ctx.fillRect(0, 0, rect.width, rect.height);
                       
-                      // Calculate 5-hour marker position (5h out of 7 days = 5/168)
-                      const fiveHourX = (1 - 5/168) * rect.width;
-                      
-                      // Draw 5-hour marker line
-                      ctx.strokeStyle = '#e5e7eb';
+                      // Draw rate limit line at 140k
+                      const limitY = rect.height - (tokenLimit / (tokenLimit * 1.2)) * rect.height;
+                      ctx.strokeStyle = '#ef4444';
                       ctx.lineWidth = 1;
                       ctx.setLineDash([5, 5]);
                       ctx.beginPath();
-                      ctx.moveTo(fiveHourX, 0);
-                      ctx.lineTo(fiveHourX, rect.height);
+                      ctx.moveTo(0, limitY);
+                      ctx.lineTo(rect.width, limitY);
                       ctx.stroke();
                       ctx.setLineDash([]);
                       
-                      // Draw 5h label
-                      ctx.fillStyle = '#9ca3af';
-                      ctx.font = '10px sans-serif';
-                      ctx.textAlign = 'center';
-                      ctx.fillText('5h', fiveHourX, rect.height - 2);
+                      // Draw limit label
+                      ctx.fillStyle = '#ef4444';
+                      ctx.font = '9px sans-serif';
+                      ctx.textAlign = 'right';
+                      ctx.fillText('140k limit', rect.width - 5, limitY - 2);
                       
                       // Draw usage line
                       ctx.beginPath();
@@ -112,7 +109,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       
                       data.forEach((point, index) => {
                         const x = (index / (data.length - 1)) * rect.width;
-                        const y = rect.height - (point.usage / maxUsage) * rect.height * 0.9;
+                        const y = rect.height - (point.usage / (tokenLimit * 1.2)) * rect.height;
                         
                         if (index === 0) {
                           ctx.moveTo(x, y);
@@ -121,12 +118,15 @@ tokenUsageRoutes.get('/token-usage', async c => {
                         }
                       });
                       
-                      // Color based on 5h usage
-                      const percentageUsed = ${account.percentageUsed};
+                      // Get current usage (last point)
+                      const currentUsage = data.length > 0 ? data[data.length - 1].usage : 0;
+                      const currentPercentage = (currentUsage / tokenLimit) * 100;
+                      
+                      // Color based on current 5h sliding window usage
                       let strokeColor = '#10b981'; // Green
-                      if (percentageUsed > 90) {
+                      if (currentPercentage > 90) {
                         strokeColor = '#ef4444'; // Red
-                      } else if (percentageUsed > 70) {
+                      } else if (currentPercentage > 70) {
                         strokeColor = '#f59e0b'; // Yellow
                       }
                       
@@ -139,6 +139,13 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.closePath();
                       ctx.fillStyle = strokeColor + '20'; // Add transparency
                       ctx.fill();
+                      
+                      // Add time labels
+                      ctx.fillStyle = '#9ca3af';
+                      ctx.font = '8px sans-serif';
+                      ctx.textAlign = 'center';
+                      ctx.fillText('7d ago', 10, rect.height - 2);
+                      ctx.fillText('now', rect.width - 10, rect.height - 2);
                     })();
                   `
 

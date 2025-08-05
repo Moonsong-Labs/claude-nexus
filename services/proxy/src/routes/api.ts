@@ -837,17 +837,17 @@ apiRoutes.get('/token-usage/accounts', async c => {
             INTERVAL '1 hour'
           ) AS bucket_time
       ),
-      account_cumulative AS (
+      sliding_window_usage AS (
         SELECT 
           au.account_id,
           tb.bucket_time,
           COALESCE(
             SUM(ar.output_tokens) FILTER (
-              WHERE ar.timestamp > NOW() - INTERVAL '7 days' 
+              WHERE ar.timestamp > tb.bucket_time - INTERVAL '5 hours' 
               AND ar.timestamp <= tb.bucket_time
             ),
             0
-          ) AS cumulative_output_tokens
+          ) AS sliding_window_tokens
         FROM (SELECT unnest($1::text[]) AS account_id) au
         CROSS JOIN time_buckets tb
         LEFT JOIN api_requests ar ON ar.account_id = au.account_id
@@ -856,8 +856,8 @@ apiRoutes.get('/token-usage/accounts', async c => {
       SELECT 
         account_id,
         bucket_time,
-        cumulative_output_tokens
-      FROM account_cumulative
+        sliding_window_tokens
+      FROM sliding_window_usage
       ORDER BY account_id, bucket_time ASC
     `
 
@@ -868,7 +868,7 @@ apiRoutes.get('/token-usage/accounts', async c => {
 
     for (const row of seriesResult.rows) {
       const accountId = row.account_id
-      const usage = parseInt(row.cumulative_output_tokens) || 0
+      const usage = parseInt(row.sliding_window_tokens) || 0
 
       if (!seriesByAccount.has(accountId)) {
         seriesByAccount.set(accountId, [])
