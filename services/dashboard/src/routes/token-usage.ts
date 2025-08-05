@@ -168,6 +168,57 @@ tokenUsageRoutes.get('/token-usage', async c => {
                           ctx.fill();
                         }
                       });
+                      
+                      // Add hover functionality
+                      let tooltip = document.getElementById('${chartId}-tooltip');
+                      if (!tooltip) {
+                        tooltip = document.createElement('div');
+                        tooltip.id = '${chartId}-tooltip';
+                        tooltip.style.cssText = 'position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 6px 10px; border-radius: 4px; font-size: 11px; pointer-events: none; display: none; z-index: 1000; white-space: nowrap;';
+                        document.body.appendChild(tooltip);
+                      }
+                      
+                      const timeData = ${JSON.stringify(
+                        slidingWindowData.data.map(point =>
+                          new Date(point.time_bucket).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                          })
+                        )
+                      )};
+                      
+                      canvas.addEventListener('mousemove', (e) => {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        
+                        // Find nearest data point
+                        const dataIndex = Math.round((x / rect.width) * (slidingData.length - 1));
+                        if (dataIndex >= 0 && dataIndex < slidingData.length) {
+                          const point = slidingData[dataIndex];
+                          const pointX = (dataIndex / (slidingData.length - 1)) * rect.width;
+                          const pointY = rect.height - (point.tokens / maxTokens) * rect.height;
+                          
+                          // Check if mouse is near the line (within 5 pixels vertically)
+                          if (Math.abs(y - pointY) < 5) {
+                            tooltip.innerHTML = \`
+                              <div style="font-weight: bold;">\${timeData[dataIndex]}</div>
+                              <div>Tokens: \${point.tokens.toLocaleString()}</div>
+                              \${point.hasWarning ? '<div style="color: #ff6b6b;">⚠️ Rate Limited</div>' : ''}
+                            \`;
+                            tooltip.style.left = (e.clientX + 10) + 'px';
+                            tooltip.style.top = (e.clientY - 35) + 'px';
+                            tooltip.style.display = 'block';
+                          } else {
+                            tooltip.style.display = 'none';
+                          }
+                        }
+                      });
+                      
+                      canvas.addEventListener('mouseleave', () => {
+                        tooltip.style.display = 'none';
+                      });
                     })();
                   `
                             : `
@@ -797,6 +848,56 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 function formatNumber(num) {
                   return num.toLocaleString();
                 }
+                
+                // Add hover functionality
+                let tooltip = document.getElementById('${chartId}-tooltip');
+                if (!tooltip) {
+                  tooltip = document.createElement('div');
+                  tooltip.id = '${chartId}-tooltip';
+                  tooltip.style.cssText = 'position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; display: none; z-index: 1000; white-space: nowrap;';
+                  document.body.appendChild(tooltip);
+                }
+                
+                canvas.addEventListener('mousemove', (e) => {
+                  const rect = canvas.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const y = e.clientY - rect.top;
+                  
+                  // Check if mouse is within chart area
+                  if (x >= padding.left && x <= padding.left + chartWidth &&
+                      y >= padding.top && y <= padding.top + chartHeight) {
+                    
+                    // Find nearest data point
+                    const dataIndex = Math.round(((x - padding.left) / chartWidth) * (slidingData.length - 1));
+                    if (dataIndex >= 0 && dataIndex < slidingData.length) {
+                      const point = slidingData[dataIndex];
+                      const pointX = padding.left + (dataIndex / (slidingData.length - 1)) * chartWidth;
+                      const pointY = padding.top + (1 - point.tokens / tokenLimit) * chartHeight;
+                      
+                      // Check if mouse is near the point (within 10 pixels)
+                      const distance = Math.sqrt(Math.pow(x - pointX, 2) + Math.pow(y - pointY, 2));
+                      if (distance < 10) {
+                        tooltip.innerHTML = \`
+                          <div style="font-weight: bold; margin-bottom: 4px;">\${point.time}</div>
+                          <div>Tokens: \${formatNumber(point.tokens)}</div>
+                          <div>Usage: \${((point.tokens / tokenLimit) * 100).toFixed(1)}%</div>
+                          \${point.hasWarning ? '<div style="color: #ff6b6b;">⚠️ Rate Limited</div>' : ''}
+                        \`;
+                        tooltip.style.left = (e.clientX + 10) + 'px';
+                        tooltip.style.top = (e.clientY - 40) + 'px';
+                        tooltip.style.display = 'block';
+                      } else {
+                        tooltip.style.display = 'none';
+                      }
+                    }
+                  } else {
+                    tooltip.style.display = 'none';
+                  }
+                });
+                
+                canvas.addEventListener('mouseleave', () => {
+                  tooltip.style.display = 'none';
+                });
               }, 100);
             `
 
