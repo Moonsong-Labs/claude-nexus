@@ -750,7 +750,7 @@ apiRoutes.get('/token-usage/accounts', async c => {
   }
 
   try {
-    // Get all accounts with usage in the last 5 hours
+    // Get all accounts with usage in the last 7 days
     const accountsQuery = `
       WITH account_usage AS (
         SELECT 
@@ -759,6 +759,15 @@ apiRoutes.get('/token-usage/accounts', async c => {
           SUM(input_tokens) as total_input_tokens,
           COUNT(*) as request_count,
           MAX(timestamp) as last_request_time
+        FROM api_requests
+        WHERE account_id IS NOT NULL
+          AND timestamp >= NOW() - INTERVAL '7 days'
+        GROUP BY account_id
+      ),
+      account_usage_5h AS (
+        SELECT 
+          account_id,
+          SUM(output_tokens) as total_output_tokens_5h
         FROM api_requests
         WHERE account_id IS NOT NULL
           AND timestamp >= NOW() - INTERVAL '5 hours'
@@ -772,7 +781,7 @@ apiRoutes.get('/token-usage/accounts', async c => {
           COUNT(*) as domain_requests
         FROM api_requests
         WHERE account_id IS NOT NULL
-          AND timestamp >= NOW() - INTERVAL '5 hours'
+          AND timestamp >= NOW() - INTERVAL '7 days'
         GROUP BY account_id, domain
       )
       SELECT 
@@ -781,6 +790,7 @@ apiRoutes.get('/token-usage/accounts', async c => {
         au.total_input_tokens,
         au.request_count,
         au.last_request_time,
+        COALESCE(au5h.total_output_tokens_5h, 0) as total_output_tokens_5h,
         COALESCE(
           json_agg(
             json_build_object(
@@ -792,9 +802,10 @@ apiRoutes.get('/token-usage/accounts', async c => {
           '[]'::json
         ) as domains
       FROM account_usage au
+      LEFT JOIN account_usage_5h au5h ON au.account_id = au5h.account_id
       LEFT JOIN domain_usage du ON au.account_id = du.account_id
       GROUP BY au.account_id, au.total_output_tokens, au.total_input_tokens, 
-               au.request_count, au.last_request_time
+               au.request_count, au.last_request_time, au5h.total_output_tokens_5h
       ORDER BY au.total_output_tokens DESC
     `
 
@@ -805,11 +816,12 @@ apiRoutes.get('/token-usage/accounts', async c => {
     const accounts = result.rows.map(row => ({
       accountId: row.account_id,
       outputTokens: parseInt(row.total_output_tokens) || 0,
+      outputTokens5h: parseInt(row.total_output_tokens_5h) || 0,
       inputTokens: parseInt(row.total_input_tokens) || 0,
       requestCount: parseInt(row.request_count) || 0,
       lastRequestTime: row.last_request_time,
-      remainingTokens: Math.max(0, tokenLimit - (parseInt(row.total_output_tokens) || 0)),
-      percentageUsed: ((parseInt(row.total_output_tokens) || 0) / tokenLimit) * 100,
+      remainingTokens: Math.max(0, tokenLimit - (parseInt(row.total_output_tokens_5h) || 0)),
+      percentageUsed: ((parseInt(row.total_output_tokens_5h) || 0) / tokenLimit) * 100,
       domains: row.domains || [],
     }))
 
@@ -820,9 +832,9 @@ apiRoutes.get('/token-usage/accounts', async c => {
       WITH time_buckets AS (
         SELECT 
           generate_series(
-            NOW() - INTERVAL '5 hours',
+            NOW() - INTERVAL '7 days',
             NOW(),
-            INTERVAL '15 minutes'
+            INTERVAL '1 hour'
           ) AS bucket_time
       ),
       account_cumulative AS (
@@ -831,7 +843,7 @@ apiRoutes.get('/token-usage/accounts', async c => {
           tb.bucket_time,
           COALESCE(
             SUM(ar.output_tokens) FILTER (
-              WHERE ar.timestamp > tb.bucket_time - INTERVAL '5 hours' 
+              WHERE ar.timestamp > NOW() - INTERVAL '7 days' 
               AND ar.timestamp <= tb.bucket_time
             ),
             0
@@ -852,11 +864,11 @@ apiRoutes.get('/token-usage/accounts', async c => {
     const seriesResult = await pool.query(timeSeriesQuery, [accountIds])
 
     // Group time series data by account
-    const seriesByAccount = new Map<string, Array<{ time: Date; remaining: number }>>()
+    const seriesByAccount = new Map<string, Array<{ time: Date; usage: number }>>()
 
     for (const row of seriesResult.rows) {
       const accountId = row.account_id
-      const remaining = Math.max(0, tokenLimit - (parseInt(row.cumulative_output_tokens) || 0))
+      const usage = parseInt(row.cumulative_output_tokens) || 0
 
       if (!seriesByAccount.has(accountId)) {
         seriesByAccount.set(accountId, [])
@@ -864,7 +876,7 @@ apiRoutes.get('/token-usage/accounts', async c => {
 
       seriesByAccount.get(accountId)!.push({
         time: row.bucket_time,
-        remaining: remaining,
+        usage: usage,
       })
     }
 

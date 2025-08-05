@@ -58,7 +58,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
         <h2 style="margin: 0 0 1.5rem 0;">Token Usage Overview - All Accounts</h2>
 
         <div class="section">
-          <div class="section-header">Active Accounts (5-Hour Window)</div>
+          <div class="section-header">Active Accounts (7-Day Usage)</div>
           <div class="section-content">
             ${accountsData.accounts.length > 0
               ? html`
@@ -80,19 +80,39 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
                       
                       const data = ${JSON.stringify(account.miniSeries)};
+                      const maxUsage = Math.max(...data.map(p => p.usage), ${account.outputTokens});
                       const tokenLimit = ${accountsData.tokenLimit};
                       
                       // Draw background
                       ctx.fillStyle = '#f9fafb';
                       ctx.fillRect(0, 0, rect.width, rect.height);
                       
-                      // Draw the line
+                      // Calculate 5-hour marker position (5h out of 7 days = 5/168)
+                      const fiveHourX = (1 - 5/168) * rect.width;
+                      
+                      // Draw 5-hour marker line
+                      ctx.strokeStyle = '#e5e7eb';
+                      ctx.lineWidth = 1;
+                      ctx.setLineDash([5, 5]);
+                      ctx.beginPath();
+                      ctx.moveTo(fiveHourX, 0);
+                      ctx.lineTo(fiveHourX, rect.height);
+                      ctx.stroke();
+                      ctx.setLineDash([]);
+                      
+                      // Draw 5h label
+                      ctx.fillStyle = '#9ca3af';
+                      ctx.font = '10px sans-serif';
+                      ctx.textAlign = 'center';
+                      ctx.fillText('5h', fiveHourX, rect.height - 2);
+                      
+                      // Draw usage line
                       ctx.beginPath();
                       ctx.lineWidth = 1.5;
                       
                       data.forEach((point, index) => {
                         const x = (index / (data.length - 1)) * rect.width;
-                        const y = rect.height - (point.remaining / tokenLimit) * rect.height;
+                        const y = rect.height - (point.usage / maxUsage) * rect.height * 0.9;
                         
                         if (index === 0) {
                           ctx.moveTo(x, y);
@@ -101,7 +121,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                         }
                       });
                       
-                      // Color based on usage
+                      // Color based on 5h usage
                       const percentageUsed = ${account.percentageUsed};
                       let strokeColor = '#10b981'; // Green
                       if (percentageUsed > 90) {
@@ -113,7 +133,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.strokeStyle = strokeColor;
                       ctx.stroke();
                       
-                      // Fill area
+                      // Fill area under curve
                       ctx.lineTo(rect.width, rect.height);
                       ctx.lineTo(0, rect.height);
                       ctx.closePath();
@@ -123,9 +143,9 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   `
 
                           return `
-                    <div style="height: 100px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 10px; background: white;">
+                    <div style="height: 120px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 10px; background: white;">
                       <a href="/dashboard/token-usage?accountId=${encodeURIComponent(account.accountId)}" style="text-decoration: none; color: inherit; display: block;">
-                        <div style="display: flex; align-items: flex-start; gap: 15px; height: 100%;">
+                        <div style="display: flex; align-items: flex-start; gap: 20px; height: 100%;">
                           <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;">
                               <strong style="font-size: 14px; color: #1f2937;">${escapeHtml(account.accountId)}</strong>
@@ -143,8 +163,8 @@ tokenUsageRoutes.get('/token-usage', async c => {
                                     ? '#f59e0b'
                                     : '#10b981'
                               };">
-                                ${formatNumber(account.outputTokens)} / ${formatNumber(accountsData.tokenLimit)} tokens
-                                (${account.percentageUsed.toFixed(1)}% used)
+                                7d: ${formatNumber(account.outputTokens)} tokens | 5h: ${formatNumber(account.outputTokens5h)} / ${formatNumber(accountsData.tokenLimit)}
+                                (${account.percentageUsed.toFixed(1)}% of 5h limit)
                               </span>
                             </div>
                             <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;">
@@ -176,7 +196,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                                 : ''
                             }
                           </div>
-                          <div style="width: 200px; height: 60px; flex-shrink: 0;">
+                          <div style="width: 400px; height: 80px; flex-shrink: 0;">
                             <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
                           </div>
                         </div>
