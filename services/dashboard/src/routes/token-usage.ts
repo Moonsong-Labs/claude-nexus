@@ -363,9 +363,9 @@ tokenUsageRoutes.get('/token-usage', async c => {
       slidingWindow24hResult,
       slidingWindow7dResult,
     ] = await Promise.allSettled([
-      apiClient.getTokenUsageCurrent(accountId, 300), // 5 hour window
-      apiClient.getTokenUsageDaily(accountId, false), // Daily usage
-      apiClient.getRateLimitConfigs(accountId), // Rate limit configs
+      apiClient.getTokenUsageWindow({ accountId, window: 300 }), // 5 hour window
+      apiClient.getDailyTokenUsage({ accountId, days: 30, aggregate: true }), // Daily usage
+      apiClient.getRateLimitConfigs({ accountId }), // Rate limit configs
       apiClient.getSlidingWindowUsage({ accountId, days: 1, bucketMinutes: 5, windowHours: 5 }), // 24-hour sliding window with 5-minute buckets
       apiClient.getSlidingWindowUsage({ accountId, days: 7, bucketMinutes: 60, windowHours: 5 }), // 7-day sliding window with 60-minute buckets
     ])
