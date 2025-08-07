@@ -1,6 +1,7 @@
 import { html, raw } from 'hono/html'
 import { dashboardStyles } from './styles.js'
 import { Context } from 'hono'
+import { nexusLogo } from '../components/logo.js'
 
 /**
  * Dashboard HTML layout template
@@ -203,7 +204,10 @@ export const layout = (
         }
         <nav>
           <div class="container">
-            <h1>Claude Nexus Dashboard</h1>
+            <h1 style="display: flex; align-items: center; gap: 0.5rem;">
+              ${raw(nexusLogo())}
+              <span>Claude Nexus Dashboard</span>
+            </h1>
             <div class="space-x-4" style="display: flex; align-items: center;">
               <a href="/dashboard" class="text-sm text-blue-600">Dashboard</a>
               <a href="/dashboard/requests" class="text-sm text-blue-600">Requests</a>
