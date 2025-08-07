@@ -5,7 +5,13 @@ import { timingSafeEqual } from 'crypto'
 import { layout } from '../layout/index.js'
 import { isReadOnly } from '../config.js'
 
-export const authRoutes = new Hono()
+type AuthVariables = {
+  Variables: {
+    csrfToken?: string
+  }
+}
+
+export const authRoutes = new Hono<AuthVariables>()
 
 /**
  * Login page
