@@ -41,7 +41,8 @@ authRoutes.get('/login', c => {
     </div>
   `
 
-  return c.html(layout('Login', content))
+  // Pass the context to layout so it can inject the CSRF token
+  return c.html(layout('Login', content, '', c))
 })
 
 /**
