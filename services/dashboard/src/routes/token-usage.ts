@@ -106,7 +106,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
                       
                       const slidingData = ${JSON.stringify(
-                        slidingWindowData.data.map(point => ({
+                        slidingWindowData.data.map((point: any) => ({
                           tokens: point.sliding_window_tokens,
                           hasWarning: point.rate_limit_warning_in_window,
                         }))
@@ -179,7 +179,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       }
                       
                       const timeData = ${JSON.stringify(
-                        slidingWindowData.data.map(point =>
+                        slidingWindowData.data.map((point: any) =>
                           new Date(point.time_bucket).toLocaleString('en-US', {
                             month: 'short',
                             day: 'numeric',
