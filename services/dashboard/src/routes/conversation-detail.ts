@@ -947,34 +947,84 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
             }
           })
 
-          // Add panning functionality to tree view
+          // Add panning and zooming functionality to tree view
           const treePanel = document.getElementById('tree-panel')
           const treeContainer = document.getElementById('tree-container')
 
           if (treePanel && treeContainer) {
+            // Set transform origin to top-left for predictable scaling
+            treeContainer.style.transformOrigin = '0 0'
+
+            // State variables for pan and zoom
             let isPanning = false
             let startX = 0
             let startY = 0
-            let scrollLeft = 0
-            let scrollTop = 0
-            let currentTranslateX = 0
-            let currentTranslateY = 0
+            let scale = 1.0
+            let translateX = 0
+            let translateY = 0
+            let lastTranslateX = 0
+            let lastTranslateY = 0
 
-            // Parse existing transform
-            const getTransform = () => {
+            // Configuration
+            const ZOOM_INTENSITY = 0.1
+            const MIN_SCALE = 0.1
+            const MAX_SCALE = 5.0
+
+            // Parse existing transform to initialize state
+            const initTransform = () => {
               const transform = treeContainer.style.transform
-              const match = transform.match(
+              const translateMatch = transform.match(
                 /translate\\((-?\\d+(?:\\.\\d+)?)px,\\s*(-?\\d+(?:\\.\\d+)?)px\\)/
               )
-              if (match) {
-                return {
-                  x: parseFloat(match[1]),
-                  y: parseFloat(match[2]),
-                }
+              const scaleMatch = transform.match(/scale\\(([\\d.]+)\\)/)
+
+              if (translateMatch) {
+                translateX = parseFloat(translateMatch[1])
+                translateY = parseFloat(translateMatch[2])
               }
-              return { x: 0, y: 0 }
+              if (scaleMatch) {
+                scale = parseFloat(scaleMatch[1])
+              }
             }
 
+            // Initialize from existing transform if any
+            initTransform()
+
+            // Centralized transform update function
+            const updateTransform = () => {
+              treeContainer.style.transform =
+                'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')'
+            }
+
+            // Zoom functionality with mouse wheel
+            treePanel.addEventListener('wheel', e => {
+              e.preventDefault()
+
+              // Calculate new scale
+              const direction = e.deltaY < 0 ? 1 : -1
+              const scaleFactor = 1 + direction * ZOOM_INTENSITY
+              const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * scaleFactor))
+
+              // If scale is at its limit, do nothing
+              if (newScale === scale) {
+                return
+              }
+
+              // Calculate cursor position relative to the panel
+              const rect = treePanel.getBoundingClientRect()
+              const mouseX = e.clientX - rect.left
+              const mouseY = e.clientY - rect.top
+
+              // Calculate new translation to center zoom on cursor
+              translateX = mouseX - (mouseX - translateX) * (newScale / scale)
+              translateY = mouseY - (mouseY - translateY) * (newScale / scale)
+
+              // Update state and apply transform
+              scale = newScale
+              updateTransform()
+            })
+
+            // Panning functionality with mouse drag
             treePanel.addEventListener('mousedown', e => {
               // Only start panning if clicking on the panel itself or SVG elements
               if (e.target.tagName === 'A' || e.target.closest('a')) {
@@ -983,12 +1033,12 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
 
               isPanning = true
               treePanel.style.cursor = 'grabbing'
-              startX = e.pageX
-              startY = e.pageY
+              startX = e.clientX
+              startY = e.clientY
 
-              const currentTransform = getTransform()
-              currentTranslateX = currentTransform.x
-              currentTranslateY = currentTransform.y
+              // Capture the translation state at the moment panning starts
+              lastTranslateX = translateX
+              lastTranslateY = translateY
 
               e.preventDefault()
             })
@@ -997,14 +1047,13 @@ conversationDetailRoutes.get('/conversation/:id', async c => {
               if (!isPanning) return
 
               e.preventDefault()
-              const deltaX = e.pageX - startX
-              const deltaY = e.pageY - startY
+              const deltaX = e.clientX - startX
+              const deltaY = e.clientY - startY
 
-              const newTranslateX = currentTranslateX + deltaX
-              const newTranslateY = currentTranslateY + deltaY
+              translateX = lastTranslateX + deltaX
+              translateY = lastTranslateY + deltaY
 
-              treeContainer.style.transform =
-                'translate(' + newTranslateX + 'px, ' + newTranslateY + 'px)'
+              updateTransform()
             })
 
             document.addEventListener('mouseup', () => {
