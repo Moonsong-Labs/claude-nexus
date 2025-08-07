@@ -5,7 +5,13 @@ import { timingSafeEqual } from 'crypto'
 import { layout } from '../layout/index.js'
 import { isReadOnly } from '../config.js'
 
-export const authRoutes = new Hono()
+type AuthVariables = {
+  Variables: {
+    csrfToken?: string
+  }
+}
+
+export const authRoutes = new Hono<AuthVariables>()
 
 /**
  * Login page
@@ -15,12 +21,17 @@ authRoutes.get('/login', c => {
   if (isReadOnly) {
     return c.redirect('/dashboard')
   }
+
+  // Get the CSRF token from context
+  const csrfToken = c.get('csrfToken') || ''
+
   const content = html`
     <div
       style="max-width: 400px; margin: 4rem auto; background: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);"
     >
       <h2 style="margin: 0 0 1.5rem 0;">Dashboard Login</h2>
       <form method="POST" action="/dashboard/login">
+        <input type="hidden" name="_csrf" value="${csrfToken}" />
         <div style="margin-bottom: 1rem;">
           <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #374151;"
             >API Key</label
@@ -41,7 +52,8 @@ authRoutes.get('/login', c => {
     </div>
   `
 
-  return c.html(layout('Login', content))
+  // Pass the context to layout so it can inject the CSRF token
+  return c.html(layout('Login', content, '', c))
 })
 
 /**

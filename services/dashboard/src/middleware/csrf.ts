@@ -19,12 +19,6 @@ function generateToken(): string {
  */
 export function csrfProtection() {
   return async (c: Context, next: Next) => {
-    // Skip CSRF protection in read-only mode since all writes are blocked
-    const auth = c.get('auth')
-    if (auth?.isReadOnly) {
-      return next()
-    }
-
     const method = c.req.method.toUpperCase()
 
     // Get or generate CSRF token
@@ -39,15 +33,26 @@ export function csrfProtection() {
       })
     }
 
+    // Always expose the token for forms to use (even for POST requests)
+    c.set('csrfToken', csrfToken)
+
     // Skip CSRF validation for safe methods
     if (['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-      // Expose the token for forms to use
-      c.set('csrfToken', csrfToken)
       return next()
     }
 
     // Validate CSRF token for state-changing requests
-    const requestToken = c.req.header(CSRF_HEADER)
+    // Check header first (for AJAX requests)
+    let requestToken = c.req.header(CSRF_HEADER)
+
+    // If not in header, check form body (for regular form submissions)
+    if (!requestToken) {
+      const contentType = c.req.header('Content-Type') || ''
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        const body = await c.req.parseBody()
+        requestToken = body['_csrf'] as string
+      }
+    }
 
     if (!requestToken || requestToken !== csrfToken) {
       return c.json(
@@ -60,7 +65,6 @@ export function csrfProtection() {
     }
 
     // Token is valid, continue
-    c.set('csrfToken', csrfToken)
     return next()
   }
 }
