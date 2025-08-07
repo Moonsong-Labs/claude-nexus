@@ -42,7 +42,17 @@ export function csrfProtection() {
     }
 
     // Validate CSRF token for state-changing requests
-    const requestToken = c.req.header(CSRF_HEADER)
+    // Check header first (for AJAX requests)
+    let requestToken = c.req.header(CSRF_HEADER)
+
+    // If not in header, check form body (for regular form submissions)
+    if (!requestToken) {
+      const contentType = c.req.header('Content-Type') || ''
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        const body = await c.req.parseBody()
+        requestToken = body['_csrf'] as string
+      }
+    }
 
     if (!requestToken || requestToken !== csrfToken) {
       return c.json(
