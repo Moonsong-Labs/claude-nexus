@@ -140,7 +140,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                             ctx.lineTo(x, y);
                           }
                         }
-                        ctx.strokeStyle = hasWarning ? '#ef4444' : '#10b981';
+                        ctx.strokeStyle = hasWarning ? '#fb923c' : '#10b981';
                         ctx.stroke();
                       };
                       
@@ -158,7 +158,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       }
                       
                       // Draw warning dots
-                      ctx.fillStyle = '#ef4444';
+                      ctx.fillStyle = '#fb923c';
                       slidingData.forEach((point, index) => {
                         if (point.hasWarning) {
                           const x = (index / (slidingData.length - 1)) * rect.width;
@@ -205,7 +205,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                             tooltip.innerHTML = \`
                               <div style="font-weight: bold;">\${timeData[dataIndex]}</div>
                               <div>Tokens: \${point.tokens.toLocaleString()}</div>
-                              \${point.hasWarning ? '<div style="color: #ff6b6b;">⚠️ Rate Limited</div>' : ''}
+                              \${point.hasWarning ? '<div style="color: #fb923c;">⚠️ Rate Limit Warning</div>' : ''}
                             \`;
                             tooltip.style.left = (e.clientX + 10) + 'px';
                             tooltip.style.top = (e.clientY - 35) + 'px';
@@ -288,7 +288,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                                 slidingWindowData.data.length > 0 &&
                                 slidingWindowData.data[slidingWindowData.data.length - 1]
                                   .rate_limit_warning_in_window
-                                  ? '#ef4444'
+                                  ? '#fb923c'
                                   : '#10b981'
                               };">
                                 ${formatNumber(account.outputTokens)} / ${formatNumber(accountsData.tokenLimit)} tokens
@@ -298,7 +298,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                                   slidingWindowData.data.length > 0 &&
                                   slidingWindowData.data[slidingWindowData.data.length - 1]
                                     .rate_limit_warning_in_window
-                                    ? '⚠️ Rate Limited'
+                                    ? '⚠️ Rate Limit Warning'
                                     : ''
                                 }
                               </span>
@@ -591,7 +591,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.lineTo(x, y);
                     }
                   }
-                  ctx.strokeStyle = hasWarning ? '#ef4444' : '#10b981';
+                  ctx.strokeStyle = hasWarning ? '#fb923c' : '#10b981';
                   ctx.stroke();
                 };
                 
@@ -607,7 +607,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 drawSegment(segmentStart, slidingData.length - 1, lastWarningState);
                 
                 // Draw warning indicators as dots
-                ctx.fillStyle = '#ef4444';
+                ctx.fillStyle = '#fb923c';
                 slidingData.forEach((point, index) => {
                   if (point.hasWarning) {
                     const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
@@ -624,7 +624,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 const lastY = padding.top + (1 - lastPoint.tokens / tokenLimit) * chartHeight;
                 const currentHasWarning = lastPoint.hasWarning;
                 
-                ctx.fillStyle = currentHasWarning ? '#ef4444' : '#10b981';
+                ctx.fillStyle = currentHasWarning ? '#fb923c' : '#10b981';
                 ctx.beginPath();
                 ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
                 ctx.fill();
@@ -662,11 +662,11 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 ctx.textAlign = 'left';
                 ctx.fillText('Normal', padding.left + chartWidth - 185, legendY + 10);
                 
-                // Rate limited
-                ctx.fillStyle = '#ef4444';
+                // Rate limit warning
+                ctx.fillStyle = '#fb923c';
                 ctx.fillRect(padding.left + chartWidth - 120, legendY, 12, 12);
                 ctx.fillStyle = '#374151';
-                ctx.fillText('Rate Limited', padding.left + chartWidth - 105, legendY + 10);
+                ctx.fillText('Rate Limit Warning', padding.left + chartWidth - 85, legendY + 10);
                 
                 // Helper function
                 function formatNumber(num) {
@@ -705,7 +705,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                           <div style="font-weight: bold; margin-bottom: 4px;">\${point.time}</div>
                           <div>Tokens: \${formatNumber(point.tokens)}</div>
                           <div>Usage: \${((point.tokens / tokenLimit) * 100).toFixed(1)}%</div>
-                          \${point.hasWarning ? '<div style="color: #ff6b6b;">⚠️ Rate Limited</div>' : ''}
+                          \${point.hasWarning ? '<div style="color: #fb923c;">⚠️ Rate Limit Warning</div>' : ''}
                         \`;
                         tooltip.style.left = (e.clientX + 10) + 'px';
                         tooltip.style.top = (e.clientY - 40) + 'px';
@@ -850,7 +850,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       ctx.lineTo(x, y);
                     }
                   }
-                  ctx.strokeStyle = hasWarning ? '#ef4444' : '#10b981';
+                  ctx.strokeStyle = hasWarning ? '#fb923c' : '#10b981';
                   ctx.stroke();
                 };
                 
@@ -866,7 +866,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 drawSegment(segmentStart, slidingData.length - 1, lastWarningState);
                 
                 // Draw warning indicators as dots
-                ctx.fillStyle = '#ef4444';
+                ctx.fillStyle = '#fb923c';
                 slidingData.forEach((point, index) => {
                   if (point.hasWarning) {
                     const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
@@ -882,7 +882,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 const lastX = padding.left + chartWidth;
                 const lastY = padding.top + (1 - lastPoint.tokens / tokenLimit) * chartHeight;
                 
-                ctx.fillStyle = currentHasWarning ? '#ef4444' : '#10b981';
+                ctx.fillStyle = currentHasWarning ? '#fb923c' : '#10b981';
                 ctx.beginPath();
                 ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
                 ctx.fill();
@@ -920,11 +920,11 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 ctx.textAlign = 'left';
                 ctx.fillText('Normal', padding.left + chartWidth - 185, legendY + 10);
                 
-                // Rate limited
-                ctx.fillStyle = '#ef4444';
+                // Rate limit warning
+                ctx.fillStyle = '#fb923c';
                 ctx.fillRect(padding.left + chartWidth - 120, legendY, 12, 12);
                 ctx.fillStyle = '#374151';
-                ctx.fillText('Rate Limited', padding.left + chartWidth - 105, legendY + 10);
+                ctx.fillText('Rate Limit Warning', padding.left + chartWidth - 85, legendY + 10);
                 
                 // Helper function
                 function formatNumber(num) {
@@ -963,7 +963,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                           <div style="font-weight: bold; margin-bottom: 4px;">\${point.time}</div>
                           <div>Tokens: \${formatNumber(point.tokens)}</div>
                           <div>Usage: \${((point.tokens / tokenLimit) * 100).toFixed(1)}%</div>
-                          \${point.hasWarning ? '<div style="color: #ff6b6b;">⚠️ Rate Limited</div>' : ''}
+                          \${point.hasWarning ? '<div style="color: #fb923c;">⚠️ Rate Limit Warning</div>' : ''}
                         \`;
                         tooltip.style.left = (e.clientX + 10) + 'px';
                         tooltip.style.top = (e.clientY - 40) + 'px';
