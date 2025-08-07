@@ -1053,3 +1053,49 @@ apiRoutes.get('/usage/tokens/hourly', async c => {
     return c.json({ error: 'Failed to retrieve hourly token usage data' }, 500)
   }
 })
+
+/**
+ * GET /api/analytics/token-usage/sliding-window - Get sliding window token usage with rate limit status
+ */
+apiRoutes.get('/analytics/token-usage/sliding-window', async c => {
+  const tokenUsageService = container.getTokenUsageService()
+  if (!tokenUsageService) {
+    return c.json({ error: 'Token usage tracking not configured' }, 503)
+  }
+
+  try {
+    const query = c.req.query()
+    const accountId = query.accountId
+
+    if (!accountId) {
+      return c.json({ error: 'accountId is required' }, 400)
+    }
+
+    const days = parseInt(query.days || '7')
+    const bucketMinutes = parseInt(query.bucketMinutes || '10')
+    const windowHours = parseInt(query.windowHours || '5')
+
+    // Validate parameters including NaN checks
+    if (isNaN(days) || days < 1 || days > 30) {
+      return c.json({ error: 'days must be a valid number between 1 and 30' }, 400)
+    }
+    if (isNaN(bucketMinutes) || bucketMinutes < 1 || bucketMinutes > 60) {
+      return c.json({ error: 'bucketMinutes must be a valid number between 1 and 60' }, 400)
+    }
+    if (isNaN(windowHours) || windowHours < 1 || windowHours > 24) {
+      return c.json({ error: 'windowHours must be a valid number between 1 and 24' }, 400)
+    }
+
+    const result = await tokenUsageService.getSlidingWindowUsage(
+      accountId,
+      days,
+      bucketMinutes,
+      windowHours
+    )
+
+    return c.json(result)
+  } catch (error) {
+    logger.error('Failed to get sliding window usage', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve sliding window usage data' }, 500)
+  }
+})

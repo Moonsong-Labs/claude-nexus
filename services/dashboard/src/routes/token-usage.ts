@@ -30,7 +30,7 @@ function escapeHtml(unsafe: string): string {
 tokenUsageRoutes.get('/token-usage', async c => {
   const apiClient = c.get('apiClient')
   const accountId = c.req.query('accountId')
-  const domain = c.req.query('domain')
+  const _domain = c.req.query('domain') // Not currently used but kept for future use
 
   if (!apiClient) {
     return c.html(
@@ -50,6 +50,29 @@ tokenUsageRoutes.get('/token-usage', async c => {
     try {
       const accountsData = await apiClient.getAccountsTokenUsage()
 
+      // Fetch sliding window data for all accounts in parallel
+      const slidingWindowPromises = accountsData.accounts.map(
+        account =>
+          apiClient
+            .getSlidingWindowUsage({
+              accountId: account.accountId,
+              days: 7,
+              bucketMinutes: 60, // Use 60-minute buckets for overview to reduce data
+              windowHours: 5,
+            })
+            .catch(() => null) // Handle errors gracefully
+      )
+
+      const slidingWindowResults = await Promise.all(slidingWindowPromises)
+
+      // Create a map of accountId to sliding window data
+      const slidingWindowMap = new Map()
+      slidingWindowResults.forEach((result, index) => {
+        if (result) {
+          slidingWindowMap.set(accountsData.accounts[index].accountId, result)
+        }
+      })
+
       const content = html`
         <div class="mb-6">
           <a href="/dashboard" class="text-blue-600">← Back to Dashboard</a>
@@ -58,7 +81,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
         <h2 style="margin: 0 0 1.5rem 0;">Token Usage Overview - All Accounts</h2>
 
         <div class="section">
-          <div class="section-header">Active Accounts (5-Hour Window)</div>
+          <div class="section-header">Active Accounts (7-Day View with 5-Hour Sliding Windows)</div>
           <div class="section-content">
             ${accountsData.accounts.length > 0
               ? html`
@@ -67,9 +90,140 @@ tokenUsageRoutes.get('/token-usage', async c => {
                       accountsData.accounts
                         .map(account => {
                           const chartId = `chart-${account.accountId.replace(/[^a-zA-Z0-9]/g, '-')}`
-                          const chartScript = `
+                          const slidingWindowData = slidingWindowMap.get(account.accountId)
+
+                          const chartScript = slidingWindowData
+                            ? `
                     (function() {
-                      // Mini chart for ${account.accountId}
+                      // 7-day sliding window chart for ${account.accountId}
+                      const canvas = document.getElementById('${chartId}');
+                      if (!canvas) return;
+                      
+                      const ctx = canvas.getContext('2d');
+                      const rect = canvas.getBoundingClientRect();
+                      canvas.width = rect.width * window.devicePixelRatio;
+                      canvas.height = rect.height * window.devicePixelRatio;
+                      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                      
+                      const slidingData = ${JSON.stringify(
+                        slidingWindowData.data.map((point: any) => ({
+                          tokens: point.sliding_window_tokens,
+                          hasWarning: point.rate_limit_warning_in_window,
+                        }))
+                      )};
+                      const tokenLimit = 600000; // Maximum chart height for better visualization
+                      
+                      // Draw background
+                      ctx.fillStyle = '#f9fafb';
+                      ctx.fillRect(0, 0, rect.width, rect.height);
+                      
+                      if (slidingData.length === 0) return;
+                      
+                      // Find max value for scaling
+                      const maxTokens = Math.max(...slidingData.map(d => d.tokens), tokenLimit);
+                      
+                      // Draw the line with segments
+                      ctx.lineWidth = 1.5;
+                      let lastWarningState = slidingData[0]?.hasWarning || false;
+                      let segmentStart = 0;
+                      
+                      // Function to draw a line segment
+                      const drawSegment = (startIdx, endIdx, hasWarning) => {
+                        ctx.beginPath();
+                        for (let i = startIdx; i <= endIdx; i++) {
+                          const x = (i / (slidingData.length - 1)) * rect.width;
+                          const y = rect.height - (slidingData[i].tokens / maxTokens) * rect.height;
+                          
+                          if (i === startIdx) {
+                            ctx.moveTo(x, y);
+                          } else {
+                            ctx.lineTo(x, y);
+                          }
+                        }
+                        ctx.strokeStyle = hasWarning ? '#fb923c' : '#10b981';
+                        ctx.stroke();
+                      };
+                      
+                      // Draw segments based on warning state changes
+                      for (let i = 1; i < slidingData.length; i++) {
+                        if (slidingData[i].hasWarning !== lastWarningState) {
+                          drawSegment(segmentStart, i - 1, lastWarningState);
+                          segmentStart = i - 1; // Overlap by one point for continuity
+                          lastWarningState = slidingData[i].hasWarning;
+                        }
+                      }
+                      // Draw the final segment
+                      if (slidingData.length > 0) {
+                        drawSegment(segmentStart, slidingData.length - 1, lastWarningState);
+                      }
+                      
+                      // Draw warning dots
+                      ctx.fillStyle = '#fb923c';
+                      slidingData.forEach((point, index) => {
+                        if (point.hasWarning) {
+                          const x = (index / (slidingData.length - 1)) * rect.width;
+                          const y = rect.height - (point.tokens / maxTokens) * rect.height;
+                          ctx.beginPath();
+                          ctx.arc(x, y, 2, 0, Math.PI * 2);
+                          ctx.fill();
+                        }
+                      });
+                      
+                      // Add hover functionality
+                      let tooltip = document.getElementById('${chartId}-tooltip');
+                      if (!tooltip) {
+                        tooltip = document.createElement('div');
+                        tooltip.id = '${chartId}-tooltip';
+                        tooltip.style.cssText = 'position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 6px 10px; border-radius: 4px; font-size: 11px; pointer-events: none; display: none; z-index: 1000; white-space: nowrap;';
+                        document.body.appendChild(tooltip);
+                      }
+                      
+                      const timeData = ${JSON.stringify(
+                        slidingWindowData.data.map((point: any) =>
+                          new Date(point.time_bucket).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                          })
+                        )
+                      )};
+                      
+                      canvas.addEventListener('mousemove', (e) => {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        
+                        // Find nearest data point
+                        const dataIndex = Math.round((x / rect.width) * (slidingData.length - 1));
+                        if (dataIndex >= 0 && dataIndex < slidingData.length) {
+                          const point = slidingData[dataIndex];
+                          const pointX = (dataIndex / (slidingData.length - 1)) * rect.width;
+                          const pointY = rect.height - (point.tokens / maxTokens) * rect.height;
+                          
+                          // Check if mouse is near the line (within 5 pixels vertically)
+                          if (Math.abs(y - pointY) < 5) {
+                            tooltip.innerHTML = \`
+                              <div style="font-weight: bold;">\${timeData[dataIndex]}</div>
+                              <div>Tokens: \${point.tokens.toLocaleString()}</div>
+                              \${point.hasWarning ? '<div style="color: #fb923c;">⚠️ Rate Limit Warning</div>' : ''}
+                            \`;
+                            tooltip.style.left = (e.clientX + 10) + 'px';
+                            tooltip.style.top = (e.clientY - 35) + 'px';
+                            tooltip.style.display = 'block';
+                          } else {
+                            tooltip.style.display = 'none';
+                          }
+                        }
+                      });
+                      
+                      canvas.addEventListener('mouseleave', () => {
+                        tooltip.style.display = 'none';
+                      });
+                    })();
+                  `
+                            : `
+                    (function() {
+                      // Fallback to mini chart for ${account.accountId}
                       const canvas = document.getElementById('${chartId}');
                       if (!canvas) return;
                       
@@ -123,29 +277,38 @@ tokenUsageRoutes.get('/token-usage', async c => {
                   `
 
                           return `
-                    <div style="height: 100px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 10px; background: white;">
+                    <div style="height: 120px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 15px; background: white;">
                       <a href="/dashboard/token-usage?accountId=${encodeURIComponent(account.accountId)}" style="text-decoration: none; color: inherit; display: block;">
-                        <div style="display: flex; align-items: flex-start; gap: 15px; height: 100%;">
+                        <div style="display: flex; align-items: flex-start; gap: 20px; height: 100%;">
                           <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;">
-                              <strong style="font-size: 14px; color: #1f2937;">${escapeHtml(account.accountId)}</strong>
-                              <span style="font-size: 12px; color: ${
-                                account.percentageUsed > 90
-                                  ? '#ef4444'
-                                  : account.percentageUsed > 70
-                                    ? '#f59e0b'
-                                    : '#10b981'
+                            <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;">
+                              <strong style="font-size: 16px; color: #1f2937;">${escapeHtml(account.accountId)}</strong>
+                              <span style="font-size: 14px; color: ${
+                                slidingWindowData &&
+                                slidingWindowData.data.length > 0 &&
+                                slidingWindowData.data[slidingWindowData.data.length - 1]
+                                  .rate_limit_warning_in_window
+                                  ? '#fb923c'
+                                  : '#10b981'
                               };">
                                 ${formatNumber(account.outputTokens)} / ${formatNumber(accountsData.tokenLimit)} tokens
                                 (${account.percentageUsed.toFixed(1)}% used)
+                                ${
+                                  slidingWindowData &&
+                                  slidingWindowData.data.length > 0 &&
+                                  slidingWindowData.data[slidingWindowData.data.length - 1]
+                                    .rate_limit_warning_in_window
+                                    ? '⚠️ Rate Limit Warning'
+                                    : ''
+                                }
                               </span>
                             </div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
                               ${account.domains
                                 .map(
                                   domain => `
-                                <div style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 6px; border-radius: 3px;">
-                                  <span style="color: #374151;">${escapeHtml(domain.domain)}:</span>
+                                <div style="font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 4px 8px; border-radius: 4px;">
+                                  <span style="color: #374151; font-weight: 500;">${escapeHtml(domain.domain)}:</span>
                                   ${formatNumber(domain.outputTokens)} tokens
                                   (${((domain.outputTokens / account.outputTokens) * 100).toFixed(0)}%)
                                 </div>
@@ -154,7 +317,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                                 .join('')}
                             </div>
                           </div>
-                          <div style="width: 200px; height: 60px; flex-shrink: 0;">
+                          <div style="width: 300px; height: 80px; flex-shrink: 0;">
                             <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
                           </div>
                         </div>
@@ -193,19 +356,28 @@ tokenUsageRoutes.get('/token-usage', async c => {
 
   try {
     // Fetch all data in parallel
-    const [tokenUsageWindow, dailyUsageResult, rateLimitsResult, timeSeriesResult] =
-      await Promise.allSettled([
-        apiClient.getTokenUsageWindow({ accountId, domain, window: 300 }), // 5 hour window
-        apiClient.getDailyTokenUsage({ accountId, domain, days: 30, aggregate: true }),
-        apiClient.getRateLimitConfigs({ accountId }),
-        apiClient.getTokenUsageTimeSeries({ accountId, window: 5, interval: 5 }), // 5-hour window, 5-minute intervals
-      ])
+    const [
+      tokenUsageWindow,
+      dailyUsageResult,
+      rateLimitsResult,
+      slidingWindow24hResult,
+      slidingWindow7dResult,
+    ] = await Promise.allSettled([
+      apiClient.getTokenUsageWindow({ accountId, window: 300 }), // 5 hour window
+      apiClient.getDailyTokenUsage({ accountId, days: 30, aggregate: true }), // Daily usage
+      apiClient.getRateLimitConfigs({ accountId }), // Rate limit configs
+      apiClient.getSlidingWindowUsage({ accountId, days: 1, bucketMinutes: 5, windowHours: 5 }), // 24-hour sliding window with 5-minute buckets
+      apiClient.getSlidingWindowUsage({ accountId, days: 7, bucketMinutes: 60, windowHours: 5 }), // 7-day sliding window with 60-minute buckets
+    ])
 
     // Handle results
     const tokenUsage = tokenUsageWindow.status === 'fulfilled' ? tokenUsageWindow.value : null
     const dailyUsage = dailyUsageResult.status === 'fulfilled' ? dailyUsageResult.value.usage : []
     const rateLimits = rateLimitsResult.status === 'fulfilled' ? rateLimitsResult.value.configs : []
-    const timeSeries = timeSeriesResult.status === 'fulfilled' ? timeSeriesResult.value : null
+    const slidingWindow24h =
+      slidingWindow24hResult.status === 'fulfilled' ? slidingWindow24hResult.value : null
+    const slidingWindow7d =
+      slidingWindow7dResult.status === 'fulfilled' ? slidingWindow7dResult.value : null
 
     // Find the primary rate limit for this account
     const primaryLimit =
@@ -306,30 +478,34 @@ tokenUsageRoutes.get('/token-usage', async c => {
         </div>
       </div>
 
-      <!-- Cumulative Usage Chart -->
+      <!-- 24-Hour Sliding Window Chart -->
       <div class="section">
-        <div class="section-header">Cumulative Token Usage Over Time (5-Hour Window)</div>
+        <div class="section-header">24-Hour Token Usage (5-Hour Sliding Windows)</div>
         <div class="section-content">
-          ${timeSeries && timeSeries.timeSeries.length > 0
+          ${slidingWindow24h && slidingWindow24h.data.length > 0
             ? (() => {
+                const chartId = 'chart24h'
                 const chartScript = `
-              // Prepare chart data
-              const chartData = ${JSON.stringify(
-                timeSeries.timeSeries.map(point => ({
-                  time: new Date(point.time).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                  remaining: point.remaining,
-                  percentageUsed: point.percentageUsed,
-                }))
-              )};
-              
-              const tokenLimit = ${timeSeries.tokenLimit};
+              // Prepare 24-hour sliding window chart data
+              (function() {
+                const slidingData = ${JSON.stringify(
+                  slidingWindow24h.data.map(point => ({
+                    time: new Date(point.time_bucket).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                    tokens: point.sliding_window_tokens,
+                    hasWarning: point.rate_limit_warning_in_window,
+                  }))
+                )};
+                
+                const tokenLimit = 600000; // Maximum chart height for better visualization
               
               // Wait for canvas to be ready
               setTimeout(() => {
-                const canvas = document.getElementById('usageChart');
+                const canvas = document.getElementById('${chartId}');
                 if (!canvas) return;
                 
                 const ctx = canvas.getContext('2d');
@@ -338,7 +514,265 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 canvas.height = rect.height * window.devicePixelRatio;
                 ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
                 
-                const padding = { top: 20, right: 20, bottom: 60, left: 80 };
+                const padding = { top: 20, right: 20, bottom: 100, left: 80 };
+                const chartWidth = rect.width - padding.left - padding.right;
+                const chartHeight = rect.height - padding.top - padding.bottom;
+                
+                // Clear canvas
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, rect.width, rect.height);
+                
+                // Draw axes
+                ctx.strokeStyle = '#e5e7eb';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, padding.top);
+                ctx.lineTo(padding.left, padding.top + chartHeight);
+                ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+                ctx.stroke();
+                
+                // Draw horizontal grid lines and Y-axis labels
+                ctx.fillStyle = '#6b7280';
+                ctx.font = '12px sans-serif';
+                ctx.textAlign = 'right';
+                
+                const ySteps = 5;
+                for (let i = 0; i <= ySteps; i++) {
+                  const y = padding.top + (chartHeight * i / ySteps);
+                  const value = tokenLimit * (1 - i / ySteps);
+                  
+                  // Grid line
+                  ctx.strokeStyle = '#f3f4f6';
+                  ctx.beginPath();
+                  ctx.moveTo(padding.left, y);
+                  ctx.lineTo(padding.left + chartWidth, y);
+                  ctx.stroke();
+                  
+                  // Label
+                  ctx.fillStyle = '#6b7280';
+                  ctx.fillText(formatNumber(value), padding.left - 10, y + 4);
+                }
+                
+                // Draw X-axis labels (rotated for 24h view)
+                ctx.save();
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#6b7280';
+                ctx.font = '11px sans-serif';
+                
+                const labelInterval = Math.ceil(slidingData.length / 12);
+                slidingData.forEach((point, index) => {
+                  if (index % labelInterval === 0 || index === slidingData.length - 1) {
+                    const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
+                    ctx.save();
+                    ctx.translate(x, padding.top + chartHeight + 10);
+                    ctx.rotate(-Math.PI / 4);
+                    ctx.textAlign = 'right';
+                    ctx.fillText(point.time, 0, 0);
+                    ctx.restore();
+                  }
+                });
+                ctx.restore();
+                
+                // Draw usage line with color segments based on rate limit status
+                ctx.lineWidth = 2;
+                let lastWarningState = slidingData[0]?.hasWarning || false;
+                let segmentStart = 0;
+                
+                // Function to draw a line segment
+                const drawSegment = (startIdx, endIdx, hasWarning) => {
+                  ctx.beginPath();
+                  for (let i = startIdx; i <= endIdx; i++) {
+                    const x = padding.left + (i / (slidingData.length - 1)) * chartWidth;
+                    const y = padding.top + (1 - slidingData[i].tokens / tokenLimit) * chartHeight;
+                    
+                    if (i === startIdx) {
+                      ctx.moveTo(x, y);
+                    } else {
+                      ctx.lineTo(x, y);
+                    }
+                  }
+                  ctx.strokeStyle = hasWarning ? '#fb923c' : '#10b981';
+                  ctx.stroke();
+                };
+                
+                // Draw segments based on warning state changes
+                for (let i = 1; i < slidingData.length; i++) {
+                  if (slidingData[i].hasWarning !== lastWarningState) {
+                    drawSegment(segmentStart, i - 1, lastWarningState);
+                    segmentStart = i - 1; // Overlap by one point for continuity
+                    lastWarningState = slidingData[i].hasWarning;
+                  }
+                }
+                // Draw the final segment
+                drawSegment(segmentStart, slidingData.length - 1, lastWarningState);
+                
+                // Draw warning indicators as dots
+                ctx.fillStyle = '#fb923c';
+                slidingData.forEach((point, index) => {
+                  if (point.hasWarning) {
+                    const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
+                    const y = padding.top + (1 - point.tokens / tokenLimit) * chartHeight;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                  }
+                });
+                
+                // Draw current point
+                const lastPoint = slidingData[slidingData.length - 1];
+                const lastX = padding.left + chartWidth;
+                const lastY = padding.top + (1 - lastPoint.tokens / tokenLimit) * chartHeight;
+                const currentHasWarning = lastPoint.hasWarning;
+                
+                ctx.fillStyle = currentHasWarning ? '#fb923c' : '#10b981';
+                ctx.beginPath();
+                ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw current value label
+                ctx.fillStyle = '#1f2937';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText(
+                  formatNumber(lastPoint.tokens) + ' tokens',
+                  lastX - 10,
+                  lastY - 10
+                );
+                
+                // Add axis labels
+                ctx.fillStyle = '#374151';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Time (24 Hours)', padding.left + chartWidth / 2, rect.height - 10);
+                
+                ctx.save();
+                ctx.translate(15, padding.top + chartHeight / 2);
+                ctx.rotate(-Math.PI / 2);
+                ctx.fillText('Output Tokens (5-Hour Window)', 0, 0);
+                ctx.restore();
+                
+                // Add legend
+                const legendY = padding.top - 10;
+                ctx.font = '12px sans-serif';
+                
+                // Normal usage
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(padding.left + chartWidth - 200, legendY, 12, 12);
+                ctx.fillStyle = '#374151';
+                ctx.textAlign = 'left';
+                ctx.fillText('Normal', padding.left + chartWidth - 185, legendY + 10);
+                
+                // Rate limit warning
+                ctx.fillStyle = '#fb923c';
+                ctx.fillRect(padding.left + chartWidth - 120, legendY, 12, 12);
+                ctx.fillStyle = '#374151';
+                ctx.fillText('Rate Limit Warning', padding.left + chartWidth - 85, legendY + 10);
+                
+                // Helper function
+                function formatNumber(num) {
+                  return num.toLocaleString();
+                }
+                
+                // Add hover functionality
+                let tooltip = document.getElementById('${chartId}-tooltip');
+                if (!tooltip) {
+                  tooltip = document.createElement('div');
+                  tooltip.id = '${chartId}-tooltip';
+                  tooltip.style.cssText = 'position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; display: none; z-index: 1000; white-space: nowrap;';
+                  document.body.appendChild(tooltip);
+                }
+                
+                canvas.addEventListener('mousemove', (e) => {
+                  const rect = canvas.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const y = e.clientY - rect.top;
+                  
+                  // Check if mouse is within chart area
+                  if (x >= padding.left && x <= padding.left + chartWidth &&
+                      y >= padding.top && y <= padding.top + chartHeight) {
+                    
+                    // Find nearest data point
+                    const dataIndex = Math.round(((x - padding.left) / chartWidth) * (slidingData.length - 1));
+                    if (dataIndex >= 0 && dataIndex < slidingData.length) {
+                      const point = slidingData[dataIndex];
+                      const pointX = padding.left + (dataIndex / (slidingData.length - 1)) * chartWidth;
+                      const pointY = padding.top + (1 - point.tokens / tokenLimit) * chartHeight;
+                      
+                      // Check if mouse is near the point (within 10 pixels)
+                      const distance = Math.sqrt(Math.pow(x - pointX, 2) + Math.pow(y - pointY, 2));
+                      if (distance < 10) {
+                        tooltip.innerHTML = \`
+                          <div style="font-weight: bold; margin-bottom: 4px;">\${point.time}</div>
+                          <div>Tokens: \${formatNumber(point.tokens)}</div>
+                          <div>Usage: \${((point.tokens / tokenLimit) * 100).toFixed(1)}%</div>
+                          \${point.hasWarning ? '<div style="color: #fb923c;">⚠️ Rate Limit Warning</div>' : ''}
+                        \`;
+                        tooltip.style.left = (e.clientX + 10) + 'px';
+                        tooltip.style.top = (e.clientY - 40) + 'px';
+                        tooltip.style.display = 'block';
+                      } else {
+                        tooltip.style.display = 'none';
+                      }
+                    }
+                  } else {
+                    tooltip.style.display = 'none';
+                  }
+                });
+                
+                canvas.addEventListener('mouseleave', () => {
+                  tooltip.style.display = 'none';
+                });
+              }, 100);
+              })(); // End of IIFE for 24-hour chart
+            `
+
+                return html`
+                  <div style="width: 100%; height: 400px; position: relative;">
+                    <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
+                  </div>
+                  ${raw(`<script>${chartScript}</script>`)}
+                `
+              })()
+            : html` <p class="text-gray-500">No 24-hour data available.</p> `}
+        </div>
+      </div>
+
+      <!-- 7-Day Sliding Window Chart -->
+      <div class="section">
+        <div class="section-header">7-Day Token Usage (5-Hour Sliding Windows)</div>
+        <div class="section-content">
+          ${slidingWindow7d && slidingWindow7d.data.length > 0
+            ? (() => {
+                const chartId = 'chart7d'
+                const chartScript = `
+              // Prepare 7-day sliding window chart data
+              (function() {
+                const slidingData = ${JSON.stringify(
+                  slidingWindow7d.data.map(point => ({
+                    time: new Date(point.time_bucket).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                    }),
+                    tokens: point.sliding_window_tokens,
+                    hasWarning: point.rate_limit_warning_in_window,
+                  }))
+                )};
+                
+                const tokenLimit = 600000; // Maximum chart height for better visualization
+              
+              // Wait for canvas to be ready
+              setTimeout(() => {
+                const canvas = document.getElementById('${chartId}');
+                if (!canvas) return;
+                
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * window.devicePixelRatio;
+                canvas.height = rect.height * window.devicePixelRatio;
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                
+                const padding = { top: 20, right: 20, bottom: 100, left: 80 };
                 const chartWidth = rect.width - padding.left - padding.right;
                 const chartHeight = rect.height - padding.top - padding.bottom;
                 
@@ -378,68 +812,77 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 }
                 
                 // Draw X-axis labels (show every nth label to avoid crowding)
-                ctx.textAlign = 'center';
-                const labelInterval = Math.ceil(chartData.length / 12);
-                chartData.forEach((point, index) => {
-                  if (index % labelInterval === 0 || index === chartData.length - 1) {
-                    const x = padding.left + (index / (chartData.length - 1)) * chartWidth;
-                    ctx.fillText(point.time, x, padding.top + chartHeight + 20);
+                ctx.save();
+                ctx.textAlign = 'right';
+                ctx.translate(0, padding.top + chartHeight + 20);
+                const labelInterval = Math.ceil(slidingData.length / 15);
+                slidingData.forEach((point, index) => {
+                  if (index % labelInterval === 0 || index === slidingData.length - 1) {
+                    const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
+                    ctx.save();
+                    ctx.translate(x, 0);
+                    ctx.rotate(-Math.PI / 4);
+                    ctx.fillText(point.time, 0, 0);
+                    ctx.restore();
                   }
                 });
+                ctx.restore();
                 
-                // Draw the cumulative usage line
-                ctx.beginPath();
+                // Determine if we have any warnings
+                const hasAnyWarning = slidingData.some(p => p.hasWarning);
+                const currentHasWarning = slidingData[slidingData.length - 1]?.hasWarning || false;
+                
+                // Draw the usage line with segments
                 ctx.lineWidth = 2;
+                let lastWarningState = slidingData[0]?.hasWarning || false;
+                let segmentStart = 0;
                 
-                chartData.forEach((point, index) => {
-                  const x = padding.left + (index / (chartData.length - 1)) * chartWidth;
-                  const y = padding.top + (1 - point.remaining / tokenLimit) * chartHeight;
-                  
-                  if (index === 0) {
-                    ctx.moveTo(x, y);
-                  } else {
-                    ctx.lineTo(x, y);
+                // Function to draw a line segment
+                const drawSegment = (startIdx, endIdx, hasWarning) => {
+                  ctx.beginPath();
+                  for (let i = startIdx; i <= endIdx; i++) {
+                    const x = padding.left + (i / (slidingData.length - 1)) * chartWidth;
+                    const y = padding.top + (1 - slidingData[i].tokens / tokenLimit) * chartHeight;
+                    
+                    if (i === startIdx) {
+                      ctx.moveTo(x, y);
+                    } else {
+                      ctx.lineTo(x, y);
+                    }
+                  }
+                  ctx.strokeStyle = hasWarning ? '#fb923c' : '#10b981';
+                  ctx.stroke();
+                };
+                
+                // Draw segments based on warning state changes
+                for (let i = 1; i < slidingData.length; i++) {
+                  if (slidingData[i].hasWarning !== lastWarningState) {
+                    drawSegment(segmentStart, i - 1, lastWarningState);
+                    segmentStart = i - 1; // Overlap by one point for continuity
+                    lastWarningState = slidingData[i].hasWarning;
+                  }
+                }
+                // Draw the final segment
+                drawSegment(segmentStart, slidingData.length - 1, lastWarningState);
+                
+                // Draw warning indicators as dots
+                ctx.fillStyle = '#fb923c';
+                slidingData.forEach((point, index) => {
+                  if (point.hasWarning) {
+                    const x = padding.left + (index / (slidingData.length - 1)) * chartWidth;
+                    const y = padding.top + (1 - point.tokens / tokenLimit) * chartHeight;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
                   }
                 });
-                
-                // Create gradient for the line based on usage
-                const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
-                gradient.addColorStop(0, '#10b981'); // Green at top (low usage)
-                gradient.addColorStop(0.5, '#f59e0b'); // Yellow in middle
-                gradient.addColorStop(0.8, '#ef4444'); // Red near bottom (high usage)
-                gradient.addColorStop(1, '#dc2626'); // Dark red at bottom
-                
-                ctx.strokeStyle = gradient;
-                ctx.stroke();
-                
-                // Fill area under the curve with semi-transparent gradient
-                ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
-                ctx.lineTo(padding.left, padding.top + chartHeight);
-                ctx.closePath();
-                
-                const fillGradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
-                fillGradient.addColorStop(0, 'rgba(16, 185, 129, 0.1)');
-                fillGradient.addColorStop(0.5, 'rgba(245, 158, 11, 0.1)');
-                fillGradient.addColorStop(0.8, 'rgba(239, 68, 68, 0.2)');
-                fillGradient.addColorStop(1, 'rgba(220, 38, 38, 0.3)');
-                
-                ctx.fillStyle = fillGradient;
-                ctx.fill();
                 
                 // Draw current point
-                const lastPoint = chartData[chartData.length - 1];
+                const lastPoint = slidingData[slidingData.length - 1];
                 const lastX = padding.left + chartWidth;
-                const lastY = padding.top + (1 - lastPoint.remaining / tokenLimit) * chartHeight;
+                const lastY = padding.top + (1 - lastPoint.tokens / tokenLimit) * chartHeight;
                 
-                // Determine color based on percentage used
-                let pointColor = '#10b981'; // Green
-                if (lastPoint.percentageUsed > 90) {
-                  pointColor = '#ef4444'; // Red
-                } else if (lastPoint.percentageUsed > 70) {
-                  pointColor = '#f59e0b'; // Yellow
-                }
-                
-                ctx.fillStyle = pointColor;
+                ctx.fillStyle = currentHasWarning ? '#fb923c' : '#10b981';
                 ctx.beginPath();
                 ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
                 ctx.fill();
@@ -449,7 +892,7 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 ctx.font = '14px sans-serif';
                 ctx.textAlign = 'right';
                 ctx.fillText(
-                  formatNumber(lastPoint.remaining) + ' tokens remaining',
+                  formatNumber(lastPoint.tokens) + ' tokens',
                   lastX - 10,
                   lastY - 10
                 );
@@ -458,29 +901,97 @@ tokenUsageRoutes.get('/token-usage', async c => {
                 ctx.fillStyle = '#374151';
                 ctx.font = '14px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Time', padding.left + chartWidth / 2, rect.height - 10);
+                ctx.fillText('Time (7 Days)', padding.left + chartWidth / 2, rect.height - 10);
                 
                 ctx.save();
                 ctx.translate(15, padding.top + chartHeight / 2);
                 ctx.rotate(-Math.PI / 2);
-                ctx.fillText('Tokens Remaining', 0, 0);
+                ctx.fillText('Output Tokens (5-Hour Window)', 0, 0);
                 ctx.restore();
+                
+                // Add legend
+                const legendY = padding.top - 10;
+                ctx.font = '12px sans-serif';
+                
+                // Normal usage
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(padding.left + chartWidth - 200, legendY, 12, 12);
+                ctx.fillStyle = '#374151';
+                ctx.textAlign = 'left';
+                ctx.fillText('Normal', padding.left + chartWidth - 185, legendY + 10);
+                
+                // Rate limit warning
+                ctx.fillStyle = '#fb923c';
+                ctx.fillRect(padding.left + chartWidth - 120, legendY, 12, 12);
+                ctx.fillStyle = '#374151';
+                ctx.fillText('Rate Limit Warning', padding.left + chartWidth - 85, legendY + 10);
                 
                 // Helper function
                 function formatNumber(num) {
                   return num.toLocaleString();
                 }
+                
+                // Add hover functionality
+                let tooltip = document.getElementById('${chartId}-tooltip');
+                if (!tooltip) {
+                  tooltip = document.createElement('div');
+                  tooltip.id = '${chartId}-tooltip';
+                  tooltip.style.cssText = 'position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; display: none; z-index: 1000; white-space: nowrap;';
+                  document.body.appendChild(tooltip);
+                }
+                
+                canvas.addEventListener('mousemove', (e) => {
+                  const rect = canvas.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const y = e.clientY - rect.top;
+                  
+                  // Check if mouse is within chart area
+                  if (x >= padding.left && x <= padding.left + chartWidth &&
+                      y >= padding.top && y <= padding.top + chartHeight) {
+                    
+                    // Find nearest data point
+                    const dataIndex = Math.round(((x - padding.left) / chartWidth) * (slidingData.length - 1));
+                    if (dataIndex >= 0 && dataIndex < slidingData.length) {
+                      const point = slidingData[dataIndex];
+                      const pointX = padding.left + (dataIndex / (slidingData.length - 1)) * chartWidth;
+                      const pointY = padding.top + (1 - point.tokens / tokenLimit) * chartHeight;
+                      
+                      // Check if mouse is near the point (within 10 pixels)
+                      const distance = Math.sqrt(Math.pow(x - pointX, 2) + Math.pow(y - pointY, 2));
+                      if (distance < 10) {
+                        tooltip.innerHTML = \`
+                          <div style="font-weight: bold; margin-bottom: 4px;">\${point.time}</div>
+                          <div>Tokens: \${formatNumber(point.tokens)}</div>
+                          <div>Usage: \${((point.tokens / tokenLimit) * 100).toFixed(1)}%</div>
+                          \${point.hasWarning ? '<div style="color: #fb923c;">⚠️ Rate Limit Warning</div>' : ''}
+                        \`;
+                        tooltip.style.left = (e.clientX + 10) + 'px';
+                        tooltip.style.top = (e.clientY - 40) + 'px';
+                        tooltip.style.display = 'block';
+                      } else {
+                        tooltip.style.display = 'none';
+                      }
+                    }
+                  } else {
+                    tooltip.style.display = 'none';
+                  }
+                });
+                
+                canvas.addEventListener('mouseleave', () => {
+                  tooltip.style.display = 'none';
+                });
               }, 100);
+              })(); // End of IIFE for 7-day chart
             `
 
                 return html`
-                  <div style="width: 100%; height: 400px; position: relative;">
-                    <canvas id="usageChart" style="width: 100%; height: 100%;"></canvas>
+                  <div style="width: 100%; height: 500px; position: relative;">
+                    <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
                   </div>
                   ${raw(`<script>${chartScript}</script>`)}
                 `
               })()
-            : html` <p class="text-gray-500">No time series data available.</p> `}
+            : html` <p class="text-gray-500">No 7-day data available.</p> `}
         </div>
       </div>
 

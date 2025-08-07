@@ -417,6 +417,69 @@ export class ProxyApiClient {
   }
 
   /**
+   * Get sliding window token usage with rate limit status
+   */
+  async getSlidingWindowUsage(params: {
+    accountId: string
+    days?: number
+    bucketMinutes?: number
+    windowHours?: number
+  }): Promise<{
+    accountId: string
+    params: {
+      days: number
+      bucketMinutes: number
+      windowHours: number
+    }
+    data: Array<{
+      time_bucket: string
+      sliding_window_tokens: number
+      rate_limit_warning_in_window: boolean
+    }>
+  }> {
+    try {
+      const url = new URL('/api/analytics/token-usage/sliding-window', this.baseUrl)
+      url.searchParams.set('accountId', params.accountId)
+      if (params.days) {
+        url.searchParams.set('days', params.days.toString())
+      }
+      if (params.bucketMinutes) {
+        url.searchParams.set('bucketMinutes', params.bucketMinutes.toString())
+      }
+      if (params.windowHours) {
+        url.searchParams.set('windowHours', params.windowHours.toString())
+      }
+
+      const response = await fetch(url.toString(), {
+        headers: this.getHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`)
+      }
+
+      return (await response.json()) as {
+        accountId: string
+        params: {
+          days: number
+          bucketMinutes: number
+          windowHours: number
+        }
+        data: Array<{
+          time_bucket: string
+          sliding_window_tokens: number
+          rate_limit_warning_in_window: boolean
+        }>
+      }
+    } catch (error) {
+      logger.error('Failed to fetch sliding window usage from proxy API', {
+        error: getErrorMessage(error),
+        params,
+      })
+      throw error
+    }
+  }
+
+  /**
    * Get all accounts with their token usage
    */
   async getAccountsTokenUsage(): Promise<{
