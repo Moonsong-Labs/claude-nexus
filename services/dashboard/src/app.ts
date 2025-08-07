@@ -187,14 +187,11 @@ export async function createDashboardApp(): Promise<DashboardApp> {
     }
   })
 
-  // Apply auth middleware to all dashboard routes
+  // Apply auth middleware first to set auth context
   app.use('/*', dashboardAuth)
 
-  // Apply CSRF protection after auth (so we have auth context)
-  app.use('/*', csrfProtection())
-
   // Apply global write protection for all write methods in read-only mode
-  // This ensures no write operation can slip through when DASHBOARD_API_KEY is not set
+  // This runs BEFORE CSRF to ensure read-only errors take precedence
   app.on(['POST', 'PUT', 'DELETE', 'PATCH'], '*', async (c, next) => {
     const auth = c.get('auth')
     if (auth?.isReadOnly) {
@@ -224,6 +221,9 @@ export async function createDashboardApp(): Promise<DashboardApp> {
     }
     return next()
   })
+
+  // Apply CSRF protection after auth and read-only checks
+  app.use('/*', csrfProtection())
 
   // Pass API client to dashboard routes instead of database pool
   app.use('/*', async (c, next) => {
