@@ -675,7 +675,7 @@ export class ProxyApiClient {
    */
   async post<T = unknown>(path: string, body?: unknown): Promise<T> {
     // Check if in read-only mode without API key
-    if (isReadOnly && !this.apiKey) {
+    if (isReadOnly() && !this.apiKey) {
       throw new ReadOnlyModeError()
     }
 
