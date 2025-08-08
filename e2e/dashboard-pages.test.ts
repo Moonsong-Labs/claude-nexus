@@ -68,7 +68,7 @@ async function captureErrors(page: Page) {
 
 // Routes to verify. We purposely include a few param routes with fake IDs to
 // ensure error views render without crashing client-side.
-const ROUTES: Array<{
+let ROUTES: Array<{
   path: string
   assertions?: (page: Page) => Promise<void>
 }> = [
@@ -126,6 +126,13 @@ const ROUTES: Array<{
     },
   },
 ]
+
+// If database is not configured, skip DB-dependent routes (request/conversation detail)
+if (!process.env.DATABASE_URL) {
+  ROUTES = ROUTES.filter(
+    r => !['/dashboard/request/req_FAKE', '/dashboard/conversation/conv_FAKE'].includes(r.path)
+  )
+}
 
 // Single test iterating all routes keeps startup/shutdown overhead minimal
 // and ensures uniform error filtering across pages.
