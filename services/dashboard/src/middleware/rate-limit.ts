@@ -20,7 +20,8 @@ export const rateLimitForReadOnly = (
 ): MiddlewareHandler => {
   return async (c: Context, next) => {
     // Only apply rate limiting in read-only mode
-    if (!isReadOnly) {
+    // Use function call to allow dynamic checking in tests
+    if (!isReadOnly()) {
       return next()
     }
 

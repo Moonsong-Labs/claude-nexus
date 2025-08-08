@@ -1,6 +1,6 @@
 import { Context, Next, MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
-import { isReadOnly, dashboardApiKey } from '../config.js'
+import { isReadOnly, getDashboardApiKey } from '../config.js'
 
 export type AuthContext = {
   isAuthenticated: boolean
@@ -26,19 +26,23 @@ export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext }
     return next()
   }
 
+  // Check read-only mode dynamically
+  const readOnly = isReadOnly()
+  const apiKey = getDashboardApiKey()
+
   // Set read-only mode in context
   c.set('auth', {
     isAuthenticated: false,
-    isReadOnly: isReadOnly,
+    isReadOnly: readOnly,
   })
 
   // If in read-only mode, allow access without authentication
-  if (isReadOnly) {
+  if (readOnly) {
     return next()
   }
 
   // Check for dashboard API key in environment
-  if (!dashboardApiKey) {
+  if (!apiKey) {
     // This should not happen given the isReadOnly check above, but keep for safety
     return c.html(
       `
@@ -53,7 +57,7 @@ export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext }
 
   // Check cookie authentication
   const authCookie = getCookie(c, 'dashboard_auth')
-  if (authCookie === dashboardApiKey) {
+  if (authCookie === apiKey) {
     c.set('auth', {
       isAuthenticated: true,
       isReadOnly: false,
@@ -63,7 +67,7 @@ export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext }
 
   // Check header authentication (for API calls)
   const headerKey = c.req.header('X-Dashboard-Key')
-  if (headerKey === dashboardApiKey) {
+  if (headerKey === apiKey) {
     c.set('auth', {
       isAuthenticated: true,
       isReadOnly: false,

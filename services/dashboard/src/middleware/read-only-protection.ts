@@ -7,7 +7,8 @@ import { isReadOnly } from '../config.js'
  */
 export const readOnlyProtection: MiddlewareHandler = async (c, next) => {
   // Only apply protection in read-only mode
-  if (!isReadOnly) {
+  // Use function call to allow dynamic checking in tests
+  if (!isReadOnly()) {
     return next()
   }
 

@@ -61,8 +61,21 @@ export async function createDashboardApp(): Promise<DashboardApp> {
   app.use('*', cors())
   app.use('*', secureHeaders()) // Apply security headers
   app.use('*', rateLimitForReadOnly(100, 60000)) // 100 requests per minute in read-only mode
+  app.use('*', readOnlyProtection) // Block write operations in read-only mode (fail-fast)
   app.use('*', requestIdMiddleware()) // Generate request ID first
   app.use('*', loggingMiddleware()) // Then use it for logging
+
+  // Apply auth middleware first to set auth context (but after read-only protection)
+  app.use('/*', dashboardAuth)
+
+  // Apply CSRF protection after auth checks
+  app.use('/*', csrfProtection())
+
+  // Pass API client to routes instead of database pool
+  app.use('/*', async (c, next) => {
+    c.set('apiClient', container.getApiClient())
+    return next()
+  })
 
   // Health check
   app.get('/health', async c => {
@@ -186,21 +199,6 @@ export async function createDashboardApp(): Promise<DashboardApp> {
       logger.error('Failed to get subtasks', { error: getErrorMessage(error), requestId })
       return c.json({ error: 'Failed to retrieve subtasks' }, 500)
     }
-  })
-
-  // Apply auth middleware first to set auth context
-  app.use('/*', dashboardAuth)
-
-  // Apply read-only protection middleware for write operations
-  app.use('*', readOnlyProtection)
-
-  // Apply CSRF protection after auth and read-only checks
-  app.use('/*', csrfProtection())
-
-  // Pass API client to dashboard routes instead of database pool
-  app.use('/*', async (c, next) => {
-    c.set('apiClient', container.getApiClient())
-    return next()
   })
 
   // Mount dashboard routes at /dashboard
