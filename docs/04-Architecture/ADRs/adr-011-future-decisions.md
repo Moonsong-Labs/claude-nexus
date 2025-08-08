@@ -51,16 +51,18 @@ Based on the technical debt register and evolving requirements, several architec
 
 ### 4. Testing Strategy
 
-**Context**: No automated tests exist despite complex business logic.
+**Status**: ✅ Partially Addressed (See ADR-021)
 
-**Options to Consider**:
+**Context**: E2E testing has been implemented with Playwright (ADR-021). Unit and integration testing strategies remain to be defined.
 
-- Test framework selection (Bun test, Jest, Vitest)
-- Test types prioritization (unit, integration, e2e)
-- Test data management strategy
-- CI/CD test integration
+**Remaining Decisions**:
 
-**Decision Needed By**: Before next major feature
+- Unit test framework selection (Bun test, Jest, Vitest)
+- Integration testing approach for services
+- Test coverage requirements and enforcement
+- Mocking strategy for external dependencies
+
+**Decision Needed By**: Before implementing unit/integration tests
 
 ### 5. Observability Platform
 

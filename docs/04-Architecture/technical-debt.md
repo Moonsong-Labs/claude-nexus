@@ -96,23 +96,25 @@ setInterval(() => {
 
 **Location**: Project-wide
 
-**Issue**: No automated test suite despite complex business logic.
+**Issue**: ~~No automated test suite despite complex business logic.~~ **Partially Addressed**
+
+**Status Update**: E2E tests have been implemented with Playwright (see ADR-021, PR #110). Unit and integration tests still pending.
 
 **Impact**:
 
-- Risk of regressions
-- Slower development velocity
-- Lower confidence in changes
+- ~~Risk of regressions~~ **Reduced** (E2E tests catch UI/workflow regressions)
+- Slower development velocity (unit tests still needed)
+- ~~Lower confidence in changes~~ **Improved** (E2E tests provide safety net)
 
-**Remediation**:
+**Remaining Work**:
 
 1. Add unit tests for critical functions:
    - Message hashing
    - Token counting
    - Authentication logic
 2. Add integration tests for API endpoints
-3. Add end-to-end tests for critical user journeys
-4. Set up CI/CD pipeline with test requirements
+3. ~~Add end-to-end tests for critical user journeys~~ ✅ **Completed**
+4. ~~Set up CI/CD pipeline with test requirements~~ ✅ **Completed for E2E**
 
 ### 5. Configuration Hardcoding
 
