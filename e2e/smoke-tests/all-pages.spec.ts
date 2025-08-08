@@ -37,16 +37,16 @@ test.describe('@smoke Dashboard Pages Smoke Tests', () => {
         // Check for any content on the page
         const bodyContent = page.locator('body')
         await expect(bodyContent).toBeVisible({ timeout: 10000 })
-        
+
         // Verify no error messages are displayed
         const errorMessages = page.locator('text=/error|failed|exception/i')
         const errorCount = await errorMessages.count()
-        
+
         // If there are error messages, check if they're expected (e.g., "No data" messages)
         if (errorCount > 0) {
           // Check if it's a real error or just a "no data" type message
           const criticalError = page.locator('text=/uncaught|exception|failed to load/i')
-          const hasCriticalError = await criticalError.count() > 0
+          const hasCriticalError = (await criticalError.count()) > 0
           expect(hasCriticalError).toBe(false)
         }
 
