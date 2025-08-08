@@ -13,7 +13,10 @@ export class AuthHelper {
 
   constructor(apiKey?: string, baseUrl?: string) {
     // In CI, use the CI-specific API key
-    this.apiKey = apiKey || process.env.DASHBOARD_API_KEY || (process.env.CI ? 'test_dashboard_key_ci' : 'test_dashboard_key')
+    this.apiKey =
+      apiKey ||
+      process.env.DASHBOARD_API_KEY ||
+      (process.env.CI ? 'test_dashboard_key_ci' : 'test_dashboard_key')
     this.baseUrl = baseUrl || process.env.TEST_BASE_URL || 'http://localhost:3001'
   }
 
@@ -39,7 +42,7 @@ export class AuthHelper {
 
     // In CI or when API key is set, the dashboard should accept the header auth
     // We don't need to wait for a cookie as header auth is sufficient
-    
+
     // Save the storage state for reuse (even if empty, for consistency)
     await this.saveStorageState(page)
   }
@@ -125,7 +128,7 @@ export class AuthHelper {
   async getAuthenticatedContext(browser: Browser, retries: number = 2): Promise<BrowserContext> {
     // In CI or when using header auth, we don't need complex storage state management
     // Just create a context with the proper headers
-    
+
     for (let i = 0; i <= retries; i++) {
       try {
         // Create context with authentication headers
@@ -152,7 +155,9 @@ export class AuthHelper {
         return context
       } catch (error) {
         if (i === retries) {
-          throw new Error(`Failed to create authenticated context after ${retries + 1} attempts: ${error}`)
+          throw new Error(
+            `Failed to create authenticated context after ${retries + 1} attempts: ${error}`
+          )
         }
         // Wait before retry
         await new Promise(resolve => setTimeout(resolve, 2000))
