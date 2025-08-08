@@ -37,6 +37,7 @@ export const readOnlyProtection: MiddlewareHandler = async (c, next) => {
     {
       error: 'Forbidden',
       message: 'Dashboard is running in read-only mode. Write operations are disabled.',
+      hint: 'Set DASHBOARD_API_KEY environment variable to enable write operations.',
     },
     403
   )
