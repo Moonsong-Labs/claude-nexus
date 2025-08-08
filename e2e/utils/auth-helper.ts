@@ -12,7 +12,8 @@ export class AuthHelper {
   private baseUrl: string
 
   constructor(apiKey?: string, baseUrl?: string) {
-    this.apiKey = apiKey || process.env.DASHBOARD_API_KEY || 'test_dashboard_key'
+    // In CI, use the CI-specific API key
+    this.apiKey = apiKey || process.env.DASHBOARD_API_KEY || (process.env.CI ? 'test_dashboard_key_ci' : 'test_dashboard_key')
     this.baseUrl = baseUrl || process.env.TEST_BASE_URL || 'http://localhost:3001'
   }
 
@@ -26,18 +27,20 @@ export class AuthHelper {
     })
 
     // Navigate to dashboard
-    await page.goto(this.baseUrl)
+    const response = await page.goto(this.baseUrl, {
+      waitUntil: 'networkidle',
+      timeout: 30000,
+    })
 
-    // Wait for authentication to complete
-    // The dashboard sets a cookie after successful auth
-    await page.waitForFunction(
-      () => {
-        return document.cookie.includes('dashboard_auth')
-      },
-      { timeout: 5000 }
-    )
+    // Check if we got a successful response
+    if (!response || response.status() !== 200) {
+      throw new Error(`Failed to load dashboard: ${response?.status()}`)
+    }
 
-    // Save the storage state for reuse
+    // In CI or when API key is set, the dashboard should accept the header auth
+    // We don't need to wait for a cookie as header auth is sufficient
+    
+    // Save the storage state for reuse (even if empty, for consistency)
     await this.saveStorageState(page)
   }
 
@@ -120,46 +123,39 @@ export class AuthHelper {
    * Get authenticated context with retries
    */
   async getAuthenticatedContext(browser: Browser, retries: number = 2): Promise<BrowserContext> {
+    // In CI or when using header auth, we don't need complex storage state management
+    // Just create a context with the proper headers
+    
     for (let i = 0; i <= retries; i++) {
       try {
-        // Try to load existing storage state
-        if (this.hasStorageState()) {
-          const context = await this.loadStorageState(browser)
-          // Set headers on the context
-          await context.setExtraHTTPHeaders({
-            'X-Dashboard-Key': this.apiKey,
-          })
-          const page = await context.newPage()
-
-          // Verify auth is still valid
-          if (await this.isAuthValid(page)) {
-            await page.close()
-            return context
-          }
-
-          // Auth expired, clear and retry
-          await page.close()
-          await context.close()
-          this.clearAuth()
-        }
-
-        // Create new context with authentication headers
+        // Create context with authentication headers
         const context = await browser.newContext({
           extraHTTPHeaders: {
             'X-Dashboard-Key': this.apiKey,
           },
         })
-        const page = await context.newPage()
-        await this.authenticate(page)
-        await page.close()
 
+        // Verify the context works by testing a simple request
+        const page = await context.newPage()
+        const response = await page.goto(this.baseUrl, {
+          waitUntil: 'domcontentloaded',
+          timeout: 30000,
+        })
+
+        if (!response || (response.status() !== 200 && response.status() !== 304)) {
+          await page.close()
+          await context.close()
+          throw new Error(`Dashboard returned status ${response?.status()}`)
+        }
+
+        await page.close()
         return context
       } catch (error) {
         if (i === retries) {
-          throw new Error(`Failed to authenticate after ${retries + 1} attempts: ${error}`)
+          throw new Error(`Failed to create authenticated context after ${retries + 1} attempts: ${error}`)
         }
         // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
     }
 

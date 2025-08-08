@@ -5,21 +5,9 @@ import { testData } from '../fixtures/test-data'
 
 // Tag all tests as @smoke for CI filtering
 test.describe('@smoke Dashboard Pages Smoke Tests', () => {
-  // Run tests serially to avoid auth file conflicts
+  // Run tests serially for consistency
   test.describe.configure({ mode: 'serial' })
-  let authHelper: AuthHelper
-
-  test.beforeAll(async ({ browser }) => {
-    // Setup authentication once for all tests
-    authHelper = new AuthHelper()
-    const context = await authHelper.getAuthenticatedContext(browser)
-    await context.close()
-  })
-
-  test.afterAll(() => {
-    // Clean up auth file after tests
-    authHelper.clearAuth()
-  })
+  const authHelper = new AuthHelper()
 
   // Test each dashboard route
   testData.dashboardRoutes.forEach(route => {
