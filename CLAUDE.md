@@ -457,6 +457,53 @@ cd packages/shared && bun test
 bun test conversation-linker.test.ts
 ```
 
+**E2E Testing:**
+
+The project includes comprehensive end-to-end testing using Playwright:
+
+- **Smoke Tests**: Quick verification that all dashboard pages load without console errors
+- **Journey Tests**: Critical user flows including request viewing, token usage monitoring, and conversation navigation
+- **Console Error Monitoring**: Automatic detection and filtering of console errors with third-party noise suppression
+- **Authentication**: Secure test authentication using Playwright's storageState mechanism
+
+Run e2e tests:
+
+```bash
+# Run all e2e tests
+bun run test:e2e:all
+
+# Run smoke tests only (fast, used in CI for PRs)
+bun run test:e2e:smoke
+
+# Run journey tests only
+bun run test:e2e:journey
+
+# Run tests in headed mode (see browser)
+bun run test:e2e:headed
+
+# Debug tests interactively
+bun run test:e2e:debug
+
+# Open Playwright UI
+bun run test:playwright:ui
+```
+
+E2E test structure:
+
+```
+e2e/
+├── smoke-tests/         # All pages basic testing
+├── journeys/           # User flow testing
+├── utils/              # Shared utilities (auth, console monitor)
+└── fixtures/           # Test data
+```
+
+**CI/CD Integration:**
+
+- PR checks run smoke tests on Chromium only for speed
+- Nightly workflow runs full test matrix across all browsers
+- Test results and screenshots uploaded on failure
+
 ## Important Notes
 
 - Uses Bun runtime exclusively (no Node.js)
