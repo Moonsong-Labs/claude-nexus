@@ -14,7 +14,7 @@ export default defineConfig({
   /* Parallel workers - more on CI for smoke tests */
   workers: process.env.CI ? 4 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: process.env.CI 
+  reporter: process.env.CI
     ? [['html'], ['junit', { outputFile: 'test-results/junit.xml' }]]
     : 'html',
   /* Test timeout */
@@ -31,10 +31,10 @@ export default defineConfig({
 
     /* Screenshot on failure */
     screenshot: 'only-on-failure',
-    
+
     /* Video recording */
     video: process.env.CI ? 'retain-on-failure' : 'off',
-    
+
     /* Viewport size */
     viewport: { width: 1280, height: 720 },
   },
