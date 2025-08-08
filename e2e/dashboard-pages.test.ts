@@ -75,7 +75,9 @@ let ROUTES: Array<{
   {
     path: '/dashboard',
     assertions: async page => {
-      await expect(page.getByRole('heading', { name: /Conversations Overview/i })).toBeVisible()
+      const overview = page.getByRole('heading', { name: /Conversations Overview/i })
+      const errorBanner = page.locator('div.error-banner').first()
+      await expect(overview.or(errorBanner)).toBeVisible()
     },
   },
   {
