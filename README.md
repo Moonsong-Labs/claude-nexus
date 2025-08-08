@@ -66,37 +66,37 @@ Understanding these terms will help you navigate Claude Nexus Proxy effectively:
 
 Visualize entire conversation flows as interactive trees, making it easy to understand complex interactions, debug issues, and track conversation branches.
 
-<img src="https://github.com/user-attachments/assets/655f2c5c-91c0-41f6-9d82-19f44dd3ef6d" alt="Conversation tree visualization showing branching and message flow" width="400">
-
-### Detailed Conversation Timeline
-
-Dive deep into individual conversations with a timeline view that shows message flow, token usage, branches, and execution metrics. Filter by branch to focus on specific conversation paths.
-
-<img src="https://github.com/user-attachments/assets/e3e8df59-a4a8-47a8-9033-4a0624bf03cf" alt="Conversation timeline with branch filters and detailed metrics" width="400">
+<kbd><img src="https://github.com/user-attachments/assets/655f2c5c-91c0-41f6-9d82-19f44dd3ef6d" alt="Conversation tree visualization showing branching and message flow" width="400"></kbd> <kbd><img src="https://github.com/user-attachments/assets/e3e8df59-a4a8-47a8-9033-4a0624bf03cf" alt="Conversation timeline with branch filters and detailed metrics" width="400"> </kbd>
 
 ### Request Details & Tool Results
 
 Examine individual API requests and responses with syntax highlighting, tool result visualization, and comprehensive metadata including token counts and timing information.
 
-<img src="https://github.com/user-attachments/assets/aeda8a80-5a9a-407c-b14d-e6a8af6883de" alt="Request details showing tool results and conversation messages" width="400">
+</kbd><img src="https://github.com/user-attachments/assets/aeda8a80-5a9a-407c-b14d-e6a8af6883de" alt="Request details showing tool results and conversation messages" width="400"></kbd>
 
 ### AI-Powered Conversation Analysis
 
 Leverage Gemini Pro to automatically analyze conversations for sentiment, quality, outcomes, and actionable insights. Get intelligent recommendations for improving your AI interactions.
 
-<img src="https://github.com/user-attachments/assets/63ed0346-ee2e-49b4-86df-49937516786f" alt="AI analysis panel showing comprehensive conversation insights" width="400">
+</kbd><img src="https://github.com/user-attachments/assets/63ed0346-ee2e-49b4-86df-49937516786f" alt="AI analysis panel showing comprehensive conversation insights" width="400"></kbd>
 
 ### MCP Prompt Management
 
 Manage and sync Model Context Protocol prompts from GitHub repositories. Create reusable prompt templates that can be shared across your team and integrated with Claude Desktop.
 
-<img src="https://github.com/user-attachments/assets/6cb406d7-cb2a-4698-b03d-0b67b7b44702" alt="MCP prompts interface showing GitHub-synced prompt library" width="400">
+</kbd><img src="https://github.com/user-attachments/assets/6cb406d7-cb2a-4698-b03d-0b67b7b44702" alt="MCP prompts interface showing GitHub-synced prompt library" width="400"></kbd>
 
 ### Raw JSON Debugging
 
 For developers who need complete visibility, access the raw JSON view of any request or response with syntax highlighting and expandable tree structure.
 
-<img src="https://github.com/user-attachments/assets/b3c247ca-e66b-4e6c-8b89-0f1a881b7198" alt="Raw JSON view for detailed debugging" width="400">
+</kbd><img src="https://github.com/user-attachments/assets/b3c247ca-e66b-4e6c-8b89-0f1a881b7198" alt="Raw JSON view for detailed debugging" width="400"></kbd>
+
+### Token rate limit and Management
+
+For administrators or heavy users, you can follow the token usage and see when approaching the rate limits.
+
+</kbd><img width="400" alt="Token usage graph line per domain" src="https://github.com/user-attachments/assets/e16fedc5-c90a-45fb-bfa8-4c37a525edee" /></kbd>
 
 ## Quick Start
 
