@@ -62,11 +62,9 @@ export const testData = {
   dashboardRoutes: [
     { path: '/', name: 'Dashboard Home' },
     { path: '/dashboard', name: 'Main Dashboard' },
-    { path: '/overview', name: 'Overview' },
     { path: '/requests', name: 'Requests' },
     { path: '/token-usage', name: 'Token Usage' },
     { path: '/prompts', name: 'Prompts' },
-    { path: '/analytics', name: 'Analytics' },
   ],
 
   // Critical user journeys
