@@ -17,6 +17,7 @@ import { analyticsPartialRoutes } from './routes/partials/analytics.js'
 import { analyticsConversationPartialRoutes } from './routes/partials/analytics-conversation.js'
 import { csrfProtection } from './middleware/csrf.js'
 import { rateLimitForReadOnly } from './middleware/rate-limit.js'
+import { readOnlyProtection } from './middleware/read-only-protection.js'
 
 /**
  * Create and configure the Dashboard application
@@ -190,37 +191,8 @@ export async function createDashboardApp(): Promise<DashboardApp> {
   // Apply auth middleware first to set auth context
   app.use('/*', dashboardAuth)
 
-  // Apply global write protection for all write methods in read-only mode
-  // This runs BEFORE CSRF to ensure read-only errors take precedence
-  app.on(['POST', 'PUT', 'DELETE', 'PATCH'], '*', async (c, next) => {
-    const auth = c.get('auth')
-    if (auth?.isReadOnly) {
-      // Return user-friendly error for HTMX requests
-      const hxRequest = c.req.header('HX-Request')
-      if (hxRequest) {
-        c.header('HX-Reswap', 'none')
-        c.header('HX-Retarget', '#toast-container')
-
-        return c.html(
-          `<div id="toast-container" class="toast toast-error" hx-swap-oob="true">
-            <div class="toast-message">This action is not available in read-only mode.</div>
-          </div>`,
-          403
-        )
-      }
-
-      // Return JSON error for API requests
-      return c.json(
-        {
-          error: 'Forbidden',
-          message: 'The dashboard is in read-only mode. Write operations are not allowed.',
-          hint: 'To enable write operations, please set the DASHBOARD_API_KEY environment variable.',
-        },
-        403
-      )
-    }
-    return next()
-  })
+  // Apply read-only protection middleware for write operations
+  app.use('*', readOnlyProtection)
 
   // Apply CSRF protection after auth and read-only checks
   app.use('/*', csrfProtection())
