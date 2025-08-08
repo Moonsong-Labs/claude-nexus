@@ -52,11 +52,11 @@ test.describe('@smoke Dashboard Pages Smoke Tests', () => {
         // Assert no critical console errors (allow warnings and info)
         const errors = consoleMonitor.getErrors()
         const criticalConsoleErrors = errors.filter(error => {
-          const message = error?.message || ''
+          const text = error?.text || ''
           return (
-            !message.includes('404') && // Ignore 404s for now
-            !message.includes('favicon') && // Ignore favicon 404s
-            !message.includes('Failed to load resource') // Ignore resource loading errors
+            !text.includes('404') && // Ignore 404s for now
+            !text.includes('favicon') && // Ignore favicon 404s
+            !text.includes('Failed to load resource') // Ignore resource loading errors
           )
         })
         expect(criticalConsoleErrors).toHaveLength(0)
