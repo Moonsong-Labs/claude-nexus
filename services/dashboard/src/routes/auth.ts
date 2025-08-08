@@ -18,7 +18,7 @@ export const authRoutes = new Hono<AuthVariables>()
  */
 authRoutes.get('/login', c => {
   // If in read-only mode, redirect to dashboard
-  if (isReadOnly) {
+  if (isReadOnly()) {
     return c.redirect('/dashboard')
   }
 
@@ -61,7 +61,7 @@ authRoutes.get('/login', c => {
  */
 authRoutes.post('/login', async c => {
   // If in read-only mode, redirect to dashboard
-  if (isReadOnly) {
+  if (isReadOnly()) {
     return c.redirect('/dashboard')
   }
 

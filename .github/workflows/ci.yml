@@ -10,6 +10,21 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,6 +54,54 @@ jobs:
 
       - name: Run tests
         run: bun run test:ci
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Initialize database schema
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -f scripts/init-database.sql
+        env:
+          PGPASSWORD: postgres
+
+      - name: Start dashboard service
+        run: |
+          cd services/dashboard
+          bun run start &
+          # Wait for service to be ready
+          for i in {1..30}; do
+            if curl -f http://localhost:3001/health 2>/dev/null || curl -f http://localhost:3001 2>/dev/null; then
+              echo "Dashboard service is ready"
+              break
+            fi
+            echo "Waiting for dashboard service... ($i/30)"
+            sleep 1
+          done
+        env:
+          DASHBOARD_API_KEY: test_dashboard_key_ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          PORT: 3001
+
+      - name: Run E2E smoke tests
+        run: bunx playwright test --project=chromium --grep @smoke
+        env:
+          DASHBOARD_API_KEY: test_dashboard_key_ci
+          TEST_BASE_URL: http://localhost:3001
+          CI: true
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
 
       - name: Build Docker images
         run: |
