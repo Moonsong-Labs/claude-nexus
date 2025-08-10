@@ -50,7 +50,7 @@ Claude Nexus Proxy - High-performance proxy for Claude API with real-time monito
 **When**: Before merging PRs, after major changes  
 **Decision**: Playwright for reliable cross-browser testing (ADR-021)
 
-### 8. `docker-compose up -d`
+### 8. `docker compose up -d`
 
 **Why**: Runs full stack (proxy, dashboard, PostgreSQL) in containers  
 **When**: Testing production-like environment locally  
