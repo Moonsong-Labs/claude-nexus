@@ -29,6 +29,126 @@ Always reference or create ADRs (docs/04-Architecture/ADRs/) for technical decis
 - **ADR-019**: Dashboard security (critical: DASHBOARD_API_KEY required)
 - **ADR-021**: E2E testing with Playwright
 
+### Contribution Style Guide
+
+To ensure consistency, all contributions should adhere to the following key style points, which are derived from our established architecture and best practices. For deeper context, please refer to the linked documentation.
+
+#### Monorepo & Code Structure
+
+**1. Centralize Shared Logic in `packages/shared`**
+
+- **Rationale**: Enforces a single source of truth for types and utilities shared between the `proxy` and `dashboard` services, preventing code duplication and type mismatches.
+- **Reference**: [ADR-001: Monorepo Structure](docs/04-Architecture/ADRs/adr-001-monorepo-structure.md)
+
+**2. Use TypeScript Project References for Type Checking**
+
+- **Rationale**: Ensures correct build order and enables incremental type-checking across the monorepo, which is critical for both local development and CI performance.
+- **Reference**: [ADR-013: TypeScript Project References](docs/04-Architecture/ADRs/adr-013-typescript-project-references.md)
+
+**3. Use `kebab-case` for All New File Names**
+
+- **Rationale**: Maintains a consistent and readable file structure across all operating systems and avoids issues with case-sensitivity in version control.
+- **Reference**: [Development Guide](docs/01-Getting-Started/development.md)
+
+#### TypeScript & Naming Conventions
+
+**4. Adhere to Standard TypeScript Naming Conventions**
+
+- **Rationale**: Use `PascalCase` for types and interfaces, and `camelCase` for variables and functions to maintain idiomatic and predictable code.
+- **Reference**: [Development Guide: Adding a New API Endpoint](docs/01-Getting-Started/development.md#adding-a-new-api-endpoint)
+
+**5. Use `snake_case` for API and Database Boundaries**
+
+- **Rationale**: Creates a clear distinction between internal code (`camelCase`) and external data contracts (API JSON payloads and database columns), simplifying serialization.
+- **Reference**: [API Reference](docs/02-User-Guide/api-reference.md)
+
+#### API & Server Logic
+
+**6. Return Standardized JSON Error Objects**
+
+- **Rationale**: Provides consistent, predictable error feedback for all API clients, which simplifies front-end error handling and debugging.
+- **Reference**: [API Reference: Error Responses](docs/02-User-Guide/api-reference.md#error-responses)
+
+**7. Implement `/health` Endpoints for All Services**
+
+- **Rationale**: Provides a standard, essential mechanism for monitoring service health in development, staging, and production environments.
+- **Reference**: [Architecture Overview](docs/00-Overview/architecture.md#services)
+
+**8. Externalize All Configuration via Environment Variables**
+
+- **Rationale**: Prevents hardcoding of secrets and configuration, allowing for flexible and secure deployments across different environments.
+- **Reference**: [Environment Variables Reference](docs/06-Reference/environment-vars.md)
+
+#### Database
+
+**9. Write Idempotent, Numerically-Prefixed Database Migrations**
+
+- **Rationale**: Ensures that database schema changes are deterministic, repeatable, and can be safely applied without causing errors on subsequent runs.
+- **Reference**: [Technical Debt Register: Database Migration Strategy](docs/04-Architecture/technical-debt.md#7--database-migration-strategy-resolved)
+
+**10. Prevent N+1 Queries with Efficient Data Loading**
+
+- **Rationale**: Avoids critical performance bottlenecks by fetching related data in a single query using joins or window functions instead of making multiple sequential queries.
+- **Reference**: [Technical Debt Register: N+1 Query Pattern](docs/04-Architecture/technical-debt.md#2--n1-query-pattern-in-conversations-api-resolved)
+
+#### Testing
+
+**11. Use `data-testid` Selectors for All E2E Tests**
+
+- **Rationale**: Decouples tests from fragile UI implementation details like CSS classes or text content, making them more resilient to refactoring and style changes.
+- **Reference**: [ADR-021: E2E Testing Strategy](docs/04-Architecture/ADRs/adr-021-e2e-testing-strategy.md)
+
+**12. Separate Test Files by Suffix: `.spec.ts` vs. `.test.ts`**
+
+- **Rationale**: Clearly distinguishes end-to-end tests (`.spec.ts`) from unit/integration tests (`.test.ts`), allowing for targeted test runs and better organization.
+- **Reference**: [ADR-021: E2E Testing Strategy](docs/04-Architecture/ADRs/adr-021-e2e-testing-strategy.md#test-organization)
+
+**13. Run Stateful E2E Tests in Serial Mode**
+
+- **Rationale**: Prevents state-based race conditions and ensures reliable test outcomes for complex user journeys that modify application state.
+- **Reference**: [ADR-021: E2E Testing Strategy](docs/04-Architecture/ADRs/adr-021-e2e-testing-strategy.md#test-execution-strategy)
+
+#### Build & CI/CD
+
+**14. Use Multi-Stage Docker Builds for Production**
+
+- **Rationale**: Creates smaller, more secure, and more efficient container images by separating build-time dependencies from the final runtime environment.
+- **Reference**: [Architecture Overview: Production Deployment](docs/00-Overview/architecture.md#production-deployment)
+
+**15. Enforce Lockfile Integrity with `--frozen-lockfile` in CI**
+
+- **Rationale**: Guarantees reproducible builds by ensuring that the exact dependency versions specified in `bun.lockb` are used in the CI/CD pipeline.
+- **Reference**: [Development Guide: CI Workflows](docs/01-Getting-Started/development.md#ci-workflows)
+
+**16. Mandate `typecheck` and `format` as CI Quality Gates**
+
+- **Rationale**: Automatically enforces universal code quality, formatting, and type safety on every pull request before it can be merged.
+- **Reference**: [Development Guide: Code Quality and CI](docs/01-Getting-Started/development.md#code-quality-and-ci)
+
+#### Documentation & Commits
+
+**17. Follow the Conventional Commits Specification**
+
+- **Rationale**: Creates a clean, readable, and machine-parsable commit history that aids in automatic changelog generation and semantic versioning.
+- **Reference**: [Development Guide: Commit Messages](docs/01-Getting-Started/development.md#commit-messages)
+
+**18. Document All Major Decisions as Architecture Decision Records (ADRs)**
+
+- **Rationale**: Maintains a clear, historical record of key technical decisions, their context, and their consequences for future developers and stakeholders.
+- **Reference**: [Repository Grooming Guide: Documentation](docs/01-Getting-Started/repository-grooming.md#6-documentation)
+
+**19. Use Relative Links for All Internal Documentation**
+
+- **Rationale**: Ensures that documentation links remain correct and navigable within the repository, regardless of whether it's viewed on GitHub, a local machine, or another platform.
+- **Reference**: [Repository Grooming Guide](docs/01-Getting-Started/repository-grooming.md)
+
+#### Security
+
+**20. Require an API Key for Production Dashboards**
+
+- **Rationale**: Explicitly enforces authentication to prevent the accidental public exposure of sensitive conversation data, metrics, and account information.
+- **Reference**: [ADR-019: Dashboard Read-Only Mode Security Implications](docs/04-Architecture/ADRs/adr-019-dashboard-read-only-mode-security.md)
+
 ### AI Agent Rules
 
 - Never commit secrets or API keys
