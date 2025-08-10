@@ -1,83 +1,65 @@
-# Claude Nexus Proxy - Quick Start
+# Quick Start - Docker Setup
+
+Get Claude Nexus Proxy running in 5 minutes with Docker.
 
 ## Prerequisites
 
-- Docker and Docker Compose
-- Claude OAuth token or API key
+- Docker and Docker Compose installed
+- Claude OAuth token or API key ready
 
-## Setup
+## 5 Essential Commands
 
-### 1. Clone and configure
+### 1. `git clone https://github.com/moonsong-labs/claude-nexus-proxy.git && cd claude-nexus-proxy`
 
-```bash
-git clone https://github.com/moonsong-labs/claude-nexus-proxy.git
-cd claude-nexus-proxy
-cp .env.example .env
+**Why**: Get the code and enter project directory  
+**Decision**: Single command for faster setup
 
-# ⚠️ CRITICAL: Edit .env and set DASHBOARD_API_KEY!
-# Without it, the dashboard has NO authentication!
-```
+### 2. `cp .env.example .env && nano .env`
 
-### 2. Create credentials
+**Why**: Configure environment, especially DASHBOARD_API_KEY for security  
+**Decision**: Dashboard runs unauthenticated without API key (ADR-019)  
+**Critical**: Set `DASHBOARD_API_KEY=your-secure-key-here`
 
-Create credential files for your domain:
+### 3. `./scripts/setup-credentials.sh`
 
-```bash
-# For OAuth (Claude Code)
-cat > credentials/localhost:3000.credentials.json << 'EOF'
-{
-  "type": "oauth",
-  "accountId": "acc_unique_identifier",
-  "oauth": {
-    "accessToken": "sk-ant-oat01-YOUR-TOKEN",
-    "refreshToken": "",
-    "expiresAt": 1234567890000,
-    "scopes": ["user:inference", "user:profile"],
-    "isMax": true
-  }
-}
-EOF
-
-# Create single source of credentials
-mkdir -p client-setup
-cp credentials/localhost:3000.credentials.json client-setup/.credentials.json
-
-# Link for proxy service (avoids duplication)
-ln -sf ../client-setup/.credentials.json credentials/proxy:3000.credentials.json
-```
-
-### 3. Start services
+**Why**: Create OAuth credentials for Claude API access  
+**Decision**: Centralized credentials prevent duplication
 
 ```bash
-cd docker
-docker compose --profile dev --profile claude up -d
+# Or manually create credentials/localhost:3000.credentials.json with your OAuth token
 ```
 
-### 4. Use Claude CLI
+### 4. `cd docker && docker compose --profile dev up -d`
+
+**Why**: Start all services (proxy, dashboard, PostgreSQL)  
+**Decision**: Docker Compose for consistent environments  
+**Services**:
+
+- Proxy: http://localhost:3000
+- Dashboard: http://localhost:3001 (requires DASHBOARD_API_KEY)
+- PostgreSQL: localhost:5432
+
+### 5. `docker compose logs -f proxy`
+
+**Why**: Monitor proxy logs for debugging and verification  
+**Decision**: Real-time logs help identify issues quickly  
+**Alternative**: `docker compose ps` to check service health
+
+## Quick Test
 
 ```bash
-# From anywhere in the project
-./claude "What is 2+2?"
-
-# Or directly
-cd docker
-docker compose exec claude-cli /usr/local/bin/claude-cli "Hello!"
+./claude "What is 2+2?"  # Test Claude CLI
+curl http://localhost:3000/health  # Check proxy health
 ```
 
-## Monitoring
-
-- **View logs**: `docker compose logs -f proxy`
-- **Token stats**: `curl http://localhost:3000/token-stats`
-- **Dashboard**: http://localhost:3001 (requires DASHBOARD_API_KEY from .env - ⚠️ NO AUTH if not set!)
-
-## Troubleshooting
-
-- **Invalid API key**: Check credentials files are correct
-- **Connection issues**: Verify services with `docker compose ps`
-- **Disable client auth**: Set `ENABLE_CLIENT_AUTH=false` in docker-compose.override.yml
-
-## Stop services
+## Stop Everything
 
 ```bash
 cd docker && docker compose down
 ```
+
+## Next Steps
+
+- Full development setup: [development.md](../01-Getting-Started/development.md)
+- Environment variables: [environment-vars.md](../06-Reference/environment-vars.md)
+- Troubleshooting: [common-issues.md](../05-Troubleshooting/common-issues.md)
