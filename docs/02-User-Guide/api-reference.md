@@ -1,657 +1,173 @@
-# API Reference
+# API Reference - Non-Obvious Patterns Only
 
-Claude Nexus Proxy provides a transparent proxy to Claude's API with additional features.
+## Critical Non-Intuitive Behaviors
 
-## Base URL
+### 1. Domain-Based Credential Routing
 
-```
-http://localhost:3000  # Development
-https://api.yourdomain.com  # Production
-```
-
-## Authentication
-
-### Client to Proxy
-
-Include your client API key in the Authorization header:
+**The proxy routes based on `Host` header, NOT the request URL:**
 
 ```bash
-Authorization: Bearer cnp_live_YOUR_KEY
+# This determines credential file lookup:
+Host: example.com  # -> credentials/example.com.credentials.json
 ```
 
-### Domain-Based Routing
+### 2. Streaming Response Format
 
-The proxy uses the `Host` header to determine which credentials to use:
-
-```bash
-Host: example.com
-```
-
-## Endpoints
-
-### Messages API
-
-#### Create Message
-
-```http
-POST /v1/messages
-```
-
-Creates a new message with Claude.
-
-**Request:**
-
-```json
-{
-  "model": "claude-3-opus-20240229",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hello, Claude!"
-    }
-  ],
-  "max_tokens": 1000,
-  "stream": false
-}
-```
-
-**Response (Non-streaming):**
-
-```json
-{
-  "id": "msg_123",
-  "type": "message",
-  "role": "assistant",
-  "content": [
-    {
-      "type": "text",
-      "text": "Hello! How can I help you today?"
-    }
-  ],
-  "model": "claude-3-opus-20240229",
-  "usage": {
-    "input_tokens": 10,
-    "output_tokens": 15
-  }
-}
-```
-
-**Response (Streaming):**
+**Streaming uses Server-Sent Events, not typical JSON streaming:**
 
 ```
-event: message_start
-data: {"type":"message_start","message":{"id":"msg_123",...}}
-
-event: content_block_start
-data: {"type":"content_block_start","index":0,...}
-
 event: content_block_delta
-data: {"type":"content_block_delta","delta":{"text":"Hello"},...}
-
-event: message_stop
-data: {"type":"message_stop"}
+data: {"type":"content_block_delta","delta":{"text":"partial text"},...}
 ```
 
-### Token Statistics
+### 3. Client Authentication Header Patterns
 
-#### Get Token Usage
+```bash
+# Primary pattern
+Authorization: Bearer cnp_live_YOUR_KEY
 
-```http
-GET /token-stats
+# Alternative (legacy support)
+x-api-key: cnp_live_YOUR_KEY
 ```
 
-Returns token usage statistics per domain.
+### 4. Token Statistics - Per-Domain Aggregation
 
-**Response:**
+**Non-intuitive per-domain response structure:**
 
 ```json
 {
   "example.com": {
-    "total_requests": 150,
-    "total_input_tokens": 45000,
-    "total_output_tokens": 62000,
-    "total_cache_creation_tokens": 1000,
-    "total_cache_read_tokens": 500,
     "request_types": {
       "inference": 145,
-      "query_evaluation": 5
+      "query_evaluation": 5 // Non-obvious classification
     },
-    "models": {
-      "claude-3-opus-20240229": 100,
-      "claude-3-sonnet-20240229": 50
-    }
+    "total_cache_creation_tokens": 1000, // Separate from input tokens
+    "total_cache_read_tokens": 500 // Separate cache read tracking
   }
 }
 ```
 
-### Health Check
+## Dashboard API - Critical Security Patterns
 
-#### Proxy Health
+### ⚠️ Dashboard Authentication Vulnerability
 
-```http
-GET /health
-```
-
-**Response:**
-
-```json
-{
-  "status": "healthy",
-  "version": "2.0.0",
-  "uptime": 3600
-}
-```
-
-## Dashboard API
-
-### Base URL
-
-```
-http://localhost:3001  # Development
-https://dashboard.yourdomain.com  # Production
-```
-
-### Authentication
-
-Include the dashboard API key in the Authorization header:
+**Multiple auth methods - use header for API, cookies for UI:**
 
 ```bash
+# API calls
 Authorization: Bearer YOUR_DASHBOARD_KEY
+
+# Browser UI uses different header
+X-Dashboard-Key: YOUR_DASHBOARD_KEY
+
+# Automatic cookie after login
+Cookie: dashboard_auth=YOUR_DASHBOARD_KEY
 ```
 
-### Endpoints
+### Critical Dashboard Endpoints - Non-Obvious Patterns
 
-#### List Requests
+#### Conversation Tracking (Automatic)
 
-```http
-GET /api/requests?limit=50&offset=0&domain=example.com
-```
-
-**Query Parameters:**
-
-- `limit` - Number of results (default: 50, max: 100)
-- `offset` - Pagination offset
-- `domain` - Filter by domain
-- `model` - Filter by model
-- `from` - Start date (ISO 8601)
-- `to` - End date (ISO 8601)
-
-**Response:**
+**Non-intuitive branch naming pattern:**
 
 ```json
 {
-  "requests": [
-    {
-      "request_id": "uuid",
-      "timestamp": "2024-01-15T10:00:00Z",
-      "domain": "example.com",
-      "model": "claude-3-opus-20240229",
-      "input_tokens": 100,
-      "output_tokens": 200,
-      "duration_ms": 1500,
-      "conversation_id": "uuid",
-      "branch_id": "main"
-    }
-  ],
-  "total": 1000,
-  "limit": 50,
-  "offset": 0
-}
-```
-
-#### Get Request Details
-
-```http
-GET /api/requests/:id
-```
-
-**Response:**
-
-```json
-{
-  "request_id": "uuid",
-  "timestamp": "2024-01-15T10:00:00Z",
-  "domain": "example.com",
-  "request": {
-    "messages": [...],
-    "model": "claude-3-opus-20240229"
-  },
-  "response": {
-    "content": [...],
-    "usage": {...}
-  },
-  "metadata": {
-    "conversation_id": "uuid",
-    "branch_id": "main",
-    "message_count": 5
-  }
-}
-```
-
-#### List Conversations
-
-```http
-GET /api/conversations?domain=example.com&accountId=acc_123&limit=20
-```
-
-**Query Parameters:**
-
-- `domain` - Filter by domain
-- `accountId` - Filter by account
-- `limit` - Number of conversations
-
-**Response:**
-
-```json
-{
-  "conversations": [
-    {
-      "conversationId": "uuid",
-      "domain": "example.com",
-      "accountId": "acc_123",
-      "firstMessageTime": "2024-01-15T09:00:00Z",
-      "lastMessageTime": "2024-01-15T10:00:00Z",
-      "messageCount": 20,
-      "totalTokens": 5000,
-      "branchCount": 2,
-      "modelsUsed": ["claude-3-opus-20240229"]
-    }
-  ]
-}
-```
-
-#### Get Conversation Details
-
-```http
-GET /api/conversations/:id
-```
-
-**Response:**
-
-```json
-{
-  "conversation_id": "uuid",
-  "requests": [
-    {
-      "request_id": "uuid",
-      "timestamp": "2024-01-15T09:00:00Z",
-      "branch_id": "main",
-      "message_count": 2,
-      "parent_message_hash": null,
-      "current_message_hash": "abc123..."
-    }
-  ],
   "branches": {
-    "main": {
-      "request_count": 8,
-      "created_at": "2024-01-15T09:00:00Z"
-    },
+    "main": { "request_count": 8 },
     "branch-2024-01-15-09-30-00": {
-      "request_count": 2,
-      "created_at": "2024-01-15T09:30:00Z",
-      "branched_from": "def456..."
+      // Timestamp-based branching
+      "branched_from": "def456..." // Parent message hash
     }
   }
 }
 ```
 
-#### Conversation Analysis
-
-AI-powered analysis of conversations using Gemini models to provide insights, summaries, and actionable feedback.
-
-##### Create Analysis Request
-
-```http
-POST /api/analyses
-```
-
-Creates a new analysis request for a conversation.
-
-**Request:**
+**Message hashing for conversation detection (SHA-256 based):**
 
 ```json
 {
-  "conversation_id": "uuid",
-  "branch_id": "main", // optional, defaults to "main"
-  "customPrompt": "Focus on security implications" // optional
+  "parent_message_hash": null,
+  "current_message_hash": "abc123...", // Content-based hash
+  "message_count": 2 // Position in conversation
 }
 ```
 
-**Response:**
+#### AI-Powered Conversation Analysis (Advanced)
+
+**Critical Gemini integration with truncation logic:**
+
+- Uses `gemini-2.5-pro` by default
+- **855k token limit with safety margins**
+- **Tail-first priority** (recent messages preserved)
+
+**Non-obvious analysis request pattern:**
 
 ```json
 {
-  "id": "123456",
   "conversation_id": "uuid",
-  "branch_id": "main",
-  "status": "pending",
-  "created_at": "2024-01-15T10:00:00Z"
+  "branch_id": "main", // Defaults to "main" if omitted
+  "customPrompt": "Focus on security implications" // Optional override
 }
 ```
 
-##### Get Analysis
-
-```http
-GET /api/analyses/:conversationId/:branchId
-```
-
-Retrieves the analysis for a specific conversation and branch.
-
-**Response:**
+**Analysis response includes token usage metrics:**
 
 ```json
 {
-  "id": "123456",
-  "conversation_id": "uuid",
-  "branch_id": "main",
-  "status": "completed",
   "model_used": "gemini-2.5-pro",
-  "analysis_content": "This conversation shows...",
-  "analysis_data": {
+  "processing_duration_ms": 2500,
+  "prompt_tokens": 1000,     // Input to Gemini
+  "completion_tokens": 500,  // Gemini's response tokens
+  "analysis_data": {         // Structured JSON output
     "summary": "...",
     "insights": ["..."],
     "metrics": {...}
-  },
-  "generated_at": "2024-01-15T10:05:00Z",
-  "processing_duration_ms": 2500,
-  "prompt_tokens": 1000,
-  "completion_tokens": 500
-}
-```
-
-##### Regenerate Analysis
-
-```http
-POST /api/analyses/:conversationId/:branchId/regenerate
-```
-
-Forces regeneration of an existing analysis.
-
-**Request:**
-
-```json
-{
-  "customPrompt": "Analyze performance implications" // optional
-}
-```
-
-**Response:** Same as Get Analysis endpoint.
-
-#### Token Analytics
-
-```http
-GET /api/analytics/tokens?period=day&days=7
-```
-
-**Query Parameters:**
-
-- `period` - Aggregation period: `hour`, `day`, `week`
-- `days` - Number of days to include
-
-**Response:**
-
-```json
-{
-  "periods": [
-    {
-      "period": "2024-01-15",
-      "domains": {
-        "example.com": {
-          "input_tokens": 10000,
-          "output_tokens": 15000,
-          "cache_tokens": 500,
-          "requests": 50
-        }
-      }
-    }
-  ]
-}
-```
-
-#### Token Usage - Current Window
-
-```http
-GET /api/token-usage/current?accountId=acc_123&window=300
-```
-
-Get token usage for the current sliding window (default 5 hours).
-
-**Query Parameters:**
-
-- `accountId` - Account identifier (required)
-- `window` - Window size in minutes (default: 300)
-- `domain` - Filter by domain (optional)
-- `model` - Filter by model (optional)
-
-**Response:**
-
-```json
-{
-  "accountId": "acc_123",
-  "domain": "example.com",
-  "model": "claude-3-opus-20240229",
-  "windowStart": "2024-01-15T05:00:00Z",
-  "windowEnd": "2024-01-15T10:00:00Z",
-  "totalInputTokens": 45000,
-  "totalOutputTokens": 62000,
-  "totalTokens": 107000,
-  "totalRequests": 150,
-  "cacheCreationInputTokens": 1000,
-  "cacheReadInputTokens": 500
-}
-```
-
-#### Token Usage - Daily
-
-```http
-GET /api/token-usage/daily?accountId=acc_123&days=30&aggregate=true
-```
-
-Get daily token usage statistics.
-
-**Query Parameters:**
-
-- `accountId` - Account identifier (required)
-- `days` - Number of days to retrieve (default: 30)
-- `domain` - Filter by domain (optional)
-- `aggregate` - Aggregate across models (default: false)
-
-**Response:**
-
-```json
-{
-  "usage": [
-    {
-      "date": "2024-01-15",
-      "accountId": "acc_123",
-      "domain": "example.com",
-      "totalInputTokens": 100000,
-      "totalOutputTokens": 150000,
-      "totalTokens": 250000,
-      "totalRequests": 500
-    }
-  ]
-}
-```
-
-#### Rate Limits Configuration
-
-```http
-GET /api/rate-limits?accountId=acc_123
-```
-
-Get rate limit configurations.
-
-**Query Parameters:**
-
-- `accountId` - Filter by account
-- `domain` - Filter by domain
-- `model` - Filter by model
-
-**Response:**
-
-```json
-{
-  "configs": [
-    {
-      "id": 1,
-      "accountId": "acc_123",
-      "domain": null,
-      "model": "claude-3-opus-20240229",
-      "windowMinutes": 300,
-      "tokenLimit": 140000,
-      "requestLimit": null,
-      "fallbackModel": "claude-3-haiku-20240307",
-      "enabled": true
-    }
-  ]
-}
-```
-
-#### Update Rate Limit
-
-```http
-POST /api/rate-limits/:id
-```
-
-Update a rate limit configuration.
-
-**Request:**
-
-```json
-{
-  "tokenLimit": 200000,
-  "fallbackModel": "claude-3-haiku-20240307",
-  "enabled": true
-}
-```
-
-**Response:**
-
-```json
-{
-  "config": {
-    "id": 1,
-    "tokenLimit": 200000,
-    "fallbackModel": "claude-3-haiku-20240307",
-    "enabled": true
   }
 }
 ```
 
-#### Server-Sent Events
+#### Critical Token Usage - 5-Hour Rolling Window (Non-obvious)
 
-```http
-GET /sse
+**Default window is 300 minutes (5 hours), not daily:**
+
+```json
+{
+  "windowStart": "2024-01-15T05:00:00Z",
+  "windowEnd": "2024-01-15T10:00:00Z",
+  "cacheCreationInputTokens": 1000, // Separate cache token tracking
+  "cacheReadInputTokens": 500 // Different from total input tokens
+}
 ```
 
-Streams real-time updates for requests.
+#### Rate Limiting - Model Fallback Pattern
 
-**Event Format:**
+**Non-obvious fallback model configuration:**
 
+```json
+{
+  "tokenLimit": 140000,
+  "fallbackModel": "claude-3-haiku-20240307", // Auto-downgrade on limits
+  "windowMinutes": 300 // 5-hour sliding window
+}
 ```
-event: request
-data: {"request_id":"uuid","domain":"example.com","timestamp":"2024-01-15T10:00:00Z"}
 
-event: stats
-data: {"total_requests":1000,"active_domains":5}
-```
+## Critical Error Patterns
 
-## Error Responses
-
-### Error Format
+**Proxy-specific error types:**
 
 ```json
 {
   "error": {
-    "type": "invalid_request_error",
-    "message": "Invalid API key provided"
+    "type": "authentication_error", // Client API key issues
+    "message": "Invalid x-api-key" // Claude API key issues
   }
 }
 ```
 
-### Common Error Codes
+**Rate limiting headers forwarded from Claude:**
 
-| Status Code | Type                    | Description                            |
-| ----------- | ----------------------- | -------------------------------------- |
-| 400         | `invalid_request_error` | Invalid request parameters             |
-| 401         | `authentication_error`  | Invalid or missing API key             |
-| 403         | `permission_error`      | Valid key but insufficient permissions |
-| 404         | `not_found_error`       | Resource not found                     |
-| 429         | `rate_limit_error`      | Rate limit exceeded                    |
-| 500         | `internal_server_error` | Server error                           |
-| 502         | `api_error`             | Claude API error                       |
-
-## Rate Limiting
-
-The proxy forwards Claude's rate limiting headers:
-
-```
+```bash
 x-ratelimit-limit: 100
 x-ratelimit-remaining: 99
-x-ratelimit-reset: 1705315200
-```
-
-## Conversation Tracking
-
-The proxy automatically tracks conversations using message content hashing:
-
-1. Each message is hashed using SHA-256
-2. Parent-child relationships are established
-3. Branches are created when conversations diverge
-4. Message counts are tracked
-
-### Branch Naming
-
-Branches are named using timestamps:
-
-- Main branch: `main`
-- Other branches: `branch-YYYY-MM-DD-HH-MM-SS`
-
-## Best Practices
-
-### Streaming Responses
-
-For long responses, use streaming:
-
-```javascript
-const response = await fetch('/v1/messages', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer YOUR_KEY',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    messages: [...],
-    stream: true
-  })
-})
-
-const reader = response.body.getReader()
-// Process stream...
-```
-
-### Error Handling
-
-Always check for errors:
-
-```javascript
-if (!response.ok) {
-  const error = await response.json()
-  console.error('API Error:', error.error.message)
-}
-```
-
-### Conversation Context
-
-Maintain conversation context by including message history:
-
-```json
-{
-  "messages": [
-    { "role": "user", "content": "Hello" },
-    { "role": "assistant", "content": "Hi there!" },
-    { "role": "user", "content": "How are you?" }
-  ]
-}
+x-ratelimit-reset: 1705315200  # Unix timestamp
 ```

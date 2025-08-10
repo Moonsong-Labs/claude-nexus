@@ -1,366 +1,128 @@
-# Environment Variables Reference
+# Environment Variables - Critical Non-Obvious Settings
 
-Complete reference for all environment variables used in Claude Nexus Proxy.
+## ⚠️ CRITICAL SECURITY VARIABLES (NEVER deploy production without these)
 
-## Essential Configuration
+| Variable            | Critical Impact if Missing                  | Required |
+| ------------------- | ------------------------------------------- | -------- |
+| `DASHBOARD_API_KEY` | **Dashboard exposes ALL conversation data** | ✅       |
+| `DATABASE_URL`      | Service won't start                         | ✅       |
 
-### Database
-
-| Variable       | Description                  | Default | Required |
-| -------------- | ---------------------------- | ------- | -------- |
-| `DATABASE_URL` | PostgreSQL connection string | -       | ✅       |
-
-Example:
+**Database URL with SSL (often overlooked):**
 
 ```bash
-DATABASE_URL=postgresql://user:password@localhost:5432/claude_nexus
+DATABASE_URL=postgresql://user:password@host:5432/claude_nexus?sslmode=require
 ```
 
-### Authentication
+## Non-Intuitive Timeout Configuration
 
-| Variable             | Description                          | Default | Required |
-| -------------------- | ------------------------------------ | ------- | -------- |
-| `DASHBOARD_API_KEY`  | API key for dashboard authentication | -       | ✅       |
-| `ENABLE_CLIENT_AUTH` | Enable client API key authentication | `true`  | ❌       |
-
-## Feature Flags
-
-| Variable               | Description                         | Default |
-| ---------------------- | ----------------------------------- | ------- |
-| `STORAGE_ENABLED`      | Enable request/response storage     | `false` |
-| `DEBUG`                | Enable debug logging                | `false` |
-| `COLLECT_TEST_SAMPLES` | Collect request samples for testing | `false` |
-
-## Performance Configuration
-
-### Timeouts
-
-| Variable                  | Description                          | Default           |
-| ------------------------- | ------------------------------------ | ----------------- |
-| `CLAUDE_API_TIMEOUT`      | Timeout for Claude API requests (ms) | `600000` (10 min) |
-| `PROXY_SERVER_TIMEOUT`    | Server-level timeout (ms)            | `660000` (11 min) |
-| `SLOW_QUERY_THRESHOLD_MS` | Log queries slower than this (ms)    | `5000`            |
-
-### Caching
-
-| Variable              | Description                   | Default |
-| --------------------- | ----------------------------- | ------- |
-| `DASHBOARD_CACHE_TTL` | Dashboard cache TTL (seconds) | `30`    |
-
-## Service Configuration
-
-### Proxy Service
-
-| Variable     | Description            | Default       |
-| ------------ | ---------------------- | ------------- |
-| `PROXY_PORT` | Port for proxy service | `3000`        |
-| `NODE_ENV`   | Node environment       | `development` |
-| `LOG_LEVEL`  | Logging level          | `info`        |
-
-### Dashboard Service
-
-| Variable                | Description                | Default |
-| ----------------------- | -------------------------- | ------- |
-| `DASHBOARD_PORT`        | Port for dashboard service | `3001`  |
-| `DASHBOARD_TIMEZONE`    | Display timezone           | `UTC`   |
-| `DASHBOARD_DATE_FORMAT` | Date format                | `ISO`   |
-
-## Integration Configuration
-
-### Slack Integration
-
-| Variable            | Description                     | Default |
-| ------------------- | ------------------------------- | ------- |
-| `SLACK_WEBHOOK_URL` | Slack webhook for notifications | -       |
-
-Example:
+**Critical timing relationship (server timeout MUST be > Claude timeout):**
 
 ```bash
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+CLAUDE_API_TIMEOUT=600000      # 10 minutes for Claude API
+PROXY_SERVER_TIMEOUT=660000    # 11 minutes (must be higher!)
 ```
 
-### OAuth Configuration
-
-| Variable                 | Description                | Default                                |
-| ------------------------ | -------------------------- | -------------------------------------- |
-| `CLAUDE_OAUTH_CLIENT_ID` | OAuth client ID for Claude | `9d1c250a-e61b-44d9-88ed-5944d1962f5e` |
-
-## Directory Configuration
-
-| Variable           | Description                    | Default          |
-| ------------------ | ------------------------------ | ---------------- |
-| `CREDENTIALS_DIR`  | Directory for credential files | `./credentials`  |
-| `TEST_SAMPLES_DIR` | Directory for test samples     | `./test-samples` |
-
-## AI Analysis Configuration
-
-### Background Worker
-
-| Variable                                | Description                             | Default |
-| --------------------------------------- | --------------------------------------- | ------- |
-| `AI_WORKER_ENABLED`                     | Enable AI Analysis background worker    | `false` |
-| `AI_WORKER_POLL_INTERVAL_MS`            | Polling interval for new jobs (ms)      | `5000`  |
-| `AI_WORKER_MAX_CONCURRENT_JOBS`         | Max concurrent jobs per worker instance | `3`     |
-| `AI_WORKER_JOB_TIMEOUT_MINUTES`         | Timeout for stuck jobs (minutes)        | `5`     |
-| `AI_ANALYSIS_MAX_RETRIES`               | Maximum retry attempts for failed jobs  | `3`     |
-| `AI_ANALYSIS_GEMINI_REQUEST_TIMEOUT_MS` | Timeout for Gemini API requests (ms)    | `60000` |
-
-### Analysis Configuration
-
-| Variable                                     | Description                                         | Default               |
-| -------------------------------------------- | --------------------------------------------------- | --------------------- |
-| `AI_ANALYSIS_PROMPT_VERSION`                 | Version of analysis prompt to use                   | `v1`                  |
-| `AI_MAX_CONTEXT_TOKENS`                      | Maximum context window size for AI model            | `1000000`             |
-| `AI_MAX_PROMPT_TOKENS`                       | Maximum tokens for analysis prompt (overrides calc) | `855000` (calculated) |
-| `AI_MAX_PROMPT_TOKENS_BASE`                  | Base tokens before safety margin                    | `900000`              |
-| `AI_TOKENIZER_SAFETY_MARGIN`                 | Safety margin for tokenizer discrepancies           | `0.95`                |
-| `AI_HEAD_MESSAGES`                           | Messages to keep from conversation start            | `5`                   |
-| `AI_TAIL_MESSAGES`                           | Messages to keep from conversation end              | `20`                  |
-| `AI_TRUNCATION_STRATEGY`                     | JSON object for truncation config                   | See below             |
-| `AI_ESTIMATED_CHARS_PER_TOKEN`               | Estimated characters per token ratio                | `12`                  |
-| `AI_ANALYSIS_INPUT_TRUNCATION_TARGET_TOKENS` | Target token count for input message truncation     | `8192`                |
-| `AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS`        | Tokens to keep from conversation start              | `1000`                |
-| `AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS`         | Tokens to keep from conversation end                | `4000`                |
-
-### Gemini API Configuration
-
-| Variable            | Description                      | Default                                                   |
-| ------------------- | -------------------------------- | --------------------------------------------------------- |
-| `GEMINI_API_KEY`    | API key for Gemini AI            | -                                                         |
-| `GEMINI_API_URL`    | Base URL for Gemini API          | `https://generativelanguage.googleapis.com/v1beta/models` |
-| `GEMINI_MODEL_NAME` | Gemini model to use for analysis | `gemini-2.0-flash-exp`                                    |
-
-### AI Analysis Security
-
-| Variable                                         | Description                                      | Default |
-| ------------------------------------------------ | ------------------------------------------------ | ------- |
-| `AI_ANALYSIS_MAX_RETRIES`                        | Maximum retry attempts for failed analyses       | `2`     |
-| `AI_ANALYSIS_REQUEST_TIMEOUT_MS`                 | Timeout for Gemini API requests (ms)             | `60000` |
-| `AI_ANALYSIS_RATE_LIMIT_CREATION`                | Rate limit for analysis creation (per minute)    | `15`    |
-| `AI_ANALYSIS_RATE_LIMIT_RETRIEVAL`               | Rate limit for analysis retrieval (per minute)   | `100`   |
-| `AI_ANALYSIS_ENABLE_PII_REDACTION`               | Enable PII redaction in conversation content     | `true`  |
-| `AI_ANALYSIS_ENABLE_PROMPT_INJECTION_PROTECTION` | Enable prompt injection protection               | `true`  |
-| `AI_ANALYSIS_ENABLE_OUTPUT_VALIDATION`           | Enable output validation for analysis results    | `true`  |
-| `AI_ANALYSIS_ENABLE_AUDIT_LOGGING`               | Enable audit logging for all analysis operations | `true`  |
-
-Example truncation strategy JSON:
+## Authentication Bypass (Development Only)
 
 ```bash
-AI_TRUNCATION_STRATEGY='{"HEAD_MESSAGES": 10, "TAIL_MESSAGES": 30}'
+ENABLE_CLIENT_AUTH=false  # DISABLES ALL client authentication - NEVER use in production
 ```
 
-## Development Configuration
+## AI Analysis - Critical Truncation Logic (Most Complex)
 
-### Debug Options
-
-| Variable       | Description                    | Default |
-| -------------- | ------------------------------ | ------- |
-| `AUTH_DEBUG`   | Extra authentication debugging | `false` |
-| `SQL_DEBUG`    | Log all SQL queries            | `false` |
-| `STREAM_DEBUG` | Debug streaming responses      | `false` |
-
-### Test Configuration
-
-| Variable       | Description         | Default |
-| -------------- | ------------------- | ------- |
-| `TEST_MODE`    | Enable test mode    | `false` |
-| `TEST_API_KEY` | API key for testing | -       |
-
-## Docker Configuration
-
-When running in Docker, additional variables may be needed:
-
-| Variable            | Description       | Default        |
-| ------------------- | ----------------- | -------------- |
-| `DATABASE_HOST`     | Database hostname | `postgres`     |
-| `DATABASE_PORT`     | Database port     | `5432`         |
-| `DATABASE_NAME`     | Database name     | `claude_nexus` |
-| `DATABASE_USER`     | Database username | `postgres`     |
-| `DATABASE_PASSWORD` | Database password | -              |
-
-## Production Configuration
-
-### Security
-
-| Variable         | Description             | Default |
-| ---------------- | ----------------------- | ------- |
-| `FORCE_HTTPS`    | Force HTTPS connections | `false` |
-| `CORS_ORIGIN`    | Allowed CORS origins    | `*`     |
-| `SECURE_COOKIES` | Use secure cookies      | `false` |
-
-### Monitoring
-
-| Variable                      | Description             | Default |
-| ----------------------------- | ----------------------- | ------- |
-| `METRICS_ENABLED`             | Enable metrics endpoint | `false` |
-| `METRICS_PORT`                | Port for metrics        | `9090`  |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry endpoint  | -       |
-
-## Example .env File
+**Non-intuitive token limits with safety margins:**
 
 ```bash
-# Database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/claude_nexus
-
-# Authentication
-DASHBOARD_API_KEY=your-secure-dashboard-key
-ENABLE_CLIENT_AUTH=true
-
-# Features
-STORAGE_ENABLED=true
-DEBUG=false
-
-# Performance
-CLAUDE_API_TIMEOUT=600000
-PROXY_SERVER_TIMEOUT=660000
-SLOW_QUERY_THRESHOLD_MS=5000
-DASHBOARD_CACHE_TTL=30
-
-# Services
-PROXY_PORT=3000
-DASHBOARD_PORT=3001
-
-# Integrations
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-
-# AI Analysis Worker
-AI_WORKER_ENABLED=false
-AI_WORKER_POLL_INTERVAL_MS=5000
-AI_WORKER_MAX_CONCURRENT_JOBS=3
-AI_WORKER_JOB_TIMEOUT_MINUTES=5
-AI_WORKER_MAX_RETRIES=3
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL_NAME=gemini-2.0-flash-exp
-
-# Directories
-CREDENTIALS_DIR=./credentials
-TEST_SAMPLES_DIR=./test-samples
-
-# Production (uncomment for production)
-# NODE_ENV=production
-# LOG_LEVEL=warn
-# FORCE_HTTPS=true
-# SECURE_COOKIES=true
+AI_MAX_CONTEXT_TOKENS=1000000        # Gemini model limit
+AI_MAX_PROMPT_TOKENS=855000          # Calculated with safety margin
+AI_TOKENIZER_SAFETY_MARGIN=0.95     # 5% safety buffer for tokenizer differences
 ```
 
-## Environment-Specific Configurations
-
-### Development
+**Tail-first priority truncation (preserves recent context):**
 
 ```bash
-NODE_ENV=development
-DEBUG=true
-LOG_LEVEL=debug
-STORAGE_ENABLED=true
+AI_HEAD_MESSAGES=5                   # Keep first 5 messages
+AI_TAIL_MESSAGES=20                  # Keep last 20 messages (prioritized)
+AI_ANALYSIS_TRUNCATE_FIRST_N_TOKENS=1000   # Tokens from start
+AI_ANALYSIS_TRUNCATE_LAST_M_TOKENS=4000    # Tokens from end (4x more)
 ```
 
-### Staging
+**Gemini-specific configuration:**
 
 ```bash
-NODE_ENV=staging
-DEBUG=false
-LOG_LEVEL=info
-STORAGE_ENABLED=true
-METRICS_ENABLED=true
+GEMINI_MODEL_NAME=gemini-2.0-flash-exp     # Default model for analysis
+AI_ANALYSIS_REQUEST_TIMEOUT_MS=60000       # 1 minute timeout for Gemini requests
 ```
 
-### Production
+## OAuth Client ID (Non-obvious default)
 
 ```bash
-NODE_ENV=production
-DEBUG=false
-LOG_LEVEL=warn
-STORAGE_ENABLED=true
-METRICS_ENABLED=true
-FORCE_HTTPS=true
-SECURE_COOKIES=true
+CLAUDE_OAUTH_CLIENT_ID=9d1c250a-e61b-44d9-88ed-5944d1962f5e  # Anthropic's default OAuth client
 ```
 
-## Loading Environment Variables
-
-### From .env File
-
-The project automatically loads `.env` files using dotenv:
-
-```typescript
-import { config } from 'dotenv'
-config()
-```
-
-### From Docker
-
-Pass environment variables to Docker:
+## Critical Directory Configuration
 
 ```bash
-docker run -e DATABASE_URL=postgresql://... claude-nexus-proxy
+CREDENTIALS_DIR=./credentials  # Must match docker volume mount path exactly
 ```
 
-Or use env file:
+## Docker Compose Override Pattern (Non-intuitive)
 
-```bash
-docker run --env-file .env claude-nexus-proxy
-```
-
-### From Docker Compose
+**For custom configuration without modifying base compose file:**
 
 ```yaml
+# docker-compose.override.yml
+version: '3.8'
 services:
   proxy:
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DEBUG=true
       - STORAGE_ENABLED=true
-    env_file:
-      - .env
 ```
 
-## Validation
+## Essential Production Security Variables
 
-The proxy validates required environment variables on startup:
+```bash
+NODE_ENV=production           # Enables production optimizations
+FORCE_HTTPS=true             # Redirects HTTP to HTTPS
+SECURE_COOKIES=true          # Requires HTTPS for cookies
+```
+
+## Critical Validation Pattern
+
+**The proxy validates required variables on startup:**
 
 ```typescript
 const requiredVars = ['DATABASE_URL', 'DASHBOARD_API_KEY']
+// Will throw error if missing - prevents silent failures
+```
 
-for (const varName of requiredVars) {
-  if (!process.env[varName]) {
-    throw new Error(`Missing required environment variable: ${varName}`)
-  }
+## Domain Credentials File Naming (Critical Pattern)
+
+**File naming MUST match domain exactly:**
+
+- Domain: `example.com` → File: `example.com.credentials.json`
+- Domain: `localhost:3000` → File: `localhost:3000.credentials.json`
+
+**OAuth auto-refresh timing (non-intuitive):**
+
+```jsonc
+{
+  "expiresAt": 1735689599000, // Unix timestamp
+  // Proxy refreshes 1 minute BEFORE this time
 }
 ```
 
-## Best Practices
+## Common Environment Variable Errors
 
-1. **Never commit .env files** - Add to .gitignore
-2. **Use strong values** - Generate secure keys and passwords
-3. **Document changes** - Update this reference when adding variables
-4. **Validate early** - Check required variables on startup
-5. **Use defaults wisely** - Provide sensible defaults for optional vars
-6. **Separate by environment** - Use .env.development, .env.production
-7. **Secure production** - Use secret management tools in production
+**Variable not loading:**
 
-## Troubleshooting
+1. Check `.env` file location (must be in project root)
+2. Verify format: `KEY=value` (no spaces around `=`)
+3. No quotes unless value contains spaces
 
-### Variable Not Loading
-
-1. Check file location: `.env` should be in project root
-2. Verify format: `KEY=value` without spaces around `=`
-3. Check for typos in variable names
-4. Ensure no quotes unless value contains spaces
-
-### Docker Variables
+**Docker variable issues:**
 
 1. Use `docker compose config` to verify resolution
 2. Check precedence: CLI > docker-compose.yml > .env
 3. Use `printenv` inside container to debug
-
-### Production Issues
-
-1. Verify secrets are properly injected
-2. Check for environment-specific overrides
-3. Ensure no hardcoded values in code
-4. Review logs for validation errors
-
-## Next Steps
-
-- [Configuration Guide](../01-Getting-Started/configuration.md)
-- [Deployment Guide](../03-Operations/deployment/docker.md)
-- [Security Best Practices](../03-Operations/security.md)

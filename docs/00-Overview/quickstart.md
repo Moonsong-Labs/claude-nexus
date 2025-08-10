@@ -1,29 +1,15 @@
-# Claude Nexus Proxy - Quick Start
+# Quick Start - Essential Commands Only
 
-## Prerequisites
+## ⚠️ CRITICAL SECURITY WARNING
 
-- Docker and Docker Compose
-- Claude OAuth token or API key
+**NEVER deploy without `DASHBOARD_API_KEY` set in .env** - Dashboard has NO authentication without it!
 
-## Setup
+## 1. Essential Credential Setup
 
-### 1. Clone and configure
-
-```bash
-git clone https://github.com/moonsong-labs/claude-nexus-proxy.git
-cd claude-nexus-proxy
-cp .env.example .env
-
-# ⚠️ CRITICAL: Edit .env and set DASHBOARD_API_KEY!
-# Without it, the dashboard has NO authentication!
-```
-
-### 2. Create credentials
-
-Create credential files for your domain:
+**Non-intuitive OAuth credential pattern:**
 
 ```bash
-# For OAuth (Claude Code)
+# OAuth credentials require specific structure with accountId
 cat > credentials/localhost:3000.credentials.json << 'EOF'
 {
   "type": "oauth",
@@ -38,46 +24,20 @@ cat > credentials/localhost:3000.credentials.json << 'EOF'
 }
 EOF
 
-# Create single source of credentials
-mkdir -p client-setup
-cp credentials/localhost:3000.credentials.json client-setup/.credentials.json
-
-# Link for proxy service (avoids duplication)
+# Create symlink to avoid credential duplication (non-obvious pattern)
 ln -sf ../client-setup/.credentials.json credentials/proxy:3000.credentials.json
 ```
 
-### 3. Start services
+## 2. Multi-Profile Docker Setup
+
+**Critical non-intuitive docker compose profile usage:**
 
 ```bash
-cd docker
+# Use specific profiles to avoid unnecessary services
 docker compose --profile dev --profile claude up -d
 ```
 
-### 4. Use Claude CLI
+## 3. Essential Monitoring
 
-```bash
-# From anywhere in the project
-./claude "What is 2+2?"
-
-# Or directly
-cd docker
-docker compose exec claude-cli /usr/local/bin/claude-cli "Hello!"
-```
-
-## Monitoring
-
-- **View logs**: `docker compose logs -f proxy`
-- **Token stats**: `curl http://localhost:3000/token-stats`
-- **Dashboard**: http://localhost:3001 (requires DASHBOARD_API_KEY from .env - ⚠️ NO AUTH if not set!)
-
-## Troubleshooting
-
-- **Invalid API key**: Check credentials files are correct
-- **Connection issues**: Verify services with `docker compose ps`
-- **Disable client auth**: Set `ENABLE_CLIENT_AUTH=false` in docker-compose.override.yml
-
-## Stop services
-
-```bash
-cd docker && docker compose down
-```
+- **Dashboard**: http://localhost:3001 ⚠️ **REQUIRES DASHBOARD_API_KEY**
+- **Disable client auth workaround**: `ENABLE_CLIENT_AUTH=false` in docker-compose.override.yml

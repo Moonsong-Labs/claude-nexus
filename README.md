@@ -309,8 +309,8 @@ Comprehensive documentation is available in the [docs](docs/) directory:
 ### 📚 Getting Started
 
 - [Quick Start Guide](docs/00-Overview/quickstart.md) - Get up and running in 5 minutes
-- [Installation](docs/01-Getting-Started/installation.md) - Detailed installation instructions
-- [Configuration](docs/01-Getting-Started/configuration.md) - All configuration options
+- [Setup Guide](docs/01-Getting-Started/setup.md) - Installation and configuration
+- [Environment Variables](docs/06-Reference/environment-vars.md) - All configuration options
 
 ### 🔧 User Guides
 
@@ -334,9 +334,8 @@ Comprehensive documentation is available in the [docs](docs/) directory:
 
 ### 🔍 Troubleshooting
 
-- [Common Issues](docs/05-Troubleshooting/common-issues.md) - FAQ and solutions
+- [Troubleshooting](docs/05-Troubleshooting/common-issues.md) - Common issues and debugging
 - [Performance](docs/05-Troubleshooting/performance.md) - Performance optimization
-- [Debugging](docs/05-Troubleshooting/debugging.md) - Debug techniques
 
 ## Contributing
 

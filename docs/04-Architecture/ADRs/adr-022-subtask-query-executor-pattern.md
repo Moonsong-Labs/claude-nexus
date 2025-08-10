@@ -1,4 +1,4 @@
-# ADR-014: SubtaskQueryExecutor Pattern for Task Detection
+# ADR-022: SubtaskQueryExecutor Pattern for Task Detection
 
 ## Status
 

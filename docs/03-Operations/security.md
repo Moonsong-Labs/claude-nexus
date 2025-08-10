@@ -1,188 +1,81 @@
-# Security Guide
+# Security - Critical Production Configurations
 
-This guide covers security considerations and best practices for deploying Claude Nexus Proxy.
+## ⚠️ CRITICAL VULNERABILITY: Dashboard Read-Only Mode
 
-## ⚠️ CRITICAL SECURITY NOTICE
+**NEVER deploy production without `DASHBOARD_API_KEY`** - Exposes ALL conversation data!
 
-**Dashboard Read-Only Mode**: When `DASHBOARD_API_KEY` is not set, the dashboard operates in "read-only mode" without ANY authentication. This exposes ALL conversation data, token usage, and potentially sensitive information to anyone with network access.
+**Impact when not set:**
 
-**NEVER deploy to production without setting `DASHBOARD_API_KEY`!**
+- Anyone with network access can view ALL conversations
+- All API requests and responses visible
+- Token usage, costs, account information exposed
+- AI analysis results accessible
+- Potential customer data, API keys, proprietary information exposed
 
-See [ADR-019: Dashboard Read-Only Mode Security Implications](../04-Architecture/ADRs/adr-019-dashboard-read-only-mode-security.md) for detailed information about this security consideration.
-
-## Authentication
-
-### Client Authentication
-
-The proxy supports multiple authentication layers:
-
-1. **Client API Keys** - For authenticating clients to the proxy
-2. **Claude API Keys** - For authenticating the proxy to Claude
-3. **OAuth Tokens** - Alternative to API keys with auto-refresh
-
-#### Client Authentication Setup
+**Checking vulnerability:**
 
 ```bash
-# Generate secure client API key
-bun run auth:generate-key
-# Output: cnp_live_1a2b3c4d5e6f...
+# If empty, dashboard is UNSECURED
+echo $DASHBOARD_API_KEY
 
-# Add to domain credentials
-{
-  "client_api_key": "cnp_live_1a2b3c4d5e6f..."
-}
+# Test public access
+curl http://your-server:3001/dashboard
+# If you see dashboard without login, it's exposed
 ```
 
-Clients must include this key in requests:
+## Critical Authentication Bypass
+
+**Development setting that DISABLES all authentication:**
 
 ```bash
-curl -H "Authorization: Bearer cnp_live_..." http://proxy/v1/messages
+ENABLE_CLIENT_AUTH=false  # NEVER use in production
 ```
 
-#### Disabling Client Auth (Development Only)
+## OAuth Auto-Refresh Security Pattern
+
+**Critical non-intuitive timing: Refreshes 1 minute before expiry**
 
 ```bash
-ENABLE_CLIENT_AUTH=false  # NOT recommended for production
-```
-
-### OAuth Implementation
-
-OAuth tokens are automatically refreshed before expiry:
-
-```json
-{
-  "type": "oauth",
-  "access_token": "...",
-  "refresh_token": "...",
-  "expires_at": "2024-12-31T23:59:59Z"
-}
-```
-
-The proxy adds required headers:
-
-```
+# Proxy automatically adds this header for OAuth requests:
 anthropic-beta: oauth-2025-04-20
 ```
 
-## Credential Management
-
-### Storage Security
-
-1. **File Permissions** - Credential files should be readable only by the proxy user:
+## Essential File Permissions (Often Overlooked)
 
 ```bash
-chmod 600 credentials/*.json
-chown proxy-user:proxy-user credentials/*.json
+chmod 600 credentials/*.json  # Owner read-only
+chmod 700 credentials/        # No group/other access
 ```
 
-2. **Directory Security**:
-
-```bash
-chmod 700 credentials/
-```
-
-3. **Encryption at Rest** - Consider encrypting the credentials directory
-
-### Credential Rotation
-
-Best practices for key rotation:
-
-1. Generate new keys regularly
-2. Update credentials without downtime:
+**Credential auto-reload pattern (no restart required):**
 
 ```bash
 # Update credential file - proxy reloads automatically
 echo '{"client_api_key": "new_key"}' > credentials/domain.json
 ```
 
-3. Monitor old key usage before removal
-
-## Data Protection
-
-### Sensitive Data Masking
-
-Debug logs automatically mask:
-
-- API keys: `sk-ant-****`
-- Bearer tokens: `Bearer ****`
-- OAuth tokens: `token-****`
-
-### Request/Response Storage
-
-When `STORAGE_ENABLED=true`:
-
-- Request bodies are stored in PostgreSQL
-- Consider encrypting sensitive fields
-- Implement data retention policies
-
-### Database Security
+## Database Security - Critical SSL Configuration
 
 ```sql
--- Restrict database access
+-- Essential PostgreSQL security hardening
 REVOKE ALL ON DATABASE claude_nexus FROM PUBLIC;
 GRANT CONNECT ON DATABASE claude_nexus TO proxy_user;
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES TO proxy_user;
 
--- Use SSL connections
+-- Force SSL connections (often missed)
 DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
 ```
 
-## Network Security
+## Data Storage Security Risk
 
-### TLS/SSL Configuration
+**When `STORAGE_ENABLED=true` all request/response bodies stored in PostgreSQL:**
 
-1. **Proxy Behind Load Balancer**:
+- Consider encrypting sensitive fields
+- Implement data retention policies
+- Request bodies contain potentially sensitive user data
 
-```nginx
-upstream proxy {
-    server localhost:3000;
-}
+## Critical Security Monitoring Queries
 
-server {
-    listen 443 ssl;
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    location / {
-        proxy_pass http://proxy;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-2. **Direct TLS** (using a reverse proxy):
-
-- Terminate TLS at nginx/caddy
-- Keep proxy on localhost only
-
-### IP Whitelisting
-
-Restrict access by IP:
-
-```nginx
-location / {
-    allow 10.0.0.0/8;
-    allow 192.168.1.0/24;
-    deny all;
-    proxy_pass http://proxy;
-}
-```
-
-## Audit and Monitoring
-
-### Access Logging
-
-The proxy logs all requests with:
-
-- Timestamp
-- Domain
-- Request ID
-- IP address
-- Response status
-
-### Security Monitoring
-
-1. **Failed Authentication Attempts**:
+**Detect authentication failures (potential attacks):**
 
 ```sql
 SELECT COUNT(*), ip_address, domain
@@ -192,146 +85,27 @@ GROUP BY ip_address, domain
 HAVING COUNT(*) > 10;
 ```
 
-2. **Unusual Usage Patterns**:
+**Detect unusual token usage spikes:**
 
 ```sql
--- Detect token usage spikes
 SELECT domain, DATE(timestamp), SUM(total_tokens)
 FROM api_requests
 GROUP BY domain, DATE(timestamp)
 HAVING SUM(total_tokens) > average_daily_usage * 2;
 ```
 
-3. **Slack Alerts**:
+## Essential Security Checklist
 
-```bash
-SLACK_WEBHOOK_URL=https://hooks.slack.com/...
-```
+**Pre-Production (MANDATORY):**
 
-## Security Checklist
+- [ ] Set `DASHBOARD_API_KEY` (CRITICAL)
+- [ ] `chmod 600 credentials/*.json`
+- [ ] Database SSL: `?sslmode=require`
+- [ ] Never expose port 3001 to internet
+- [ ] Test: `curl your-server:3001/dashboard` should require auth
 
-### Pre-Deployment
+**Post-Deployment:**
 
-- [ ] Generate strong client API keys
-- [ ] Set secure `DASHBOARD_API_KEY`
-- [ ] Configure TLS/SSL
-- [ ] Set appropriate file permissions
-- [ ] Enable database SSL
-- [ ] Review firewall rules
-
-### Post-Deployment
-
-- [ ] Monitor authentication failures
-- [ ] Set up log aggregation
-- [ ] Configure alerts for anomalies
-- [ ] Regular credential rotation
-- [ ] Database backup encryption
-- [ ] Security audit schedule
-
-## Common Vulnerabilities
-
-### 1. Exposed Dashboard (CRITICAL)
-
-**Risk**: Dashboard accessible without authentication exposes ALL conversation data
-
-**⚠️ CRITICAL SECURITY WARNING**:
-When `DASHBOARD_API_KEY` is not set, the dashboard runs in "read-only mode" with NO authentication. This means:
-
-- Anyone with network access can view ALL conversations
-- All API requests and responses are visible
-- Token usage, costs, and account information are exposed
-- AI analysis results and insights are accessible
-- This includes potentially sensitive customer data, API keys in conversations, and proprietary information
-
-**Impact**: Complete data exposure, privacy breach, potential compliance violations
-
-**Mitigation**:
-
-- **ALWAYS** set `DASHBOARD_API_KEY` in production
-- Use strong, unique keys (minimum 32 characters)
-- Restrict dashboard to internal network only
-- Never expose dashboard port (3001) to the internet
-- Consider using a reverse proxy with additional authentication
-- For local development only, use read-only mode behind a firewall
-
-**Checking for Vulnerability**:
-
-```bash
-# If this returns empty, your dashboard is UNSECURED
-echo $DASHBOARD_API_KEY
-
-# Check if dashboard is publicly accessible
-curl http://your-server:3001/dashboard
-# If you see the dashboard without login, it's exposed
-```
-
-### 2. Credential Leakage
-
-**Risk**: Credentials in logs or error messages
-
-**Mitigation**:
-
-- Enable log masking
-- Review error handling
-- Avoid logging request bodies
-
-### 3. Database Injection
-
-**Risk**: SQL injection through user input
-
-**Mitigation**:
-
-- Proxy uses parameterized queries
-- No user input in SQL construction
-- Regular dependency updates
-
-## Incident Response
-
-### Suspected Breach
-
-1. **Immediate Actions**:
-
-```bash
-# Rotate all keys
-bun run auth:generate-key
-
-# Check access logs
-SELECT * FROM api_requests
-WHERE timestamp > 'suspected_breach_time'
-ORDER BY timestamp;
-```
-
-2. **Investigation**:
-
-- Review authentication logs
-- Check for unusual patterns
-- Analyze token usage
-
-3. **Recovery**:
-
-- Rotate all credentials
-- Update client configurations
-- Monitor for continued activity
-
-## Security Updates
-
-Stay informed about security updates:
-
-1. Watch the repository for security advisories
-2. Update dependencies regularly:
-
-```bash
-bun update
-```
-
-3. Monitor Claude API security announcements
-
-## Compliance
-
-For regulatory compliance:
-
-1. **Data Residency** - Deploy in appropriate regions
-2. **Audit Trails** - Enable comprehensive logging
-3. **Encryption** - Use TLS and encrypt at rest
-4. **Access Control** - Implement principle of least privilege
-5. **Data Retention** - Configure appropriate retention policies
+- [ ] Monitor 401 errors for attack patterns
+- [ ] Set up token usage spike alerts
+- [ ] Regular credential rotation schedule

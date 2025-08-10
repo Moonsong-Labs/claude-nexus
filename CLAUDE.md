@@ -48,14 +48,14 @@ To ensure consistency, all contributions should adhere to the following key styl
 **3. Use `kebab-case` for All New File Names**
 
 - **Rationale**: Maintains a consistent and readable file structure across all operating systems and avoids issues with case-sensitivity in version control.
-- **Reference**: [Development Guide](docs/01-Getting-Started/development.md)
+- **Reference**: [Setup Guide](docs/01-Getting-Started/setup.md)
 
 #### TypeScript & Naming Conventions
 
 **4. Adhere to Standard TypeScript Naming Conventions**
 
 - **Rationale**: Use `PascalCase` for types and interfaces, and `camelCase` for variables and functions to maintain idiomatic and predictable code.
-- **Reference**: [Development Guide: Adding a New API Endpoint](docs/01-Getting-Started/development.md#adding-a-new-api-endpoint)
+- **Reference**: [Setup Guide](docs/01-Getting-Started/setup.md)
 
 **5. Use `snake_case` for API and Database Boundaries**
 
@@ -118,19 +118,19 @@ To ensure consistency, all contributions should adhere to the following key styl
 **15. Enforce Lockfile Integrity with `--frozen-lockfile` in CI**
 
 - **Rationale**: Guarantees reproducible builds by ensuring that the exact dependency versions specified in `bun.lockb` are used in the CI/CD pipeline.
-- **Reference**: [Development Guide: CI Workflows](docs/01-Getting-Started/development.md#ci-workflows)
+- **Reference**: [Setup Guide](docs/01-Getting-Started/setup.md)
 
 **16. Mandate `typecheck` and `format` as CI Quality Gates**
 
 - **Rationale**: Automatically enforces universal code quality, formatting, and type safety on every pull request before it can be merged.
-- **Reference**: [Development Guide: Code Quality and CI](docs/01-Getting-Started/development.md#code-quality-and-ci)
+- **Reference**: [Setup Guide](docs/01-Getting-Started/setup.md)
 
 #### Documentation & Commits
 
 **17. Follow the Conventional Commits Specification**
 
 - **Rationale**: Creates a clean, readable, and machine-parsable commit history that aids in automatic changelog generation and semantic versioning.
-- **Reference**: [Development Guide: Commit Messages](docs/01-Getting-Started/development.md#commit-messages)
+- **Reference**: [Setup Guide](docs/01-Getting-Started/setup.md)
 
 **18. Document All Major Decisions as Architecture Decision Records (ADRs)**
 
@@ -251,7 +251,7 @@ Automatic via Husky:
 
 - Set `DEBUG=true` for verbose logging
 - Set `DEBUG_SQL=true` for SQL query logging
-- See [docs/05-Troubleshooting/debugging.md](docs/05-Troubleshooting/debugging.md) for more
+- See [docs/05-Troubleshooting/common-issues.md](docs/05-Troubleshooting/common-issues.md) for more
 
 ### Additional Resources
 
