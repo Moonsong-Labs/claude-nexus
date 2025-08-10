@@ -240,3 +240,6 @@ test-results/
 # Generated binaries/executables
 /bin
 /claude-cli
+
+# Sub-Agent data
+./IMPORTANT_FILES.yaml
