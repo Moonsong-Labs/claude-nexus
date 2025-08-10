@@ -51,9 +51,9 @@ Based on the technical debt register and evolving requirements, several architec
 
 ### 4. Testing Strategy
 
-**Status**: ✅ Partially Addressed (See ADR-021)
+**Status**: ✅ Partially Addressed (See ADR-022)
 
-**Context**: E2E testing has been implemented with Playwright (ADR-021). Unit and integration testing strategies remain to be defined.
+**Context**: E2E testing has been implemented with Playwright (ADR-022). Unit and integration testing strategies remain to be defined.
 
 **Remaining Decisions**:
 

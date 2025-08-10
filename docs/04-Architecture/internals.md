@@ -369,6 +369,14 @@ class AuthManager {
 
 ## Performance Optimizations
 
+### 4. Pre-computed Message Count
+
+To improve dashboard performance when displaying conversation lists, the total number of messages in a request (`message_count`) is pre-computed and stored directly in the `api_requests` table.
+
+- **Implementation**: The message count is calculated from `request.raw.messages.length` during the request processing and inserted into the `message_count` column.
+- **Benefit**: This avoids expensive runtime calculations (like `COUNT(*)`) when querying for conversation details, resulting in faster dashboard load times.
+- **Backward Compatibility**: A `rebuild-conversations.ts` script can compute and backfill this value for existing records.
+
 ### 1. Connection Pooling
 
 ```typescript

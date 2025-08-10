@@ -48,12 +48,14 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-012](./adr-012-database-schema-evolution.md)         | Database Schema Evolution Strategy  | Accepted   | 2025-06-26 |
 | [ADR-013](./adr-013-typescript-project-references.md)     | TypeScript Project References       | Accepted   | 2025-06-27 |
 | [ADR-014](./adr-014-sql-query-logging.md)                 | SQL Query Logging                   | Accepted   | 2025-06-30 |
-| [ADR-015](./adr-015-subtask-conversation-migration.md)    | Subtask Conversation Migration      | Accepted   | 2025-01-07 |
-| [ADR-016](./adr-016-mcp-server-implementation.md)         | MCP Server Implementation           | Superseded | 2025-01-08 |
-| [ADR-017](./adr-017-mcp-prompt-sharing.md)                | MCP Prompt Sharing                  | Accepted   | 2025-01-10 |
-| [ADR-018](./adr-018-ai-powered-conversation-analysis.md)  | AI-Powered Conversation Analysis    | Accepted   | 2025-01-12 |
-| [ADR-019](./adr-019-dashboard-read-only-mode-security.md) | Dashboard Read-Only Mode Security   | Accepted   | 2025-01-23 |
-| [ADR-020](./adr-020-circuit-breaker-removal.md)           | Circuit Breaker Removal             | Accepted   | 2025-08-04 |
+| [ADR-015](./adr-015-subtask-query-executor-pattern.md)    | SubtaskQueryExecutor Pattern        | Accepted   | 2025-07-01 |
+| [ADR-016](./adr-016-subtask-conversation-migration.md)    | Subtask Conversation Migration      | Accepted   | 2025-01-07 |
+| [ADR-017](./adr-017-mcp-server-implementation.md)         | MCP Server Implementation           | Superseded | 2025-01-08 |
+| [ADR-018](./adr-018-mcp-prompt-sharing.md)                | MCP Prompt Sharing                  | Accepted   | 2025-01-10 |
+| [ADR-019](./adr-019-ai-powered-conversation-analysis.md)  | AI-Powered Conversation Analysis    | Accepted   | 2025-01-12 |
+| [ADR-020](./adr-020-dashboard-read-only-mode-security.md) | Dashboard Read-Only Mode Security   | Accepted   | 2025-01-23 |
+| [ADR-021](./adr-021-circuit-breaker-removal.md)           | Circuit Breaker Removal             | Accepted   | 2025-08-04 |
+| [ADR-022](./adr-022-e2e-testing-strategy.md)              | E2E Testing Strategy                | Accepted   | 2025-08-05 |
 
 ## Creating a New ADR
 
