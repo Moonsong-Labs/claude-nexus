@@ -35,7 +35,7 @@ Always reference or create ADRs (docs/04-Architecture/ADRs/) for technical decis
 - Ensure `credentials/` directory is in .gitignore (never commit credentials)
 - Test all changes before committing
 - Create ADRs for non-trivial architectural changes
-- Follow [GROOMING.md](GROOMING.md) for repository maintenance
+- Follow [Repository Grooming](docs/01-Getting-Started/repository-grooming.md) for maintenance
 
 ## Project Description
 
@@ -87,7 +87,7 @@ Client → Proxy (auth, tracking) → Claude API → Response → Storage (Postg
 
 ### Maintenance
 
-Follow [GROOMING.md](GROOMING.md) for weekly repository maintenance tasks.
+Follow [Repository Grooming](docs/01-Getting-Started/repository-grooming.md) for weekly maintenance tasks.
 
 ## Project Development
 
@@ -102,7 +102,7 @@ Follow [GROOMING.md](GROOMING.md) for weekly repository maintenance tasks.
 ```bash
 # Installation (2 commands)
 bun install                           # Install dependencies
-bun run scripts/init-database.ts      # Initialize database
+bun run scripts/init-database.ts      # Initialize database (requires DATABASE_URL in .env)
 
 # Development (3 commands)
 bun run dev                          # Run both services
@@ -125,7 +125,7 @@ Automatic via Husky:
 
 - ESLint fixes for TypeScript/JavaScript
 - Prettier formatting for all files
-- Run `bun run typecheck` manually before commits
+- Note: TypeScript checking is not automated - run manually as noted above
 
 ### Debugging
 
