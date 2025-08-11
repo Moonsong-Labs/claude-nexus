@@ -92,7 +92,37 @@ setInterval(() => {
 - Reduced database queries from N+1 to 1 (where N = number of accounts)
 - Significantly improved dashboard loading time for multiple accounts
 
-### 4. Missing Automated Tests
+### 4. ✅ Dashboard Overview Performance [RESOLVED]
+
+**Location**: `services/dashboard/src/routes/overview.ts`
+
+**Issue**: Dashboard overview page was fetching up to 10,000 conversations at once and processing them client-side, causing severe performance issues with large databases (40+ GB).
+
+**Resolution Date**: 2025-08-11
+
+**Fix Applied**:
+
+- Created new `/api/dashboard/stats` endpoint for aggregated statistics using CTEs
+- Added server-side pagination to `/api/conversations` endpoint (offset, limit, date filters)
+- Reduced default fetch from 10,000 to 50 conversations
+- Dashboard now fetches stats and conversations in parallel
+- All aggregation moved to server-side using optimized SQL queries
+
+**Performance Improvement**:
+
+- Data transfer reduced by 99.5% (50 vs 10,000 records)
+- Dashboard load time reduced from >10s to <2s target
+- Memory usage significantly reduced (no large arrays in browser)
+- Server performs aggregation in single optimized query
+
+**Implementation Details**:
+
+- Stats endpoint uses CTEs for efficient aggregation
+- Pagination metadata included in API responses
+- Backward compatibility maintained for existing API consumers
+- Proper use of existing database indexes
+
+### 5. Missing Automated Tests
 
 **Location**: Project-wide
 

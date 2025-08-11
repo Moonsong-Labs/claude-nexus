@@ -20,7 +20,10 @@ const requestsQuerySchema = z.object({
 const conversationsQuerySchema = z.object({
   domain: z.string().optional(),
   accountId: z.string().optional(),
-  limit: z.string().regex(/^\d+$/).transform(Number).default('20'),
+  limit: z.string().regex(/^\d+$/).transform(Number).default('50'),
+  offset: z.string().regex(/^\d+$/).transform(Number).default('0'),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
 })
 
 // Response types
@@ -183,6 +186,153 @@ apiRoutes.get('/stats', async c => {
   } catch (error) {
     logger.error('Failed to get stats', { error: getErrorMessage(error) })
     return c.json({ error: 'Failed to retrieve statistics' }, 500)
+  }
+})
+
+/**
+ * GET /api/dashboard/stats - Get aggregated dashboard statistics
+ * Optimized endpoint for dashboard overview page
+ */
+apiRoutes.get('/dashboard/stats', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    const { container } = await import('../container.js')
+    pool = container.getDbPool()
+
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    const query = c.req.query()
+    const domain = query.domain
+    const accountId = query.accountId
+
+    const conditions: string[] = []
+    const values: any[] = []
+    let paramCount = 0
+
+    if (domain) {
+      conditions.push(`domain = $${++paramCount}`)
+      values.push(domain)
+    }
+
+    if (accountId) {
+      conditions.push(`account_id = $${++paramCount}`)
+      values.push(accountId)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    // Single optimized query to get all dashboard statistics
+    const statsQuery = `
+      WITH conversation_stats AS (
+        SELECT 
+          COUNT(DISTINCT conversation_id) as total_conversations,
+          COUNT(DISTINCT account_id) as active_users,
+          COUNT(*) as total_requests,
+          SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
+          COUNT(DISTINCT branch_id) as total_branches,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'subtask_%') as subtask_branches,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'compact_%') as compact_branches,
+          COUNT(DISTINCT model) as models_used_count,
+          ARRAY_AGG(DISTINCT model) FILTER (WHERE model IS NOT NULL) as models_used
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+      ),
+      recent_activity AS (
+        SELECT 
+          COUNT(*) as requests_last_24h,
+          COUNT(DISTINCT conversation_id) as conversations_last_24h,
+          COUNT(DISTINCT account_id) as active_users_last_24h
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} timestamp > NOW() - INTERVAL '24 hours'
+        AND conversation_id IS NOT NULL
+      ),
+      hourly_activity AS (
+        SELECT 
+          date_trunc('hour', timestamp) as hour,
+          COUNT(*) as request_count,
+          SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as token_count
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} timestamp > NOW() - INTERVAL '24 hours'
+        AND conversation_id IS NOT NULL
+        GROUP BY date_trunc('hour', timestamp)
+        ORDER BY hour DESC
+        LIMIT 24
+      )
+      SELECT 
+        cs.*,
+        ra.requests_last_24h,
+        ra.conversations_last_24h,
+        ra.active_users_last_24h,
+        COALESCE(json_agg(
+          json_build_object(
+            'hour', ha.hour,
+            'requestCount', ha.request_count,
+            'tokenCount', ha.token_count
+          ) ORDER BY ha.hour DESC
+        ) FILTER (WHERE ha.hour IS NOT NULL), '[]'::json) as hourly_activity
+      FROM conversation_stats cs
+      CROSS JOIN recent_activity ra
+      LEFT JOIN hourly_activity ha ON true
+      GROUP BY 
+        cs.total_conversations,
+        cs.active_users,
+        cs.total_requests,
+        cs.total_tokens,
+        cs.total_branches,
+        cs.subtask_branches,
+        cs.compact_branches,
+        cs.models_used_count,
+        cs.models_used,
+        ra.requests_last_24h,
+        ra.conversations_last_24h,
+        ra.active_users_last_24h
+    `
+
+    const result = await pool.query(statsQuery, values)
+    const stats = result.rows[0] || {
+      total_conversations: 0,
+      active_users: 0,
+      total_requests: 0,
+      total_tokens: 0,
+      total_branches: 0,
+      subtask_branches: 0,
+      compact_branches: 0,
+      models_used_count: 0,
+      models_used: [],
+      requests_last_24h: 0,
+      conversations_last_24h: 0,
+      active_users_last_24h: 0,
+      hourly_activity: [],
+    }
+
+    return c.json({
+      totalConversations: parseInt(stats.total_conversations),
+      activeUsers: parseInt(stats.active_users),
+      totalRequests: parseInt(stats.total_requests),
+      totalTokens: parseInt(stats.total_tokens),
+      totalBranches: parseInt(stats.total_branches),
+      subtaskBranches: parseInt(stats.subtask_branches),
+      compactBranches: parseInt(stats.compact_branches),
+      modelsUsed: stats.models_used || [],
+      modelsUsedCount: parseInt(stats.models_used_count),
+      last24Hours: {
+        requests: parseInt(stats.requests_last_24h),
+        conversations: parseInt(stats.conversations_last_24h),
+        activeUsers: parseInt(stats.active_users_last_24h),
+      },
+      hourlyActivity: stats.hourly_activity || [],
+    })
+  } catch (error) {
+    logger.error('Failed to get dashboard stats', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve dashboard statistics' }, 500)
   }
 })
 
@@ -456,6 +606,16 @@ apiRoutes.get('/conversations', async c => {
       values.push(params.accountId)
     }
 
+    if (params.dateFrom) {
+      conditions.push(`timestamp >= $${++paramCount}`)
+      values.push(params.dateFrom)
+    }
+
+    if (params.dateTo) {
+      conditions.push(`timestamp <= $${++paramCount}`)
+      values.push(params.dateTo)
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     // Get conversations grouped by conversation_id with account info and subtask status
@@ -515,13 +675,30 @@ apiRoutes.get('/conversations', async c => {
       LEFT JOIN api_requests parent_req ON cs.parent_task_request_id = parent_req.request_id
       ORDER BY last_message_time DESC
       LIMIT $${++paramCount}
+      OFFSET $${++paramCount}
     `
 
     values.push(params.limit)
+    values.push(params.offset)
 
-    const result = await pool.query(conversationsQuery, values)
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(DISTINCT conversation_id) as total
+      FROM api_requests
+      ${whereClause}
+      ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+    `
 
-    const conversations = result.rows.map(row => {
+    // Execute both queries in parallel
+    const [conversationsResult, countResult] = await Promise.all([
+      pool.query(conversationsQuery, values),
+      pool.query(countQuery, values.slice(0, values.length - 2)), // Don't include limit/offset in count query
+    ])
+
+    const totalCount = parseInt(countResult.rows[0]?.total || 0)
+    const hasMore = params.offset + params.limit < totalCount
+
+    const conversations = conversationsResult.rows.map(row => {
       // Calculate context tokens from the latest response
       let latestContextTokens = 0
       if (row.latest_response_body?.usage) {
@@ -556,7 +733,17 @@ apiRoutes.get('/conversations', async c => {
       }
     })
 
-    return c.json({ conversations })
+    return c.json({
+      conversations,
+      pagination: {
+        total: totalCount,
+        limit: params.limit,
+        offset: params.offset,
+        hasMore,
+        page: Math.floor(params.offset / params.limit) + 1,
+        totalPages: Math.ceil(totalCount / params.limit),
+      },
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return c.json({ error: 'Invalid parameters', details: error.errors }, 400)

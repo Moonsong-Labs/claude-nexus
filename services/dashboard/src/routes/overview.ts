@@ -47,9 +47,21 @@ overviewRoutes.get('/', async c => {
   }
 
   try {
-    // Fetch conversations with account information from the API
-    const conversationsResult = await apiClient.getConversations({ domain, limit: 10000 })
+    // Calculate offset for pagination
+    const offset = (currentPage - 1) * itemsPerPage
+
+    // Fetch dashboard stats and the requested page of conversations in parallel
+    const [statsResult, conversationsResult] = await Promise.all([
+      apiClient.getDashboardStats({ domain }),
+      apiClient.getConversations({
+        domain,
+        limit: itemsPerPage,
+        offset: searchQuery ? 0 : offset, // For search, get all and filter client-side for now
+      }),
+    ])
+
     const apiConversations = conversationsResult.conversations
+    const dashboardStats = statsResult
 
     // Create flat list of conversations (simplified for now)
     const conversationBranches: Array<{
@@ -120,17 +132,21 @@ overviewRoutes.get('/', async c => {
     // Get unique domains for the dropdown
     const uniqueDomains = [...new Set(conversationBranches.map(branch => branch.domain))].sort()
 
-    // Calculate totals from conversation branches
-    const totalRequests = conversationBranches.reduce((sum, branch) => sum + branch.messageCount, 0)
-    const totalTokens = conversationBranches.reduce((sum, branch) => sum + branch.tokens, 0)
-    const uniqueAccounts = [...new Set(conversationBranches.map(b => b.accountId).filter(Boolean))]
+    // Use pre-computed stats from the API instead of calculating client-side
+    const totalRequests = dashboardStats.totalRequests
+    const totalTokens = dashboardStats.totalTokens
+    const uniqueAccounts = dashboardStats.activeUsers
 
-    // Calculate pagination
-    const totalItems = groupedConversations.length
-    const totalPages = Math.ceil(totalItems / itemsPerPage)
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    const paginatedBranches = groupedConversations.slice(startIndex, endIndex)
+    // Use server-side pagination info
+    const totalItems = conversationsResult.pagination?.total || groupedConversations.length
+    const totalPages =
+      conversationsResult.pagination?.totalPages || Math.ceil(totalItems / itemsPerPage)
+
+    // For initial implementation, still use client-side pagination if search is active
+    // This will be optimized in a future iteration
+    const paginatedBranches = searchQuery
+      ? groupedConversations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+      : groupedConversations
 
     const content = html`
       <div
@@ -199,12 +215,12 @@ overviewRoutes.get('/', async c => {
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Total Conversations</div>
-          <div class="stat-value">${apiConversations.length}</div>
+          <div class="stat-value">${dashboardStats.totalConversations}</div>
           <div class="stat-meta">Unique conversations</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Active Accounts</div>
-          <div class="stat-value">${uniqueAccounts.length}</div>
+          <div class="stat-value">${uniqueAccounts}</div>
           <div class="stat-meta">Unique account IDs</div>
         </div>
         <div class="stat-card">

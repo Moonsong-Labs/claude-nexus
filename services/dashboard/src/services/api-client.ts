@@ -586,7 +586,20 @@ export class ProxyApiClient {
     domain?: string
     accountId?: string
     limit?: number
-  }): Promise<{ conversations: ConversationSummary[] }> {
+    offset?: number
+    dateFrom?: string
+    dateTo?: string
+  }): Promise<{
+    conversations: ConversationSummary[]
+    pagination?: {
+      total: number
+      limit: number
+      offset: number
+      hasMore: boolean
+      page: number
+      totalPages: number
+    }
+  }> {
     try {
       const url = new URL('/api/conversations', this.baseUrl)
       if (params?.domain) {
@@ -598,6 +611,15 @@ export class ProxyApiClient {
       if (params?.limit) {
         url.searchParams.set('limit', params.limit.toString())
       }
+      if (params?.offset) {
+        url.searchParams.set('offset', params.offset.toString())
+      }
+      if (params?.dateFrom) {
+        url.searchParams.set('dateFrom', params.dateFrom)
+      }
+      if (params?.dateTo) {
+        url.searchParams.set('dateTo', params.dateTo)
+      }
 
       const response = await fetch(url.toString(), {
         headers: this.getHeaders(),
@@ -606,9 +628,84 @@ export class ProxyApiClient {
         throw new Error(`API error: ${response.status} ${response.statusText}`)
       }
 
-      return (await response.json()) as { conversations: ConversationSummary[] }
+      const data = (await response.json()) as any
+      // Handle both old and new response formats for backward compatibility
+      if (data.pagination) {
+        return data as { conversations: ConversationSummary[]; pagination: any }
+      }
+      return { conversations: data.conversations }
     } catch (error) {
       logger.error('Failed to fetch conversations from proxy API', {
+        error: getErrorMessage(error),
+        params,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Get aggregated dashboard statistics
+   */
+  async getDashboardStats(params?: { domain?: string; accountId?: string }): Promise<{
+    totalConversations: number
+    activeUsers: number
+    totalRequests: number
+    totalTokens: number
+    totalBranches: number
+    subtaskBranches: number
+    compactBranches: number
+    modelsUsed: string[]
+    modelsUsedCount: number
+    last24Hours: {
+      requests: number
+      conversations: number
+      activeUsers: number
+    }
+    hourlyActivity: Array<{
+      hour: string
+      requestCount: number
+      tokenCount: number
+    }>
+  }> {
+    try {
+      const url = new URL('/api/dashboard/stats', this.baseUrl)
+      if (params?.domain) {
+        url.searchParams.set('domain', params.domain)
+      }
+      if (params?.accountId) {
+        url.searchParams.set('accountId', params.accountId)
+      }
+
+      const response = await fetch(url.toString(), {
+        headers: this.getHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`)
+      }
+
+      return (await response.json()) as {
+        totalConversations: number
+        activeUsers: number
+        totalRequests: number
+        totalTokens: number
+        totalBranches: number
+        subtaskBranches: number
+        compactBranches: number
+        modelsUsed: string[]
+        modelsUsedCount: number
+        last24Hours: {
+          requests: number
+          conversations: number
+          activeUsers: number
+        }
+        hourlyActivity: Array<{
+          hour: string
+          requestCount: number
+          tokenCount: number
+        }>
+      }
+    } catch (error) {
+      logger.error('Failed to fetch dashboard stats from proxy API', {
         error: getErrorMessage(error),
         params,
       })
