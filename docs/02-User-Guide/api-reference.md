@@ -231,14 +231,17 @@ GET /api/requests/:id
 #### List Conversations
 
 ```http
-GET /api/conversations?domain=example.com&accountId=acc_123&limit=20
+GET /api/conversations?domain=example.com&accountId=acc_123&limit=50&offset=0&dateFrom=2024-01-01T00:00:00Z&dateTo=2024-01-31T23:59:59Z
 ```
 
 **Query Parameters:**
 
-- `domain` - Filter by domain
-- `accountId` - Filter by account
-- `limit` - Number of conversations
+- `domain` - Filter by domain (optional)
+- `accountId` - Filter by account (optional)
+- `limit` - Number of conversations per page (default: 50)
+- `offset` - Number of conversations to skip for pagination (default: 0)
+- `dateFrom` - Filter conversations after this date (ISO 8601 format, optional)
+- `dateTo` - Filter conversations before this date (ISO 8601 format, optional)
 
 **Response:**
 
@@ -254,7 +257,64 @@ GET /api/conversations?domain=example.com&accountId=acc_123&limit=20
       "messageCount": 20,
       "totalTokens": 5000,
       "branchCount": 2,
-      "modelsUsed": ["claude-3-opus-20240229"]
+      "subtaskBranchCount": 0,
+      "compactBranchCount": 0,
+      "userBranchCount": 1,
+      "modelsUsed": ["claude-3-opus-20240229"],
+      "latestRequestId": "req_abc123",
+      "latestModel": "claude-3-opus-20240229",
+      "latestContextTokens": 2500,
+      "isSubtask": false,
+      "subtaskMessageCount": 0
+    }
+  ],
+  "pagination": {
+    "total": 1250,
+    "limit": 50,
+    "offset": 0,
+    "hasMore": true,
+    "page": 1,
+    "totalPages": 25
+  }
+}
+```
+
+#### Get Dashboard Statistics
+
+```http
+GET /api/dashboard/stats?domain=example.com&accountId=acc_123
+```
+
+Optimized endpoint for dashboard overview page that returns aggregated statistics in a single query.
+
+**Query Parameters:**
+
+- `domain` - Filter by domain (optional)
+- `accountId` - Filter by account (optional)
+
+**Response:**
+
+```json
+{
+  "totalConversations": 1250,
+  "activeUsers": 42,
+  "totalRequests": 15000,
+  "totalTokens": 3500000,
+  "totalBranches": 180,
+  "subtaskBranches": 25,
+  "compactBranches": 10,
+  "modelsUsed": ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
+  "modelsUsedCount": 2,
+  "last24Hours": {
+    "requests": 500,
+    "conversations": 85,
+    "activeUsers": 12
+  },
+  "hourlyActivity": [
+    {
+      "hour": "2024-01-15T10:00:00Z",
+      "requestCount": 25,
+      "tokenCount": 15000
     }
   ]
 }

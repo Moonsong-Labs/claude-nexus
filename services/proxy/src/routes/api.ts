@@ -20,7 +20,10 @@ const requestsQuerySchema = z.object({
 const conversationsQuerySchema = z.object({
   domain: z.string().optional(),
   accountId: z.string().optional(),
-  limit: z.string().regex(/^\d+$/).transform(Number).default('20'),
+  limit: z.string().regex(/^\d+$/).transform(Number).default('50'),
+  offset: z.string().regex(/^\d+$/).transform(Number).default('0'),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
 })
 
 // Response types
@@ -183,6 +186,153 @@ apiRoutes.get('/stats', async c => {
   } catch (error) {
     logger.error('Failed to get stats', { error: getErrorMessage(error) })
     return c.json({ error: 'Failed to retrieve statistics' }, 500)
+  }
+})
+
+/**
+ * GET /api/dashboard/stats - Get aggregated dashboard statistics
+ * Optimized endpoint for dashboard overview page
+ */
+apiRoutes.get('/dashboard/stats', async c => {
+  let pool = c.get('pool')
+
+  if (!pool) {
+    const { container } = await import('../container.js')
+    pool = container.getDbPool()
+
+    if (!pool) {
+      return c.json({ error: 'Database not configured' }, 503)
+    }
+  }
+
+  try {
+    const query = c.req.query()
+    const domain = query.domain
+    const accountId = query.accountId
+
+    const conditions: string[] = []
+    const values: any[] = []
+    let paramCount = 0
+
+    if (domain) {
+      conditions.push(`domain = $${++paramCount}`)
+      values.push(domain)
+    }
+
+    if (accountId) {
+      conditions.push(`account_id = $${++paramCount}`)
+      values.push(accountId)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    // Single optimized query to get all dashboard statistics
+    const statsQuery = `
+      WITH conversation_stats AS (
+        SELECT 
+          COUNT(DISTINCT conversation_id) as total_conversations,
+          COUNT(DISTINCT account_id) as active_users,
+          COUNT(*) as total_requests,
+          SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
+          COUNT(DISTINCT branch_id) as total_branches,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'subtask_%') as subtask_branches,
+          COUNT(DISTINCT branch_id) FILTER (WHERE branch_id LIKE 'compact_%') as compact_branches,
+          COUNT(DISTINCT model) as models_used_count,
+          ARRAY_AGG(DISTINCT model) FILTER (WHERE model IS NOT NULL) as models_used
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+      ),
+      recent_activity AS (
+        SELECT 
+          COUNT(*) as requests_last_24h,
+          COUNT(DISTINCT conversation_id) as conversations_last_24h,
+          COUNT(DISTINCT account_id) as active_users_last_24h
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} timestamp > NOW() - INTERVAL '24 hours'
+        AND conversation_id IS NOT NULL
+      ),
+      hourly_activity AS (
+        SELECT 
+          date_trunc('hour', timestamp) as hour,
+          COUNT(*) as request_count,
+          SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as token_count
+        FROM api_requests
+        ${whereClause}
+        ${whereClause ? 'AND' : 'WHERE'} timestamp > NOW() - INTERVAL '24 hours'
+        AND conversation_id IS NOT NULL
+        GROUP BY date_trunc('hour', timestamp)
+        ORDER BY hour DESC
+        LIMIT 24
+      )
+      SELECT 
+        cs.*,
+        ra.requests_last_24h,
+        ra.conversations_last_24h,
+        ra.active_users_last_24h,
+        COALESCE(json_agg(
+          json_build_object(
+            'hour', ha.hour,
+            'requestCount', ha.request_count,
+            'tokenCount', ha.token_count
+          ) ORDER BY ha.hour DESC
+        ) FILTER (WHERE ha.hour IS NOT NULL), '[]'::json) as hourly_activity
+      FROM conversation_stats cs
+      CROSS JOIN recent_activity ra
+      LEFT JOIN hourly_activity ha ON true
+      GROUP BY 
+        cs.total_conversations,
+        cs.active_users,
+        cs.total_requests,
+        cs.total_tokens,
+        cs.total_branches,
+        cs.subtask_branches,
+        cs.compact_branches,
+        cs.models_used_count,
+        cs.models_used,
+        ra.requests_last_24h,
+        ra.conversations_last_24h,
+        ra.active_users_last_24h
+    `
+
+    const result = await pool.query(statsQuery, values)
+    const stats = result.rows[0] || {
+      total_conversations: 0,
+      active_users: 0,
+      total_requests: 0,
+      total_tokens: 0,
+      total_branches: 0,
+      subtask_branches: 0,
+      compact_branches: 0,
+      models_used_count: 0,
+      models_used: [],
+      requests_last_24h: 0,
+      conversations_last_24h: 0,
+      active_users_last_24h: 0,
+      hourly_activity: [],
+    }
+
+    return c.json({
+      totalConversations: parseInt(stats.total_conversations),
+      activeUsers: parseInt(stats.active_users),
+      totalRequests: parseInt(stats.total_requests),
+      totalTokens: parseInt(stats.total_tokens),
+      totalBranches: parseInt(stats.total_branches),
+      subtaskBranches: parseInt(stats.subtask_branches),
+      compactBranches: parseInt(stats.compact_branches),
+      modelsUsed: stats.models_used || [],
+      modelsUsedCount: parseInt(stats.models_used_count),
+      last24Hours: {
+        requests: parseInt(stats.requests_last_24h),
+        conversations: parseInt(stats.conversations_last_24h),
+        activeUsers: parseInt(stats.active_users_last_24h),
+      },
+      hourlyActivity: stats.hourly_activity || [],
+    })
+  } catch (error) {
+    logger.error('Failed to get dashboard stats', { error: getErrorMessage(error) })
+    return c.json({ error: 'Failed to retrieve dashboard statistics' }, 500)
   }
 })
 
@@ -456,34 +606,56 @@ apiRoutes.get('/conversations', async c => {
       values.push(params.accountId)
     }
 
+    if (params.dateFrom) {
+      conditions.push(`timestamp >= $${++paramCount}`)
+      values.push(params.dateFrom)
+    }
+
+    if (params.dateTo) {
+      conditions.push(`timestamp <= $${++paramCount}`)
+      values.push(params.dateTo)
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     // Get conversations grouped by conversation_id with account info and subtask status
-    // Optimized query using window functions to avoid N+1 pattern
+    // Optimized query using "limit first, aggregate second" approach
     const conversationsQuery = `
-      WITH ranked_requests AS (
-        -- Get all requests with ranking for latest request and first subtask per conversation
-        SELECT 
-          request_id,
+      -- STEP 1: Get only the conversation IDs we need for this page
+      WITH paginated_conversations AS (
+        SELECT DISTINCT 
           conversation_id,
-          domain,
-          account_id,
-          timestamp,
-          input_tokens,
-          output_tokens,
-          branch_id,
-          model,
-          is_subtask,
-          parent_task_request_id,
-          response_body,
-          ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY timestamp DESC, request_id DESC) as rn,
-          ROW_NUMBER() OVER (PARTITION BY conversation_id, is_subtask ORDER BY timestamp ASC, request_id ASC) as subtask_rn
+          MAX(timestamp) as last_message_time
         FROM api_requests
         ${whereClause}
         ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+        GROUP BY conversation_id
+        ORDER BY last_message_time DESC
+        LIMIT $${++paramCount}
+        OFFSET $${++paramCount}
       ),
+      -- STEP 2: Get all request data ONLY for those paginated conversations
+      relevant_requests AS (
+        SELECT 
+          r.request_id,
+          r.conversation_id,
+          r.domain,
+          r.account_id,
+          r.timestamp,
+          r.input_tokens,
+          r.output_tokens,
+          r.branch_id,
+          r.model,
+          r.is_subtask,
+          r.parent_task_request_id,
+          r.response_body,
+          ROW_NUMBER() OVER (PARTITION BY r.conversation_id ORDER BY r.timestamp DESC, r.request_id DESC) as rn,
+          ROW_NUMBER() OVER (PARTITION BY r.conversation_id, r.is_subtask ORDER BY r.timestamp ASC, r.request_id ASC) as subtask_rn
+        FROM api_requests r
+        INNER JOIN paginated_conversations pc ON r.conversation_id = pc.conversation_id
+      ),
+      -- STEP 3: Aggregate data only for the paginated conversations
       conversation_summary AS (
-        -- Aggregate conversation data including latest request info
         SELECT 
           conversation_id,
           domain,
@@ -505,23 +677,41 @@ apiRoutes.get('/conversations', async c => {
           -- Get the parent_task_request_id from the first subtask in the conversation
           (array_agg(parent_task_request_id ORDER BY subtask_rn) FILTER (WHERE is_subtask = true AND subtask_rn = 1))[1] as parent_task_request_id,
           COUNT(CASE WHEN is_subtask THEN 1 END) as subtask_message_count
-        FROM ranked_requests
+        FROM relevant_requests
         GROUP BY conversation_id, domain, account_id
       )
+      -- STEP 4: Final select with parent conversation lookup and preserve order
       SELECT 
         cs.*,
         parent_req.conversation_id as parent_conversation_id
       FROM conversation_summary cs
       LEFT JOIN api_requests parent_req ON cs.parent_task_request_id = parent_req.request_id
-      ORDER BY last_message_time DESC
-      LIMIT $${++paramCount}
+      -- Join with paginated_conversations to preserve the original sort order
+      INNER JOIN paginated_conversations pc ON cs.conversation_id = pc.conversation_id
+      ORDER BY pc.last_message_time DESC
     `
 
     values.push(params.limit)
+    values.push(params.offset)
 
-    const result = await pool.query(conversationsQuery, values)
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(DISTINCT conversation_id) as total
+      FROM api_requests
+      ${whereClause}
+      ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+    `
 
-    const conversations = result.rows.map(row => {
+    // Execute both queries in parallel
+    const [conversationsResult, countResult] = await Promise.all([
+      pool.query(conversationsQuery, values),
+      pool.query(countQuery, values.slice(0, values.length - 2)), // Don't include limit/offset in count query
+    ])
+
+    const totalCount = parseInt(countResult.rows[0]?.total || 0)
+    const hasMore = params.offset + params.limit < totalCount
+
+    const conversations = conversationsResult.rows.map(row => {
       // Calculate context tokens from the latest response
       let latestContextTokens = 0
       if (row.latest_response_body?.usage) {
@@ -556,7 +746,17 @@ apiRoutes.get('/conversations', async c => {
       }
     })
 
-    return c.json({ conversations })
+    return c.json({
+      conversations,
+      pagination: {
+        total: totalCount,
+        limit: params.limit,
+        offset: params.offset,
+        hasMore,
+        page: Math.floor(params.offset / params.limit) + 1,
+        totalPages: Math.ceil(totalCount / params.limit),
+      },
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return c.json({ error: 'Invalid parameters', details: error.errors }, 400)
