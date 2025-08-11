@@ -619,31 +619,43 @@ apiRoutes.get('/conversations', async c => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     // Get conversations grouped by conversation_id with account info and subtask status
-    // Optimized query using window functions to avoid N+1 pattern
+    // Optimized query using "limit first, aggregate second" approach
     const conversationsQuery = `
-      WITH ranked_requests AS (
-        -- Get all requests with ranking for latest request and first subtask per conversation
-        SELECT 
-          request_id,
+      -- STEP 1: Get only the conversation IDs we need for this page
+      WITH paginated_conversations AS (
+        SELECT DISTINCT 
           conversation_id,
-          domain,
-          account_id,
-          timestamp,
-          input_tokens,
-          output_tokens,
-          branch_id,
-          model,
-          is_subtask,
-          parent_task_request_id,
-          response_body,
-          ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY timestamp DESC, request_id DESC) as rn,
-          ROW_NUMBER() OVER (PARTITION BY conversation_id, is_subtask ORDER BY timestamp ASC, request_id ASC) as subtask_rn
+          MAX(timestamp) as last_message_time
         FROM api_requests
         ${whereClause}
         ${whereClause ? 'AND' : 'WHERE'} conversation_id IS NOT NULL
+        GROUP BY conversation_id
+        ORDER BY last_message_time DESC
+        LIMIT $${++paramCount}
+        OFFSET $${++paramCount}
       ),
+      -- STEP 2: Get all request data ONLY for those paginated conversations
+      relevant_requests AS (
+        SELECT 
+          r.request_id,
+          r.conversation_id,
+          r.domain,
+          r.account_id,
+          r.timestamp,
+          r.input_tokens,
+          r.output_tokens,
+          r.branch_id,
+          r.model,
+          r.is_subtask,
+          r.parent_task_request_id,
+          r.response_body,
+          ROW_NUMBER() OVER (PARTITION BY r.conversation_id ORDER BY r.timestamp DESC, r.request_id DESC) as rn,
+          ROW_NUMBER() OVER (PARTITION BY r.conversation_id, r.is_subtask ORDER BY r.timestamp ASC, r.request_id ASC) as subtask_rn
+        FROM api_requests r
+        INNER JOIN paginated_conversations pc ON r.conversation_id = pc.conversation_id
+      ),
+      -- STEP 3: Aggregate data only for the paginated conversations
       conversation_summary AS (
-        -- Aggregate conversation data including latest request info
         SELECT 
           conversation_id,
           domain,
@@ -665,17 +677,18 @@ apiRoutes.get('/conversations', async c => {
           -- Get the parent_task_request_id from the first subtask in the conversation
           (array_agg(parent_task_request_id ORDER BY subtask_rn) FILTER (WHERE is_subtask = true AND subtask_rn = 1))[1] as parent_task_request_id,
           COUNT(CASE WHEN is_subtask THEN 1 END) as subtask_message_count
-        FROM ranked_requests
+        FROM relevant_requests
         GROUP BY conversation_id, domain, account_id
       )
+      -- STEP 4: Final select with parent conversation lookup and preserve order
       SELECT 
         cs.*,
         parent_req.conversation_id as parent_conversation_id
       FROM conversation_summary cs
       LEFT JOIN api_requests parent_req ON cs.parent_task_request_id = parent_req.request_id
-      ORDER BY last_message_time DESC
-      LIMIT $${++paramCount}
-      OFFSET $${++paramCount}
+      -- Join with paginated_conversations to preserve the original sort order
+      INNER JOIN paginated_conversations pc ON cs.conversation_id = pc.conversation_id
+      ORDER BY pc.last_message_time DESC
     `
 
     values.push(params.limit)
