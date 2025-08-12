@@ -52,6 +52,8 @@ export const dashboardStyles = `
     --msg-assistant-border: #10b981;
     --msg-assistant-response-bg: #f0fdf4;
     --msg-assistant-response-border: #86efac;
+    --msg-system-bg: #f3f4f6;
+    --msg-system-border: #9ca3af;
     --msg-tool-use-bg: #fef3c7;
     --msg-tool-use-border: #f59e0b;
     --msg-tool-result-bg: #dcfce7;
@@ -111,6 +113,8 @@ export const dashboardStyles = `
     --msg-assistant-border: #10b981;
     --msg-assistant-response-bg: #064e3b;
     --msg-assistant-response-border: #34d399;
+    --msg-system-bg: #374151;
+    --msg-system-border: #6b7280;
     --msg-tool-use-bg: #78350f;
     --msg-tool-use-border: #f59e0b;
     --msg-tool-result-bg: #14532d;
@@ -366,6 +370,12 @@ export const dashboardStyles = `
     background: white;
     border: 1px solid #e5e7eb;
     border-left: 4px solid #10b981;
+  }
+
+  .message-system .message-content {
+    background: var(--msg-system-bg);
+    border: 1px solid var(--msg-system-border);
+    border-left: 4px solid var(--msg-system-border);
   }
 
   /* Special styling for assistant responses in request details */

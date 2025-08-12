@@ -210,6 +210,8 @@ requestDetailsRoutes.get('/request/:id', async c => {
             roleDisplay = 'Tool 🔧'
           } else if (msg.isToolResult) {
             roleDisplay = 'Result ✅'
+          } else if (msg.role === 'system') {
+            roleDisplay = 'System ⚙️'
           }
 
           // Add navigation buttons for user messages (only text/image content, no tools)
