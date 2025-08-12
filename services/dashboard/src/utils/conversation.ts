@@ -2,7 +2,6 @@ import { marked } from 'marked'
 import sanitizeHtml from 'sanitize-html'
 import { formatDuration as formatDurationUtil } from './formatters.js'
 import { isSparkRecommendation, parseSparkRecommendation } from './spark.js'
-import { stripSystemReminder } from '@claude-nexus/shared'
 
 export interface ParsedMessage {
   role: 'user' | 'assistant' | 'system'
@@ -43,6 +42,21 @@ export interface ConversationData {
 }
 
 const MESSAGE_TRUNCATE_LENGTH = 300
+
+/**
+ * Escapes XML/HTML tags that are not in the allowed tags list
+ * so they display as text instead of being stripped by sanitize-html
+ */
+function escapeDisallowedTags(html: string, allowedTagsSet: Set<string>): string {
+  return html.replace(/<\/?([a-zA-Z][\w:-]*)\b[^>]*>/g, (match, tag) => {
+    // Check if this tag is allowed
+    if (allowedTagsSet.has(tag.toLowerCase())) {
+      return match // Keep allowed tags as-is
+    }
+    // Escape disallowed tags so they display as text
+    return match.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  })
+}
 
 export async function parseConversation(requestData: any): Promise<ConversationData> {
   const request = requestData.request_body || {}
@@ -196,19 +210,12 @@ async function parseMessage(
       toolId = toolResultBlocks[0].tool_use_id || ''
     }
 
-    // Filter out system-reminder content items and deduplicate tool_use/tool_result by ID
+    // Deduplicate tool_use/tool_result by ID (XML tags are now displayed, not filtered)
     const seenToolUseIds = new Set<string>()
     const seenToolResultIds = new Set<string>()
 
     const filteredContent = msg.content.filter((item: any) => {
-      // Skip text items that contain system-reminder blocks
-      if (item.type === 'text' && typeof item.text === 'string') {
-        // If the entire text is just a system-reminder, filter it out
-        const stripped = stripSystemReminder(item.text)
-        if (stripped.trim().length === 0) {
-          return false
-        }
-      }
+      // Note: We no longer filter out system-reminder blocks - they are now displayed
 
       // Deduplicate tool_use items by ID
       if (item.type === 'tool_use' && item.id) {
@@ -233,8 +240,8 @@ async function parseMessage(
     filteredContent.forEach((block: any) => {
       switch (block.type) {
         case 'text':
-          // Strip system-reminder blocks from text content
-          contentParts.push(stripSystemReminder(block.text))
+          // Display all content including XML tags
+          contentParts.push(block.text)
           break
 
         case 'tool_use': {
@@ -287,10 +294,9 @@ async function parseMessage(
 
           // Handle tool result content
           if (typeof block.content === 'string') {
-            // Strip system-reminder blocks from tool result content
-            const cleanContent = stripSystemReminder(block.content)
+            // Display all content including XML tags
             // Tool results might contain HTML/code, wrap in code block for safety
-            resultContent += '```\n' + cleanContent + '\n```'
+            resultContent += '```\n' + block.content + '\n```'
           } else if (Array.isArray(block.content)) {
             // Process each content item in the tool result
             const resultParts: string[] = []
@@ -352,7 +358,25 @@ async function parseMessage(
 
   // Render markdown to HTML
   const dirtyHtml = await marked.parse(content)
-  const htmlContent = sanitizeHtml(dirtyHtml, {
+
+  // Create set of allowed tags for escaping
+  const allowedTagsSet = new Set([
+    ...sanitizeHtml.defaults.allowedTags,
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'pre',
+    'code',
+    'img',
+  ])
+
+  // Escape disallowed tags so they display as text
+  const escapedHtml = escapeDisallowedTags(dirtyHtml, allowedTagsSet)
+
+  const htmlContent = sanitizeHtml(escapedHtml, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       'h1',
       'h2',
@@ -473,7 +497,11 @@ async function parseMessage(
       : Math.max(0, fullLines.length - truncatedLines.length + 1) // -1 signals only image is hidden
 
     const dirtyTruncatedHtml = await marked.parse(truncatedContent)
-    truncatedHtml = sanitizeHtml(dirtyTruncatedHtml, {
+
+    // Escape disallowed tags for truncated content too
+    const escapedTruncatedHtml = escapeDisallowedTags(dirtyTruncatedHtml, allowedTagsSet)
+
+    truncatedHtml = sanitizeHtml(escapedTruncatedHtml, {
       allowedTags: sanitizeHtml.defaults.allowedTags.concat([
         'h1',
         'h2',
