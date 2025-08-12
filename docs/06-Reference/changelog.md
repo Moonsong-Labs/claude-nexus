@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Help page for Claude Code client setup instructions
+  - Step-by-step configuration guide
+  - Environment variables documentation
+  - Troubleshooting section with common issues
+  - Command-line usage examples
 - Conversation branching visualization in dashboard
 - Message count tracking at database level for performance
 - Branch-specific statistics in conversation view
