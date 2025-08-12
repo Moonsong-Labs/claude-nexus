@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Display of XML tags in dashboard conversation view (e.g., `<system-reminder>`, `<command>`) instead of filtering them
 - Conversation branching visualization in dashboard
 - Message count tracking at database level for performance
 - Branch-specific statistics in conversation view
