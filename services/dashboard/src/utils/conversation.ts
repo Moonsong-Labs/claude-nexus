@@ -67,6 +67,38 @@ export async function parseConversation(requestData: any): Promise<ConversationD
     }
   }
 
+  // Parse system messages first (if present)
+  if (request.system && Array.isArray(request.system)) {
+    for (let i = 0; i < request.system.length; i++) {
+      const systemContent = request.system[i]
+      // System messages can be strings or objects with content/text properties
+      let content = ''
+      if (typeof systemContent === 'string') {
+        content = systemContent
+      } else if (systemContent && typeof systemContent === 'object') {
+        content = systemContent.content || systemContent.text || JSON.stringify(systemContent)
+      }
+
+      // Skip empty system messages
+      if (!content || content.trim() === '') {
+        continue
+      }
+
+      const systemMsg = {
+        role: 'system' as const,
+        content,
+      }
+      const messageTime = new Date(timestamp)
+      // System messages are typically at the beginning, so subtract more time
+      messageTime.setSeconds(
+        messageTime.getSeconds() -
+          (request.system.length - i + (request.messages?.length || 0)) * 30
+      )
+      const parsedMsg = await parseMessage(systemMsg, messageTime, pendingSparkToolUses)
+      messages.push(parsedMsg)
+    }
+  }
+
   // Parse request messages
   if (request.messages && Array.isArray(request.messages)) {
     for (let i = 0; i < request.messages.length; i++) {
