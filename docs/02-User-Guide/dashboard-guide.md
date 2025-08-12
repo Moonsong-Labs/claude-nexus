@@ -118,6 +118,17 @@ View per-account statistics:
 
 ## Navigation
 
+### Dashboard Pages
+
+The dashboard includes the following pages accessible from the navigation bar:
+
+- **Dashboard** - Main overview page with key metrics
+- **Requests** - Detailed request history and logs
+- **Domain Stats** - Per-domain usage statistics
+- **Token Usage** - Token consumption analytics
+- **Prompts** - MCP prompt library
+- **Help** - Setup guide for Claude Code client configuration
+
 ### URL Parameters
 
 Many dashboard views support URL parameters:

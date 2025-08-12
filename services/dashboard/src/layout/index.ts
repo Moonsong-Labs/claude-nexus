@@ -214,6 +214,7 @@ export const layout = (
               <a href="/dashboard/usage" class="text-sm text-blue-600">Domain Stats</a>
               <a href="/dashboard/token-usage" class="text-sm text-blue-600">Token Usage</a>
               <a href="/dashboard/prompts" class="text-sm text-blue-600">Prompts</a>
+              <a href="/dashboard/help" class="text-sm text-blue-600">Help</a>
               <span class="text-sm text-gray-600" id="current-domain">All Domains</span>
               ${
                 !auth.isReadOnly
