@@ -60,6 +60,16 @@ else
     exit 1
 fi
 
+# Push all-in-one image
+echo -e "\n${BLUE}Pushing All-in-One Service...${NC}"
+docker push alanpurestake/claude-nexus-all-in:${TAG}
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ All-in-One image pushed successfully${NC}"
+else
+    echo -e "${RED}✗ Failed to push all-in-one image${NC}"
+    exit 1
+fi
+
 # Also push latest tags if requested and not already pushing latest
 if [ "$TAG" != "latest" ] && [ "$PUSH_LATEST" = "yes" ]; then
     echo -e "\n${BLUE}Also pushing 'latest' tags...${NC}"
@@ -79,13 +89,26 @@ if [ "$TAG" != "latest" ] && [ "$PUSH_LATEST" = "yes" ]; then
         echo -e "${RED}✗ Failed to push dashboard 'latest'${NC}"
         exit 1
     fi
+    
+    docker push alanpurestake/claude-nexus-all-in:latest
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ All-in-One 'latest' pushed successfully${NC}"
+    else
+        echo -e "${RED}✗ Failed to push all-in-one 'latest'${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "\n${GREEN}Push completed successfully!${NC}"
 echo -e "\nImages available at:"
 echo -e "  ${YELLOW}https://hub.docker.com/r/alanpurestake/claude-nexus-proxy${NC}"
 echo -e "  ${YELLOW}https://hub.docker.com/r/alanpurestake/claude-nexus-dashboard${NC}"
+echo -e "  ${YELLOW}https://hub.docker.com/r/alanpurestake/claude-nexus-all-in${NC}"
 
 echo -e "\nTo pull and run:"
+echo -e "  ${BLUE}# All-in-One (recommended for demos)${NC}"
+echo -e "  ${BLUE}docker pull alanpurestake/claude-nexus-all-in:${TAG}${NC}"
+echo -e "  ${BLUE}docker run -d -p 3000:3000 -p 3001:3001 alanpurestake/claude-nexus-all-in:${TAG}${NC}"
+echo -e "  ${BLUE}# Or pull services separately:${NC}"
 echo -e "  ${BLUE}docker pull alanpurestake/claude-nexus-proxy:${TAG}${NC}"
 echo -e "  ${BLUE}docker pull alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
