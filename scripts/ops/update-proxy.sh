@@ -7,10 +7,14 @@
 #   ./update-proxy.sh v8 proxy    # Updates only proxy
 #   ./update-proxy.sh v8 dashboard # Updates only dashboard
 
+# Get the script directory and repository root
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 VERSION=$1
 SERVICE=$2
-PROXY_IMAGE="alanpurestake/claude-nexus-proxy"
-DASHBOARD_IMAGE="alanpurestake/claude-nexus-dashboard"
+PROXY_IMAGE="moonsonglabs/claude-nexus-proxy"
+DASHBOARD_IMAGE="moonsonglabs/claude-nexus-dashboard"
 
 if [ -z "$VERSION" ]; then
     echo "Error: Version not specified"
@@ -29,15 +33,15 @@ update_proxy() {
     fi
 
     echo "Updating proxy container to $VERSION..."
-    docker stop claude-nexus-proxy 2>/dev/null
-    docker rm claude-nexus-proxy 2>/dev/null
+    docker stop claude-nexus 2>/dev/null
+    docker rm claude-nexus 2>/dev/null
 
-    docker run -d --name claude-nexus-proxy \
+    docker run -d --name claude-nexus \
         --network claude-nexus-network \
         --restart unless-stopped \
         -p 3000:3000 \
         -e SERVICE=proxy \
-        -v $(pwd)/.env:/app/.env \
+        -v "$REPO_ROOT/.env":/app/.env \
         -v ~/credentials:/app/credentials \
         "$PROXY_IMAGE:$VERSION"
 
@@ -67,7 +71,7 @@ update_dashboard() {
         --restart unless-stopped \
         -p 3001:3001 \
         -e SERVICE=dashboard \
-        -v $(pwd)/.env:/app/.env \
+        -v "$REPO_ROOT/.env":/app/.env \
         "$DASHBOARD_IMAGE:$VERSION"
 
     if [ $? -eq 0 ]; then
@@ -101,4 +105,4 @@ esac
 
 echo ""
 echo "Container status:"
-docker ps | grep -E "claude-nexus-proxy|claude-nexus-dashboard"
+docker ps | grep -E "claude-nexus|claude-nexus-dashboard"
