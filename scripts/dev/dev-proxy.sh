@@ -1,8 +1,6 @@
 #!/bin/bash
-# Load root .env file
-if [ -f .env ]; then
-  export $(cat .env | grep -v '^#' | xargs)
-fi
+# Load root .env safely
+set -a; . ./.env; set +a
 
-# Run the proxy service
+# Run the proxy service on its own port
 cd services/proxy && bun run dev
