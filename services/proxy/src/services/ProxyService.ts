@@ -1,11 +1,11 @@
 import { ProxyRequest } from '../domain/entities/ProxyRequest'
 import { ProxyResponse } from '../domain/entities/ProxyResponse'
 import { RequestContext } from '../domain/value-objects/RequestContext'
-import { AuthenticationService } from './AuthenticationService'
+import { AuthenticationService, AuthResult } from './AuthenticationService'
 import { ClaudeApiClient } from './ClaudeApiClient'
 import { NotificationService } from './NotificationService'
 import { MetricsService } from './MetricsService'
-import { ClaudeMessagesRequest, generateConversationId } from '@claude-nexus/shared'
+import { ClaudeMessagesRequest, generateConversationId, config } from '@claude-nexus/shared'
 import { logger } from '../middleware/logger'
 import { testSampleCollector } from './TestSampleCollector'
 import { StorageAdapter } from '../storage/StorageAdapter.js'
@@ -127,9 +127,30 @@ export class ProxyService {
 
     try {
       // Authenticate
-      const auth = context.host.toLowerCase().includes('personal')
-        ? await this.authService.authenticatePersonalDomain(context)
-        : await this.authService.authenticateNonPersonalDomain(context)
+      let auth: AuthResult
+
+      // Passthrough mode when client auth disabled and Bearer token present
+      if (config.features.enableClientAuth === false && context.apiKey?.startsWith('Bearer ')) {
+        log.debug('Using passthrough authentication (client auth disabled)', {
+          domain: context.host,
+          hasToken: true,
+        })
+
+        auth = {
+          type: 'oauth',
+          headers: {
+            Authorization: context.apiKey,
+            'anthropic-beta': 'oauth-2025-04-20',
+          },
+          key: context.apiKey.replace('Bearer ', ''),
+          betaHeader: 'oauth-2025-04-20',
+        }
+      } else {
+        // Existing domain-based routing
+        auth = context.host.toLowerCase().includes('personal')
+          ? await this.authService.authenticatePersonalDomain(context)
+          : await this.authService.authenticateNonPersonalDomain(context)
+      }
 
       // Forward to Claude
       log.info('Forwarding request to Claude', {
