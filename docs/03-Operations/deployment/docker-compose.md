@@ -89,7 +89,7 @@ services:
       retries: 5
 
   proxy:
-    image: moonsonglabs/claude-nexus:latest
+    image: moonsonglabs/claude-nexus-proxy:latest
     depends_on:
       postgres:
         condition: service_healthy

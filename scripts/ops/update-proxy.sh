@@ -13,7 +13,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 VERSION=$1
 SERVICE=$2
-PROXY_IMAGE="moonsonglabs/claude-nexus"
+PROXY_IMAGE="moonsonglabs/claude-nexus-proxy"
 DASHBOARD_IMAGE="moonsonglabs/claude-nexus-dashboard"
 
 if [ -z "$VERSION" ]; then
