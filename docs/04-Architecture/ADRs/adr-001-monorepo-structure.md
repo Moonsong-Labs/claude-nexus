@@ -38,7 +38,7 @@ The Claude Nexus Proxy project consists of multiple interconnected services: a p
 We will use a **monorepo structure with Bun workspaces**, organizing the codebase as follows:
 
 ```
-claude-nexus-proxy/
+claude-nexus/
 ├── packages/shared/      # Shared types and utilities
 ├── services/
 │   ├── proxy/           # Proxy API service
@@ -54,7 +54,7 @@ Root `package.json`:
 
 ```json
 {
-  "name": "claude-nexus-proxy",
+  "name": "claude-nexus",
   "private": true,
   "workspaces": ["packages/*", "services/*"],
   "scripts": {

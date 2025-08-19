@@ -44,12 +44,12 @@ cd "$PROJECT_ROOT"
 
 # Build proxy image (always build as latest first)
 echo -e "\n${BLUE}Building Proxy Service...${NC}"
-docker build -f docker/proxy/Dockerfile -t alanpurestake/claude-nexus-proxy:latest .
+docker build -f docker/proxy/Dockerfile -t moonsonglabs/claude-nexus:latest .
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Proxy image built successfully${NC}"
     # Tag with specific version if provided
     if [ "$TAG" != "latest" ]; then
-        docker tag alanpurestake/claude-nexus-proxy:latest alanpurestake/claude-nexus-proxy:${TAG}
+        docker tag moonsonglabs/claude-nexus:latest moonsonglabs/claude-nexus:${TAG}
         echo -e "${GREEN}✓ Also tagged as '${TAG}'${NC}"
     fi
 else
@@ -59,12 +59,12 @@ fi
 
 # Build dashboard image (always build as latest first)
 echo -e "\n${BLUE}Building Dashboard Service...${NC}"
-docker build -f docker/dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:latest .
+docker build -f docker/dashboard/Dockerfile -t moonsonglabs/claude-nexus-dashboard:latest .
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Dashboard image built successfully${NC}"
     # Tag with specific version if provided
     if [ "$TAG" != "latest" ]; then
-        docker tag alanpurestake/claude-nexus-dashboard:latest alanpurestake/claude-nexus-dashboard:${TAG}
+        docker tag moonsonglabs/claude-nexus-dashboard:latest moonsonglabs/claude-nexus-dashboard:${TAG}
         echo -e "${GREEN}✓ Also tagged as '${TAG}'${NC}"
     fi
 else
@@ -74,17 +74,17 @@ fi
 
 # Show image sizes
 echo -e "\n${BLUE}Image Sizes:${NC}"
-docker images | grep -E "claude-nexus-(proxy|dashboard)|REPOSITORY" | grep -E "${TAG}|REPOSITORY" | head -5
+docker images | grep -E "moonsonglabs/claude-nexus(-dashboard)?|REPOSITORY" | grep -E "${TAG}|latest|REPOSITORY" | head -5
 
 echo -e "\n${GREEN}Build completed successfully!${NC}"
 echo -e "\nImages built:"
-echo -e "  ${YELLOW}alanpurestake/claude-nexus-proxy:latest${NC}"
-echo -e "  ${YELLOW}alanpurestake/claude-nexus-dashboard:latest${NC}"
+echo -e "  ${YELLOW}moonsonglabs/claude-nexus:latest${NC}"
+echo -e "  ${YELLOW}moonsonglabs/claude-nexus-dashboard:latest${NC}"
 
 if [ "$TAG" != "latest" ]; then
     echo -e "\nAlso tagged as:"
-    echo -e "  ${YELLOW}alanpurestake/claude-nexus-proxy:${TAG}${NC}"
-    echo -e "  ${YELLOW}alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
+    echo -e "  ${YELLOW}moonsonglabs/claude-nexus:${TAG}${NC}"
+    echo -e "  ${YELLOW}moonsonglabs/claude-nexus-dashboard:${TAG}${NC}"
 fi
 
 echo -e "\nTo run the services:"
@@ -106,23 +106,23 @@ fi
 
 echo -e "\n${YELLOW}Using Docker Run:${NC}"
 echo -e "  ${BLUE}# Proxy service${NC}"
-echo -e "  ${BLUE}docker run -d -p 3000:3000 alanpurestake/claude-nexus-proxy:${TAG}${NC}"
+echo -e "  ${BLUE}docker run -d -p 3000:3000 moonsonglabs/claude-nexus:${TAG}${NC}"
 echo -e "  ${BLUE}# Dashboard service${NC}"
-echo -e "  ${BLUE}docker run -d -p 3001:3001 -e DASHBOARD_API_KEY=your-key alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
+echo -e "  ${BLUE}docker run -d -p 3001:3001 -e DASHBOARD_API_KEY=your-key moonsonglabs/claude-nexus-dashboard:${TAG}${NC}"
 
 # Add push instructions
 echo -e "\n${YELLOW}To push to Docker Hub:${NC}"
 if [ "$TAG" != "latest" ]; then
     echo -e "  ${BLUE}# Push both latest and version tags:${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-proxy:latest${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-proxy:${TAG}${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-dashboard:latest${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-dashboard:${TAG}${NC}"
+    echo -e "  ${BLUE}docker push moonsonglabs/claude-nexus:latest${NC}"
+    echo -e "  ${BLUE}docker push moonsonglabs/claude-nexus:${TAG}${NC}"
+    echo -e "  ${BLUE}docker push moonsonglabs/claude-nexus-dashboard:latest${NC}"
+    echo -e "  ${BLUE}docker push moonsonglabs/claude-nexus-dashboard:${TAG}${NC}"
     echo -e "\n  ${YELLOW}Or use the push script:${NC}"
     echo -e "  ${BLUE}./docker/push-images.sh ${TAG}${NC}"
 else
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-proxy:latest${NC}"
-    echo -e "  ${BLUE}docker push alanpurestake/claude-nexus-dashboard:latest${NC}"
+    echo -e "  ${BLUE}docker push moonsonglabs/claude-nexus:latest${NC}"
+    echo -e "  ${BLUE}docker push moonsonglabs/claude-nexus-dashboard:latest${NC}"
     echo -e "\n  ${YELLOW}Or use the push script:${NC}"
     echo -e "  ${BLUE}./docker/push-images.sh${NC}"
 fi

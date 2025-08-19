@@ -1,110 +1,382 @@
 version: 1
 generated_by: repo-knowledge-tracker
-last_updated: '2025-01-12T00:00:00Z'
+last_updated: '2025-08-19T00:00:00Z'
 entries:
-  # Documentation files that need updates for system prompt display feature
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/02-User-Guide/dashboard-guide.md'
-    title: 'Dashboard User Guide'
-    why_important: 'Primary user-facing documentation for dashboard features - needs update for system prompt display'
-    topics: ['dashboard', 'ui', 'conversation-view', 'message-display']
-    owners: ['@dashboard-team']
-    linked_docs:
-      [
-        'docs/02-User-Guide/api-reference.md',
-        'docs/04-Architecture/ADRs/adr-009-dashboard-architecture.md',
-      ]
-    related_components: ['services/dashboard/*', 'packages/shared/types/*']
+  # Core Configuration Files
+  - path: '/home/crystalin/claude-nexus/package.json'
+    title: 'Root Package Configuration'
+    why_important: "Main monorepo configuration containing 'claude-nexus-proxy' repository URL"
+    topics: ['config', 'monorepo', 'build']
+    owners: ['@backend-team']
+    linked_docs: ['docs/01-Getting-Started/development.md']
+    related_components: ['services/*', 'packages/*']
+    dependencies:
+      direct: ['husky', 'prettier', 'eslint']
+      indirect: []
+    update_triggers: ['repository rename', 'package name changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Repository URL needs updating'
+    recommended_action: 'Update repository URL from claude-nexus-proxy to claude-nexus'
+    notes: 'Line 8: github.com/moonsong-labs/claude-nexus-proxy.git'
+
+  - path: '/home/crystalin/claude-nexus/services/proxy/package.json'
+    title: 'Proxy Service Package Configuration'
+    why_important: "Service-level package with 'claude-nexus-proxy' binary name"
+    topics: ['proxy', 'api', 'service']
+    owners: ['@backend-team']
+    linked_docs: ['docs/00-Overview/architecture.md']
+    related_components: ['services/proxy/src/*']
+    dependencies:
+      direct: ['hono', '@hono/node-server']
+      indirect: []
+    update_triggers: ['service rename', 'binary name changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Binary name needs updating'
+    recommended_action: 'Update bin entry from claude-nexus-proxy to claude-nexus'
+    notes: 'Line 8: Binary executable name configuration'
+
+  # Docker Infrastructure Files
+  - path: '/home/crystalin/claude-nexus/docker/build-images.sh'
+    title: 'Docker Build Script'
+    why_important: "Critical build script with multiple 'alanpurestake' Docker registry references"
+    topics: ['docker', 'ci/cd', 'deployment']
+    owners: ['@devops-team']
+    linked_docs: ['docker/README.md', 'docs/03-Operations/deployment/docker.md']
+    related_components: ['docker/*', 'docker-compose.yml']
+    dependencies:
+      direct: ['docker']
+      indirect: []
+    update_triggers: ['docker registry changes', 'organization rename']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Docker organization needs updating to moonsonglabs'
+    recommended_action: 'Replace all alanpurestake references with moonsonglabs'
+    notes: 'Lines 47, 52, 81, 86, 109, 117-118, 124-125: Image tags and Docker Hub references'
+
+  - path: '/home/crystalin/claude-nexus/docker/push-images.sh'
+    title: 'Docker Push Script'
+    why_important: "Deployment script with hardcoded Docker Hub organization 'alanpurestake'"
+    topics: ['docker', 'deployment', 'ci/cd']
+    owners: ['@devops-team']
+    linked_docs: ['docker/README.md']
+    related_components: ['docker/build-images.sh']
+    dependencies:
+      direct: ['docker']
+      indirect: []
+    update_triggers: ['docker registry changes', 'organization rename']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Docker organization needs updating to moonsonglabs'
+    recommended_action: 'Replace all alanpurestake references with moonsonglabs'
+    notes: 'Lines 45, 67, 86, 90: Docker push commands and Hub URLs'
+
+  - path: '/home/crystalin/claude-nexus/docker/docker-compose.yml'
+    title: 'Docker Compose Configuration'
+    why_important: "Container orchestration config with 'claude-nexus-proxy' container names"
+    topics: ['docker', 'orchestration', 'deployment']
+    owners: ['@devops-team']
+    linked_docs: ['docs/03-Operations/deployment/docker-compose.md']
+    related_components: ['docker/*', 'services/*']
+    dependencies:
+      direct: ['docker-compose']
+      indirect: ['postgres', 'redis']
+    update_triggers: ['service name changes', 'container reorganization']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Container names need updating'
+    recommended_action: 'Update container names from claude-nexus-proxy to claude-nexus'
+    notes: 'Lines 35-36: Image and container name references'
+
+  - path: '/home/crystalin/claude-nexus/docker/README.md'
+    title: 'Docker Documentation'
+    why_important: 'Docker usage documentation with image names and examples'
+    topics: ['docker', 'documentation', 'deployment']
+    owners: ['@devops-team']
+    linked_docs: ['docs/03-Operations/deployment/docker.md']
+    related_components: ['docker/*']
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['new dashboard features', 'UI changes', 'conversation view updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Missing documentation for system prompt display in conversation view'
-    recommended_action: 'Add section on system prompt visibility and styling in conversation view'
-    notes: 'Lines 67-90 cover conversation tracking, need to add system prompt display details'
+    update_triggers: ['docker changes', 'deployment updates']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Docker references need updating'
+    recommended_action: 'Update alanpurestake to moonsonglabs, claude-nexus-proxy to claude-nexus'
+    notes: 'Lines 7, 43, 96: Docker image references and examples'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/02-User-Guide/api-reference.md'
-    title: 'API Reference Documentation'
-    why_important: 'Defines API response structures including message roles - may need updates for system role'
-    topics: ['api', 'messages', 'response-structure', 'roles']
-    owners: ['@api-team']
-    linked_docs: ['docs/04-Architecture/ADRs/adr-003-conversation-tracking.md']
-    related_components: ['services/proxy/*', 'packages/shared/types/*']
+  # Operations Scripts
+  - path: '/home/crystalin/claude-nexus/scripts/ops/update-proxy.sh'
+    title: 'Proxy Update Script'
+    why_important: 'Deployment script with hardcoded Docker image names'
+    topics: ['deployment', 'operations', 'docker']
+    owners: ['@ops-team']
+    linked_docs: ['scripts/ops/README.md']
+    related_components: ['scripts/ops/*']
+    dependencies:
+      direct: ['docker']
+      indirect: []
+    update_triggers: ['deployment process changes', 'docker registry changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Docker image names need updating'
+    recommended_action: 'Update alanpurestake to moonsonglabs, container names to claude-nexus'
+    notes: 'Lines 12-13, 32-35, 104: Image names and container references'
+
+  - path: '/home/crystalin/claude-nexus/scripts/ops/manage-nexus-proxies.sh'
+    title: 'Nexus Proxies Management Script'
+    why_important: 'AWS EC2 management script with multiple project name references'
+    topics: ['aws', 'operations', 'deployment']
+    owners: ['@ops-team']
+    linked_docs: ['scripts/ops/README.md']
+    related_components: ['scripts/ops/*']
+    dependencies:
+      direct: ['aws-cli', 'ssh']
+      indirect: []
+    update_triggers: ['infrastructure changes', 'deployment updates']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Project directory and container names need updating'
+    recommended_action: 'Update claude-nexus-proxy directory and container references to claude-nexus'
+    notes: 'Lines 3, 19-21, 132, 227, 234, 243, 247, 286, 293, 302, 306: Multiple references'
+
+  # Source Code Files
+  - path: '/home/crystalin/claude-nexus/services/proxy/src/app.ts'
+    title: 'Proxy Application Main'
+    why_important: 'Main proxy application with service name in health endpoint'
+    topics: ['proxy', 'api', 'core']
+    owners: ['@backend-team']
+    linked_docs: ['docs/00-Overview/architecture.md']
+    related_components: ['services/proxy/src/*']
+    dependencies:
+      direct: ['hono']
+      indirect: []
+    update_triggers: ['service name changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Service name in health response'
+    recommended_action: 'Update service name from claude-nexus-proxy to claude-nexus'
+    notes: 'Line 285: Service name in health endpoint response'
+
+  - path: '/home/crystalin/claude-nexus/services/proxy/src/main.ts'
+    title: 'Proxy CLI Entry Point'
+    why_important: 'CLI entry point with usage documentation'
+    topics: ['cli', 'proxy', 'documentation']
+    owners: ['@backend-team']
+    linked_docs: []
+    related_components: ['services/proxy/src/app.ts']
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['API changes', 'new message types', 'response structure updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'May need to document system role in message structure'
-    recommended_action: 'Verify system role is documented in message types and response examples'
-    notes: 'Lines 43-77 show message structure, check if system role is covered'
+    update_triggers: ['CLI changes', 'service rename']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'CLI usage examples need updating'
+    recommended_action: 'Update usage examples from claude-nexus-proxy to claude-nexus'
+    notes: 'Lines 102, 126-130: CLI usage documentation'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/00-Overview/features.md'
-    title: 'Features Overview'
-    why_important: 'High-level feature documentation that should mention system prompt display capability'
-    topics: ['features', 'dashboard', 'conversation-management']
-    owners: ['@product-team']
-    linked_docs: ['docs/02-User-Guide/dashboard-guide.md']
-    related_components: ['services/dashboard/*']
+  - path: '/home/crystalin/claude-nexus/services/proxy/src/routes/health.ts'
+    title: 'Health Check Route'
+    why_important: 'Health endpoint returning service name'
+    topics: ['health', 'monitoring', 'api']
+    owners: ['@backend-team']
+    linked_docs: []
+    related_components: ['services/proxy/src/app.ts']
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['new features', 'product updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Should mention system prompt display as a dashboard feature'
-    recommended_action: 'Add system prompt visibility to conversation management features section'
-    notes: 'Lines 51-58 cover conversation management features'
+    update_triggers: ['service name changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Service name in response'
+    recommended_action: 'Update service name from claude-nexus-proxy to claude-nexus'
+    notes: 'Line 15: Service name in health response'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/04-Architecture/ADRs/adr-003-conversation-tracking.md'
-    title: 'ADR-003: Conversation Tracking'
-    why_important: 'Defines how messages are tracked - may need update for system message handling'
-    topics: ['architecture', 'conversation-tracking', 'message-hashing', 'system-messages']
+  - path: '/home/crystalin/claude-nexus/services/proxy/src/storage/writer.ts'
+    title: 'Storage Writer Module'
+    why_important: 'Contains hardcoded salt value with project name'
+    topics: ['storage', 'security', 'database']
+    owners: ['@backend-team']
+    linked_docs: []
+    related_components: ['services/proxy/src/storage/*']
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['security updates', 'salt changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Default salt value contains old project name'
+    recommended_action: 'Update default salt from claude-nexus-proxy-default-salt to claude-nexus-default-salt'
+    notes: 'Line 550: Default salt value'
+
+  # Documentation Files
+  - path: '/home/crystalin/claude-nexus/README.md'
+    title: 'Main Repository README'
+    why_important: 'Public-facing documentation with project name references'
+    topics: ['documentation', 'public', 'overview']
+    owners: ['@all-teams']
+    linked_docs: ['CLAUDE.md', 'CONTRIBUTING.md']
+    related_components: []
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['project rename', 'major feature changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Project name references need updating'
+    recommended_action: 'Update all claude-nexus-proxy references to claude-nexus'
+    notes: 'Main entry point for developers'
+
+  - path: '/home/crystalin/claude-nexus/CLAUDE.md'
+    title: 'AI Agent Instructions'
+    why_important: 'Critical AI agent guidance file with project description'
+    topics: ['ai', 'documentation', 'instructions']
+    owners: ['@ai-team']
+    linked_docs: ['README.md']
+    related_components: []
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['project structure changes', 'workflow updates']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Project description needs updating'
+    recommended_action: "Update 'Claude Nexus Proxy' to 'Claude Nexus' in project description"
+    notes: 'Project description at top of file'
+
+  - path: '/home/crystalin/claude-nexus/docs/README.md'
+    title: 'Documentation Index'
+    why_important: 'Documentation entry point with GitHub repository link'
+    topics: ['documentation', 'index']
+    owners: ['@documentation-team']
+    linked_docs: []
+    related_components: ['docs/*']
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['documentation restructure']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'GitHub repository link needs updating'
+    recommended_action: 'Update repository URL from claude-nexus-proxy to claude-nexus'
+    notes: 'Line 66: GitHub repository link'
+
+  - path: '/home/crystalin/claude-nexus/docs/00-Overview/quickstart.md'
+    title: 'Quickstart Guide'
+    why_important: 'New user onboarding with git clone commands'
+    topics: ['documentation', 'onboarding', 'quickstart']
+    owners: ['@documentation-team']
+    linked_docs: ['docs/01-Getting-Started/installation.md']
+    related_components: []
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['repository changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Git clone commands need updating'
+    recommended_action: 'Update git clone URL and directory name'
+    notes: 'Lines 13-14: Git clone commands'
+
+  - path: '/home/crystalin/claude-nexus/docs/00-Overview/architecture.md'
+    title: 'Architecture Overview'
+    why_important: 'Architecture documentation with directory structure'
+    topics: ['architecture', 'documentation', 'overview']
     owners: ['@architecture-team']
-    linked_docs: ['docs/02-User-Guide/api-reference.md']
-    related_components: ['services/proxy/src/conversation/*', 'packages/shared/types/*']
+    linked_docs: ['docs/04-Architecture/ADRs/*']
+    related_components: []
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['conversation tracking changes', 'message handling updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Already mentions system-reminder filtering, may need updates for system prompt handling'
-    recommended_action: 'Review if system prompt messages need special handling in hash generation'
-    notes: 'Line 47 shows system-reminder filtering, verify system prompts are handled correctly'
+    update_triggers: ['architecture changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Directory structure diagram needs updating'
+    recommended_action: 'Update root directory name in diagram'
+    notes: 'Line 13: Directory structure diagram'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/06-Reference/changelog.md'
-    title: 'Changelog'
-    why_important: 'Should document new system prompt display feature when implemented'
-    topics: ['changelog', 'releases', 'features']
-    owners: ['@release-team']
+  - path: '/home/crystalin/claude-nexus/docs/01-Getting-Started/installation.md'
+    title: 'Installation Guide'
+    why_important: 'Installation instructions with Docker commands'
+    topics: ['installation', 'docker', 'documentation']
+    owners: ['@documentation-team']
+    linked_docs: ['docs/00-Overview/quickstart.md']
+    related_components: []
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['installation process changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Docker image references need updating'
+    recommended_action: 'Update alanpurestake Docker references to moonsonglabs'
+    notes: 'Contains Docker pull/run commands'
+
+  - path: '/home/crystalin/claude-nexus/docs/03-Operations/deployment/docker-compose.md'
+    title: 'Docker Compose Deployment Guide'
+    why_important: 'Deployment documentation with Docker image references'
+    topics: ['deployment', 'docker', 'documentation']
+    owners: ['@ops-team']
+    linked_docs: ['docker/docker-compose.yml']
+    related_components: []
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['deployment changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Docker image references need updating'
+    recommended_action: 'Update alanpurestake references to moonsonglabs'
+    notes: 'Docker Compose deployment examples'
+
+  - path: '/home/crystalin/claude-nexus/docs/04-Architecture/technical-debt.md'
+    title: 'Technical Debt Register'
+    why_important: 'Contains GitHub PR references with old repository name'
+    topics: ['technical-debt', 'documentation', 'tracking']
+    owners: ['@architecture-team']
     linked_docs: []
     related_components: []
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['new releases', 'feature additions']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Will need entry for system prompt display feature'
-    recommended_action: 'Add changelog entry when system prompt display feature is released'
-    notes: 'Standard changelog entry needed for new feature'
+    update_triggers: ['debt resolution', 'new debt items']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'GitHub PR links need updating'
+    recommended_action: 'Update GitHub PR URLs from claude-nexus-proxy to claude-nexus'
+    notes: 'Lines 47, 71: GitHub PR reference links'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/04-Architecture/internals.md'
+  - path: '/home/crystalin/claude-nexus/docs/04-Architecture/internals.md'
     title: 'Architecture Internals'
-    why_important: 'Technical documentation that may cover message processing internals'
-    topics: ['architecture', 'internals', 'message-processing']
+    why_important: 'Technical documentation with Docker example'
+    topics: ['architecture', 'internals', 'documentation']
     owners: ['@architecture-team']
-    linked_docs: ['docs/04-Architecture/ADRs/adr-003-conversation-tracking.md']
-    related_components: ['services/proxy/*', 'services/dashboard/*']
+    linked_docs: []
+    related_components: []
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['architecture changes', 'internal processing updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'May need updates for system prompt handling in message flow'
-    recommended_action: 'Check if system prompt processing needs documentation'
-    notes: 'Review for any message processing that affects system prompts'
+    update_triggers: ['architecture updates']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Docker image name in example'
+    recommended_action: 'Update Docker image name in example'
+    notes: 'Line 580: Docker image reference'
+
+  - path: '/home/crystalin/claude-nexus/docs/api/openapi-analysis.yaml'
+    title: 'OpenAPI Specification'
+    why_important: 'API specification with project URL'
+    topics: ['api', 'openapi', 'specification']
+    owners: ['@api-team']
+    linked_docs: []
+    related_components: []
+    dependencies:
+      direct: []
+      indirect: []
+    update_triggers: ['API changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Project URL needs updating'
+    recommended_action: 'Update GitHub URL from alanpurestake/claude-nexus-proxy to moonsonglabs/claude-nexus'
+    notes: 'Line 36: GitHub project URL'

@@ -104,5 +104,5 @@ claude mcp add nexus-prompts --scope user -- bunx -y mcp-remote@latest \
 ## References
 
 - [Model Context Protocol Specification](https://modelcontextprotocol.io)
-- [PR #83: Initial MCP Implementation](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/83)
-- [PR #87: MCP Server Fixes](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/87)
+- [PR #83: Initial MCP Implementation](https://github.com/Moonsong-Labs/claude-nexus/pull/83)
+- [PR #87: MCP Server Fixes](https://github.com/Moonsong-Labs/claude-nexus/pull/87)

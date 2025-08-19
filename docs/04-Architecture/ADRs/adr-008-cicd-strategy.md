@@ -174,7 +174,7 @@ We will use **GitHub Actions** for all CI/CD workflows.
 
 ## Links
 
-- [PR #1: CI/CD Setup](https://github.com/your-org/claude-nexus-proxy/pull/1)
+- [PR #1: CI/CD Setup](https://github.com/your-org/claude-nexus/pull/1)
 - [GitHub Actions Documentation](https://docs.github.com/actions)
 - [Deployment Guide](../../03-Operations/deployment/)
 

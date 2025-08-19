@@ -110,8 +110,8 @@ For administrators or heavy users, you can follow the token usage and see when a
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/claude-nexus-proxy.git
-cd claude-nexus-proxy
+git clone https://github.com/yourusername/claude-nexus.git
+cd claude-nexus
 
 # Install dependencies
 bun install
@@ -216,7 +216,7 @@ Features:
 ## Architecture
 
 ```
-claude-nexus-proxy/
+claude-nexus/
 ├── packages/shared/      # Shared types and utilities
 ├── services/
 │   ├── proxy/           # Proxy API service
@@ -294,7 +294,7 @@ See [AWS Infrastructure Guide](docs/03-Operations/deployment/aws-infrastructure.
 
 ```bash
 # Build images individually
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy:local .
+docker build -f docker/proxy/Dockerfile -t claude-nexus:local .
 docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
 ```
 
@@ -349,6 +349,6 @@ Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTIN
 ## Support
 
 - 📖 [Full Documentation](docs/README.md)
-- 🐛 [Issue Tracker](https://github.com/yourusername/claude-nexus-proxy/issues)
-- 💬 [Discussions](https://github.com/yourusername/claude-nexus-proxy/discussions)
+- 🐛 [Issue Tracker](https://github.com/yourusername/claude-nexus/issues)
+- 💬 [Discussions](https://github.com/yourusername/claude-nexus/discussions)
 - 📊 [Changelog](docs/06-Reference/changelog.md)

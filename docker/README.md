@@ -4,14 +4,14 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 
 ## Images
 
-### 1. Proxy Service (`alanpurestake/claude-nexus-proxy`)
+### 1. Proxy Service (`moonsonglabs/claude-nexus`)
 
 - Port: 3000
 - Handles Claude API proxying
 - Manages authentication and token tracking
 - Stores request/response data
 
-### 2. Dashboard Service (`alanpurestake/claude-nexus-dashboard`)
+### 2. Dashboard Service (`moonsonglabs/claude-nexus-dashboard`)
 
 - Port: 3001
 - Web UI for monitoring and analytics
@@ -40,8 +40,8 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 
 ```bash
 # Build individually with custom tags
-docker build -f proxy/Dockerfile -t alanpurestake/claude-nexus-proxy:v9 ..
-docker build -f dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:v9 ..
+docker build -f proxy/Dockerfile -t moonsonglabs/claude-nexus:v9 ..
+docker build -f dashboard/Dockerfile -t moonsonglabs/claude-nexus-dashboard:v9 ..
 ```
 
 ## Pushing Images
@@ -93,13 +93,13 @@ docker-compose --project-name claude-nexus --env-file ../.env up -d
 # Proxy service
 docker run -p 3000:3000 \
   -v ./credentials:/app/credentials:ro \
-  alanpurestake/claude-nexus-proxy:latest
+  moonsonglabs/claude-nexus:latest
 
 # Dashboard service
 docker run -p 3001:3001 \
   -e DASHBOARD_API_KEY=your-key \
   -e PROXY_API_URL=http://localhost:3000 \
-  alanpurestake/claude-nexus-dashboard:latest
+  moonsonglabs/claude-nexus-dashboard:latest
 ```
 
 ## Environment Variables

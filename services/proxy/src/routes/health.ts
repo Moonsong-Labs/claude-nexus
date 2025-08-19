@@ -12,7 +12,7 @@ export function createHealthRoutes(options: HealthRouteOptions): Hono {
   app.get('/', async c => {
     const health: any = {
       status: 'healthy',
-      service: 'claude-nexus-proxy',
+      service: 'claude-nexus',
       version: options.version || 'unknown',
       timestamp: new Date().toISOString(),
     }

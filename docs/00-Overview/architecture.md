@@ -10,7 +10,7 @@ Claude Nexus has been refactored into a microservices architecture with two sepa
 ## Directory Structure
 
 ```
-claude-nexus-proxy/
+claude-nexus/
 ├── packages/
 │   └── shared/           # Shared types and configurations
 ├── services/

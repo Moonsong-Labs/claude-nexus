@@ -63,7 +63,7 @@ Welcome to the Claude Nexus Proxy documentation. This guide will help you unders
 
 ## Project Links
 
-- [GitHub Repository](https://github.com/your-org/claude-nexus-proxy)
+- [GitHub Repository](https://github.com/your-org/claude-nexus)
 - [Main README](../README.md)
 - [Contributing Guidelines](../CONTRIBUTING.md)
 - [License](../LICENSE)

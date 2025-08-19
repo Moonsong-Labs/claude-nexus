@@ -25,8 +25,8 @@ The Docker Compose configuration includes:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/claude-nexus-proxy.git
-cd claude-nexus-proxy
+git clone https://github.com/yourusername/claude-nexus.git
+cd claude-nexus
 
 # Copy and edit environment file
 cp .env.example .env
@@ -89,7 +89,7 @@ services:
       retries: 5
 
   proxy:
-    image: alanpurestake/claude-nexus-proxy:latest
+    image: moonsonglabs/claude-nexus:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,7 +104,7 @@ services:
     restart: unless-stopped
 
   dashboard:
-    image: alanpurestake/claude-nexus-dashboard:latest
+    image: moonsonglabs/claude-nexus-dashboard:latest
     depends_on:
       postgres:
         condition: service_healthy

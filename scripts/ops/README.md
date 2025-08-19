@@ -24,8 +24,8 @@ Manages Claude Nexus Proxy Docker containers across all EC2 instances tagged wit
 
 **Commands:**
 
-- `up` - Pull latest code (git pull) and start/update the claude-nexus-proxy container
-- `down` - Stop the claude-nexus-proxy container
+- `up` - Pull latest code (git pull) and start/update the claude-nexus container
+- `down` - Stop the claude-nexus container
 - `status` - Check container status
 
 **Options:**
@@ -63,7 +63,7 @@ The script filters EC2 instances based on the `env` tag:
 - EC2 instances must have:
   - "Nexus Proxy" in their Name tag
   - Optional `env` tag with value `prod` or `staging`
-  - Git repository cloned at `~/claude-nexus-proxy` on each server
+  - Git repository cloned at `~/claude-nexus` on each server
   - Git access configured (for pulling from origin/main)
   - `.env` file located at `~/.env` (in user's home directory)
   - `credentials` directory at `~/credentials` (if using credential files)

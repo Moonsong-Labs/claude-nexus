@@ -3,9 +3,9 @@
   "version": "2.0.0",
   "description": "Claude Nexus Proxy Service - API proxy for Claude with telemetry and multi-subscription support",
   "type": "module",
-  "main": "dist/main.js",
+  "main": "dist/index.js",
   "bin": {
-    "claude-nexus-proxy": "./dist/main.js"
+    "claude-nexus": "./dist/index.js"
   },
   "scripts": {
     "dev": "bun run src/main.ts",
