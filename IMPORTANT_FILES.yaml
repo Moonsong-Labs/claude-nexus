@@ -1,5 +1,5 @@
 version: 1
-generated_by: repo-knowledge-tracker  
+generated_by: repo-knowledge-tracker
 last_updated: '2025-08-19T00:00:00Z'
 entries:
   # High-Impact Configuration Files
@@ -20,7 +20,7 @@ entries:
     recommended_action: 'Update repository URL to claude-nexus'
     notes: 'Critical for package registry integration and CI/CD'
 
-  # Docker Infrastructure 
+  # Docker Infrastructure
   - path: '/home/crystalin/claude-nexus/docker/build-images.sh'
     title: 'Docker Image Build Script'
     why_important: 'Builds Docker images with old names - affects deployment and distribution'
@@ -33,13 +33,13 @@ entries:
       indirect: []
     update_triggers: ['docker image naming', 'deployment updates']
     last_seen: '2025-08-19'
-    last_reviewed_at: '2025-08-19' 
+    last_reviewed_at: '2025-08-19'
     staleness_hints: 'Lines 47,52,81,86,109,117,118,124: alanpurestake/claude-nexus image names'
     recommended_action: 'Update Docker image names from claude-nexus to claude-nexus'
     notes: 'High impact - affects all deployment scripts and Docker Hub repositories'
 
   - path: '/home/crystalin/claude-nexus/docker/push-images.sh'
-    title: 'Docker Image Push Script'  
+    title: 'Docker Image Push Script'
     why_important: 'Pushes Docker images to registry - must match build script naming'
     topics: ['docker', 'registry', 'deployment']
     owners: ['@ops-team']
@@ -57,7 +57,7 @@ entries:
 
   - path: '/home/crystalin/claude-nexus/docker/docker-compose.yml'
     title: 'Docker Compose Configuration'
-    why_important: 'Container orchestration config - defines service image names and container names' 
+    why_important: 'Container orchestration config - defines service image names and container names'
     topics: ['docker-compose', 'orchestration', 'containers']
     owners: ['@ops-team']
     linked_docs: ['docker/README.md']
@@ -77,7 +77,7 @@ entries:
     title: 'Proxy Update Script'
     why_important: 'Production deployment script - references Docker image names'
     topics: ['deployment', 'production', 'docker-images']
-    owners: ['@ops-team'] 
+    owners: ['@ops-team']
     linked_docs: ['scripts/ops/README.md']
     related_components: ['docker images', 'production servers']
     dependencies:
@@ -95,7 +95,7 @@ entries:
     why_important: 'Manages proxy containers across EC2 instances - contains old repo paths and image names'
     topics: ['multi-server', 'ec2', 'deployment', 'management']
     owners: ['@ops-team']
-    linked_docs: ['scripts/ops/README.md']  
+    linked_docs: ['scripts/ops/README.md']
     related_components: ['production EC2 instances']
     dependencies:
       direct: ['ssh', 'ec2-instances', 'git']
@@ -125,7 +125,7 @@ entries:
     recommended_action: 'Update all repository references and GitHub URLs'
     notes: 'Most visible file - high priority for user experience'
 
-  - path: '/home/crystalin/claude-nexus/CLAUDE.md'  
+  - path: '/home/crystalin/claude-nexus/CLAUDE.md'
     title: 'Project Instructions for AI'
     why_important: 'AI guidance document - contains repository structure documentation'
     topics: ['ai-instructions', 'repository-structure', 'project-description']
@@ -142,7 +142,7 @@ entries:
     recommended_action: 'Update repository structure diagram'
     notes: 'Important for AI assistants working with the project'
 
-  # Generated/API Files  
+  # Generated/API Files
   - path: '/home/crystalin/claude-nexus/packages/shared/src/generated/api-client/index.ts'
     title: 'Generated API Client'
     why_important: 'Generated file referencing old repository path - may need regeneration'
@@ -160,7 +160,7 @@ entries:
     recommended_action: 'Regenerate after updating source files'
     notes: 'Auto-generated - update source and regenerate'
 
-  - path: '/home/crystalin/claude-nexus/docs/api/openapi-analysis.yaml' 
+  - path: '/home/crystalin/claude-nexus/docs/api/openapi-analysis.yaml'
     title: 'OpenAPI Specification'
     why_important: 'API documentation with old GitHub URL - source for generated client'
     topics: ['api-spec', 'openapi', 'documentation']
