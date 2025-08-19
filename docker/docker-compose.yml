@@ -32,7 +32,7 @@ services:
     build:
       context: ../
       dockerfile: docker/proxy/Dockerfile
-    image: claude-nexus:local
+    image: claude-nexus-proxy:local
     container_name: claude-nexus
     environment:
       # Server configuration
