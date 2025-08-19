@@ -381,7 +381,7 @@ claude-nexus-proxy/
 └── scripts/             # Management utilities
 ```
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+See [Architecture Overview](docs/00-Overview/architecture.md) for detailed architecture documentation.
 
 ## Development
 
@@ -406,7 +406,7 @@ bun run ai:check-content       # Inspect analysis content
 bun run ai:reset-stuck         # Reset jobs with high retry counts
 ```
 
-See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.
+See [Development Guide](docs/01-Getting-Started/development.md) for development guidelines.
 
 ## Deployment
 
@@ -499,13 +499,9 @@ Comprehensive documentation is available in the [docs](docs/) directory:
 
 Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) first.
 
-## License
-
-[MIT License](LICENSE)
-
 ## Support
 
 - 📖 [Full Documentation](docs/README.md)
-- 🐛 [Issue Tracker](https://github.com/yourusername/claude-nexus-proxy/issues)
-- 💬 [Discussions](https://github.com/yourusername/claude-nexus-proxy/discussions)
+- 🐛 [Issue Tracker](https://github.com/Moonsong-Labs/claude-nexus-proxy/issues)
+- 💬 [Discussions](https://github.com/Moonsong-Labs/claude-nexus-proxy/discussions)
 - 📊 [Changelog](docs/06-Reference/changelog.md)
