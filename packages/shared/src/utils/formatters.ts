@@ -6,13 +6,17 @@
  * Format a number with K/M suffixes
  */
 export function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
+  const n = Number(num)
+  if (!Number.isFinite(n)) {
+    return '0'
   }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
+  if (n >= 1000000) {
+    return `${(n / 1000000).toFixed(1)}M`
   }
-  return num.toString()
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1)}K`
+  }
+  return n.toString()
 }
 
 /**
