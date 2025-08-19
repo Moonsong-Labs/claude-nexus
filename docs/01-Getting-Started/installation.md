@@ -19,8 +19,8 @@ Before you begin, ensure you have the following:
 #### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/claude-nexus-proxy.git
-cd claude-nexus-proxy
+git clone https://github.com/yourusername/claude-nexus.git
+cd claude-nexus
 ```
 
 #### 2. Install Dependencies
@@ -100,8 +100,8 @@ bun run dev:dashboard  # Dashboard on port 3001
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/claude-nexus-proxy.git
-cd claude-nexus-proxy
+git clone https://github.com/yourusername/claude-nexus.git
+cd claude-nexus
 
 # Create .env file
 cp .env.example .env
@@ -118,7 +118,7 @@ docker compose logs -f
 
 ```bash
 # Pull the images
-docker pull alanpurestake/claude-nexus-proxy:latest
+docker pull alanpurestake/claude-nexus:latest
 docker pull alanpurestake/claude-nexus-dashboard:latest
 
 # Run PostgreSQL
@@ -137,7 +137,7 @@ docker run -d \
   -e DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/claude_nexus \
   -e STORAGE_ENABLED=true \
   -v $(pwd)/credentials:/app/credentials \
-  alanpurestake/claude-nexus-proxy:latest
+  alanpurestake/claude-nexus:latest
 
 # Run the dashboard
 docker run -d \

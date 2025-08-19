@@ -1,110 +1,196 @@
 version: 1
-generated_by: repo-knowledge-tracker
-last_updated: '2025-01-12T00:00:00Z'
+generated_by: repo-knowledge-tracker  
+last_updated: '2025-08-19T00:00:00Z'
 entries:
-  # Documentation files that need updates for system prompt display feature
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/02-User-Guide/dashboard-guide.md'
-    title: 'Dashboard User Guide'
-    why_important: 'Primary user-facing documentation for dashboard features - needs update for system prompt display'
-    topics: ['dashboard', 'ui', 'conversation-view', 'message-display']
-    owners: ['@dashboard-team']
-    linked_docs:
-      [
-        'docs/02-User-Guide/api-reference.md',
-        'docs/04-Architecture/ADRs/adr-009-dashboard-architecture.md',
-      ]
-    related_components: ['services/dashboard/*', 'packages/shared/types/*']
+  # High-Impact Configuration Files
+  - path: '/home/crystalin/claude-nexus/package.json'
+    title: 'Root Package Configuration'
+    why_important: 'Contains repository URL that references old name - critical for package management'
+    topics: ['repository-url', 'github-integration', 'package-config']
+    owners: ['@core-team']
+    linked_docs: []
+    related_components: ['all services']
     dependencies:
-      direct: []
+      direct: ['git', 'npm/bun registry']
       indirect: []
-    update_triggers: ['new dashboard features', 'UI changes', 'conversation view updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Missing documentation for system prompt display in conversation view'
-    recommended_action: 'Add section on system prompt visibility and styling in conversation view'
-    notes: 'Lines 67-90 cover conversation tracking, need to add system prompt display details'
+    update_triggers: ['repository renaming', 'package publishing']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Line 8: repository URL still references claude-nexus'
+    recommended_action: 'Update repository URL to claude-nexus'
+    notes: 'Critical for package registry integration and CI/CD'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/02-User-Guide/api-reference.md'
-    title: 'API Reference Documentation'
-    why_important: 'Defines API response structures including message roles - may need updates for system role'
-    topics: ['api', 'messages', 'response-structure', 'roles']
-    owners: ['@api-team']
-    linked_docs: ['docs/04-Architecture/ADRs/adr-003-conversation-tracking.md']
-    related_components: ['services/proxy/*', 'packages/shared/types/*']
+  # Docker Infrastructure 
+  - path: '/home/crystalin/claude-nexus/docker/build-images.sh'
+    title: 'Docker Image Build Script'
+    why_important: 'Builds Docker images with old names - affects deployment and distribution'
+    topics: ['docker', 'build', 'deployment', 'images']
+    owners: ['@ops-team']
+    linked_docs: ['docker/README.md', 'docs/03-Operations/deployment/']
+    related_components: ['docker/push-images.sh', 'docker/docker-compose.yml']
     dependencies:
-      direct: []
+      direct: ['docker', 'docker-hub']
       indirect: []
-    update_triggers: ['API changes', 'new message types', 'response structure updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'May need to document system role in message structure'
-    recommended_action: 'Verify system role is documented in message types and response examples'
-    notes: 'Lines 43-77 show message structure, check if system role is covered'
+    update_triggers: ['docker image naming', 'deployment updates']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19' 
+    staleness_hints: 'Lines 47,52,81,86,109,117,118,124: alanpurestake/claude-nexus image names'
+    recommended_action: 'Update Docker image names from claude-nexus to claude-nexus'
+    notes: 'High impact - affects all deployment scripts and Docker Hub repositories'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/00-Overview/features.md'
-    title: 'Features Overview'
-    why_important: 'High-level feature documentation that should mention system prompt display capability'
-    topics: ['features', 'dashboard', 'conversation-management']
-    owners: ['@product-team']
-    linked_docs: ['docs/02-User-Guide/dashboard-guide.md']
-    related_components: ['services/dashboard/*']
+  - path: '/home/crystalin/claude-nexus/docker/push-images.sh'
+    title: 'Docker Image Push Script'  
+    why_important: 'Pushes Docker images to registry - must match build script naming'
+    topics: ['docker', 'registry', 'deployment']
+    owners: ['@ops-team']
+    linked_docs: ['docker/build-images.sh']
+    related_components: ['docker/build-images.sh']
     dependencies:
-      direct: []
+      direct: ['docker-hub']
       indirect: []
-    update_triggers: ['new features', 'product updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Should mention system prompt display as a dashboard feature'
-    recommended_action: 'Add system prompt visibility to conversation management features section'
-    notes: 'Lines 51-58 cover conversation management features'
+    update_triggers: ['docker image naming changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Lines 45,67,86,90: alanpurestake/claude-nexus references'
+    recommended_action: 'Update Docker image references to claude-nexus'
+    notes: 'Must be synchronized with build script changes'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/04-Architecture/ADRs/adr-003-conversation-tracking.md'
-    title: 'ADR-003: Conversation Tracking'
-    why_important: 'Defines how messages are tracked - may need update for system message handling'
-    topics: ['architecture', 'conversation-tracking', 'message-hashing', 'system-messages']
-    owners: ['@architecture-team']
-    linked_docs: ['docs/02-User-Guide/api-reference.md']
-    related_components: ['services/proxy/src/conversation/*', 'packages/shared/types/*']
+  - path: '/home/crystalin/claude-nexus/docker/docker-compose.yml'
+    title: 'Docker Compose Configuration'
+    why_important: 'Container orchestration config - defines service image names and container names' 
+    topics: ['docker-compose', 'orchestration', 'containers']
+    owners: ['@ops-team']
+    linked_docs: ['docker/README.md']
+    related_components: ['docker/build-images.sh']
     dependencies:
-      direct: []
+      direct: ['docker-compose']
       indirect: []
-    update_triggers: ['conversation tracking changes', 'message handling updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Already mentions system-reminder filtering, may need updates for system prompt handling'
-    recommended_action: 'Review if system prompt messages need special handling in hash generation'
-    notes: 'Line 47 shows system-reminder filtering, verify system prompts are handled correctly'
+    update_triggers: ['container naming changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Lines 35-36: image and container name still reference claude-nexus'
+    recommended_action: 'Update image name and container name references'
+    notes: 'Affects local development and docker-up.sh script'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/06-Reference/changelog.md'
-    title: 'Changelog'
-    why_important: 'Should document new system prompt display feature when implemented'
-    topics: ['changelog', 'releases', 'features']
-    owners: ['@release-team']
+  # Operations Scripts
+  - path: '/home/crystalin/claude-nexus/scripts/ops/update-proxy.sh'
+    title: 'Proxy Update Script'
+    why_important: 'Production deployment script - references Docker image names'
+    topics: ['deployment', 'production', 'docker-images']
+    owners: ['@ops-team'] 
+    linked_docs: ['scripts/ops/README.md']
+    related_components: ['docker images', 'production servers']
+    dependencies:
+      direct: ['docker', 'production-servers']
+      indirect: []
+    update_triggers: ['docker image name changes', 'production deployments']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Lines 12,32,33,35,104: docker image and container names with old naming'
+    recommended_action: 'Update PROXY_IMAGE and container references to new naming'
+    notes: 'Critical for production deployments - must coordinate with Docker Hub'
+
+  - path: '/home/crystalin/claude-nexus/scripts/ops/manage-nexus-proxies.sh'
+    title: 'Multi-Server Management Script'
+    why_important: 'Manages proxy containers across EC2 instances - contains old repo paths and image names'
+    topics: ['multi-server', 'ec2', 'deployment', 'management']
+    owners: ['@ops-team']
+    linked_docs: ['scripts/ops/README.md']  
+    related_components: ['production EC2 instances']
+    dependencies:
+      direct: ['ssh', 'ec2-instances', 'git']
+      indirect: []
+    update_triggers: ['repository path changes', 'container naming']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Multiple lines: ~/claude-nexus paths and container names'
+    recommended_action: 'Update repository paths and container names throughout script'
+    notes: 'Affects remote server operations - coordinate with server directory structure'
+
+  # Documentation - High Priority
+  - path: '/home/crystalin/claude-nexus/README.md'
+    title: 'Main Project README'
+    why_important: 'Primary entry point - contains multiple old repository references and clone instructions'
+    topics: ['documentation', 'installation', 'github-urls']
+    owners: ['@docs-team']
+    linked_docs: ['docs/']
+    related_components: []
+    dependencies:
+      direct: ['github']
+      indirect: []
+    update_triggers: ['repository renaming']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Lines 113,114,219,297,352,353: old repository name and GitHub URLs'
+    recommended_action: 'Update all repository references and GitHub URLs'
+    notes: 'Most visible file - high priority for user experience'
+
+  - path: '/home/crystalin/claude-nexus/CLAUDE.md'  
+    title: 'Project Instructions for AI'
+    why_important: 'AI guidance document - contains repository structure documentation'
+    topics: ['ai-instructions', 'repository-structure', 'project-description']
+    owners: ['@ai-team']
     linked_docs: []
     related_components: []
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['new releases', 'feature additions']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'Will need entry for system prompt display feature'
-    recommended_action: 'Add changelog entry when system prompt display feature is released'
-    notes: 'Standard changelog entry needed for new feature'
+    update_triggers: ['repository renaming', 'project structure changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Line 167: claude-nexus/ in repository structure'
+    recommended_action: 'Update repository structure diagram'
+    notes: 'Important for AI assistants working with the project'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/04-Architecture/internals.md'
-    title: 'Architecture Internals'
-    why_important: 'Technical documentation that may cover message processing internals'
-    topics: ['architecture', 'internals', 'message-processing']
-    owners: ['@architecture-team']
-    linked_docs: ['docs/04-Architecture/ADRs/adr-003-conversation-tracking.md']
-    related_components: ['services/proxy/*', 'services/dashboard/*']
+  # Generated/API Files  
+  - path: '/home/crystalin/claude-nexus/packages/shared/src/generated/api-client/index.ts'
+    title: 'Generated API Client'
+    why_important: 'Generated file referencing old repository path - may need regeneration'
+    topics: ['generated-code', 'api-client']
+    owners: ['@api-team']
+    linked_docs: ['docs/api/openapi-analysis.yaml']
+    related_components: ['docs/api/openapi-analysis.yaml']
+    dependencies:
+      direct: ['code-generation-tools']
+      indirect: []
+    update_triggers: ['source file changes', 'regeneration']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Line 3: Generated from old repository path'
+    recommended_action: 'Regenerate after updating source files'
+    notes: 'Auto-generated - update source and regenerate'
+
+  - path: '/home/crystalin/claude-nexus/docs/api/openapi-analysis.yaml' 
+    title: 'OpenAPI Specification'
+    why_important: 'API documentation with old GitHub URL - source for generated client'
+    topics: ['api-spec', 'openapi', 'documentation']
+    owners: ['@api-team']
+    linked_docs: []
+    related_components: ['packages/shared/src/generated/api-client/']
+    dependencies:
+      direct: ['api-documentation-tools']
+      indirect: []
+    update_triggers: ['api changes', 'repository url changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Line 36: GitHub URL with old repository name'
+    recommended_action: 'Update GitHub URL in API specification'
+    notes: 'Source file for generated code - update before regeneration'
+
+  # Test Data and Fixtures
+  - path: '/home/crystalin/claude-nexus/test/data/'
+    title: 'Test Data Directory'
+    why_important: 'Contains test fixtures with embedded old repository paths'
+    topics: ['test-data', 'fixtures']
+    owners: ['@test-team']
+    linked_docs: []
+    related_components: ['test suite']
     dependencies:
       direct: []
       indirect: []
-    update_triggers: ['architecture changes', 'internal processing updates']
-    last_seen: '2025-01-12'
-    last_reviewed_at: '2025-01-12'
-    staleness_hints: 'May need updates for system prompt handling in message flow'
-    recommended_action: 'Check if system prompt processing needs documentation'
-    notes: 'Review for any message processing that affects system prompts'
+    update_triggers: ['test updates', 'repository path changes']
+    last_seen: '2025-08-19'
+    last_reviewed_at: '2025-08-19'
+    staleness_hints: 'Multiple JSON files contain old paths in embedded content'
+    recommended_action: 'Update paths in test fixtures or regenerate test data'
+    notes: 'Low priority - embedded in test data, may not need immediate update'

@@ -99,7 +99,7 @@ function getPackageVersion(): string {
 function showHelp() {
   console.log(`Claude Nexus Proxy Service v${getPackageVersion()}
 
-Usage: claude-nexus-proxy [options]
+Usage: claude-nexus [options]
 
 Options:
   -v, --version              Show version number
@@ -123,11 +123,11 @@ Environment Variables:
   SLACK_ENABLED               Enable/disable Slack notifications (default: true if webhook provided)
 
 Examples:
-  claude-nexus-proxy
-  claude-nexus-proxy --port 8080
-  claude-nexus-proxy --host localhost --port 3000
-  claude-nexus-proxy --env-file .env.production
-  PORT=8787 HOST=127.0.0.1 claude-nexus-proxy
+  claude-nexus
+  claude-nexus --port 8080
+  claude-nexus --host localhost --port 3000
+  claude-nexus --env-file .env.production
+  PORT=8787 HOST=127.0.0.1 claude-nexus
 
 Note: The proxy automatically loads .env file from the current directory.
 Use --env-file to specify a different configuration file.`)

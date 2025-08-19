@@ -42,7 +42,7 @@ fi
 
 # Push proxy image
 echo -e "\n${BLUE}Pushing Proxy Service...${NC}"
-docker push alanpurestake/claude-nexus-proxy:${TAG}
+docker push alanpurestake/claude-nexus:${TAG}
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Proxy image pushed successfully${NC}"
 else
@@ -64,7 +64,7 @@ fi
 if [ "$TAG" != "latest" ] && [ "$PUSH_LATEST" = "yes" ]; then
     echo -e "\n${BLUE}Also pushing 'latest' tags...${NC}"
     
-    docker push alanpurestake/claude-nexus-proxy:latest
+    docker push alanpurestake/claude-nexus:latest
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓ Proxy 'latest' pushed successfully${NC}"
     else
@@ -83,9 +83,9 @@ fi
 
 echo -e "\n${GREEN}Push completed successfully!${NC}"
 echo -e "\nImages available at:"
-echo -e "  ${YELLOW}https://hub.docker.com/r/alanpurestake/claude-nexus-proxy${NC}"
+echo -e "  ${YELLOW}https://hub.docker.com/r/alanpurestake/claude-nexus${NC}"
 echo -e "  ${YELLOW}https://hub.docker.com/r/alanpurestake/claude-nexus-dashboard${NC}"
 
 echo -e "\nTo pull and run:"
-echo -e "  ${BLUE}docker pull alanpurestake/claude-nexus-proxy:${TAG}${NC}"
+echo -e "  ${BLUE}docker pull alanpurestake/claude-nexus:${TAG}${NC}"
 echo -e "  ${BLUE}docker pull alanpurestake/claude-nexus-dashboard:${TAG}${NC}"

@@ -9,7 +9,7 @@
 
 VERSION=$1
 SERVICE=$2
-PROXY_IMAGE="alanpurestake/claude-nexus-proxy"
+PROXY_IMAGE="alanpurestake/claude-nexus"
 DASHBOARD_IMAGE="alanpurestake/claude-nexus-dashboard"
 
 if [ -z "$VERSION" ]; then
@@ -29,10 +29,10 @@ update_proxy() {
     fi
 
     echo "Updating proxy container to $VERSION..."
-    docker stop claude-nexus-proxy 2>/dev/null
-    docker rm claude-nexus-proxy 2>/dev/null
+    docker stop claude-nexus 2>/dev/null
+    docker rm claude-nexus 2>/dev/null
 
-    docker run -d --name claude-nexus-proxy \
+    docker run -d --name claude-nexus \
         --network claude-nexus-network \
         --restart unless-stopped \
         -p 3000:3000 \
@@ -101,4 +101,4 @@ esac
 
 echo ""
 echo "Container status:"
-docker ps | grep -E "claude-nexus-proxy|claude-nexus-dashboard"
+docker ps | grep -E "claude-nexus|claude-nexus-dashboard"

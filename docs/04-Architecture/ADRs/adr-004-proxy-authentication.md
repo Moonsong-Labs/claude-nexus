@@ -136,7 +136,7 @@ We will implement **Bearer Token Authentication** with domain-specific API keys 
 
 ## Links
 
-- [PR #2: Proxy-level authentication](https://github.com/your-org/claude-nexus-proxy/pull/2)
+- [PR #2: Proxy-level authentication](https://github.com/your-org/claude-nexus/pull/2)
 - [Security Guide](../../03-Operations/security.md)
 - [Authentication Guide](../../02-User-Guide/authentication.md)
 

@@ -282,7 +282,7 @@ export async function createProxyApp(): Promise<
     }
 
     return c.json({
-      service: 'claude-nexus-proxy',
+      service: 'claude-nexus',
       version: process.env.npm_package_version || 'unknown',
       status: 'operational',
       endpoints,

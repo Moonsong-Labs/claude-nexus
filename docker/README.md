@@ -4,7 +4,7 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 
 ## Images
 
-### 1. Proxy Service (`alanpurestake/claude-nexus-proxy`)
+### 1. Proxy Service (`alanpurestake/claude-nexus`)
 
 - Port: 3000
 - Handles Claude API proxying
@@ -40,7 +40,7 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 
 ```bash
 # Build individually with custom tags
-docker build -f proxy/Dockerfile -t alanpurestake/claude-nexus-proxy:v9 ..
+docker build -f proxy/Dockerfile -t alanpurestake/claude-nexus:v9 ..
 docker build -f dashboard/Dockerfile -t alanpurestake/claude-nexus-dashboard:v9 ..
 ```
 
@@ -93,7 +93,7 @@ docker-compose --project-name claude-nexus --env-file ../.env up -d
 # Proxy service
 docker run -p 3000:3000 \
   -v ./credentials:/app/credentials:ro \
-  alanpurestake/claude-nexus-proxy:latest
+  alanpurestake/claude-nexus:latest
 
 # Dashboard service
 docker run -p 3001:3001 \

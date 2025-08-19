@@ -577,7 +577,7 @@ spec:
     spec:
       containers:
         - name: proxy
-          image: claude-nexus-proxy:latest
+          image: claude-nexus:latest
           env:
             - name: DATABASE_URL
               valueFrom:

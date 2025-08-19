@@ -33,7 +33,7 @@ info:
   version: 1.0.0
   contact:
     name: Claude Nexus Proxy
-    url: https://github.com/alanpurestake/claude-nexus-proxy
+    url: https://github.com/alanpurestake/claude-nexus
 
 servers:
   - url: http://localhost:3000
