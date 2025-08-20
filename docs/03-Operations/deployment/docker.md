@@ -17,7 +17,7 @@ The project provides optimized Docker images for each service.
 ./docker/build-images.sh
 
 # Or build individually
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy .
+docker build -f docker/proxy/Dockerfile -t moonsonglabs/claude-nexus-proxy .
 docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard .
 ```
 
@@ -44,7 +44,7 @@ docker run -d \
   -p 3000:3000 \
   -e DATABASE_URL=$DATABASE_URL \
   -v $(pwd)/credentials:/app/credentials:ro \
-  claude-nexus-proxy
+  moonsonglabs/claude-nexus-proxy
 
 # Run dashboard
 # ⚠️ CRITICAL: Always set DASHBOARD_API_KEY to prevent unauthorized access
@@ -102,7 +102,7 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=proxy
-WorkingDirectory=/opt/claude-nexus-proxy
+WorkingDirectory=/opt/claude-nexus
 Environment="DATABASE_URL=postgresql://..."
 ExecStart=/usr/local/bin/bun run services/proxy/dist/index.js
 Restart=always
@@ -379,12 +379,12 @@ networks:
 
 ```bash
 # Secure credentials
-chmod 700 /opt/claude-nexus-proxy/credentials
-chmod 600 /opt/claude-nexus-proxy/credentials/*
+chmod 700 /opt/claude-nexus/credentials
+chmod 600 /opt/claude-nexus/credentials/*
 
 # Application files
-chown -R proxy:proxy /opt/claude-nexus-proxy
-chmod -R 755 /opt/claude-nexus-proxy
+chown -R proxy:proxy /opt/claude-nexus
+chmod -R 755 /opt/claude-nexus
 ```
 
 ## Backup and Recovery
@@ -401,7 +401,7 @@ BACKUP_DIR=/backups
 pg_dump $DATABASE_URL | gzip > $BACKUP_DIR/db_$DATE.sql.gz
 
 # Credentials backup
-tar czf $BACKUP_DIR/credentials_$DATE.tar.gz /opt/claude-nexus-proxy/credentials
+tar czf $BACKUP_DIR/credentials_$DATE.tar.gz /opt/claude-nexus/credentials
 
 # Retention (keep 7 days)
 find $BACKUP_DIR -name "*.gz" -mtime +7 -delete
@@ -431,7 +431,7 @@ docker-compose up -d
 
 ```bash
 # Update proxy without downtime
-docker service update --image claude-nexus-proxy:new proxy
+docker service update --image moonsonglabs/claude-nexus-proxy:new proxy
 
 # Update dashboard
 docker service update --image claude-nexus-dashboard:new dashboard
@@ -456,7 +456,7 @@ psql $DATABASE_URL -c "REINDEX DATABASE claude_nexus;"
 docker stats
 
 # Limit container memory
-docker run -m 1g claude-nexus-proxy
+docker run -m 1g moonsonglabs/claude-nexus-proxy
 ```
 
 ### Slow Queries

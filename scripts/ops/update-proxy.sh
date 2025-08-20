@@ -9,8 +9,8 @@
 
 VERSION=$1
 SERVICE=$2
-PROXY_IMAGE="alanpurestake/claude-nexus-proxy"
-DASHBOARD_IMAGE="alanpurestake/claude-nexus-dashboard"
+PROXY_IMAGE="moonsonglabs/claude-nexus-proxy"
+DASHBOARD_IMAGE="moonsonglabs/claude-nexus-dashboard"
 
 if [ -z "$VERSION" ]; then
     echo "Error: Version not specified"

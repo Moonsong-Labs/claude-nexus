@@ -110,7 +110,7 @@ Get Claude Nexus Proxy running locally in seconds.
 - Claude Code subscription
 
 ```bash
-docker run -d -p 3000:3000 -p 3001:3001 --name claude-nexus alanpurestake/claude-nexus-all-in:latest
+docker run -d -p 3000:3000 -p 3001:3001 --name claude-nexus moonsonglabs/claude-nexus-all-in:latest
 ANTHROPIC_BASE_URL=http://localhost:3000 claude
 ```
 
@@ -398,7 +398,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 ```bash
 # Build images individually
-docker build -f docker/proxy/Dockerfile -t claude-nexus:local .
+docker build -f docker/proxy/Dockerfile -t moonsonglabs/claude-nexus-proxy:local .
 docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
 ```
 

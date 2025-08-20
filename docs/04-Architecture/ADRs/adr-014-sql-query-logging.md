@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-During development and troubleshooting of the claude-nexus-proxy, developers need visibility into SQL queries being executed by the application. This is particularly important for:
+During development and troubleshooting of Claude Nexus, developers need visibility into SQL queries being executed by the application. This is particularly important for:
 
 - Debugging conversation linking logic
 - Optimizing slow queries

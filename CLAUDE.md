@@ -164,7 +164,7 @@ Claude Nexus Proxy - High-performance proxy for Claude API with real-time monito
 ### Repository Structure
 
 ```
-claude-nexus-proxy/
+claude-nexus/
 ├── packages/shared/     # Shared types and utilities
 ├── services/
 │   ├── proxy/          # API proxy service (Port 3000)

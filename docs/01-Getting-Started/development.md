@@ -13,8 +13,8 @@ This guide covers setting up and developing Claude Nexus Proxy.
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/yourusername/claude-nexus-proxy.git
-cd claude-nexus-proxy
+git clone https://github.com/yourusername/claude-nexus.git
+cd claude-nexus
 bun install
 ```
 
@@ -60,7 +60,7 @@ bun run dev:dashboard  # Port 3001
 ## Project Structure
 
 ```
-claude-nexus-proxy/
+claude-nexus/
 ├── packages/
 │   └── shared/          # Shared types and utilities
 ├── services/
