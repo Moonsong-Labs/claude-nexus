@@ -53,20 +53,6 @@ for i in $(seq 1 60); do
   [ $i -eq 60 ] && { err "PostgreSQL did not become ready in time"; exit 1; }
 done
 
-# Create user/db and set password (idempotent, demo default)
-psql_cmd=(psql -h 127.0.0.1 -p "$PGPORT" -U postgres -v ON_ERROR_STOP=1)
-${psql_cmd[@]} -tc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1 || ${psql_cmd[@]} -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';"
-${psql_cmd[@]} -tc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1 || ${psql_cmd[@]} -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
-${psql_cmd[@]} -d "$DB_NAME" -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';" >/dev/null
-
-# Apply schema
-if [ -f "/app/scripts/init-database.sql" ]; then
-  log "Applying database schema..."
-  ${psql_cmd[@]} -d "$DB_NAME" -f "/app/scripts/init-database.sql" >/dev/null || warn "Schema apply reported warnings; continuing"
-else
-  warn "Schema file /app/scripts/init-database.sql not found"
-fi
-
 # Start Proxy
 log "Starting Proxy on ${HOST}:${PORT}..."
 BUN_PROXY_CMD=(bun services/proxy/dist/index.js)
