@@ -120,7 +120,7 @@ Environment Variables:
   SLACK_CHANNEL               Slack channel override (optional)
   SLACK_USERNAME              Slack bot username (default: Claude Nexus Proxy)
   SLACK_ICON_EMOJI            Slack bot icon (default: :robot_face:)
-  SLACK_ENABLED               Enable/disable Slack notifications (default: true if webhook provided)
+  SLACK_ENABLED               Enable/disable Slack notifications (default: false)
 
 Examples:
   claude-nexus-proxy

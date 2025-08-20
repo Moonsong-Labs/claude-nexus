@@ -54,7 +54,7 @@ services:
       SLACK_CHANNEL: ${SLACK_CHANNEL}
       SLACK_USERNAME: ${SLACK_USERNAME:-Claude Nexus Proxy}
       SLACK_ICON_EMOJI: ${SLACK_ICON_EMOJI:-:robot_face:}
-      SLACK_ENABLED: ${SLACK_ENABLED:-true}
+      SLACK_ENABLED: ${SLACK_ENABLED:-false}
       
       # Debug
       DEBUG: ${DEBUG:-false}
@@ -102,19 +102,6 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # Optional: pgAdmin for database management
-  # To enable: docker-compose up
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
 
   # Claude CLI Service - Run Claude CLI connected to the proxy
   claude-cli:

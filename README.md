@@ -100,39 +100,143 @@ For administrators or heavy users, you can follow the token usage and see when a
 
 ## Quick Start
 
+Get Claude Nexus Proxy running locally in seconds.
+
+### 🔥 Super Quick Start (All-in-One Docker + Claude CLI)
+
+**Prerequisites:**
+
+- [Docker](https://docker.com)
+- Claude Code subscription
+
+```bash
+docker run -d -p 3000:3000 -p 3001:3001 --name claude-nexus alanpurestake/claude-nexus-all-in:latest
+ANTHROPIC_BASE_URL=http://localhost:3000 claude
+```
+
+You're all set—open `http://localhost:3001` to watch conversations live as you use Claude Code.
+
+---
+
+Looking to develop or contribute? Jump to [Development Setup](#development-setup).
+
+---
+
+## Development Setup
+
+For developers who want to modify the proxy or dashboard code with **hot reload** capabilities.
+
 ### Prerequisites
 
 - [Bun](https://bun.sh) runtime (v1.0+)
-- PostgreSQL database
-- Claude Plan (_or Claude API Key_)
+- [Docker](https://docker.com) and Docker Compose
+- Claude API Key
 
-### Installation
+### 🛠️ Development Workflow
+
+**1. Initial Setup**
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/claude-nexus-proxy.git
-cd claude-nexus-proxy
+# Clone and install dependencies
+git clone https://github.com/Moonsong-Labs/claude-nexus.git
+cd claude-nexus
+bun run setup
 
-# Install dependencies
-bun install
-
-# Set up environment variables
+# Configure environment
 cp .env.example .env
 # Edit .env with your settings
+```
 
-# Start development servers
+**2. Start Infrastructure Services**
+
+```bash
+# Start ONLY PostgreSQL, and Claude CLI (optimized for development)
+bun run docker:dev:up
+```
+
+**3. Start Application Services Locally**
+
+```bash
+# Start proxy and dashboard with hot reload
 bun run dev
 ```
 
-The proxy runs on `http://localhost:3000` and dashboard on `http://localhost:3001`.
-
-### Using Claude Code with the Proxy
-
-Run Claude CLI connected to your local proxy:
+### 🔧 Development Commands
 
 ```bash
-API_TIMEOUT_MS=300000 DISABLE_NON_ESSENTIAL_MODEL_CALLS=1 ANTHROPIC_BASE_URL=http://localhost:3000 claude
+# Infrastructure management
+bun run docker:dev:up      # Start development infrastructure (postgres, claude-cli)
+bun run docker:dev:down    # Stop development infrastructure
+bun run docker:dev:logs    # View infrastructure logs
+
+# Development workflow
+bun run dev                # Start local services with hot reload
+bun run typecheck          # Type checking
+bun run test               # Run tests
+bun run format             # Format code
+
+# Database operations
+bun run db:backup
+bun run db:analyze-conversations
 ```
+
+### 🎯 What This Gives You
+
+- ✅ **Hot reload** for code changes (proxy & dashboard run locally)
+- ✅ **Direct debugging** access with breakpoints
+- ✅ **Fast iteration** cycle (no container rebuilds)
+- ✅ **Production-like** database environment (PostgreSQL in Docker)
+- ✅ **Separate concerns** (infrastructure vs application services)
+
+### 🏗️ Architecture Comparison
+
+**Development Mode:**
+
+```
+Local Machine:           Docker Containers:
+├── Proxy (port 3000)    ├── PostgreSQL (port 5432)
+├── Dashboard (port 3001) └── Claude CLI
+└── Hot Reload ⚡
+```
+
+**vs. Full Docker Mode:**
+
+```
+Docker Containers:
+├── PostgreSQL (port 5432)
+├── Proxy (port 3000)
+├── Dashboard (port 3001)
+└── Claude CLI
+```
+
+---
+
+## Production Deployment
+
+For deploying Claude Nexus Proxy in production environments.
+
+### 📖 Deployment Guides
+
+Choose your deployment method:
+
+- **[AWS Infrastructure](docs/03-Operations/deployment/aws-infrastructure.md)** - Complete AWS deployment with RDS, ECS, and load balancing
+- **[Docker Compose Production](docs/03-Operations/deployment/docker-compose.md)** - Production Docker Compose setup
+- **[Docker Deployment](docs/03-Operations/deployment/docker.md)** - Container-based deployment options
+
+### 🔧 Operations Documentation
+
+- **[Security Guide](docs/03-Operations/security.md)** - Authentication, authorization, and security best practices
+- **[Monitoring](docs/03-Operations/monitoring.md)** - Observability and alerting setup
+- **[Database Management](docs/03-Operations/database.md)** - Database administration and maintenance
+- **[Backup & Recovery](docs/03-Operations/backup-recovery.md)** - Data protection strategies
+
+### ⚠️ Important Considerations
+
+- Always set `DASHBOARD_API_KEY` in production
+- Configure proper SSL/TLS certificates
+- Set up monitoring and alerting
+- Implement proper backup strategies
+- Review security documentation thoroughly
 
 ## Configuration
 
@@ -216,7 +320,7 @@ Features:
 ## Architecture
 
 ```
-claude-nexus-proxy/
+claude-nexus/
 ├── packages/shared/      # Shared types and utilities
 ├── services/
 │   ├── proxy/           # Proxy API service
@@ -224,7 +328,7 @@ claude-nexus-proxy/
 └── scripts/             # Management utilities
 ```
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+See [Architecture Overview](docs/00-Overview/architecture.md) for detailed architecture documentation.
 
 ## Development
 
@@ -249,7 +353,7 @@ bun run ai:check-content       # Inspect analysis content
 bun run ai:reset-stuck         # Reset jobs with high retry counts
 ```
 
-See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for development guidelines.
+See [Development Guide](docs/01-Getting-Started/development.md) for development guidelines.
 
 ## Deployment
 
@@ -285,16 +389,16 @@ See [AWS Infrastructure Guide](docs/03-Operations/deployment/aws-infrastructure.
 
 ```bash
 # Build and run with locally built images
-./docker-local.sh up -d --build
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-(_dashboard key: `key`_)
+(_dashboard key: `key` - demo only, set DASHBOARD_API_KEY in production_)
 
 #### Building Images Separately
 
 ```bash
 # Build images individually
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy:local .
+docker build -f docker/proxy/Dockerfile -t claude-nexus:local .
 docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
 ```
 
@@ -342,13 +446,9 @@ Comprehensive documentation is available in the [docs](docs/) directory:
 
 Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) first.
 
-## License
-
-[MIT License](LICENSE)
-
 ## Support
 
 - 📖 [Full Documentation](docs/README.md)
-- 🐛 [Issue Tracker](https://github.com/yourusername/claude-nexus-proxy/issues)
-- 💬 [Discussions](https://github.com/yourusername/claude-nexus-proxy/discussions)
+- 🐛 [Issue Tracker](https://github.com/Moonsong-Labs/claude-nexus/issues)
+- 💬 [Discussions](https://github.com/Moonsong-Labs/claude-nexus/discussions)
 - 📊 [Changelog](docs/06-Reference/changelog.md)

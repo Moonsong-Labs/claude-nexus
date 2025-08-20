@@ -1,0 +1,59 @@
+# Docker Compose configuration for development - Infrastructure services only
+# 
+# This compose file provides only the infrastructure services (database, CLI tools)
+# while allowing the proxy and dashboard to run locally for hot reload development.
+#
+# Usage from project root:
+#   bun run docker:dev:up
+#
+# Then start development services locally:
+#   bun run dev
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: claude-nexus-dev-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: claude_proxy
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ../scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  # Claude CLI Service - Connected to local proxy
+  claude-cli:
+    build:
+      context: ./claude-cli
+      dockerfile: Dockerfile
+    container_name: claude-nexus-dev-cli
+    environment:
+      # Proxy configuration pointing to host machine
+      ANTHROPIC_BASE_URL: http://host.docker.internal:3000
+    volumes:
+      # Mount the entire project for Claude Code functionality
+      - ../:/workspace
+    stdin_open: true
+    tty: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Note: No depends_on for proxy since it runs locally
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  default:
+    name: claude-nexus-dev-network
