@@ -33,7 +33,7 @@ services:
       context: ../
       dockerfile: docker/proxy/Dockerfile
     image: claude-nexus-proxy:local
-    container_name: claude-nexus
+    container_name: claude-nexus-proxy
     environment:
       # Server configuration
       PORT: 3000
