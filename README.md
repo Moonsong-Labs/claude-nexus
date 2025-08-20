@@ -100,77 +100,25 @@ For administrators or heavy users, you can follow the token usage and see when a
 
 ## Quick Start
 
-Get Claude Nexus Proxy running locally in **3 commands** - everything in Docker containers.
+Get Claude Nexus Proxy running locally in seconds.
 
-> **💡 Choose Your Path:**
->
-> - **Quick Evaluation** → Use this section (everything in Docker)
-> - **Active Development** → Jump to [Development Setup](#development-setup)
+### 🔥 Super Quick Start (All-in-One Docker + Claude CLI)
 
-### Prerequisites
+**Prerequisites:**
 
-- [Docker](https://docker.com) and Docker Compose
-- Claude API Key (_get one at [console.anthropic.com](https://console.anthropic.com)_)
-
-### 🚀 3-Step Setup
-
-**1. Clone and Configure**
+- [Docker](https://docker.com)
+- Claude Code subscription
 
 ```bash
-# Clone the repository
-git clone https://github.com/Moonsong-Labs/claude-nexus-proxy.git
-cd claude-nexus-proxy
-
-# Create environment file (required for dashboard security)
-cp .env.example .env
-# Edit .env and set DASHBOARD_API_KEY=your-secure-key-here
-```
-
-**2. Start Everything**
-
-```bash
-# Build and start all services (database, proxy, dashboard)
-bun run docker:up
-```
-
-**3. Access Your System**
-
-- 🔗 **Proxy API**: `http://localhost:3000`
-- 🌐 **Dashboard**: `http://localhost:3001` (login with your DASHBOARD_API_KEY)
-- 🗄️ **Database Admin**: `http://localhost:5050`
-
-> **Note**: To actually use the proxy, you'll need to set up Claude API credentials in the `credentials/` folder. See the [Configuration](#configuration) section below.
-
-### ⚡ Test It Works
-
-```bash
-# Quick API test (requires a client key in credentials/)
-curl -X POST http://localhost:3000/v1/messages \
-  -H "Authorization: Bearer YOUR_CLIENT_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "claude-3-haiku-20240307", "messages": [{"role": "user", "content": "Hello!"}]}'
-```
-
-### 🔧 Optional: Claude CLI Integration
-
-Connect Claude CLI to your local proxy:
-
-```bash
+docker run -d -p 3000:3000 -p 3001:3001 --name claude-nexus alanpurestake/claude-nexus-all-in:latest
 ANTHROPIC_BASE_URL=http://localhost:3000 claude
 ```
 
-### 🛑 Stop Everything
+You're all set—open `http://localhost:3001` to watch conversations live as you use Claude Code.
 
-```bash
-bun run docker:down
-```
+---
 
-### 📊 What You Get
-
-- **API Proxy** on port 3000 (drop-in replacement for Claude API)
-- **Web Dashboard** on port 3001 (conversation tracking & analytics)
-- **PostgreSQL Database** (conversation storage)
-- **Complete monitoring** of all Claude interactions
+Looking to develop or contribute? Jump to [Development Setup](#development-setup).
 
 ---
 
@@ -202,7 +150,7 @@ cp .env.example .env
 **2. Start Infrastructure Services**
 
 ```bash
-# Start ONLY PostgreSQL, pgAdmin, and Claude CLI (optimized for development)
+# Start ONLY PostgreSQL, and Claude CLI (optimized for development)
 bun run docker:dev:up
 ```
 
@@ -442,10 +390,10 @@ See [AWS Infrastructure Guide](docs/03-Operations/deployment/aws-infrastructure.
 
 ```bash
 # Build and run with locally built images
-./docker-local.sh up -d --build
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-(_dashboard key: `key`_)
+(_dashboard key: `key` - demo only, set DASHBOARD_API_KEY in production_)
 
 #### Building Images Separately
 
