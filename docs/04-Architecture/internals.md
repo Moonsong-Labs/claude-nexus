@@ -577,7 +577,7 @@ spec:
     spec:
       containers:
         - name: proxy
-          image: claude-nexus-proxy:latest
+          image: moonsonglabs/claude-nexus-proxy:latest
           env:
             - name: DATABASE_URL
               valueFrom:

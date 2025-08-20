@@ -292,13 +292,13 @@ config()
 Pass environment variables to Docker:
 
 ```bash
-docker run -e DATABASE_URL=postgresql://... claude-nexus-proxy
+docker run -e DATABASE_URL=postgresql://... moonsonglabs/claude-nexus-proxy
 ```
 
 Or use env file:
 
 ```bash
-docker run --env-file .env claude-nexus-proxy
+docker run --env-file .env moonsonglabs/claude-nexus-proxy
 ```
 
 ### From Docker Compose

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Claude Nexus Proxy - AI Analysis API
+  title: Claude Nexus - AI Analysis API
   description: |
     API endpoints for managing AI-powered conversation analysis in the Claude Nexus Proxy.
 
@@ -32,8 +32,8 @@ info:
 
   version: 1.0.0
   contact:
-    name: Claude Nexus Proxy
-    url: https://github.com/alanpurestake/claude-nexus-proxy
+    name: Claude Nexus
+    url: https://github.com/Moonsong-Labs/claude-nexus
 
 servers:
   - url: http://localhost:3000

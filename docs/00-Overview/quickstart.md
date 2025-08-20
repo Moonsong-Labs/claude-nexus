@@ -10,8 +10,8 @@
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/moonsong-labs/claude-nexus-proxy.git
-cd claude-nexus-proxy
+git clone https://github.com/moonsong-labs/claude-nexus.git
+cd claude-nexus
 cp .env.example .env
 
 # ⚠️ CRITICAL: Edit .env and set DASHBOARD_API_KEY!

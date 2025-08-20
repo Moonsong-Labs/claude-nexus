@@ -3,7 +3,7 @@ generated_by: repo-knowledge-tracker
 last_updated: '2025-01-12T00:00:00Z'
 entries:
   # Documentation files that need updates for system prompt display feature
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/02-User-Guide/dashboard-guide.md'
+  - path: 'docs/02-User-Guide/dashboard-guide.md'
     title: 'Dashboard User Guide'
     why_important: 'Primary user-facing documentation for dashboard features - needs update for system prompt display'
     topics: ['dashboard', 'ui', 'conversation-view', 'message-display']
@@ -24,7 +24,7 @@ entries:
     recommended_action: 'Add section on system prompt visibility and styling in conversation view'
     notes: 'Lines 67-90 cover conversation tracking, need to add system prompt display details'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/02-User-Guide/api-reference.md'
+  - path: 'docs/02-User-Guide/api-reference.md'
     title: 'API Reference Documentation'
     why_important: 'Defines API response structures including message roles - may need updates for system role'
     topics: ['api', 'messages', 'response-structure', 'roles']
@@ -41,7 +41,7 @@ entries:
     recommended_action: 'Verify system role is documented in message types and response examples'
     notes: 'Lines 43-77 show message structure, check if system role is covered'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/00-Overview/features.md'
+  - path: 'docs/00-Overview/features.md'
     title: 'Features Overview'
     why_important: 'High-level feature documentation that should mention system prompt display capability'
     topics: ['features', 'dashboard', 'conversation-management']
@@ -58,7 +58,7 @@ entries:
     recommended_action: 'Add system prompt visibility to conversation management features section'
     notes: 'Lines 51-58 cover conversation management features'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/04-Architecture/ADRs/adr-003-conversation-tracking.md'
+  - path: 'docs/04-Architecture/ADRs/adr-003-conversation-tracking.md'
     title: 'ADR-003: Conversation Tracking'
     why_important: 'Defines how messages are tracked - may need update for system message handling'
     topics: ['architecture', 'conversation-tracking', 'message-hashing', 'system-messages']
@@ -75,7 +75,7 @@ entries:
     recommended_action: 'Review if system prompt messages need special handling in hash generation'
     notes: 'Line 47 shows system-reminder filtering, verify system prompts are handled correctly'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/06-Reference/changelog.md'
+  - path: 'docs/06-Reference/changelog.md'
     title: 'Changelog'
     why_important: 'Should document new system prompt display feature when implemented'
     topics: ['changelog', 'releases', 'features']
@@ -92,7 +92,7 @@ entries:
     recommended_action: 'Add changelog entry when system prompt display feature is released'
     notes: 'Standard changelog entry needed for new feature'
 
-  - path: '/home/crystalin/projects/claude-nexus-proxy/docs/04-Architecture/internals.md'
+  - path: 'docs/04-Architecture/internals.md'
     title: 'Architecture Internals'
     why_important: 'Technical documentation that may cover message processing internals'
     topics: ['architecture', 'internals', 'message-processing']

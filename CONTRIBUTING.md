@@ -9,7 +9,7 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/yourusername/claude-nexus-proxy.git`
+2. Clone your fork: `git clone https://github.com/yourusername/claude-nexus.git`
 3. Create a feature branch: `git checkout -b feature/your-feature-name`
 4. Make your changes
 5. Submit a pull request

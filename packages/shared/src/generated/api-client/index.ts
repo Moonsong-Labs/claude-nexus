@@ -1,6 +1,6 @@
 /**
  * Auto-generated API client for Claude Nexus Proxy AI Analysis API
- * Generated from: /home/crystalin/projects/claude-nexus-proxy/docs/api/openapi-analysis.yaml
+ * Generated from: docs/api/openapi-analysis.yaml
  * Generated on: 2025-07-07T14:38:58.717Z
  */
 

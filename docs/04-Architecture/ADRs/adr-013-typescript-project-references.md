@@ -130,4 +130,4 @@ This change maintains compatibility with Bun's runtime while leveraging TypeScri
 ---
 
 Date: 2025-06-26
-Authors: Claude Assistant, crystalin
+Authors: Claude Assistant, Development Team

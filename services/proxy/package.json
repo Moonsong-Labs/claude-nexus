@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/main.js",
   "bin": {
-    "claude-nexus-proxy": "./dist/main.js"
+    "claude-nexus": "./dist/main.js"
   },
   "scripts": {
     "dev": "bun run src/main.ts",

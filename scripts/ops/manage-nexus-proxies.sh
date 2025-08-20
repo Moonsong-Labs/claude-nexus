@@ -129,7 +129,7 @@ pull_latest_code() {
     echo -e "${BLUE}Pulling latest code on $name...${NC}"
     
     ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-        "cd ~/claude-nexus-proxy && git pull origin main" 2>&1
+        "cd ~/claude-nexus && git pull origin main" 2>&1
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓ Code updated successfully${NC}"
@@ -224,7 +224,7 @@ execute_on_server_async() {
             "up")
                 # Pull latest code before updating
                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-                    "cd ~/claude-nexus-proxy && git pull origin main" 2>&1
+                    "cd ~/claude-nexus && git pull origin main" 2>&1
                 
                 if [ $? -eq 0 ]; then
                     echo -e "${GREEN}✓ Code updated${NC}"
@@ -283,7 +283,7 @@ execute_on_server() {
         "up")
             # Pull latest code before updating
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$ip \
-                "cd ~/claude-nexus-proxy && git pull origin main" 2>&1
+                "cd ~/claude-nexus && git pull origin main" 2>&1
             
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}✓ Code updated${NC}"
