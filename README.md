@@ -206,7 +206,6 @@ Docker Containers:
 ├── PostgreSQL (port 5432)
 ├── Proxy (port 3000)
 ├── Dashboard (port 3001)
-├── pgAdmin (port 5050)
 └── Claude CLI
 ```
 
