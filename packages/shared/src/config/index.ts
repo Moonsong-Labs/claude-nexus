@@ -223,7 +223,7 @@ export const config = {
       return env.string('TEST_SAMPLES_DIR', 'test-samples')
     },
     get enableClientAuth() {
-      return env.bool('ENABLE_CLIENT_AUTH', true)
+      return env.bool('ENABLE_CLIENT_AUTH', false)
     },
   },
 
