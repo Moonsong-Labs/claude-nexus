@@ -177,8 +177,8 @@ We will provide **Docker-based Claude CLI integration** with pre-configured cont
 
 ## Links
 
-- [PR #17: Docker CLI Setup](https://github.com/your-org/claude-nexus-proxy/pull/17)
-- [PR #19: CLI Enhancements](https://github.com/your-org/claude-nexus-proxy/pull/19)
+- [PR #17: Docker CLI Setup](https://github.com/Moonsong-Labs/claude-nexus/pull/17)
+- [PR #19: CLI Enhancements](https://github.com/Moonsong-Labs/claude-nexus/pull/19)
 - [Claude CLI Guide](../../02-User-Guide/claude-cli.md)
 
 ---

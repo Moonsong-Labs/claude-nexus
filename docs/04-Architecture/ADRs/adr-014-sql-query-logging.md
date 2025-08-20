@@ -155,7 +155,7 @@ The SQL logging feature has been successfully implemented and provides valuable 
 
 ## Links
 
-- [Implementation PR #44](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/44)
+- [Implementation PR #44](https://github.com/Moonsong-Labs/claude-nexus/pull/44)
 - [sql-logger.ts](../../../services/proxy/src/utils/sql-logger.ts)
 - [Database Configuration](../../../services/proxy/src/services/database.ts)
 

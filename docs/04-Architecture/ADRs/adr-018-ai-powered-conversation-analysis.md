@@ -219,7 +219,7 @@ Key files:
 
 - [Feature Plan](../feature-plan-ai-analysis.md)
 - [Database Schema Evolution ADR](./adr-012-database-schema-evolution.md)
-- [PR #75: Database Schema Implementation](https://github.com/Moonsong-Labs/claude-nexus-proxy/pull/75)
+- [PR #75: Database Schema Implementation](https://github.com/Moonsong-Labs/claude-nexus/pull/75)
 
 ## Notes
 
