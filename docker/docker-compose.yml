@@ -54,7 +54,7 @@ services:
       SLACK_CHANNEL: ${SLACK_CHANNEL}
       SLACK_USERNAME: ${SLACK_USERNAME:-Claude Nexus Proxy}
       SLACK_ICON_EMOJI: ${SLACK_ICON_EMOJI:-:robot_face:}
-      SLACK_ENABLED: ${SLACK_ENABLED:-true}
+      SLACK_ENABLED: ${SLACK_ENABLED:-false}
       
       # Debug
       DEBUG: ${DEBUG:-false}
