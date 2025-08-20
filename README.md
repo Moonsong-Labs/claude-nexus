@@ -165,7 +165,7 @@ bun run dev
 
 ```bash
 # Infrastructure management
-bun run docker:dev:up      # Start development infrastructure (postgres, pgadmin, claude-cli)
+bun run docker:dev:up      # Start development infrastructure (postgres, claude-cli)
 bun run docker:dev:down    # Stop development infrastructure
 bun run docker:dev:logs    # View infrastructure logs
 
@@ -195,8 +195,8 @@ bun run db:analyze-conversations
 ```
 Local Machine:           Docker Containers:
 ├── Proxy (port 3000)    ├── PostgreSQL (port 5432)
-├── Dashboard (port 3001) ├── pgAdmin (port 5050)
-└── Hot Reload ⚡        └── Claude CLI
+├── Dashboard (port 3001) └── Claude CLI
+└── Hot Reload ⚡
 ```
 
 **vs. Full Docker Mode:**
