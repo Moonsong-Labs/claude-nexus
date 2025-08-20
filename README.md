@@ -138,8 +138,8 @@ For developers who want to modify the proxy or dashboard code with **hot reload*
 
 ```bash
 # Clone and install dependencies
-git clone https://github.com/Moonsong-Labs/claude-nexus-proxy.git
-cd claude-nexus-proxy
+git clone https://github.com/Moonsong-Labs/claude-nexus.git
+cd claude-nexus
 bun run setup
 
 # Configure environment
@@ -321,7 +321,7 @@ Features:
 ## Architecture
 
 ```
-claude-nexus-proxy/
+claude-nexus/
 ├── packages/shared/      # Shared types and utilities
 ├── services/
 │   ├── proxy/           # Proxy API service
@@ -399,7 +399,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 ```bash
 # Build images individually
-docker build -f docker/proxy/Dockerfile -t claude-nexus-proxy:local .
+docker build -f docker/proxy/Dockerfile -t claude-nexus:local .
 docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard:local .
 ```
 
@@ -450,6 +450,6 @@ Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTIN
 ## Support
 
 - 📖 [Full Documentation](docs/README.md)
-- 🐛 [Issue Tracker](https://github.com/Moonsong-Labs/claude-nexus-proxy/issues)
-- 💬 [Discussions](https://github.com/Moonsong-Labs/claude-nexus-proxy/discussions)
+- 🐛 [Issue Tracker](https://github.com/Moonsong-Labs/claude-nexus/issues)
+- 💬 [Discussions](https://github.com/Moonsong-Labs/claude-nexus/discussions)
 - 📊 [Changelog](docs/06-Reference/changelog.md)
