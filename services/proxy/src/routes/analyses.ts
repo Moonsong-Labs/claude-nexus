@@ -6,7 +6,13 @@ import {
   rateLimitAnalysisCreation,
   rateLimitAnalysisRetrieval,
 } from '../middleware/analysis-rate-limit.js'
-import { ConversationAnalysisStatus, conversationBranchParamsSchema } from '@claude-nexus/shared'
+import {
+  ConversationAnalysisStatus,
+  conversationBranchParamsSchema,
+  AI_WORKER_CONFIG,
+  GEMINI_CONFIG,
+} from '@claude-nexus/shared'
+import { getAnalysisWorker } from '../workers/ai-analysis/index.js'
 
 // Request/Response schemas
 const createAnalysisSchema = z.object({
@@ -61,6 +67,51 @@ export const analysisRoutes = new Hono<{
 }>()
 
 /**
+ * GET /api/analyses/status - Get AI Analysis configuration status
+ */
+analysisRoutes.get('/status', async c => {
+  const worker = getAnalysisWorker()
+  const apiKey = GEMINI_CONFIG.API_KEY
+
+  let status: 'configured' | 'missing_key' | 'invalid_key' | 'disabled' = 'configured'
+  let message = ''
+  let details = ''
+
+  if (!AI_WORKER_CONFIG.ENABLED) {
+    status = 'disabled'
+    message = 'AI Analysis is disabled. Set AI_WORKER_ENABLED=true to enable.'
+  } else if (!apiKey) {
+    status = 'missing_key'
+    message =
+      'GEMINI_API_KEY is not set. Please add your Gemini API key to the environment variables.'
+  } else if (!worker) {
+    // Check if the API key format is valid
+    const GEMINI_API_KEY_REGEX = /^AI[a-zA-Z0-9\-_]{30,}$/
+    if (!GEMINI_API_KEY_REGEX.test(apiKey)) {
+      status = 'invalid_key'
+      message = 'GEMINI_API_KEY format is invalid.'
+      details =
+        'Gemini API keys should start with AI followed by 30+ alphanumeric characters. Your key does not match this format.'
+    } else {
+      status = 'invalid_key'
+      message = 'AI Analysis worker failed to start. The API key could not be validated.'
+      details =
+        'The key format appears correct but validation with Gemini API failed. Please verify your key has proper permissions.'
+    }
+  }
+
+  return c.json({
+    status,
+    message,
+    details,
+    workerRunning: !!worker,
+    enabled: AI_WORKER_CONFIG.ENABLED,
+    hasApiKey: !!apiKey,
+    modelName: GEMINI_CONFIG.MODEL_NAME,
+  })
+})
+
+/**
  * POST /api/analyses - Create a new analysis request
  */
 analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
@@ -73,6 +124,30 @@ analysisRoutes.post('/', rateLimitAnalysisCreation(), async c => {
   }
 
   try {
+    // Check if AI Analysis Worker is available
+    const worker = getAnalysisWorker()
+    if (!worker) {
+      await auditLog(pool, {
+        event_type: 'ANALYSIS_REQUEST',
+        outcome: 'FAILED_WORKER_UNAVAILABLE',
+        conversation_id: 'unknown',
+        branch_id: 'unknown',
+        domain,
+        request_id: requestId,
+        metadata: { error: 'AI Analysis Worker is not running' },
+      })
+
+      return c.json(
+        {
+          error: 'AI Analysis is currently unavailable',
+          details:
+            'The AI Analysis service is not properly configured. Please check that the GEMINI_API_KEY environment variable is set and valid.',
+          code: 'ANALYSIS_WORKER_UNAVAILABLE',
+        },
+        503
+      )
+    }
+
     // Parse and validate request body
     const body = await c.req.json()
     const { conversationId, branchId, customPrompt } = createAnalysisSchema.parse(body)
@@ -295,6 +370,30 @@ analysisRoutes.post(
     }
 
     try {
+      // Check if AI Analysis Worker is available
+      const worker = getAnalysisWorker()
+      if (!worker) {
+        await auditLog(pool, {
+          event_type: 'ANALYSIS_REGENERATION_REQUEST',
+          outcome: 'FAILED_WORKER_UNAVAILABLE',
+          conversation_id: 'unknown',
+          branch_id: 'unknown',
+          domain,
+          request_id: requestId,
+          metadata: { error: 'AI Analysis Worker is not running' },
+        })
+
+        return c.json(
+          {
+            error: 'AI Analysis is currently unavailable',
+            details:
+              'The AI Analysis service is not properly configured. Please check that the GEMINI_API_KEY environment variable is set and valid.',
+            code: 'ANALYSIS_WORKER_UNAVAILABLE',
+          },
+          503
+        )
+      }
+
       // Validate parameters
       const params = getAnalysisParamsSchema.parse(c.req.param())
       const { conversationId, branchId } = params
@@ -331,7 +430,7 @@ analysisRoutes.post(
         analysisId = existingResult.rows[0].id
         await pool.query(
           `UPDATE conversation_analyses 
-         SET status = $1, updated_at = NOW(), retry_count = retry_count + 1, custom_prompt = $3
+         SET status = $1, updated_at = NOW(), retry_count = 0, custom_prompt = $3, error_message = NULL
          WHERE id = $2`,
           [ConversationAnalysisStatus.PENDING, analysisId, customPrompt || null]
         )

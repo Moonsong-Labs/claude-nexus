@@ -150,6 +150,8 @@ export async function createProxyApp(): Promise<
   // AI Analysis routes (protected by same auth as dashboard API)
   app.route('/api/analyses', analysisRoutes)
 
+  // SSE for AI Analysis intentionally removed; dashboard uses polling
+
   // MCP routes
   if (config.mcp.enabled) {
     // Apply client authentication to MCP routes

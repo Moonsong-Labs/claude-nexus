@@ -203,7 +203,9 @@ export class AnalysisWorker {
         this.geminiService['modelName'] || 'gemini-2.0-flash-exp',
         analysis.promptTokens,
         analysis.completionTokens,
-        processingDuration
+        processingDuration,
+        job.conversation_id,
+        job.branch_id
       )
 
       logger.info(`Job ${job.id} completed successfully`, {

@@ -10,6 +10,7 @@ import {
   sanitizeForLLM,
   validateAnalysisOutput,
   enhancePromptForRetry,
+  redactPIIFromOutput,
 } from '../../middleware/sanitization.js'
 import { getErrorMessage } from '@claude-nexus/shared'
 
@@ -32,6 +33,7 @@ export class GeminiService {
   private apiKey: string
   private modelName: string
   private baseUrl: string
+  private isValidated: boolean = false
 
   constructor() {
     this.apiKey = GEMINI_CONFIG.API_KEY
@@ -39,13 +41,70 @@ export class GeminiService {
       throw new Error('GEMINI_API_KEY is not set in environment variables')
     }
 
-    // Validate API key format (basic check for non-empty string)
-    if (!this.apiKey.match(/^[A-Za-z0-9_-]+$/)) {
-      throw new Error('GEMINI_API_KEY appears to be invalid format')
+    // Validate API key format - Gemini keys typically start with "AI" followed by alphanumeric chars
+    // This is a heuristic check based on observed patterns, not an official format
+    const GEMINI_API_KEY_REGEX = /^AI[a-zA-Z0-9\-_]{30,}$/
+    if (!GEMINI_API_KEY_REGEX.test(this.apiKey)) {
+      throw new Error(
+        'GEMINI_API_KEY appears to be invalid. Gemini API keys typically start with AI followed by 30+ alphanumeric characters.'
+      )
     }
 
     this.modelName = GEMINI_CONFIG.MODEL_NAME
     this.baseUrl = GEMINI_CONFIG.API_URL
+  }
+
+  /**
+   * Validates the API key by making a test request to list models
+   * This is the only authoritative way to verify an API key
+   */
+  async validateApiKey(): Promise<boolean> {
+    if (this.isValidated) {
+      return true
+    }
+
+    try {
+      const url = `${this.baseUrl}?key=${this.apiKey}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        const data = (await response.json()) as any
+        // Check if we got a valid models list response
+        if (data?.models && Array.isArray(data.models)) {
+          this.isValidated = true
+          logger.info('Gemini API key validated successfully', {
+            metadata: {
+              worker: 'analysis-worker',
+              modelCount: data.models.length,
+            },
+          })
+          return true
+        }
+      }
+
+      const errorText = await response.text()
+      logger.error('Gemini API key validation failed', {
+        error: {
+          status: response.status,
+          message: errorText,
+        },
+        metadata: { worker: 'analysis-worker' },
+      })
+      return false
+    } catch (error) {
+      logger.error('Failed to validate Gemini API key', {
+        error: {
+          message: getErrorMessage(error),
+        },
+        metadata: { worker: 'analysis-worker' },
+      })
+      return false
+    }
   }
 
   async analyzeConversation(
@@ -87,9 +146,40 @@ export class GeminiService {
         // Validate the output
         const validation = validateAnalysisOutput(analysisText)
 
-        if (validation.isValid) {
+        // Handle PII redaction first if needed
+        let processedAnalysisText = analysisText
+        if (validation.issues.some(issue => issue.includes('PII'))) {
+          // Redact PII from the output instead of failing
+          logger.warn('Redacting PII from analysis output', {
+            metadata: {
+              worker: 'analysis-worker',
+              validationIssues: validation.issues,
+            },
+          })
+          processedAnalysisText = redactPIIFromOutput(analysisText)
+        }
+
+        // Only fail for critical sensitive information (passwords, tokens, etc.)
+        if (
+          validation.issues.some(
+            issue => issue.includes('sensitive information') && !issue.includes('PII')
+          )
+        ) {
+          // Critical failure - do not retry
+          logger.error('Analysis contains sensitive information', {
+            metadata: {
+              worker: 'analysis-worker',
+              validationIssues: validation.issues,
+            },
+          })
+          throw new Error('Analysis contains sensitive information and cannot be stored')
+        }
+
+        // Check if validation passed (ignoring PII issues since we handle them via redaction)
+        const nonPIIIssues = validation.issues.filter(issue => !issue.includes('PII'))
+        if (nonPIIIssues.length === 0) {
           try {
-            const parsedAnalysis = parseAnalysisResponse(analysisText)
+            const parsedAnalysis = parseAnalysisResponse(processedAnalysisText)
             const markdownContent = this.formatAnalysisAsMarkdown(parsedAnalysis)
 
             logger.info(`Analysis completed in ${Date.now() - startTime}ms`, {
@@ -98,6 +188,7 @@ export class GeminiService {
                 promptTokens: response.usageMetadata.promptTokenCount,
                 completionTokens: response.usageMetadata.candidatesTokenCount,
                 attempt: attempt + 1,
+                piiRedacted: processedAnalysisText !== analysisText,
               },
             })
 
@@ -121,29 +212,13 @@ export class GeminiService {
             })
 
             return {
-              content: analysisText,
+              content: processedAnalysisText, // Use redacted version
               data: null, // No structured data available
               rawResponse: response,
               promptTokens: response.usageMetadata.promptTokenCount,
               completionTokens: response.usageMetadata.candidatesTokenCount,
             }
           }
-        }
-
-        // Handle validation failures
-        if (
-          validation.issues.some(
-            issue => issue.includes('PII') || issue.includes('sensitive information')
-          )
-        ) {
-          // Critical failure - do not retry
-          logger.error('Analysis contains sensitive information', {
-            metadata: {
-              worker: 'analysis-worker',
-              validationIssues: validation.issues,
-            },
-          })
-          throw new Error('Analysis contains sensitive information and cannot be stored')
         }
 
         // For structural issues, retry with enhanced prompt
@@ -239,6 +314,22 @@ export class GeminiService {
 
       if (!response.ok) {
         const errorText = await response.text()
+
+        // Provide user-friendly error messages for common API key issues
+        if (response.status === 401) {
+          throw new Error(
+            'Invalid GEMINI_API_KEY: The API key is not authorized. Please verify your Gemini API key is correct and has the necessary permissions.'
+          )
+        } else if (response.status === 403) {
+          throw new Error(
+            'Access forbidden: The GEMINI_API_KEY does not have permission to access this service or the API quota may be exceeded.'
+          )
+        } else if (response.status === 400 && errorText.includes('API_KEY')) {
+          throw new Error(
+            'Invalid GEMINI_API_KEY format: Please check that your API key is properly formatted.'
+          )
+        }
+
         throw new Error(`Gemini API error (${response.status}): ${errorText}`)
       }
 

@@ -157,7 +157,7 @@ export function validateAnalysisOutput(output: string): ValidationResult {
     }
   }
 
-  // Scan for PII leakage in output
+  // Check if output contains PII that needs redaction
   const outputWithRedactedPII = piiRedactor.redact(output)
   if (outputWithRedactedPII !== output) {
     issues.push('Output contains PII that needs to be redacted')
@@ -181,6 +181,11 @@ export function validateAnalysisOutput(output: string): ValidationResult {
     isValid: issues.length === 0,
     issues,
   }
+}
+
+export function redactPIIFromOutput(output: string): string {
+  // Use the default redactor with standard replacements like [EMAIL], [PHONE], etc.
+  return piiRedactor.redact(output)
 }
 
 export function enhancePromptForRetry(originalPrompt: string): string {

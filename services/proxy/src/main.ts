@@ -257,8 +257,12 @@ async function main() {
 
     // Start AI Analysis Worker
     try {
-      analysisWorker = startAnalysisWorker()
-      console.log('✓ AI Analysis Worker started')
+      analysisWorker = await startAnalysisWorker()
+      if (analysisWorker) {
+        console.log('✓ AI Analysis Worker started')
+      } else {
+        console.log('✗ AI Analysis Worker not started: Invalid or missing API key')
+      }
     } catch (error: any) {
       console.log('✗ AI Analysis Worker not started:', error.message || error)
       console.log('  GEMINI_CONFIG.API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET')

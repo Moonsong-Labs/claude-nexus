@@ -86,7 +86,7 @@ async function startServer() {
   tokenTracker.startReporting()
 
   // Start AI Analysis Worker
-  const analysisWorker = startAnalysisWorker()
+  const analysisWorker = await startAnalysisWorker()
 
   // Start the server
   const server = serve({

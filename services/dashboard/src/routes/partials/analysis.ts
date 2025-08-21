@@ -39,6 +39,142 @@ export const analysisPartialsRoutes = new Hono<{
 analysisPartialsRoutes.use('*', csrfProtection())
 
 /**
+ * Get the AI Analysis configuration status and render warning if needed
+ */
+analysisPartialsRoutes.get('/config-status', async c => {
+  const apiClient = c.get('apiClient') || container.getApiClient()
+
+  try {
+    const response = await apiClient.get<{
+      status: 'configured' | 'missing_key' | 'invalid_key' | 'disabled'
+      message: string
+      details?: string
+      workerRunning: boolean
+      enabled: boolean
+      hasApiKey: boolean
+      modelName: string
+    }>('/api/analyses/status')
+
+    if (response.status === 'missing_key') {
+      return c.html(html`
+        <div
+          style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem;"
+        >
+          <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              style="width: 1.25rem; height: 1.25rem; color: #dc2626; flex-shrink: 0;"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <div>
+              <p style="font-weight: 600; color: #b91c1c; margin: 0;">API Key Not Configured</p>
+              <p style="margin: 0.5rem 0 0 0; color: #991b1b; font-size: 0.875rem;">
+                ${escapeHtml(response.message)}
+              </p>
+              <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: #7f1d1d;">
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  style="color: #dc2626; text-decoration: underline;"
+                  >Get your API key from Google AI Studio</a
+                >
+              </p>
+            </div>
+          </div>
+        </div>
+      `)
+    } else if (response.status === 'invalid_key') {
+      return c.html(html`
+        <div
+          style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem;"
+        >
+          <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              style="width: 1.25rem; height: 1.25rem; color: #f59e0b; flex-shrink: 0;"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <p style="font-weight: 600; color: #92400e; margin: 0;">Invalid API Key</p>
+              <p style="margin: 0.5rem 0 0 0; color: #78350f; font-size: 0.875rem;">
+                ${escapeHtml(response.message)}
+              </p>
+              ${response.details
+                ? html`
+                    <p style="margin: 0.5rem 0 0 0; font-size: 0.813rem; color: #92400e;">
+                      ${escapeHtml(response.details)}
+                    </p>
+                  `
+                : ''}
+              <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: #78350f;">
+                Test your key:
+                <code style="background: #fff; padding: 0.125rem 0.25rem; border-radius: 0.25rem;"
+                  >curl -H "x-goog-api-key: YOUR_KEY"
+                  "https://generativelanguage.googleapis.com/v1beta/models"</code
+                >
+              </p>
+            </div>
+          </div>
+        </div>
+      `)
+    } else if (response.status === 'disabled') {
+      return c.html(html`
+        <div
+          style="background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem;"
+        >
+          <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              style="width: 1.25rem; height: 1.25rem; color: #6b7280; flex-shrink: 0;"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <p style="font-weight: 600; color: #4b5563; margin: 0;">AI Analysis Disabled</p>
+              <p style="margin: 0.5rem 0 0 0; color: #6b7280; font-size: 0.875rem;">
+                ${escapeHtml(response.message)}
+              </p>
+            </div>
+          </div>
+        </div>
+      `)
+    }
+
+    // Return empty div if configured properly
+    return c.html(html``)
+  } catch (_error) {
+    // Return empty div on error
+    return c.html(html``)
+  }
+})
+
+/**
  * Get the current status of an analysis and render the appropriate partial
  */
 analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
@@ -77,12 +213,12 @@ analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
       case 'failed':
         return c.html(renderFailedPanel(conversationId, branchId, response.error, auth))
       default:
-        return c.html(renderIdlePanel(conversationId, branchId, auth))
+        return c.html(await renderIdlePanel(conversationId, branchId, auth, apiClient))
     }
   } catch (error: any) {
     // If it's a 404, the analysis doesn't exist yet - show idle panel
     if (error?.status === 404) {
-      return c.html(renderIdlePanel(conversationId, branchId, auth))
+      return c.html(await renderIdlePanel(conversationId, branchId, auth, apiClient))
     }
 
     logger.error('Failed to get analysis status', {
@@ -136,7 +272,7 @@ analysisPartialsRoutes.post('/generate/:conversationId/:branchId', async c => {
       }
       throw postError
     }
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to generate analysis', {
       error: getErrorMessage(error),
       metadata: {
@@ -144,7 +280,19 @@ analysisPartialsRoutes.post('/generate/:conversationId/:branchId', async c => {
         branchId,
       },
     })
-    return c.html(renderFailedPanel(conversationId, branchId, 'Failed to generate analysis'))
+
+    // Handle specific error cases with user-friendly messages
+    let errorMessage = 'Failed to generate analysis'
+    if (error?.status === 503 && error?.data?.code === 'ANALYSIS_WORKER_UNAVAILABLE') {
+      errorMessage =
+        'AI Analysis is currently unavailable. Please check that the GEMINI_API_KEY environment variable is set and valid.'
+    } else if (error?.data?.error && typeof error.data.error === 'string') {
+      errorMessage = error.data.error
+    } else if (error?.message && typeof error.message === 'string') {
+      errorMessage = error.message
+    }
+
+    return c.html(renderFailedPanel(conversationId, branchId, errorMessage))
   }
 })
 
@@ -168,7 +316,7 @@ analysisPartialsRoutes.post('/regenerate/:conversationId/:branchId', async c => 
 
     // Show processing state
     return c.html(renderProcessingPanel(conversationId, branchId, 0))
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to regenerate analysis', {
       error: getErrorMessage(error),
       metadata: {
@@ -176,20 +324,67 @@ analysisPartialsRoutes.post('/regenerate/:conversationId/:branchId', async c => 
         branchId,
       },
     })
-    return c.html(renderFailedPanel(conversationId, branchId, 'Failed to regenerate analysis'))
+
+    // Handle specific error cases with user-friendly messages
+    let errorMessage = 'Failed to regenerate analysis'
+    if (error?.status === 503 && error?.data?.code === 'ANALYSIS_WORKER_UNAVAILABLE') {
+      errorMessage =
+        'AI Analysis is currently unavailable. Please check that the GEMINI_API_KEY environment variable is set and valid.'
+    } else if (error?.data?.error && typeof error.data.error === 'string') {
+      errorMessage = error.data.error
+    } else if (error?.message && typeof error.message === 'string') {
+      errorMessage = error.message
+    }
+
+    return c.html(renderFailedPanel(conversationId, branchId, errorMessage))
   }
 })
 
 // Render functions for different states
 
-function renderIdlePanel(
+async function renderIdlePanel(
   conversationId: string,
   branchId: string,
-  auth?: { isAuthenticated: boolean; isReadOnly: boolean }
+  auth?: { isAuthenticated: boolean; isReadOnly: boolean },
+  apiClient?: ProxyApiClient
 ) {
   const defaultPrompt = getAnalysisPromptTemplate()
   const promptId = `prompt-${conversationId}-${branchId}`.replace(/[^a-zA-Z0-9-]/g, '-')
   const isReadOnly = !!auth?.isReadOnly
+
+  // Check if AI Worker is enabled
+  let isWorkerDisabled = false
+  let disabledReason = ''
+
+  try {
+    const client = apiClient || container.getApiClient()
+    const response = await client.get<{
+      status: 'configured' | 'missing_key' | 'invalid_key' | 'disabled'
+      message: string
+      enabled: boolean
+      workerRunning: boolean
+    }>('/api/analyses/status')
+
+    if (!response.enabled || response.status === 'disabled') {
+      isWorkerDisabled = true
+      disabledReason = 'AI Analysis is disabled. Set AI_WORKER_ENABLED=true to enable.'
+    } else if (response.status === 'missing_key') {
+      isWorkerDisabled = true
+      disabledReason = 'GEMINI_API_KEY is not configured.'
+    } else if (response.status === 'invalid_key') {
+      isWorkerDisabled = true
+      disabledReason = 'GEMINI_API_KEY is invalid.'
+    }
+  } catch (_error) {
+    // If we can't check status, assume it's working
+  }
+
+  const isDisabled = isReadOnly || isWorkerDisabled
+  const buttonTitle = isReadOnly
+    ? 'This feature is disabled in read-only mode'
+    : isWorkerDisabled
+      ? disabledReason
+      : ''
 
   return html`
     <div id="analysis-panel" class="section">
@@ -213,6 +408,11 @@ function renderIdlePanel(
         </h3>
       </div>
       <div class="section-content">
+        <!-- Dynamic warning loaded via HTMX -->
+        <div hx-get="/partials/analysis/config-status" hx-trigger="load" hx-swap="innerHTML">
+          <!-- Loading indicator while checking status -->
+        </div>
+
         <p style="color: #6b7280; margin-bottom: 1.5rem; line-height: 1.6;">
           Get AI-powered insights for this conversation branch to understand patterns, key topics,
           and actionable recommendations.
@@ -265,16 +465,18 @@ ${defaultPrompt}</textarea
         </details>
 
         <button
-          ${isReadOnly ? 'disabled' : ''}
-          ${isReadOnly ? 'title="This feature is disabled in read-only mode"' : ''}
-          ${!isReadOnly
+          ${isDisabled ? 'disabled' : ''}
+          ${buttonTitle ? `title="${buttonTitle}"` : ''}
+          ${!isDisabled
             ? raw(`hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`)
             : ''}
-          ${!isReadOnly ? raw('hx-target="#analysis-panel"') : ''}
-          ${!isReadOnly ? raw('hx-swap="outerHTML"') : ''}
-          ${!isReadOnly ? raw(`hx-include="#${promptId}"`) : ''}
+          ${!isDisabled ? raw('hx-target="#analysis-panel"') : ''}
+          ${!isDisabled ? raw('hx-swap="outerHTML"') : ''}
+          ${!isDisabled ? raw(`hx-include="#${promptId}"`) : ''}
           class="btn"
-          style="display: inline-flex; align-items: center; gap: 0.5rem;"
+          style="display: inline-flex; align-items: center; gap: 0.5rem; ${isDisabled
+            ? 'opacity: 0.5; cursor: not-allowed;'
+            : ''}"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -298,8 +500,41 @@ ${defaultPrompt}</textarea
 }
 
 function renderProcessingPanel(conversationId: string, branchId: string, pollCount: number = 0) {
-  // Progressive backoff: 2s, 3s, 5s, 10s, then every 10s
-  const pollIntervals = [2, 3, 5, 10, 10]
+  // Aggressive polling for near-instant updates: 1s initially, then gradually back off
+  const pollIntervals = [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1, // First 10 seconds: every 1s
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1, // Next 10 seconds: every 1s
+    2,
+    2,
+    2,
+    2,
+    2, // Next 10 seconds: every 2s
+    3,
+    3,
+    3, // Next 9 seconds: every 3s
+    5,
+    5, // Next 10 seconds: every 5s
+    10,
+    10, // Then every 10s
+  ]
   const interval = pollIntervals[Math.min(pollCount, pollIntervals.length - 1)]
 
   return html`
@@ -307,7 +542,7 @@ function renderProcessingPanel(conversationId: string, branchId: string, pollCou
       id="analysis-panel"
       class="section"
       hx-get="/partials/analysis/status/${conversationId}/${branchId}?pollCount=${pollCount + 1}"
-      hx-trigger="delay:${interval}s"
+      hx-trigger="load delay:${interval}s"
       hx-swap="outerHTML"
     >
       <div class="section-header" style="display: flex; align-items: center; gap: 0.75rem;">
@@ -386,12 +621,12 @@ function renderCompletedPanel(
 
   // Type guard to ensure we have a completed response
   if (analysisResponse.status !== 'completed') {
-    return renderIdlePanel(conversationId, branchId)
+    return '' // Should not happen as we only call this for completed status
   }
 
   // Check if we have analysis data
   if (!analysisResponse.data && !analysisResponse.content) {
-    return renderIdlePanel(conversationId, branchId)
+    return '' // Should not happen for a completed analysis
   }
 
   const analysisData = analysisResponse.data
