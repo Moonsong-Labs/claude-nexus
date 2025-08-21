@@ -5,15 +5,6 @@
 - Docker and Docker Compose
 - Claude OAuth token or API key
 
-## Platform Support
-
-Claude Nexus Docker images support multiple architectures:
-
-- **linux/amd64** - Intel/AMD processors
-- **linux/arm64** - ARM processors, Apple Silicon (M1/M2/M3)
-
-Images are automatically pulled for your architecture when using Docker.
-
 ## Setup
 
 ### 1. Clone and configure

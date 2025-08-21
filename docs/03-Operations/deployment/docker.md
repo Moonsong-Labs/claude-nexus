@@ -8,17 +8,30 @@ This guide covers deploying Claude Nexus Proxy to production environments.
 
 ### 1. Docker (Recommended)
 
-The project provides optimized Docker images for each service.
+The project provides optimized Docker images for each service with multi-architecture support.
+
+#### Multi-Architecture Support
+
+The Docker images support both `linux/amd64` and `linux/arm64` architectures:
+
+- Intel/AMD processors (amd64)
+- ARM processors including Apple Silicon M1/M2/M3 (arm64)
 
 #### Build Images
 
 ```bash
-# Build both images
+# Build both images (multi-arch by default)
 ./docker/build-images.sh
 
-# Or build individually
-docker build -f docker/proxy/Dockerfile -t moonsonglabs/claude-nexus-proxy .
-docker build -f docker/dashboard/Dockerfile -t claude-nexus-dashboard .
+# Build for specific platform
+BUILD_PLATFORMS=linux/amd64 ./docker/build-images.sh
+
+# Build and push multi-arch to registry
+BUILD_ACTION=push ./docker/build-images.sh
+
+# Or build individually with buildx
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f docker/proxy/Dockerfile -t moonsonglabs/claude-nexus-proxy .
 ```
 
 #### Run with Docker Compose
