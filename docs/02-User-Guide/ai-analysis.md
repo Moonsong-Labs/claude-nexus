@@ -178,12 +178,35 @@ Gemini API pricing (as of 2024):
 - Gemini 2.0 Flash: Free tier available
 - Monitor token usage in `conversation_analyses.prompt_tokens` and `completion_tokens`
 
+## Read-Only Mode Support
+
+AI Analysis can now work in read-only dashboard mode when properly configured:
+
+### Requirements
+
+- `GEMINI_API_KEY` must be set
+- `AI_ANALYSIS_READONLY_ENABLED=true` must be explicitly set
+- AI worker must be enabled (`AI_WORKER_ENABLED=true`)
+
+### Configuration Example
+
+```bash
+# Enable AI Analysis in read-only mode
+GEMINI_API_KEY=your-gemini-api-key
+AI_ANALYSIS_READONLY_ENABLED=true
+AI_WORKER_ENABLED=true
+# DASHBOARD_API_KEY not set (read-only mode)
+```
+
+When enabled, users can generate and regenerate AI analyses even without dashboard authentication. The dashboard will show appropriate tooltips explaining when the feature is available.
+
 ## Security Notes
 
 1. The Gemini API key is sensitive - never commit it to git
 2. Analysis results are stored in your database
 3. Rate limiting prevents abuse
 4. Audit logging tracks all operations
+5. Read-only mode with AI Analysis requires explicit opt-in via `AI_ANALYSIS_READONLY_ENABLED`
 
 ## Optional: Disable Feature
 

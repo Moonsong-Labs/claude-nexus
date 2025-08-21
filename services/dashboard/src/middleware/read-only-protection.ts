@@ -1,9 +1,10 @@
 import { MiddlewareHandler } from 'hono'
-import { isReadOnly } from '../config.js'
+import { isReadOnly, isAiAnalysisEnabledInReadOnly } from '../config.js'
 
 /**
  * Middleware to protect against write operations in read-only mode
  * Blocks all non-GET/HEAD/OPTIONS requests when DASHBOARD_API_KEY is not set
+ * Exception: AI Analysis endpoints when explicitly enabled via feature flag
  */
 export const readOnlyProtection: MiddlewareHandler = async (c, next) => {
   // Only apply protection in read-only mode
@@ -18,7 +19,22 @@ export const readOnlyProtection: MiddlewareHandler = async (c, next) => {
     return next()
   }
 
-  // Block all write operations (POST, PUT, DELETE, PATCH)
+  // Check if this is an AI Analysis endpoint and if it's allowed
+  // Only POST requests to specific AI Analysis endpoints are allowed
+  const path = c.req.path
+  const isPost = method === 'POST'
+
+  const isAllowedAiAnalysisEndpoint =
+    isPost &&
+    (path === '/api/analyses' || // Create new analysis
+      /^\/api\/analyses\/[^/]+\/[^/]+\/regenerate$/.test(path)) // Regenerate: /api/analyses/:conversationId/:branchId/regenerate
+
+  if (isAllowedAiAnalysisEndpoint && isAiAnalysisEnabledInReadOnly()) {
+    // Allow AI Analysis operations when feature is enabled
+    return next()
+  }
+
+  // Block all other write operations (POST, PUT, DELETE, PATCH)
   const isHtmxRequest = c.req.header('HX-Request') === 'true'
 
   if (isHtmxRequest) {

@@ -139,6 +139,22 @@ We will **keep read-only mode with clear warnings** (Option 2) for now, but with
 
 This mode should **NEVER** be used in production or any environment accessible from the internet.
 
+### Exception: AI Analysis Feature
+
+As of implementation date, AI Analysis can be enabled in read-only mode with explicit configuration:
+
+- **Requirement**: Both `GEMINI_API_KEY` and `AI_ANALYSIS_READONLY_ENABLED=true` must be set
+- **Security Model**: Uses capability-based permissions (`canUseAiAnalysis`)
+- **Implementation**: Specific endpoint allowlist for AI Analysis operations only
+- **Rationale**: Allows valuable analysis features without full authentication while maintaining security
+
+This exception is carefully controlled:
+
+1. Requires explicit opt-in via feature flag
+2. Only specific POST endpoints are allowed (`/api/analyses` and regenerate)
+3. All other write operations remain blocked
+4. Rate limiting still applies
+
 ## Future Recommendations
 
 1. **Phase 1** (Current): Add warnings and documentation

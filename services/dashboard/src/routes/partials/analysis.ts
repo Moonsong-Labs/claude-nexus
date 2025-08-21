@@ -31,7 +31,7 @@ export const analysisPartialsRoutes = new Hono<{
   Variables: {
     apiClient?: ProxyApiClient
     csrfToken?: string
-    auth?: { isAuthenticated: boolean; isReadOnly: boolean }
+    auth?: { isAuthenticated: boolean; isReadOnly: boolean; canUseAiAnalysis: boolean }
   }
 }>()
 
@@ -45,7 +45,11 @@ analysisPartialsRoutes.get('/status/:conversationId/:branchId', async c => {
   const { conversationId, branchId } = c.req.param()
   const pollCount = parseInt(c.req.query('pollCount') || '0')
   const apiClient = c.get('apiClient') || container.getApiClient()
-  const auth = c.get('auth') || { isAuthenticated: false, isReadOnly: false }
+  const auth = c.get('auth') || {
+    isAuthenticated: false,
+    isReadOnly: false,
+    canUseAiAnalysis: false,
+  }
 
   try {
     // Get analysis status from API
@@ -185,10 +189,11 @@ analysisPartialsRoutes.post('/regenerate/:conversationId/:branchId', async c => 
 function renderIdlePanel(
   conversationId: string,
   branchId: string,
-  auth?: { isAuthenticated: boolean; isReadOnly: boolean }
+  auth?: { isAuthenticated: boolean; isReadOnly: boolean; canUseAiAnalysis: boolean }
 ) {
   const defaultPrompt = getAnalysisPromptTemplate()
   const promptId = `prompt-${conversationId}-${branchId}`.replace(/[^a-zA-Z0-9-]/g, '-')
+  const canUseAiAnalysis = auth?.canUseAiAnalysis ?? false
   const isReadOnly = !!auth?.isReadOnly
 
   return html`
@@ -265,14 +270,18 @@ ${defaultPrompt}</textarea
         </details>
 
         <button
-          ${isReadOnly ? 'disabled' : ''}
-          ${isReadOnly ? 'title="This feature is disabled in read-only mode"' : ''}
-          ${!isReadOnly
+          ${!canUseAiAnalysis ? 'disabled' : ''}
+          ${!canUseAiAnalysis
+            ? isReadOnly
+              ? 'title="AI Analysis is disabled in read-only mode. Set AI_ANALYSIS_READONLY_ENABLED=true and configure GEMINI_API_KEY to enable."'
+              : 'title="AI Analysis is not available - GEMINI_API_KEY not configured"'
+            : 'title="Generate AI-powered analysis of this conversation"'}
+          ${canUseAiAnalysis
             ? raw(`hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`)
             : ''}
-          ${!isReadOnly ? raw('hx-target="#analysis-panel"') : ''}
-          ${!isReadOnly ? raw('hx-swap="outerHTML"') : ''}
-          ${!isReadOnly ? raw(`hx-include="#${promptId}"`) : ''}
+          ${canUseAiAnalysis ? raw('hx-target="#analysis-panel"') : ''}
+          ${canUseAiAnalysis ? raw('hx-swap="outerHTML"') : ''}
+          ${canUseAiAnalysis ? raw(`hx-include="#${promptId}"`) : ''}
           class="btn"
           style="display: inline-flex; align-items: center; gap: 0.5rem;"
         >
@@ -370,8 +379,9 @@ function renderCompletedPanel(
   conversationId: string,
   branchId: string,
   analysisResponse: GetAnalysisResponse,
-  auth?: { isAuthenticated: boolean; isReadOnly: boolean }
+  auth?: { isAuthenticated: boolean; isReadOnly: boolean; canUseAiAnalysis: boolean }
 ) {
+  const canUseAiAnalysis = auth?.canUseAiAnalysis ?? false
   const isReadOnly = !!auth?.isReadOnly
   const formatDate = (date: string | Date) => {
     const d = new Date(date)
@@ -444,14 +454,18 @@ function renderCompletedPanel(
             Customize
           </button>
           <button
-            ${isReadOnly ? 'disabled' : ''}
-            ${isReadOnly ? 'title="This feature is disabled in read-only mode"' : ''}
-            ${!isReadOnly
+            ${!canUseAiAnalysis ? 'disabled' : ''}
+            ${!canUseAiAnalysis
+              ? isReadOnly
+                ? 'title="AI Analysis is disabled in read-only mode. Set AI_ANALYSIS_READONLY_ENABLED=true and configure GEMINI_API_KEY to enable."'
+                : 'title="AI Analysis is not available - GEMINI_API_KEY not configured"'
+              : 'title="Regenerate analysis with latest data"'}
+            ${canUseAiAnalysis
               ? raw(`hx-post="/partials/analysis/regenerate/${conversationId}/${branchId}"`)
               : ''}
-            ${!isReadOnly ? raw('hx-target="#analysis-panel"') : ''}
-            ${!isReadOnly ? raw('hx-swap="outerHTML"') : ''}
-            ${!isReadOnly ? raw('hx-include="#regenerate-prompt"') : ''}
+            ${canUseAiAnalysis ? raw('hx-target="#analysis-panel"') : ''}
+            ${canUseAiAnalysis ? raw('hx-swap="outerHTML"') : ''}
+            ${canUseAiAnalysis ? raw('hx-include="#regenerate-prompt"') : ''}
             class="btn btn-secondary"
             style="font-size: 0.875rem; padding: 0.375rem 0.75rem; display: inline-flex; align-items: center; gap: 0.375rem;"
           >
@@ -1031,8 +1045,9 @@ function renderFailedPanel(
   conversationId: string,
   branchId: string,
   errorMessage?: string | null,
-  auth?: { isAuthenticated: boolean; isReadOnly: boolean }
+  auth?: { isAuthenticated: boolean; isReadOnly: boolean; canUseAiAnalysis: boolean }
 ) {
+  const canUseAiAnalysis = auth?.canUseAiAnalysis ?? false
   const isReadOnly = !!auth?.isReadOnly
   return html`
     <div id="analysis-panel" class="section">
@@ -1087,13 +1102,17 @@ function renderFailedPanel(
           </div>
         </div>
         <button
-          ${isReadOnly ? 'disabled' : ''}
-          ${isReadOnly ? 'title="This feature is disabled in read-only mode"' : ''}
-          ${!isReadOnly
+          ${!canUseAiAnalysis ? 'disabled' : ''}
+          ${!canUseAiAnalysis
+            ? isReadOnly
+              ? 'title="AI Analysis is disabled in read-only mode. Set AI_ANALYSIS_READONLY_ENABLED=true and configure GEMINI_API_KEY to enable."'
+              : 'title="AI Analysis is not available - GEMINI_API_KEY not configured"'
+            : 'title="Retry AI analysis generation"'}
+          ${canUseAiAnalysis
             ? raw(`hx-post="/partials/analysis/generate/${conversationId}/${branchId}"`)
             : ''}
-          ${!isReadOnly ? raw('hx-target="#analysis-panel"') : ''}
-          ${!isReadOnly ? raw('hx-swap="outerHTML"') : ''}
+          ${canUseAiAnalysis ? raw('hx-target="#analysis-panel"') : ''}
+          ${canUseAiAnalysis ? raw('hx-swap="outerHTML"') : ''}
           class="btn"
           style="display: inline-flex; align-items: center; gap: 0.5rem;"
         >

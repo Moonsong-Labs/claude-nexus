@@ -1,10 +1,16 @@
 import { Context, Next, MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
-import { isReadOnly, getDashboardApiKey } from '../config.js'
+import {
+  isReadOnly,
+  getDashboardApiKey,
+  hasGeminiKey,
+  isAiAnalysisEnabledInReadOnly,
+} from '../config.js'
 
 export type AuthContext = {
   isAuthenticated: boolean
   isReadOnly: boolean
+  canUseAiAnalysis: boolean
 }
 
 /**
@@ -30,10 +36,14 @@ export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext }
   const readOnly = isReadOnly()
   const apiKey = getDashboardApiKey()
 
+  // Determine if AI Analysis can be used
+  const canUseAiAnalysis = readOnly ? isAiAnalysisEnabledInReadOnly() : true // In authenticated mode, AI Analysis is always available if Gemini key exists
+
   // Set read-only mode in context
   c.set('auth', {
     isAuthenticated: false,
     isReadOnly: readOnly,
+    canUseAiAnalysis: canUseAiAnalysis && hasGeminiKey(),
   })
 
   // If in read-only mode, allow access without authentication
@@ -61,6 +71,7 @@ export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext }
     c.set('auth', {
       isAuthenticated: true,
       isReadOnly: false,
+      canUseAiAnalysis: hasGeminiKey(),
     })
     return next()
   }
@@ -71,6 +82,7 @@ export const dashboardAuth: MiddlewareHandler<{ Variables: { auth: AuthContext }
     c.set('auth', {
       isAuthenticated: true,
       isReadOnly: false,
+      canUseAiAnalysis: hasGeminiKey(),
     })
     return next()
   }
