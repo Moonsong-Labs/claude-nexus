@@ -85,6 +85,28 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 | ------------------------ | -------------------------- | -------------------------------------- |
 | `CLAUDE_OAUTH_CLIENT_ID` | OAuth client ID for Claude | `9d1c250a-e61b-44d9-88ed-5944d1962f5e` |
 
+## Build Configuration
+
+### Docker Build Variables
+
+| Variable          | Description                                       | Default                   |
+| ----------------- | ------------------------------------------------- | ------------------------- |
+| `BUILD_PLATFORMS` | Target platforms for Docker builds                | `linux/amd64,linux/arm64` |
+| `BUILD_ACTION`    | Build action: `load` (local) or `push` (registry) | `load`                    |
+
+Examples:
+
+```bash
+# Build for current platform only
+BUILD_PLATFORMS=linux/amd64 ./docker/build-images.sh
+
+# Build and push multi-arch images
+BUILD_ACTION=push ./docker/build-images.sh
+
+# Build for ARM64 only
+BUILD_PLATFORMS=linux/arm64 ./docker/build-images.sh
+```
+
 ## Directory Configuration
 
 | Variable           | Description                    | Default          |

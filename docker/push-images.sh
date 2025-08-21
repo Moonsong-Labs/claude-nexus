@@ -1,5 +1,5 @@
 #!/bin/bash
-# Push Claude Nexus Docker images to Docker Hub
+# Push Claude Nexus Docker images to Docker Hub with multi-arch manifest support
 
 set -e
 
@@ -20,10 +20,16 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     echo "  TAG: Docker image tag to push (default: latest)"
     echo "  PUSH_LATEST: Also push 'latest' tag when pushing version tag (yes/no, default: yes)"
     echo ""
+    echo "This script now supports multi-architecture images."
+    echo "Use docker/build-images.sh with BUILD_ACTION=push to build and push."
+    echo ""
     echo "Examples:"
     echo "  $0                  # Push images with 'latest' tag"
     echo "  $0 v9               # Push images with 'v9' tag and 'latest'"
     echo "  $0 v9 no            # Push images with 'v9' tag only"
+    echo ""
+    echo "To build and push multi-arch:"
+    echo "  BUILD_ACTION=push ./docker/build-images.sh [TAG]"
     echo ""
     echo "Note: You must be logged in to Docker Hub first:"
     echo "  docker login"
@@ -40,33 +46,63 @@ if ! docker info 2>/dev/null | grep -q "Username"; then
     echo ""
 fi
 
+# Function to check if image exists locally or as manifest
+check_image_exists() {
+    local image=$1
+    if docker image inspect "$image" &>/dev/null; then
+        return 0
+    elif docker buildx imagetools inspect "$image" &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to push image or display error with helpful message
+push_image() {
+    local image=$1
+    local service=$2
+    
+    echo -e "\n${BLUE}Pushing ${service} Service...${NC}"
+    
+    # Check if image exists
+    if ! check_image_exists "$image"; then
+        echo -e "${YELLOW}Warning: Image ${image} not found locally${NC}"
+        echo -e "${YELLOW}For multi-arch images, use: BUILD_ACTION=push ./docker/build-images.sh ${TAG}${NC}"
+        echo -e "${YELLOW}Attempting push anyway (may work if already in registry)...${NC}"
+    fi
+    
+    # Try to push
+    if docker push "$image" 2>/dev/null; then
+        echo -e "${GREEN}✓ ${service} image pushed successfully${NC}"
+        return 0
+    else
+        # If regular push fails, it might be a multi-arch manifest
+        echo -e "${YELLOW}Standard push failed, checking for multi-arch manifest...${NC}"
+        if docker buildx imagetools inspect "$image" &>/dev/null; then
+            echo -e "${GREEN}✓ ${service} multi-arch manifest already exists in registry${NC}"
+            return 0
+        else
+            echo -e "${RED}✗ Failed to push ${service} image${NC}"
+            echo -e "${YELLOW}Hint: For multi-arch builds, use:${NC}"
+            echo -e "${BLUE}  BUILD_ACTION=push ./docker/build-images.sh ${TAG}${NC}"
+            return 1
+        fi
+    fi
+}
+
 # Push proxy image
-echo -e "\n${BLUE}Pushing Proxy Service...${NC}"
-docker push moonsonglabs/claude-nexus-proxy:${TAG}
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Proxy image pushed successfully${NC}"
-else
-    echo -e "${RED}✗ Failed to push proxy image${NC}"
+if ! push_image "moonsonglabs/claude-nexus-proxy:${TAG}" "Proxy"; then
     exit 1
 fi
 
 # Push dashboard image
-echo -e "\n${BLUE}Pushing Dashboard Service...${NC}"
-docker push moonsonglabs/claude-nexus-dashboard:${TAG}
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Dashboard image pushed successfully${NC}"
-else
-    echo -e "${RED}✗ Failed to push dashboard image${NC}"
+if ! push_image "moonsonglabs/claude-nexus-dashboard:${TAG}" "Dashboard"; then
     exit 1
 fi
 
 # Push all-in-one image
-echo -e "\n${BLUE}Pushing All-in-One Service...${NC}"
-docker push moonsonglabs/claude-nexus-all-in:${TAG}
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ All-in-One image pushed successfully${NC}"
-else
-    echo -e "${RED}✗ Failed to push all-in-one image${NC}"
+if ! push_image "moonsonglabs/claude-nexus-all-in:${TAG}" "All-in-One"; then
     exit 1
 fi
 
@@ -74,32 +110,33 @@ fi
 if [ "$TAG" != "latest" ] && [ "$PUSH_LATEST" = "yes" ]; then
     echo -e "\n${BLUE}Also pushing 'latest' tags...${NC}"
     
-    docker push moonsonglabs/claude-nexus-proxy:latest
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Proxy 'latest' pushed successfully${NC}"
-    else
-        echo -e "${RED}✗ Failed to push proxy 'latest'${NC}"
+    if ! push_image "moonsonglabs/claude-nexus-proxy:latest" "Proxy (latest)"; then
         exit 1
     fi
     
-    docker push moonsonglabs/claude-nexus-dashboard:latest
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Dashboard 'latest' pushed successfully${NC}"
-    else
-        echo -e "${RED}✗ Failed to push dashboard 'latest'${NC}"
+    if ! push_image "moonsonglabs/claude-nexus-dashboard:latest" "Dashboard (latest)"; then
         exit 1
     fi
     
-    docker push moonsonglabs/claude-nexus-all-in:latest
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ All-in-One 'latest' pushed successfully${NC}"
-    else
-        echo -e "${RED}✗ Failed to push all-in-one 'latest'${NC}"
+    if ! push_image "moonsonglabs/claude-nexus-all-in:latest" "All-in-One (latest)"; then
         exit 1
     fi
 fi
 
 echo -e "\n${GREEN}Push completed successfully!${NC}"
+
+# Check and display manifest information if available
+echo -e "\n${BLUE}Checking multi-architecture support...${NC}"
+for image in proxy dashboard all-in; do
+    full_image="moonsonglabs/claude-nexus-${image}:${TAG}"
+    if docker buildx imagetools inspect "$full_image" &>/dev/null; then
+        echo -e "${GREEN}✓ ${image} supports multiple architectures:${NC}"
+        docker buildx imagetools inspect "$full_image" 2>/dev/null | grep -E "Platform:|linux/" | head -5
+    else
+        echo -e "${YELLOW}  ${image}: Single architecture or not accessible${NC}"
+    fi
+done
+
 echo -e "\nImages available at:"
 echo -e "  ${YELLOW}https://hub.docker.com/r/moonsonglabs/claude-nexus-proxy${NC}"
 echo -e "  ${YELLOW}https://hub.docker.com/r/moonsonglabs/claude-nexus-dashboard${NC}"

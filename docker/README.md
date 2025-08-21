@@ -18,12 +18,41 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 - Real-time SSE updates
 - Request history browser
 
+## Multi-Architecture Support
+
+The Docker images support both `linux/amd64` (x86_64) and `linux/arm64` (ARM/Apple Silicon) architectures. Multi-platform builds are handled automatically using Docker buildx.
+
+### Supported Platforms
+
+- `linux/amd64` - Intel/AMD processors
+- `linux/arm64` - ARM processors, Apple M1/M2/M3
+
+### Platform-Specific Builds
+
+```bash
+# Build for current platform only (default: both architectures)
+BUILD_PLATFORMS=linux/amd64 ./build-images.sh
+
+# Build for ARM64 only
+BUILD_PLATFORMS=linux/arm64 ./build-images.sh
+
+# Build and push multi-arch to registry
+BUILD_ACTION=push ./build-images.sh
+```
+
+### Verify Multi-Architecture Images
+
+```bash
+# Check manifest for multiple platforms
+docker buildx imagetools inspect moonsonglabs/claude-nexus-proxy:latest
+```
+
 ## Building Images
 
 ### Quick Build
 
 ```bash
-# Build both images with 'latest' tag
+# Build both images with 'latest' tag (multi-arch by default)
 ./build-images.sh
 
 # Build with 'latest' and also tag as 'v9'
@@ -36,12 +65,20 @@ This directory contains the Docker configurations for the Claude Nexus Proxy pro
 ./build-images.sh --help
 ```
 
+### Environment Variables
+
+- `BUILD_PLATFORMS` - Target platforms (default: `linux/amd64,linux/arm64`)
+- `BUILD_ACTION` - Set to `push` to push to registry, `load` for local (default: `load`)
+
 ### Manual Build
 
 ```bash
-# Build individually with custom tags
+# Build individually with Docker buildx
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f proxy/Dockerfile -t moonsonglabs/claude-nexus-proxy:v9 ..
+
+# Single platform build
 docker build -f proxy/Dockerfile -t moonsonglabs/claude-nexus-proxy:v9 ..
-docker build -f dashboard/Dockerfile -t moonsonglabs/claude-nexus-dashboard:v9 ..
 ```
 
 ## Pushing Images
