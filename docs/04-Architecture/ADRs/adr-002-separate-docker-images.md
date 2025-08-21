@@ -102,6 +102,7 @@ CMD ["bun", "dist/index.js"]
 - **Security Isolation**: Compromised dashboard can't access proxy credentials
 - **Faster Deployments**: Smaller images mean faster pulls and starts
 - **Clear Boundaries**: Forces proper service separation
+- **Multi-Architecture Support**: Images support both linux/amd64 and linux/arm64 (see ADR-022)
 
 ### Negative
 

@@ -2,7 +2,8 @@
 # Web dashboard for monitoring and analytics
 
 # ===== Builder Stage =====
-FROM oven/bun:alpine AS builder
+# Use BUILDPLATFORM to run builder on native architecture for speed
+FROM --platform=$BUILDPLATFORM oven/bun:alpine AS builder
 
 WORKDIR /app
 

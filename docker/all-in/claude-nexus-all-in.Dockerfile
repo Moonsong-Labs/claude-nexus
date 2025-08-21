@@ -2,7 +2,8 @@
 # Runs PostgreSQL, Proxy, and Dashboard in a single container
 
 # ===== Builder Stage =====
-FROM oven/bun:alpine AS builder
+# Use BUILDPLATFORM to run builder on native architecture for speed
+FROM --platform=$BUILDPLATFORM oven/bun:alpine AS builder
 
 WORKDIR /app
 
@@ -23,10 +24,18 @@ RUN cd services/dashboard/dist && bun install --production
 # ===== Runtime Stage =====
 FROM postgres:16-alpine AS runtime
 
-# Install utilities and Bun
+# Declare build arguments for architecture detection
+ARG TARGETARCH
+ARG TARGETPLATFORM
+
+# Install utilities and Bun (architecture-aware)
 RUN apk add --no-cache bash curl su-exec tini ca-certificates && \
+    # The Bun install script automatically detects architecture
+    # It maps: linux/amd64 -> x64, linux/arm64 -> aarch64
     curl -fsSL https://bun.sh/install | bash && \
-    ln -s /root/.bun/bin/bun /usr/local/bin/bun
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
+    # Verify Bun installation
+    bun --version
 
 # Environment defaults (can be overridden at run time)
 # Postgres
