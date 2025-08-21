@@ -1,14 +1,22 @@
-# <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 8px;"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="12" cy="20" r="2"/><circle cx="4" cy="12" r="2"/><path d="M12 9 L12 7"/><path d="M15 12 L18 12"/><path d="M12 15 L12 18"/><path d="M9 12 L6 12"/></svg>Claude Nexus Proxy
+# <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 8px;"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="12" cy="20" r="2"/><circle cx="4" cy="12" r="2"/><path d="M12 9 L12 7"/><path d="M15 12 L18 12"/><path d="M12 15 L12 18"/><path d="M9 12 L6 12"/></svg>Claude Nexus
 
-A high-performance proxy for Claude Code with comprehensive monitoring, conversation tracking, and dashboard visualization.  
+A Claude Code management service for cross teams and cross projects with comprehensive monitoring, conversation tracking, and dashboard visualization.  
 (_Supports Claude Max plan_)
 
-⚠️ Disclaimer: This project has been entirely vibe Coded (using Claude Nexus Proxy) with the goal to not manually touch a single file.
+⚠️ Disclaimer: This project has been entirely vibe Coded (using Claude Nexus) with the goal to not manually touch a single file.
 Use at your own risk :)
+
+### 📖 Quick Navigation
+
+- [**Getting Started**](#quick-start) - Set up Claude Nexus in seconds
+- [**Features**](#-features) - Explore capabilities and functionality
+- [**Development**](#development-setup) - Build and contribute
+- [**Documentation**](#documentation) - Complete guides and references
+- [**Deployment**](#production-deployment) - Production setup guides
 
 ## 🎯 Objectives
 
-Claude Nexus Proxy empowers development teams to maximize their Claude AI usage through:
+Claude Nexus empowers development teams to maximize their Claude AI usage through:
 
 - 🔍 **Complete Visibility**: Real-time access to conversations, tool invocations, and prompts for effective troubleshooting and debugging
 - 📈 **Historical Analytics**: Comprehensive activity history enabling usage monitoring, pattern identification, and continuous improvement
@@ -16,13 +24,15 @@ Claude Nexus Proxy empowers development teams to maximize their Claude AI usage 
 
 ## 🚀 Demo
 
-Experience Claude Nexus Proxy in action with our live demo:
+![Image](https://github.com/user-attachments/assets/91652db7-ebac-4386-994d-5775f455622f)
+
+Experience Claude Nexus in action with our live demo:
 
 👉 **[https://nexus-demo.moonsonglabs.dev](https://nexus-demo.moonsonglabs.dev)**
 
 _Note: This is a read-only demo showcasing real usage data from our development team._
 
-<img src="https://github.com/user-attachments/assets/aebffb8c-9535-4073-aa76-be31ee05a402" alt="Claude Nexus Proxy Dashboard" width="800">
+<img src="https://github.com/user-attachments/assets/aebffb8c-9535-4073-aa76-be31ee05a402" alt="Claude Nexus Dashboard" width="800">
 
 ## ✨ Features
 
@@ -38,7 +48,7 @@ _Note: This is a read-only demo showcasing real usage data from our development 
 
 ## 📚 Key Concepts
 
-Understanding these terms will help you navigate Claude Nexus Proxy effectively:
+Understanding these terms will help you navigate Claude Nexus effectively:
 
 ### Core Concepts
 
@@ -100,21 +110,30 @@ For administrators or heavy users, you can follow the token usage and see when a
 
 ## Quick Start
 
-Get Claude Nexus Proxy running locally in seconds.
+Get Claude Nexus running locally in seconds.
 
 ### 🔥 Super Quick Start (All-in-One Docker + Claude CLI)
 
 **Prerequisites:**
 
 - [Docker](https://docker.com)
-- Claude Code subscription
+- Claude Code (_already installed and setup_)
+
+Start the Claude Nexus (_docker image with: Postgres + Proxy + Dashboard_):
 
 ```bash
 docker run -d -p 3000:3000 -p 3001:3001 --name claude-nexus moonsonglabs/claude-nexus-all-in:latest
+```
+
+Start using it from any project, you can use multiple claude at the same time:
+
+```bash
 ANTHROPIC_BASE_URL=http://localhost:3000 claude
 ```
 
-You're all set—open `http://localhost:3001` to watch conversations live as you use Claude Code.
+You're all set!
+
+Access the **dashboard** at http://localhost:3001 to watch conversations as you use Claude Code.
 
 ---
 
@@ -213,7 +232,7 @@ Docker Containers:
 
 ## Production Deployment
 
-For deploying Claude Nexus Proxy in production environments.
+For deploying Claude Nexus in production environments.
 
 ### 📖 Deployment Guides
 
@@ -359,7 +378,7 @@ See [Development Guide](docs/01-Getting-Started/development.md) for development 
 
 ### Environments (MoonsongLabs Internal)
 
-Claude Nexus Proxy supports deployment to multiple environments:
+Claude Nexus supports deployment to multiple environments:
 
 - **Production (`prod`)** - Live production services
 - **Staging (`staging`)** - Pre-production testing environment
