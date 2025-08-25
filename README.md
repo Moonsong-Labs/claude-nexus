@@ -248,7 +248,7 @@ Choose your deployment method:
 
 ### ⚠️ Important Considerations
 
-- **In order to comply with the Anthropic Terms of Service, you need to have a Claude subscription for each user of Claude Nexus.**
+- **In order to comply with the Anthropic Terms of Service, you need to have a Claude Max subscription for each user of Claude Nexus.**
 - Always set `DASHBOARD_API_KEY` in production
 - Configure proper SSL/TLS certificates
 - Set up monitoring and alerting
