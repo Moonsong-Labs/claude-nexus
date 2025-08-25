@@ -1,6 +1,6 @@
 # <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 8px;"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="12" cy="20" r="2"/><circle cx="4" cy="12" r="2"/><path d="M12 9 L12 7"/><path d="M15 12 L18 12"/><path d="M12 15 L12 18"/><path d="M9 12 L6 12"/></svg>Claude Nexus
 
-Claude Nexus is a Claude Code management server for teams that includes comprehensive monitoring, conversation tracking, and dashboard visualizations.  Claude Nexus allows you to understand, manage, and improve your team's Claude Code usage.
+Claude Nexus is a Claude Code management server for teams that includes comprehensive monitoring, conversation tracking, and dashboard visualizations. Claude Nexus allows you to understand, manage, and improve your team's Claude Code usage.
 (_Supports Claude Max plan_)
 
 ### 📖 Quick Navigation
@@ -146,7 +146,7 @@ For developers who want to modify the proxy or dashboard code with **hot reload*
 
 - [Bun](https://bun.sh) runtime (v1.0+)
 - [Docker](https://docker.com) and Docker Compose
-- Claude API Key
+- Claude API Key or Claude Max subscription for each developer using Claude Nexus
 
 ### 🛠️ Development Workflow
 
@@ -248,6 +248,7 @@ Choose your deployment method:
 
 ### ⚠️ Important Considerations
 
+- **In order to comply with the Anthropic Terms of Service, you need to have a Claude Max subscription for each user of Claude Nexus.**
 - Always set `DASHBOARD_API_KEY` in production
 - Configure proper SSL/TLS certificates
 - Set up monitoring and alerting
